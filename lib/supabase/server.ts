@@ -3,7 +3,10 @@
 
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
-import type { Database } from '@ai-marketer/database';
+
+// Database type (Vercel standalone deployment fix)
+// TODO: Generate proper types with `npx supabase gen types typescript`
+type Database = Record<string, unknown>;
 
 export async function createClient() {
   const cookieStore = await cookies();

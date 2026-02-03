@@ -19,9 +19,7 @@
       }
     ],
     "paths": {
-      "@/*": ["./*"],
-      "@ai-marketer/database": ["../../packages/database/index.ts"],
-      "@ai-marketer/database/*": ["../../packages/database/*"]
+      "@/*": ["./src/*", "./*"]
     }
   },
   "include": [

@@ -2,7 +2,10 @@
 // Use this client in Client Components
 
 import { createBrowserClient } from '@supabase/ssr';
-import type { Database } from '@ai-marketer/database';
+
+// Database type (Vercel standalone deployment fix)
+// TODO: Generate proper types with `npx supabase gen types typescript`
+type Database = Record<string, unknown>;
 
 export function createClient() {
   return createBrowserClient<Database>(
