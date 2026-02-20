@@ -107,12 +107,14 @@ export async function saveBrandPersona(
     console.log("[Brand Action] Authenticated user:", user.email);
 
     // Step 2: Ensure user record exists in users table
+    const now = new Date().toISOString();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error: userUpsertError } = await (supabase as any).from("users").upsert(
       {
         id: userId,
         email: user.email!,
         full_name: user.user_metadata?.full_name || user.email?.split("@")[0] || "User",
+        updated_at: now,
       },
       { onConflict: "id" }
     );
@@ -140,7 +142,7 @@ export async function saveBrandPersona(
       workspaceId = existingMembership.workspace_id;
       console.log("[Brand Action] Found existing workspace:", workspaceId);
     } else {
-      // Create new workspace
+      // Create new workspace (without owner_id - use workspace_members for ownership)
       const workspaceSlug = `workspace-${userId.slice(0, 8)}-${Date.now()}`;
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -149,8 +151,8 @@ export async function saveBrandPersona(
         .insert({
           name: "My Workspace",
           slug: workspaceSlug,
-          owner_id: userId,
           subscription_tier: "FREE",
+          updated_at: now,
         })
         .select("id")
         .single();
@@ -204,6 +206,7 @@ export async function saveBrandPersona(
         brand_values: data.persona.brandValues,
         base_prompt_instruction: `브랜드 톤앤매너: ${data.persona.toneVoice.join(", ")}. ${data.persona.summary}`,
         is_active: true,
+        updated_at: now,
       })
       .select("id")
       .single();

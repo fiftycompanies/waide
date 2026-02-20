@@ -2,8 +2,11 @@
 
 import { useEffect, useState, useTransition } from "react";
 import {
+  Activity,
   BarChart3,
   Brain,
+  FileText,
+  GitBranch,
   Home,
   Loader2,
   LogOut,
@@ -87,6 +90,12 @@ const settingsNavItems = [
     url: "/settings",
     icon: Settings,
   },
+];
+
+const opsNavItems = [
+  { title: "운영 대시보드", url: "/ops", icon: Activity },
+  { title: "Jobs 현황", url: "/ops/jobs", icon: GitBranch },
+  { title: "콘텐츠 뷰어", url: "/ops/contents", icon: FileText },
 ];
 
 export function AppSidebar() {
@@ -187,6 +196,31 @@ export function AppSidebar() {
           <SidebarGroupContent>
             <SidebarMenu>
               {settingsNavItems.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={isActive(item.url)}
+                    className="transition-colors"
+                  >
+                    <Link href={item.url}>
+                      <item.icon className="h-4 w-4" />
+                      <span>{item.title}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        {/* Agent Operations */}
+        <SidebarGroup>
+          <SidebarGroupLabel className="text-xs font-medium text-muted-foreground px-2">
+            에이전트 운영
+          </SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {opsNavItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton
                     asChild

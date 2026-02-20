@@ -165,6 +165,7 @@ export async function createCampaign(input: {
       .limit(1)
       .maybeSingle();
 
+    const now = new Date().toISOString();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data, error } = await (supabase as any)
       .from("contents")
@@ -176,6 +177,7 @@ export async function createCampaign(input: {
         image_prompt: input.imagePrompt || null,
         hashtags: input.hashtags || [],
         status: "DRAFT",
+        updated_at: now,
       })
       .select()
       .single();

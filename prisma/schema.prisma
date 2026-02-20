@@ -134,3 +134,58 @@ enum KnowledgeSourceType {
   SOCIAL // From social media
   API // From external API
 }
+
+// ============================================
+// CONTENT (Campaign Posts)
+// ============================================
+
+model Content {
+  id          String        @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  workspaceId String        @map("workspace_id") @db.Uuid
+  personaId   String?       @map("persona_id") @db.Uuid
+  topic       String
+  caption     String        @db.Text
+  imageUrl    String?       @map("image_url")
+  imagePrompt String?       @map("image_prompt") @db.Text
+  hashtags    String[]      @default([])
+  status      ContentStatus @default(DRAFT)
+  scheduledAt DateTime?     @map("scheduled_at")
+  publishedAt DateTime?     @map("published_at")
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+
+  // Relations
+  analytics Analytics[]
+
+  @@index([workspaceId])
+  @@map("contents")
+}
+
+enum ContentStatus {
+  DRAFT
+  SCHEDULED
+  PUBLISHED
+}
+
+// ============================================
+// ANALYTICS (Performance Metrics)
+// ============================================
+
+model Analytics {
+  id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  contentId   String   @map("content_id") @db.Uuid
+  impressions Int      @default(0)
+  likes       Int      @default(0)
+  comments    Int      @default(0)
+  shares      Int      @default(0)
+  clicks      Int      @default(0)
+  date        DateTime @default(now())
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  // Relations
+  content Content @relation(fields: [contentId], references: [id], onDelete: Cascade)
+
+  @@index([contentId])
+  @@index([date])
+  @@map("analytics")
+}

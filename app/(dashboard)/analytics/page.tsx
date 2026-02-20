@@ -18,7 +18,6 @@ import {
   Heart,
   MessageCircle,
   Share2,
-  MousePointer,
   TrendingUp,
   BarChart3,
   Sparkles,
@@ -37,8 +36,6 @@ import {
   CartesianGrid,
   Tooltip,
   Legend,
-  LineChart,
-  Line,
   BarChart,
   Bar,
 } from "recharts";
@@ -262,7 +259,11 @@ export default function AnalyticsPage() {
   };
 
   useEffect(() => {
-    loadData();
+    // Load initial data on mount
+    const initLoad = async () => {
+      await loadData();
+    };
+    initLoad();
   }, []);
 
   // Generate mock data

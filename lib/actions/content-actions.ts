@@ -262,6 +262,7 @@ export async function saveToLibrary(
       .maybeSingle();
 
     // Save to contents table
+    const now = new Date().toISOString();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data, error } = await (supabase as any)
       .from("contents")
@@ -273,6 +274,7 @@ export async function saveToLibrary(
         image_prompt: content.imagePrompt,
         hashtags: content.hashtags || [],
         status: "DRAFT",
+        updated_at: now,
       })
       .select("id")
       .single();

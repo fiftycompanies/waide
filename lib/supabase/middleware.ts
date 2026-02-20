@@ -50,7 +50,7 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   // Define route types
-  const protectedRoutes = ['/dashboard', '/campaigns', '/analytics', '/onboarding', '/settings'];
+  const protectedRoutes = ['/dashboard', '/campaigns', '/analytics', '/onboarding', '/settings', '/ops'];
   const authRoutes = ['/login', '/signup'];
   const publicRoutes = ['/', '/api'];
 

@@ -157,6 +157,8 @@ export async function signup(
 
     // If user is confirmed (e.g., email confirmation disabled in Supabase)
     if (data.user && data.session) {
+      const now = new Date().toISOString();
+      
       // Create user record in users table
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { error: userError } = await (supabase as any).from("users").upsert(
@@ -164,6 +166,7 @@ export async function signup(
           id: data.user.id,
           email: data.user.email!,
           full_name: fullName || email.split("@")[0],
+          updated_at: now,
         },
         { onConflict: "id" }
       );
@@ -173,13 +176,16 @@ export async function signup(
         // Don't fail signup, just log it
       }
 
-      // Create default workspace
+      // Create default workspace (without owner_id - use workspace_members for ownership)
+      const workspaceSlug = `workspace-${data.user.id.slice(0, 8)}-${Date.now()}`;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: workspace, error: workspaceError } = await (supabase as any)
         .from("workspaces")
         .insert({
           name: "My Workspace",
-          owner_id: data.user.id,
+          slug: workspaceSlug,
+          subscription_tier: "FREE",
+          updated_at: now,
         })
         .select("id")
         .single();
@@ -190,7 +196,7 @@ export async function signup(
         await (supabase as any).from("workspace_members").insert({
           workspace_id: workspace.id,
           user_id: data.user.id,
-          role: "owner",
+          role: "OWNER",
         });
       }
 

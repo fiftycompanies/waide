@@ -97,6 +97,9 @@ export async function scrapeWebsite(url: string): Promise<ScrapedContent> {
     };
   } catch (error) {
     if (axios.isAxiosError(error)) {
+      if (error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT') {
+        throw new Error('웹사이트 응답 시간이 초과되었습니다. 다시 시도해주세요.');
+      }
       if (error.code === 'ECONNREFUSED') {
         throw new Error('웹사이트에 연결할 수 없습니다. URL을 확인해주세요.');
       }
@@ -109,7 +112,11 @@ export async function scrapeWebsite(url: string): Promise<ScrapedContent> {
       if (error.code === 'ENOTFOUND') {
         throw new Error('웹사이트 주소를 찾을 수 없습니다.');
       }
+      if (error.response?.status === 500) {
+        throw new Error('웹사이트 서버 오류가 발생했습니다.');
+      }
     }
+    console.error('[Scraper] Unexpected error:', error);
     throw new Error('웹사이트 스크래핑 중 오류가 발생했습니다.');
   }
 }
