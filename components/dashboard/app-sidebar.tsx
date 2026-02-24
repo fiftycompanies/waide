@@ -3,15 +3,19 @@
 import { useEffect, useState, useTransition } from "react";
 import {
   Activity,
-  BarChart3,
-  Brain,
-  FileText,
+  BarChart2,
+  Bot,
+  Building2,
+  CalendarClock,
+  FileEdit,
   GitBranch,
-  Home,
+  Key,
+  LayoutDashboard,
+  Library,
   Loader2,
   LogOut,
-  Rocket,
   Settings,
+  ShieldCheck,
   Sparkles,
   Target,
   Users,
@@ -32,7 +36,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -40,112 +44,84 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { signOut, getAuthUser } from "@/lib/actions/auth-actions";
+import { adminLogout, getAdminInfo } from "@/lib/actions/admin-actions";
+import { BrandSelector } from "@/components/dashboard/brand-selector";
+import type { AiMarketBrand } from "@/lib/actions/brand-actions";
+import type { AdminPayload } from "@/lib/auth/admin-session";
 
-// Navigation items for the sidebar
-const mainNavItems = [
-  {
-    title: "대시보드",
-    url: "/dashboard",
-    icon: Home,
-  },
-  {
-    title: "브랜드 온보딩",
-    url: "/onboarding",
-    icon: Rocket,
-  },
-  {
-    title: "브랜드 페르소나",
-    url: "/dashboard/personas",
-    icon: Brain,
-  },
-];
-
-const contentNavItems = [
-  {
-    title: "콘텐츠 생성",
-    url: "/campaigns/create",
-    icon: Sparkles,
-  },
-  {
-    title: "캠페인",
-    url: "/campaigns",
-    icon: Target,
-  },
-  {
-    title: "분석",
-    url: "/analytics",
-    icon: BarChart3,
-  },
-];
-
-const settingsNavItems = [
-  {
-    title: "팀 관리",
-    url: "/dashboard/team",
-    icon: Users,
-  },
-  {
-    title: "설정",
-    url: "/settings",
-    icon: Settings,
-  },
+// ── AI 마케터 파이프라인 기반 네비게이션 ───────────────────────────────────
+const primaryNavItems = [
+  { title: "대시보드",      url: "/dashboard",     icon: LayoutDashboard },
+  { title: "브랜드 관리",   url: "/brands",        icon: Building2 },
+  { title: "블로그 계정",   url: "/blog-accounts", icon: Users },
+  { title: "소스 라이브러리", url: "/sources",      icon: Library },
+  { title: "키워드 관리",   url: "/keywords",      icon: Key },
+  { title: "캠페인",        url: "/campaigns",     icon: Target },
+  { title: "콘텐츠 에디터", url: "/ops/contents",  icon: FileEdit },
+  { title: "성과 분석",     url: "/analytics",                     icon: BarChart2 },
+  { title: "발행 추천",     url: "/analytics/recommendations",     icon: Sparkles },
 ];
 
 const opsNavItems = [
-  { title: "운영 대시보드", url: "/ops", icon: Activity },
-  { title: "Jobs 현황", url: "/ops/jobs", icon: GitBranch },
-  { title: "콘텐츠 뷰어", url: "/ops/contents", icon: FileText },
+  { title: "Jobs 모니터링", url: "/ops/jobs",             icon: GitBranch },
+  { title: "에이전트 로그", url: "/ops",                  icon: Activity },
+  { title: "에이전트 설정", url: "/ops/agent-settings",   icon: Bot },
+  { title: "SERP 스케줄러", url: "/ops/serp-settings",    icon: BarChart2 },
+  { title: "자동 스케줄러", url: "/ops/scheduler",        icon: CalendarClock },
 ];
 
-export function AppSidebar() {
+interface AppSidebarProps {
+  brands?: AiMarketBrand[];
+  selectedClientId?: string | null;
+}
+
+export function AppSidebar({ brands = [], selectedClientId = null }: AppSidebarProps) {
   const pathname = usePathname();
   const [isPending, startTransition] = useTransition();
-  const [user, setUser] = useState<{ email?: string; name?: string } | null>(null);
+  const [admin, setAdmin] = useState<AdminPayload | null>(null);
 
   useEffect(() => {
-    // Fetch current user on mount
-    getAuthUser().then((authUser) => {
-      if (authUser) {
-        setUser({
-          email: authUser.email,
-          name: authUser.user_metadata?.full_name || authUser.email?.split("@")[0],
-        });
-      }
-    });
+    getAdminInfo().then(setAdmin);
   }, []);
 
   const handleSignOut = () => {
     startTransition(async () => {
-      await signOut();
+      await adminLogout();
     });
   };
 
   const isActive = (url: string) => {
-    if (url === "/dashboard") {
-      return pathname === url;
-    }
+    if (url === "/dashboard") return pathname === url;
     return pathname === url || pathname.startsWith(`${url}/`);
   };
 
+  const initials = admin?.displayName?.charAt(0).toUpperCase()
+    ?? admin?.username?.charAt(0).toUpperCase()
+    ?? "A";
+
   return (
     <Sidebar className="border-r border-border/40">
-      {/* Logo & Brand */}
-      <SidebarHeader className="border-b border-border/40 p-4">
+      {/* Logo */}
+      <SidebarHeader className="border-b border-border/40 p-4 pb-3">
         <Link href="/dashboard">
           <Logo size="md" />
         </Link>
       </SidebarHeader>
 
+      {/* 글로벌 브랜드 셀렉터 */}
+      <div className="border-b border-border/40 pt-3">
+        <BrandSelector brands={brands} selectedClientId={selectedClientId} />
+      </div>
+
       <SidebarContent className="px-2">
-        {/* Main Navigation */}
+        {/* 메인 워크플로우 */}
         <SidebarGroup>
           <SidebarGroupLabel className="text-xs font-medium text-muted-foreground px-2">
-            메인
+            워크플로우
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {mainNavItems.map((item) => (
+              {primaryNavItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton
                     asChild
@@ -163,57 +139,7 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {/* Content & Campaigns */}
-        <SidebarGroup>
-          <SidebarGroupLabel className="text-xs font-medium text-muted-foreground px-2">
-            콘텐츠
-          </SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {contentNavItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={isActive(item.url)}
-                    className="transition-colors"
-                  >
-                    <Link href={item.url}>
-                      <item.icon className="h-4 w-4" />
-                      <span>{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        {/* Settings */}
-        <SidebarGroup>
-          <SidebarGroupLabel className="text-xs font-medium text-muted-foreground px-2">
-            설정
-          </SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {settingsNavItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={isActive(item.url)}
-                    className="transition-colors"
-                  >
-                    <Link href={item.url}>
-                      <item.icon className="h-4 w-4" />
-                      <span>{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        {/* Agent Operations */}
+        {/* 에이전트 운영 모니터링 */}
         <SidebarGroup>
           <SidebarGroupLabel className="text-xs font-medium text-muted-foreground px-2">
             에이전트 운영
@@ -239,34 +165,41 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      {/* User Profile Footer */}
+      {/* 어드민 프로필 */}
       <SidebarFooter className="border-t border-border/40 p-2">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button className="flex w-full items-center gap-3 rounded-lg p-2 text-left hover:bg-accent transition-colors">
               <Avatar className="h-8 w-8">
-                <AvatarImage src="/placeholder-avatar.jpg" />
-                <AvatarFallback className="bg-gradient-to-br from-violet-500 to-fuchsia-500 text-white text-xs">
-                  {user?.name?.charAt(0).toUpperCase() || "U"}
+                <AvatarFallback className="bg-gradient-to-br from-amber-500 to-orange-500 text-white text-xs font-bold">
+                  {initials}
                 </AvatarFallback>
               </Avatar>
               <div className="flex flex-col flex-1 min-w-0">
                 <span className="text-sm font-medium truncate">
-                  {user?.name || "사용자"}
+                  {admin?.displayName || admin?.username || "어드민"}
                 </span>
                 <span className="text-xs text-muted-foreground truncate">
-                  {user?.email || "로딩 중..."}
+                  {admin?.role === "super_admin" ? "슈퍼 어드민" : admin?.role === "viewer" ? "뷰어" : "어드민"}
                 </span>
               </div>
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="w-56">
             <DropdownMenuItem asChild>
-              <Link href="/settings">프로필</Link>
+              <Link href="/settings/account">
+                <Settings className="h-4 w-4 mr-2" />
+                계정 설정
+              </Link>
             </DropdownMenuItem>
-            <DropdownMenuItem asChild>
-              <Link href="/settings/billing">요금제</Link>
-            </DropdownMenuItem>
+            {admin?.role === "super_admin" && (
+              <DropdownMenuItem asChild>
+                <Link href="/settings/admins">
+                  <ShieldCheck className="h-4 w-4 mr-2" />
+                  어드민 관리
+                </Link>
+              </DropdownMenuItem>
+            )}
             <DropdownMenuSeparator />
             <DropdownMenuItem
               onClick={handleSignOut}

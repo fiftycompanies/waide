@@ -1,0 +1,16 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/serp",
+      "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/cron/search-volume",
+      "schedule": "0 4 1 * *"
+    },
+    {
+      "path": "/api/cron/grading",
+      "schedule": "0 5 * * 1"
+    }
+  ]
+}

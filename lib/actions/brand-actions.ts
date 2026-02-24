@@ -1,7 +1,9 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/service";
 import { revalidatePath } from "next/cache";
+import { cookies } from "next/headers";
 
 // Type matching the LLM output from brand analysis
 export interface PersonaData {
@@ -184,7 +186,43 @@ export async function saveBrandPersona(
       }
     }
 
-    // Step 4: Save brand persona
+    // Step 4: Insert into clients (최상위 엔티티)
+    const brandName = data.scrapedTitle || "My Brand";
+    const adminDb = createAdminClient();
+
+    const { data: client, error: clientError } = await adminDb
+      .from("clients")
+      .insert({
+        workspace_id: workspaceId,
+        name: brandName,
+        company_name: brandName,
+        status: "active",
+        is_active: true,
+        website_url: data.url || null,
+        updated_at: now,
+      })
+      .select("id")
+      .single();
+
+    if (clientError || !client) {
+      console.error("[Brand Action] Client creation failed:", clientError);
+      return {
+        success: false,
+        error: `클라이언트 생성에 실패했습니다: ${clientError?.message || "Unknown error"}`,
+      };
+    }
+
+    const clientId = client.id;
+    console.log("[Brand Action] Created client:", clientId);
+
+    // Step 5: 기존 활성 페르소나 비활성화 (1:1 UNIQUE 인덱스 충돌 방지)
+    await adminDb
+      .from("brand_personas")
+      .update({ is_active: false, updated_at: now })
+      .eq("client_id", clientId)
+      .eq("is_active", true);
+
+    // Step 6: Save brand persona (linked to client)
     const toneVoiceSettings = {
       formality: data.persona.communicationStyle.formality,
       humor: data.persona.communicationStyle.humor,
@@ -194,12 +232,12 @@ export async function saveBrandPersona(
       keywords: data.persona.keywords,
     };
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: persona, error: personaError } = await (supabase as any)
+    const { data: persona, error: personaError } = await adminDb
       .from("brand_personas")
       .insert({
         workspace_id: workspaceId,
-        name: data.scrapedTitle || "My Brand",
+        client_id: clientId,
+        name: brandName,
         description: data.persona.summary,
         tone_voice_settings: toneVoiceSettings,
         target_audience: data.persona.targetAudience,
@@ -213,13 +251,15 @@ export async function saveBrandPersona(
 
     if (personaError || !persona) {
       console.error("[Brand Action] Persona creation failed:", personaError);
+      // Rollback: delete the client we just created
+      await adminDb.from("clients").delete().eq("id", clientId);
       return {
         success: false,
         error: `페르소나 저장에 실패했습니다: ${personaError?.message || "Unknown error"}`,
       };
     }
 
-    console.log("[Brand Action] ✅ Successfully created brand persona:", persona.id);
+    console.log("[Brand Action] ✅ Successfully created client + brand persona:", clientId, persona.id);
 
     revalidatePath("/dashboard");
 
@@ -235,6 +275,386 @@ export async function saveBrandPersona(
     };
   }
 }
+
+// ── AI 마케터 브랜드(brand_personas) 관련 ────────────────────────────────────
+
+export interface AiMarketBrand {
+  id: string;
+  name: string;
+  parent_id: string | null;
+  client_type: string;
+}
+
+/**
+ * 활성 브랜드(고객사) 목록 조회.
+ * clients 테이블에서 is_active=true인 고객사를 반환한다.
+ * 부모(parent_id IS NULL)를 먼저, 자식을 이후에 반환한다.
+ */
+export async function getAiMarketBrands(): Promise<AiMarketBrand[]> {
+  try {
+    const db = createAdminClient();
+    const { data } = await db
+      .from("clients")
+      .select("id, name, parent_id, client_type")
+      .eq("is_active", true)
+      .order("parent_id", { ascending: true, nullsFirst: true })
+      .order("name");
+    return (data ?? []).map((row) => ({
+      id: row.id,
+      name: row.name,
+      parent_id: (row as Record<string, unknown>).parent_id as string | null ?? null,
+      client_type: (row as Record<string, unknown>).client_type as string ?? "brand",
+    }));
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * 자식 클라이언트 목록 조회 (parentId를 부모로 갖는 clients)
+ */
+export async function getChildClients(
+  parentId: string
+): Promise<{ id: string; name: string }[]> {
+  try {
+    const db = createAdminClient();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data } = await (db as any)
+      .from("clients")
+      .select("id, name")
+      .eq("parent_id", parentId)
+      .eq("is_active", true)
+      .order("name");
+    return (data ?? []).map((row: { id: string; name: string }) => ({
+      id: row.id,
+      name: row.name,
+    }));
+  } catch {
+    return [];
+  }
+}
+
+// ── 브랜드 관리 CRUD ─────────────────────────────────────────────────────────
+
+export interface BrandDetail {
+  id: string;
+  name: string;
+  company_name: string | null;
+  website_url: string | null;
+  parent_id: string | null;
+  client_type: string;
+  is_active: boolean;
+  created_at: string;
+  keyword_count: number;
+  content_count: number;
+}
+
+/** 브랜드 전체 목록 조회 (관리용, 비활성 포함) */
+export async function getBrandList(): Promise<BrandDetail[]> {
+  try {
+    const db = createAdminClient();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data } = await (db as any)
+      .from("clients")
+      .select("id, name, company_name, website_url, parent_id, client_type, is_active, created_at")
+      .order("parent_id", { ascending: true, nullsFirst: true })
+      .order("name");
+
+    if (!data) return [];
+
+    // 키워드 수 / 콘텐츠 수 집계 (별도 쿼리 없이 0으로 초기화, 필요 시 확장)
+    const rows = data as Array<Record<string, unknown>>;
+    return rows.map((row) => ({
+      id: row.id as string,
+      name: row.name as string,
+      company_name: (row.company_name as string) ?? null,
+      website_url: (row.website_url as string) ?? null,
+      parent_id: (row.parent_id as string) ?? null,
+      client_type: (row.client_type as string) ?? "brand",
+      is_active: (row.is_active as boolean) ?? true,
+      created_at: row.created_at as string,
+      keyword_count: 0,
+      content_count: 0,
+    }));
+  } catch {
+    return [];
+  }
+}
+
+/** 브랜드 정보 수정 */
+export async function updateBrand(
+  id: string,
+  payload: { name?: string; company_name?: string; website_url?: string; client_type?: string; is_active?: boolean }
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const db = createAdminClient();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (db as any)
+      .from("clients")
+      .update({ ...payload, updated_at: new Date().toISOString() })
+      .eq("id", id);
+
+    if (error) return { success: false, error: error.message };
+    revalidatePath("/brands");
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: String(e) };
+  }
+}
+
+/** 브랜드 삭제 (cascade: keywords, contents, jobs 등은 DB FK ON DELETE CASCADE 처리 가정) */
+export async function deleteBrand(
+  id: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const db = createAdminClient();
+    // 소프트 삭제: is_active = false
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (db as any)
+      .from("clients")
+      .update({ is_active: false, updated_at: new Date().toISOString() })
+      .eq("id", id);
+
+    if (error) return { success: false, error: error.message };
+    revalidatePath("/brands");
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: String(e) };
+  }
+}
+
+/** 브랜드 생성 (온보딩 없이 직접 생성) */
+export async function createBrand(payload: {
+  name: string;
+  companyName?: string;
+  websiteUrl?: string;
+  clientType?: string;
+  parentId?: string | null;
+  workspaceId: string;
+}): Promise<{ success: boolean; id?: string; error?: string }> {
+  try {
+    const db = createAdminClient();
+    const now = new Date().toISOString();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (db as any)
+      .from("clients")
+      .insert({
+        workspace_id: payload.workspaceId,
+        name: payload.name.trim(),
+        company_name: payload.companyName?.trim() || payload.name.trim(),
+        website_url: payload.websiteUrl?.trim() || null,
+        client_type: payload.clientType ?? "company",
+        parent_id: payload.parentId ?? null,
+        status: "active",
+        is_active: true,
+        updated_at: now,
+      })
+      .select("id")
+      .single();
+
+    if (error) return { success: false, error: error.message };
+    revalidatePath("/brands");
+    return { success: true, id: data.id };
+  } catch (e) {
+    return { success: false, error: String(e) };
+  }
+}
+
+/** company 타입 브랜드만 조회 (하위 업체 생성 시 부모 선택용) */
+export async function getCompanyBrands(): Promise<Array<{ id: string; name: string }>> {
+  try {
+    const db = createAdminClient();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data } = await (db as any)
+      .from("clients")
+      .select("id, name")
+      .eq("client_type", "company")
+      .eq("is_active", true)
+      .order("name");
+    return (data ?? []).map((r: { id: string; name: string }) => ({ id: r.id, name: r.name }));
+  } catch {
+    return [];
+  }
+}
+
+/** 기본 워크스페이스 ID 조회 */
+export async function getDefaultWorkspaceId(): Promise<string | null> {
+  try {
+    const db = createAdminClient();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data } = await (db as any)
+      .from("workspaces")
+      .select("id")
+      .limit(1)
+      .single();
+    return data?.id ?? null;
+  } catch {
+    return null;
+  }
+}
+
+// ── 네이버 광고 API 키 관리 ──────────────────────────────────────────────────
+
+export interface ClientNaverApiKeys {
+  naver_ad_api_key: string | null;
+  naver_ad_secret_key: string | null;
+  naver_ad_customer_id: string | null;
+}
+
+export async function getClientApiKeys(clientId: string): Promise<ClientNaverApiKeys> {
+  try {
+    const db = createAdminClient();
+    const { data } = await db
+      .from("clients")
+      .select("naver_ad_api_key, naver_ad_secret_key, naver_ad_customer_id")
+      .eq("id", clientId)
+      .single();
+    return {
+      naver_ad_api_key: data?.naver_ad_api_key ?? null,
+      naver_ad_secret_key: data?.naver_ad_secret_key ?? null,
+      naver_ad_customer_id: data?.naver_ad_customer_id ?? null,
+    };
+  } catch {
+    return { naver_ad_api_key: null, naver_ad_secret_key: null, naver_ad_customer_id: null };
+  }
+}
+
+export async function updateClientApiKeys(
+  clientId: string,
+  keys: Partial<ClientNaverApiKeys>
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const db = createAdminClient();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (db as any)
+      .from("clients")
+      .update({ ...keys, updated_at: new Date().toISOString() })
+      .eq("id", clientId);
+    if (error) return { success: false, error: error.message };
+    revalidatePath("/brands");
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: String(e) };
+  }
+}
+
+// ── 브랜드 스타일 가이드 + 기본 소스 ────────────────────────────────────────
+
+export interface BrandStyleGuide {
+  tone?: string;
+  closing_text?: string;
+  cta_text?: string;
+  writing_rules?: string[];
+  [key: string]: unknown;
+}
+
+export async function getBrandPersonaSettings(clientId: string): Promise<{
+  default_source_ids: string[];
+  content_style_guide: BrandStyleGuide;
+} | null> {
+  try {
+    const db = createAdminClient();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data } = await (db as any)
+      .from("brand_personas")
+      .select("default_source_ids, content_style_guide")
+      .eq("client_id", clientId)
+      .eq("is_active", true)
+      .maybeSingle();
+    if (!data) return null;
+    return {
+      default_source_ids: data.default_source_ids ?? [],
+      content_style_guide: data.content_style_guide ?? {},
+    };
+  } catch {
+    return null;
+  }
+}
+
+export async function updateBrandPersonaSettings(
+  clientId: string,
+  payload: { default_source_ids?: string[]; content_style_guide?: BrandStyleGuide },
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const db = createAdminClient();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const update: any = { updated_at: new Date().toISOString() };
+    if (payload.default_source_ids !== undefined) update.default_source_ids = payload.default_source_ids;
+    if (payload.content_style_guide !== undefined) update.content_style_guide = payload.content_style_guide;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (db as any)
+      .from("brand_personas")
+      .update(update)
+      .eq("client_id", clientId)
+      .eq("is_active", true);
+
+    if (error) return { success: false, error: error.message };
+    revalidatePath("/brands");
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: String(e) };
+  }
+}
+
+/** 글로벌 브랜드 필터 쿠키 읽기 */
+export async function getSelectedClientId(): Promise<string | null> {
+  const cookieStore = await cookies();
+  return cookieStore.get("selected_client")?.value ?? null;
+}
+
+/** 글로벌 브랜드 필터 쿠키 저장 */
+export async function setSelectedClient(clientId: string | null) {
+  const cookieStore = await cookies();
+  if (clientId && clientId !== "all") {
+    cookieStore.set("selected_client", clientId, {
+      path: "/",
+      maxAge: 60 * 60 * 24 * 30,
+    });
+  } else {
+    cookieStore.delete("selected_client");
+  }
+  revalidatePath("/", "layout");
+}
+
+/** CMO 에이전트로 캠페인 기획 Job 삽입 */
+export async function triggerCampaign(payload: {
+  clientId: string;
+  keyword: string;
+  subKeyword?: string;
+  styleRefIds?: string[];
+}): Promise<{ success: boolean; jobId?: string; error?: string }> {
+  const db = createAdminClient();
+  try {
+    const { data: job, error } = await db
+      .from("jobs")
+      .insert({
+        assigned_agent: "CMO",
+        job_type: "CAMPAIGN_PLAN",
+        status: "PENDING",
+        title: `[캠페인 기획] ${payload.keyword}`,
+        client_id: payload.clientId,
+        trigger_type: "USER",
+        triggered_by: "SYSTEM",
+        priority: "medium",
+        input_payload: {
+          keyword: payload.keyword,
+          sub_keyword: payload.subKeyword ?? "",
+          style_ref_ids: payload.styleRefIds ?? [],
+        },
+        retry_count: 0,
+      })
+      .select("id")
+      .single();
+
+    if (error) throw new Error(error.message);
+    return { success: true, jobId: job.id };
+  } catch (e) {
+    return { success: false, error: String(e) };
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 /**
  * Get the most recent brand persona for the authenticated user

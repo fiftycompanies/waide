@@ -4,8 +4,6 @@
 
 import { createClient } from '@supabase/supabase-js';
 
-type Database = Record<string, unknown>;
-
 export function createAdminClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceKey = process.env.SUPABASE_SERVICE_KEY;
@@ -16,7 +14,8 @@ export function createAdminClient() {
     );
   }
 
-  return createClient<Database>(supabaseUrl, serviceKey, {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return createClient<any>(supabaseUrl, serviceKey, {
     auth: {
       autoRefreshToken: false,
       persistSession: false,

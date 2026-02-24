@@ -1,383 +1,137 @@
-"use client";
-
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { createAdminClient } from "@/lib/supabase/service";
+import { notFound } from "next/navigation";
 import Link from "next/link";
-import {
-  ArrowLeft,
-  Save,
-  Calendar,
-  Clock,
-  ImageIcon,
-  Loader2,
-  Trash2,
-  Check,
-  Link as LinkIcon,
-  Hash,
-} from "lucide-react";
-import { toast } from "sonner";
-
+import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
-import { Skeleton } from "@/components/ui/skeleton";
-import {
-  getCampaignById,
-  updateCampaign,
-  deleteCampaign,
-  type Content,
-} from "@/lib/actions/campaign-actions";
 
-const statusConfig: Record<string, { label: string; color: string }> = {
-  DRAFT: { label: "초안", color: "bg-slate-500/10 text-slate-600 dark:text-slate-400" },
-  SCHEDULED: { label: "예약됨", color: "bg-amber-500/10 text-amber-600 dark:text-amber-400" },
-  PUBLISHED: { label: "발행됨", color: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" },
+const CAMPAIGN_STATUS_KO: Record<string, string> = {
+  draft: "초안",
+  active: "진행중",
+  paused: "일시정지",
+  completed: "완료",
+  cancelled: "취소",
 };
 
 interface PageProps {
   params: Promise<{ id: string }>;
 }
 
-export default function CampaignDetailPage({ params }: PageProps) {
-  const router = useRouter();
-  const [campaign, setCampaign] = useState<Content | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
+const JOB_STATUS_COLORS: Record<string, string> = {
+  PENDING: "bg-amber-100 text-amber-700 border-amber-200",
+  IN_PROGRESS: "bg-blue-100 text-blue-700 border-blue-200",
+  DONE: "bg-emerald-100 text-emerald-700 border-emerald-200",
+  FAILED: "bg-red-100 text-red-700 border-red-200",
+  CANCELLED: "bg-gray-100 text-gray-600 border-gray-200",
+};
 
-  // Form state
-  const [caption, setCaption] = useState("");
-  const [imageUrl, setImageUrl] = useState("");
-  const [scheduledAt, setScheduledAt] = useState("");
+const AGENT_LABELS: Record<string, string> = {
+  CMO: "CMO",
+  COPYWRITER: "COPYWRITER",
+  OPS_QUALITY: "QC",
+  OPS_PUBLISHER: "PUBLISHER",
+  RND: "R&D",
+};
 
-  // Load campaign data
-  useEffect(() => {
-    async function loadCampaign() {
-      const resolvedParams = await params;
-      const result = await getCampaignById(resolvedParams.id);
-      if (result.success && result.data) {
-        setCampaign(result.data);
-        setCaption(result.data.caption);
-        setImageUrl(result.data.image_url || "");
-        setScheduledAt(
-          result.data.scheduled_at
-            ? new Date(result.data.scheduled_at).toISOString().slice(0, 16)
-            : ""
-        );
-      } else {
-        toast.error("콘텐츠를 찾을 수 없습니다.");
-        router.push("/campaigns");
-      }
-      setIsLoading(false);
-    }
-    loadCampaign();
-  }, [params, router]);
+export default async function CampaignDetailPage({ params }: PageProps) {
+  const { id } = await params;
+  const db = createAdminClient();
 
-  const handleSaveDraft = async () => {
-    if (!campaign) return;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: campaign } = await (db as any)
+    .from("campaigns")
+    .select("id, title, status, created_at, keyword_id, strategy_brief")
+    .eq("id", id)
+    .single();
 
-    setIsSaving(true);
-    toast.loading("저장 중...", { id: "save" });
+  if (!campaign) notFound();
 
-    const result = await updateCampaign(campaign.id, {
-      caption,
-      imageUrl: imageUrl || null,
-    });
-
-    if (result.success) {
-      toast.success("저장되었습니다!", { id: "save" });
-      setCampaign(result.data!);
-    } else {
-      toast.error(result.error || "저장에 실패했습니다.", { id: "save" });
-    }
-
-    setIsSaving(false);
-  };
-
-  const handleSchedule = async () => {
-    if (!campaign || !scheduledAt) {
-      toast.error("발행 일시를 선택해주세요.");
-      return;
-    }
-
-    setIsSaving(true);
-    toast.loading("예약 중...", { id: "schedule" });
-
-    const result = await updateCampaign(campaign.id, {
-      caption,
-      imageUrl: imageUrl || null,
-      scheduledAt: new Date(scheduledAt).toISOString(),
-      status: "SCHEDULED",
-    });
-
-    if (result.success) {
-      toast.success("게시물이 예약되었습니다!", { id: "schedule" });
-      setCampaign(result.data!);
-    } else {
-      toast.error(result.error || "예약에 실패했습니다.", { id: "schedule" });
-    }
-
-    setIsSaving(false);
-  };
-
-  const handleDelete = async () => {
-    if (!campaign) return;
-
-    if (!confirm("정말로 이 콘텐츠를 삭제하시겠습니까?")) return;
-
-    setIsDeleting(true);
-    toast.loading("삭제 중...", { id: "delete" });
-
-    const result = await deleteCampaign(campaign.id);
-
-    if (result.success) {
-      toast.success("삭제되었습니다!", { id: "delete" });
-      router.push("/campaigns");
-    } else {
-      toast.error(result.error || "삭제에 실패했습니다.", { id: "delete" });
-      setIsDeleting(false);
-    }
-  };
-
-  if (isLoading) {
-    return (
-      <div className="p-6 space-y-6 max-w-5xl mx-auto">
-        <div className="flex items-center gap-4">
-          <Skeleton className="h-10 w-10" />
-          <div className="space-y-2">
-            <Skeleton className="h-6 w-48" />
-            <Skeleton className="h-4 w-32" />
-          </div>
-        </div>
-        <div className="grid lg:grid-cols-2 gap-6">
-          <Skeleton className="h-96" />
-          <Skeleton className="h-96" />
-        </div>
-      </div>
-    );
-  }
-
-  if (!campaign) return null;
-
-  const status = statusConfig[campaign.status] || statusConfig.DRAFT;
+  // Fetch related jobs
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: jobs } = await (db as any)
+    .from("jobs")
+    .select("id, title, assigned_agent, job_type, status, created_at, updated_at")
+    .eq("campaign_id", id)
+    .order("created_at", { ascending: true });
 
   return (
-    <div className="p-6 space-y-6 max-w-5xl mx-auto">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
+    <div className="p-6 md:p-8 space-y-6">
+      <div className="flex items-center gap-3">
+        <Button variant="ghost" size="icon" asChild className="h-8 w-8">
           <Link href="/campaigns">
-            <Button variant="ghost" size="icon">
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
+            <ArrowLeft className="h-4 w-4" />
           </Link>
-          <div>
-            <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold tracking-tight">{campaign.topic}</h1>
-              <Badge className={status.color}>{status.label}</Badge>
-            </div>
-            <p className="text-sm text-muted-foreground">
-              생성일: {new Date(campaign.created_at).toLocaleDateString("ko-KR")}
-            </p>
-          </div>
-        </div>
-
-        <Button
-          variant="ghost"
-          size="icon"
-          className="text-red-500 hover:text-red-600 hover:bg-red-500/10"
-          onClick={handleDelete}
-          disabled={isDeleting}
-        >
-          {isDeleting ? (
-            <Loader2 className="h-5 w-5 animate-spin" />
-          ) : (
-            <Trash2 className="h-5 w-5" />
-          )}
         </Button>
-      </div>
-
-      <div className="grid lg:grid-cols-2 gap-6">
-        {/* Left Column - Caption Editor */}
-        <Card className="border-border/40">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Hash className="h-5 w-5 text-violet-500" />
-              캡션 편집
-            </CardTitle>
-            <CardDescription>
-              Instagram에 게시될 캡션을 편집하세요
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <textarea
-              value={caption}
-              onChange={(e) => setCaption(e.target.value)}
-              className="w-full min-h-[200px] p-3 rounded-lg border border-border/40 bg-background/50 resize-none focus:outline-none focus:ring-2 focus:ring-violet-500/50 text-sm leading-relaxed"
-              placeholder="캡션을 입력하세요..."
-            />
-
-            {/* Hashtags */}
-            {campaign.hashtags && campaign.hashtags.length > 0 && (
-              <div className="space-y-2">
-                <Label className="text-sm text-muted-foreground">해시태그</Label>
-                <div className="flex flex-wrap gap-2">
-                  {campaign.hashtags.map((tag, index) => (
-                    <Badge
-                      key={index}
-                      variant="secondary"
-                      className="bg-violet-500/10 text-violet-600 dark:text-violet-400"
-                    >
-                      #{tag}
-                    </Badge>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Image Prompt (read-only) */}
-            {campaign.image_prompt && (
-              <div className="space-y-2">
-                <Label className="text-sm text-muted-foreground">이미지 프롬프트</Label>
-                <div className="p-3 rounded-lg bg-fuchsia-500/5 border border-fuchsia-500/20">
-                  <p className="text-xs text-muted-foreground">
-                    {campaign.image_prompt}
-                  </p>
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Right Column - Image & Scheduling */}
-        <div className="space-y-6">
-          {/* Image Upload */}
-          <Card className="border-border/40">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <ImageIcon className="h-5 w-5 text-fuchsia-500" />
-                이미지
-              </CardTitle>
-              <CardDescription>
-                게시물에 첨부할 이미지 URL을 입력하세요
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {/* Image Preview */}
-              <div className="aspect-video bg-muted/50 rounded-lg overflow-hidden border border-border/40">
-                {imageUrl ? (
-                  <img
-                    src={imageUrl}
-                    alt="Preview"
-                    className="w-full h-full object-cover"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).style.display = "none";
-                    }}
-                  />
-                ) : (
-                  <div className="w-full h-full flex flex-col items-center justify-center">
-                    <ImageIcon className="h-12 w-12 text-muted-foreground/30 mb-2" />
-                    <p className="text-sm text-muted-foreground">이미지 미리보기</p>
-                  </div>
-                )}
-              </div>
-
-              {/* URL Input */}
-              <div className="space-y-2">
-                <Label htmlFor="imageUrl">이미지 URL</Label>
-                <div className="relative">
-                  <LinkIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    id="imageUrl"
-                    value={imageUrl}
-                    onChange={(e) => setImageUrl(e.target.value)}
-                    placeholder="https://example.com/image.jpg"
-                    className="pl-10"
-                  />
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  직접 업로드는 추후 지원 예정입니다
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Scheduling */}
-          <Card className="border-border/40">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Calendar className="h-5 w-5 text-amber-500" />
-                발행 예약
-              </CardTitle>
-              <CardDescription>
-                게시물 발행 일시를 설정하세요
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="scheduledAt">발행 일시</Label>
-                <div className="relative">
-                  <Clock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    id="scheduledAt"
-                    type="datetime-local"
-                    value={scheduledAt}
-                    onChange={(e) => setScheduledAt(e.target.value)}
-                    className="pl-10"
-                    min={new Date().toISOString().slice(0, 16)}
-                  />
-                </div>
-              </div>
-
-              {campaign.status === "SCHEDULED" && campaign.scheduled_at && (
-                <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
-                  <Check className="h-4 w-4 text-amber-500" />
-                  <span className="text-sm text-amber-600 dark:text-amber-400">
-                    {new Date(campaign.scheduled_at).toLocaleDateString("ko-KR", {
-                      year: "numeric",
-                      month: "long",
-                      day: "numeric",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                    에 발행 예정
-                  </span>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+        <div>
+          <h1 className="text-xl font-bold tracking-tight">{campaign.title}</h1>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            {new Date(campaign.created_at).toLocaleDateString("ko-KR")}
+          </p>
         </div>
-      </div>
-
-      {/* Action Buttons */}
-      <div className="flex gap-3 justify-end sticky bottom-6">
-        <Button
+        <Badge
           variant="outline"
-          onClick={handleSaveDraft}
-          disabled={isSaving}
-          className="h-12 px-6"
+          className="ml-2 text-[10px]"
         >
-          {isSaving ? (
-            <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-          ) : (
-            <Save className="mr-2 h-5 w-5" />
-          )}
-          초안 저장
-        </Button>
-        <Button
-          onClick={handleSchedule}
-          disabled={isSaving || !scheduledAt}
-          className="h-12 px-6 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600"
-        >
-          {isSaving ? (
-            <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-          ) : (
-            <Calendar className="mr-2 h-5 w-5" />
-          )}
-          발행 예약
-        </Button>
+          {CAMPAIGN_STATUS_KO[campaign.status] ?? campaign.status}
+        </Badge>
+      </div>
+
+      {campaign.strategy_brief && (
+        <div className="rounded-lg border border-violet-200 bg-violet-50/60 p-4 text-sm text-violet-800 whitespace-pre-wrap">
+          {campaign.strategy_brief}
+        </div>
+      )}
+
+      {/* Jobs 파이프라인 */}
+      <div>
+        <h2 className="text-sm font-semibold mb-3">에이전트 파이프라인</h2>
+        {!jobs || jobs.length === 0 ? (
+          <p className="text-sm text-muted-foreground">연결된 Job이 없습니다.</p>
+        ) : (
+          <div className="rounded-lg border border-border/60 overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border/60 bg-muted/40 text-xs font-medium text-muted-foreground">
+                  <th className="px-4 py-3 text-left">Job 제목</th>
+                  <th className="px-4 py-3 text-center">에이전트</th>
+                  <th className="px-4 py-3 text-center">상태</th>
+                  <th className="px-4 py-3 text-right">생성일</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/40">
+                {(jobs as Array<{
+                  id: string;
+                  title: string;
+                  assigned_agent: string;
+                  job_type: string;
+                  status: string;
+                  created_at: string;
+                  updated_at: string;
+                }>).map((job) => (
+                  <tr key={job.id} className="hover:bg-muted/20 transition-colors">
+                    <td className="px-4 py-3 text-sm">{job.title}</td>
+                    <td className="px-4 py-3 text-center">
+                      <span className="text-xs text-muted-foreground">
+                        {AGENT_LABELS[job.assigned_agent] ?? job.assigned_agent}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <Badge
+                        variant="outline"
+                        className={`text-[10px] px-1.5 ${JOB_STATUS_COLORS[job.status] ?? ""}`}
+                      >
+                        {job.status}
+                      </Badge>
+                    </td>
+                    <td className="px-4 py-3 text-right text-xs text-muted-foreground">
+                      {new Date(job.created_at).toLocaleDateString("ko-KR")}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );
