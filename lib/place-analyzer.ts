@@ -595,6 +595,8 @@ function parseAddress(address: string): AddressParts {
     } else if (!sigungu && (part.endsWith("구") || part.endsWith("군") || part.endsWith("시"))) {
       sigungu = part;
     } else if (!dong && part.endsWith("동") && !part.includes("로") && !part.includes("길")) {
+      // 건물 동 필터: 숫자/영문 포함 또는 "동"만 1글자인 경우 제외
+      if (/[A-Za-z0-9\-]/.test(part) || part.length <= 1) continue;
       dong = part;
     } else if (!dong && (part.endsWith("읍") || part.endsWith("면"))) {
       dong = part;
@@ -623,12 +625,13 @@ function parseAddress(address: string): AddressParts {
 function generateKeywordCandidates(
   collected: CollectedData
 ): Array<{ keyword: string; source: string }> {
-  // 도로명 + 지번 둘 다 파싱하여 동 정보 보완
+  // 지번 주소 우선 파싱 (지번은 항상 실제 행정동 포함)
+  // 도로명 주소는 건물명("편익동", "A동")을 동으로 오인식할 수 있음
+  const addrJibun = collected.address ? parseAddress(collected.address) : null;
   const addrRoad = parseAddress(collected.roadAddress || collected.address);
-  const addrJibun = collected.address ? parseAddress(collected.address) : addrRoad;
   const addr = {
     ...addrRoad,
-    dong: addrRoad.dong || addrJibun.dong, // 도로명에서 동 못찾으면 지번에서
+    dong: addrJibun?.dong || addrRoad.dong, // 지번 우선, 도로명 폴백
   };
   const industry = detectIndustry(collected.category, collected.name);
   const subKws = INDUSTRY_SUB_KEYWORDS[industry] ?? ["맛집"];
@@ -651,18 +654,17 @@ function generateKeywordCandidates(
   };
 
   // ── 지역 변형 생성 ──
+  // 규칙: 동/읍/면은 접미사 유지 (방이동 맛집 O, 방이 맛집 X)
+  //       시/군/구는 접미사 제거 (송파 맛집 O, 송파구 맛집 X)
   const regions: Array<{ name: string; source: string }> = [];
 
-  // 1단계: 동/면/읍
+  // 1단계: 동/면/읍 — 접미사 유지
   if (addr.dong) {
-    const shortDong = addr.dong.replace(/(동|읍|면)$/, "");
-    regions.push({ name: shortDong, source: "행정구역(동)" });
     regions.push({ name: addr.dong, source: "행정구역(동)" });
   }
-  // 2단계: 시/군/구
+  // 2단계: 시/군/구 — 접미사 제거
   if (addr.sigungu) {
     const shortSigungu = addr.sigungu.replace(/(구|군|시)$/, "");
-    regions.push({ name: addr.sigungu, source: "행정구역(구)" });
     regions.push({ name: shortSigungu, source: "행정구역(구)" });
     // 도+시군구
     if (addr.sido && addr.sido !== "서울") {
@@ -682,8 +684,9 @@ function generateKeywordCandidates(
   }
 
   // ── 추가 패턴 ──
+  // 동은 접미사 유지 (방이동), 구는 제거 (송파)
   const primaryRegion = addr.dong
-    ? addr.dong.replace(/(동|읍|면)$/, "")
+    ? addr.dong
     : addr.sigungu?.replace(/(구|군|시)$/, "") ?? "";
 
   if (primaryRegion) {
@@ -1179,11 +1182,16 @@ export async function runFullAnalysis(analysisId: string): Promise<void> {
     // Step 5-B: AI 콘텐츠 전략 분석
     const aiResult = await analyzeWithClaude(collected, keywords);
 
-    // 지역 추출
-    const addr = parseAddress(collected.roadAddress || collected.address);
-    const region = addr.dong
-      ? `${addr.sigungu} ${addr.dong}`
-      : addr.sigungu || "";
+    // 지역 추출 (지번 주소 우선 → 실제 행정동)
+    const addrForRegion = collected.address
+      ? parseAddress(collected.address)
+      : parseAddress(collected.roadAddress || "");
+    const addrRoadRegion = parseAddress(collected.roadAddress || collected.address);
+    const regionDong = addrForRegion.dong || addrRoadRegion.dong;
+    const regionSigungu = addrForRegion.sigungu || addrRoadRegion.sigungu;
+    const region = regionDong
+      ? `${regionSigungu} ${regionDong}`
+      : regionSigungu || "";
 
     // Step 6: 이미지 분석 (Vision AI — 설정에서 활성화된 경우만)
     // 이미지 수집은 collectPlaceData에서 이미 완료됨 (collected.imageUrls)
