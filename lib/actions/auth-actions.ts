@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { z } from "zod";
 
 // Validation schemas
@@ -393,14 +394,18 @@ export async function portalSignUp(
   const role: UserRole = (invitation?.role as UserRole) || "client_owner";
   const clientId: string | null = invitation?.client_id || null;
 
+  const now = new Date().toISOString();
   const { error: userError } = await db.from("users").insert({
     auth_id: authData.user?.id,
     email,
+    full_name: name,
     name,
     phone: phone || null,
     role,
     client_id: clientId,
     is_active: true,
+    created_at: now,
+    updated_at: now,
   });
 
   if (userError) return { success: false as const, error: userError.message };
@@ -546,4 +551,80 @@ export async function changeUserPassword(newPassword: string) {
 
   if (error) return { success: false as const, error: error.message };
   return { success: true as const };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 통합 로그인 (어드민 + 고객 자동 구분)
+// ═══════════════════════════════════════════════════════════════════════════
+
+import bcrypt from "bcryptjs";
+import {
+  createSessionToken,
+  COOKIE_NAME,
+  MAX_AGE,
+} from "@/lib/auth/admin-session";
+import type { AdminPayload } from "@/lib/auth/admin-session";
+
+export async function unifiedLogin(identifier: string, password: string) {
+  const isEmail = identifier.includes("@");
+
+  // 1. 어드민 로그인 시도 (username 기반)
+  if (!isEmail) {
+    const db = createAdminClient();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: admin } = await (db as any)
+      .from("admin_users")
+      .select("id, username, display_name, role, password_hash, is_active")
+      .eq("username", identifier)
+      .eq("is_active", true)
+      .maybeSingle();
+
+    if (admin) {
+      const match = await bcrypt.compare(password, admin.password_hash as string);
+      if (match) {
+        // 어드민 세션 쿠키 설정
+        const token = createSessionToken({
+          id: admin.id as string,
+          username: admin.username as string,
+          role: admin.role as AdminPayload["role"],
+          displayName: (admin.display_name as string) || (admin.username as string),
+        });
+
+        const cookieStore = await cookies();
+        cookieStore.set(COOKIE_NAME, token, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === "production",
+          path: "/",
+          maxAge: MAX_AGE,
+          sameSite: "lax",
+        });
+
+        // last_login_at 갱신
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (db as any)
+          .from("admin_users")
+          .update({ last_login_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+          .eq("id", admin.id)
+          .then(() => {});
+
+        return { success: true as const, redirect: "/dashboard" };
+      }
+    }
+  }
+
+  // 2. Supabase Auth 로그인 시도 (이메일 기반)
+  const result = await portalSignIn(identifier, password);
+  if (result.success) {
+    const isClientUser =
+      result.role === "client_owner" || result.role === "client_member";
+    return {
+      success: true as const,
+      redirect: isClientUser ? "/portal" : "/dashboard",
+    };
+  }
+
+  return {
+    success: false as const,
+    error: "아이디/이메일 또는 비밀번호가 올바르지 않습니다.",
+  };
 }
