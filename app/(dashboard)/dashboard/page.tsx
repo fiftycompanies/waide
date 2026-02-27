@@ -25,6 +25,11 @@ import { getBrandAnalysisKpi, type BrandAnalysisKpi } from "@/lib/actions/analys
 import { VisibilityTrendChart } from "@/components/dashboard/visibility-trend-chart";
 import { KeywordDonutChart } from "@/components/dashboard/keyword-donut-chart";
 import { SerpRankChart } from "@/components/analytics/serp-rank-chart";
+import {
+  getBusinessDashboardData,
+  type BusinessDashboardData,
+} from "@/lib/actions/dashboard-actions";
+import Link from "next/link";
 
 // ── 델타 배지 ────────────────────────────────────────────────────────────────
 function DeltaBadge({ value, inverse = false, unit = "%" }: { value: number; inverse?: boolean; unit?: string }) {
@@ -183,8 +188,212 @@ function BrandSummaryTable({ brands }: { brands: BrandSummaryStats[] }) {
   );
 }
 
-// ── 대시보드 데이터 섹션 ─────────────────────────────────────────────────────
-interface DashboardData {
+// ── B2B 비즈니스 KPI 섹션 ──────────────────────────────────────────────────
+function BusinessKpiSection({ data }: { data: BusinessDashboardData }) {
+  const { kpi, statusDistribution, goals, atRiskClients, salesPerformance } = data;
+  const statusTotal = statusDistribution.active + statusDistribution.onboarding + statusDistribution.atRisk + statusDistribution.churned;
+
+  return (
+    <div className="space-y-6">
+      {/* 핵심 KPI 4개 */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <KpiCard
+          icon="💰"
+          label="MRR"
+          value={kpi.mrr > 0 ? `₩${(kpi.mrr / 10000).toFixed(0)}만` : "₩0"}
+          delta={kpi.mrrDelta !== 0 ? <DeltaBadge value={kpi.mrrDelta} /> : undefined}
+          desc="월 반복 매출"
+          color="from-emerald-50 to-green-50 border-emerald-100"
+        />
+        <KpiCard
+          icon="👥"
+          label="활성 고객"
+          value={`${kpi.activeClients}개`}
+          delta={kpi.newClients > 0
+            ? <span className="text-xs font-medium text-emerald-600">+{kpi.newClients} 신규</span>
+            : undefined}
+          desc="구독 중인 고객"
+          color="from-blue-50 to-sky-50 border-blue-100"
+        />
+        <KpiCard
+          icon="📉"
+          label="이탈률"
+          value={`${kpi.churnRate}%`}
+          delta={kpi.churnRateDelta !== 0 ? <DeltaBadge value={kpi.churnRateDelta} inverse /> : undefined}
+          desc="이번 달"
+          color="from-red-50 to-rose-50 border-red-100"
+          urgent={kpi.churnRate > 5}
+        />
+        <KpiCard
+          icon="📊"
+          label="평균 마케팅 점수"
+          value={kpi.avgScore > 0 ? `${kpi.avgScore}/100` : "--"}
+          delta={kpi.avgScoreDelta !== 0
+            ? <span className={`text-xs font-medium ${kpi.avgScoreDelta > 0 ? "text-emerald-600" : "text-red-500"}`}>
+                {kpi.avgScoreDelta > 0 ? "▲" : "▼"}{Math.abs(kpi.avgScoreDelta)}점
+              </span>
+            : undefined}
+          desc="활성 고객 평균"
+          color="from-amber-50 to-yellow-50 border-amber-100"
+        />
+      </div>
+
+      {/* 중단 — 고객 상태 + 목표 */}
+      <div className="grid gap-5 lg:grid-cols-2">
+        {/* 고객 상태 분포 */}
+        <Card className="border-border/40">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-semibold">고객 상태 분포</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {[
+                { label: "Active", count: statusDistribution.active, color: "bg-emerald-500" },
+                { label: "Onboarding", count: statusDistribution.onboarding, color: "bg-blue-500" },
+                { label: "At Risk", count: statusDistribution.atRisk, color: "bg-amber-500" },
+                { label: "Churned", count: statusDistribution.churned, color: "bg-gray-400" },
+              ].map((s) => (
+                <div key={s.label} className="flex items-center gap-3">
+                  <span className="text-xs font-medium w-20 text-muted-foreground">{s.label}</span>
+                  <span className="text-sm font-bold w-8">{s.count}</span>
+                  <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full ${s.color}`}
+                      style={{ width: `${statusTotal > 0 ? (s.count / statusTotal) * 100 : 0}%` }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* 이번달 목표 */}
+        <Card className="border-border/40">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-semibold">이번 달 목표</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {goals.map((g) => {
+                const pct = g.target > 0 ? Math.min((g.current / g.target) * 100, 100) : 0;
+                return (
+                  <div key={g.label}>
+                    <div className="flex justify-between text-sm mb-1">
+                      <span className="font-medium">{g.label}</span>
+                      <span className="text-muted-foreground">
+                        {g.current} / {g.target} <span className="text-xs">({Math.round(pct)}%)</span>
+                      </span>
+                    </div>
+                    <div className="h-2 bg-muted rounded-full overflow-hidden">
+                      <div
+                        className={`h-full rounded-full ${pct >= 80 ? "bg-emerald-500" : pct >= 50 ? "bg-amber-500" : "bg-red-400"}`}
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* At Risk 고객 */}
+      {atRiskClients.length > 0 && (
+        <Card className="border-amber-200 bg-amber-50/30">
+          <CardHeader className="pb-3 flex flex-row items-center justify-between">
+            <CardTitle className="text-sm font-semibold">⚠️ 주의 필요 고객</CardTitle>
+            <Link href="/ops/churn" className="text-xs text-amber-600 hover:underline">전체 보기 →</Link>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {atRiskClients.slice(0, 5).map((c) => (
+                <div
+                  key={c.id}
+                  className="p-3 rounded-lg bg-white border border-amber-100"
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className={`text-sm ${c.severity === "high" ? "text-red-500" : "text-amber-500"}`}>
+                        {c.severity === "high" ? "🔴" : "🟡"}
+                      </span>
+                      <span className="font-medium text-sm">{c.brand_name}</span>
+                    </div>
+                    <Link
+                      href={`/ops/clients/${c.id}`}
+                      className="text-xs text-amber-600 hover:underline"
+                    >
+                      상세보기
+                    </Link>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">{c.reasons.join(" · ")}</p>
+                  <div className="flex items-center gap-4 mt-1.5 text-xs text-muted-foreground">
+                    {c.sales_agent_name && <span>담당: {c.sales_agent_name}</span>}
+                    {c.mrr > 0 && <span>MRR: ₩{c.mrr.toLocaleString()}</span>}
+                    {c.days_until_expiry != null && c.days_until_expiry > 0 && (
+                      <span className="text-red-500 font-medium">D-{c.days_until_expiry}</span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* 영업사원 성과 */}
+      {salesPerformance.length > 0 && (
+        <Card className="border-border/40">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-semibold">팀 성과 요약</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b text-muted-foreground">
+                    <th className="py-2 text-left font-medium">영업사원</th>
+                    <th className="py-2 text-center font-medium">담당고객</th>
+                    <th className="py-2 text-center font-medium">Active</th>
+                    <th className="py-2 text-center font-medium">신규계약</th>
+                    <th className="py-2 text-right font-medium">MRR기여</th>
+                    <th className="py-2 text-center font-medium">At Risk</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border/40">
+                  {salesPerformance.map((sp) => (
+                    <tr key={sp.id} className="hover:bg-muted/20">
+                      <td className="py-2 font-medium">{sp.name}</td>
+                      <td className="py-2 text-center">{sp.total_clients}</td>
+                      <td className="py-2 text-center">{sp.active_clients}</td>
+                      <td className="py-2 text-center">
+                        {sp.new_contracts > 0 ? (
+                          <span className="font-semibold text-emerald-600">{sp.new_contracts}</span>
+                        ) : "0"}
+                      </td>
+                      <td className="py-2 text-right font-medium">
+                        ₩{(sp.mrr_contribution / 10000).toFixed(0)}만
+                      </td>
+                      <td className="py-2 text-center">
+                        {sp.at_risk > 0 ? (
+                          <span className="font-semibold text-red-500">{sp.at_risk}</span>
+                        ) : "0"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+// ── SEO 데이터 섹션 (기존 대시보드 내용 유지) ────────────────────────────────
+interface SeoData {
   kpi: VisibilityKpi;
   trend: VisibilityTrendPoint[];
   distribution: KeywordDistribution;
@@ -196,7 +405,7 @@ interface DashboardData {
   analysisKpi: BrandAnalysisKpi;
 }
 
-async function fetchDashboardData(clientId?: string): Promise<DashboardData> {
+async function fetchSeoData(clientId?: string): Promise<SeoData> {
   const isAllMode = !clientId;
   const [kpi, trend, distribution, activities, accounts, serpData, brandSummary, analysisKpi] = await Promise.all([
     getVisibilityKpi(clientId),
@@ -221,15 +430,31 @@ async function fetchDashboardData(clientId?: string): Promise<DashboardData> {
   };
 }
 
+// ── 대시보드 메인 섹션 ─────────────────────────────────────────────────────
 async function DashboardSection() {
   const clientId = (await getSelectedClientId()) ?? undefined;
   const isAllMode = !clientId;
-  const data = await fetchDashboardData(clientId);
-  const { kpi, trend, distribution, activities, accounts, serpTrend, serpKeywords, brandSummary, analysisKpi } = data;
+
+  const [bizData, seoData] = await Promise.all([
+    isAllMode ? getBusinessDashboardData() : Promise.resolve(null),
+    fetchSeoData(clientId),
+  ]);
+
+  const { kpi, trend, distribution, activities, accounts, serpTrend, serpKeywords, brandSummary, analysisKpi } = seoData;
 
   return (
-    <div className="space-y-6">
-      {/* ── KPI 카드 5개 ── */}
+    <div className="space-y-8">
+      {/* ── B2B 비즈니스 KPI (전체 모드에서만) ── */}
+      {isAllMode && bizData && <BusinessKpiSection data={bizData} />}
+
+      {/* ── 구분선 ── */}
+      {isAllMode && bizData && (
+        <div className="border-t border-border/40 pt-6">
+          <h2 className="text-lg font-semibold mb-4">SEO 운영 현황</h2>
+        </div>
+      )}
+
+      {/* ── 기존 SEO KPI 카드 5개 ── */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <KpiCard
           icon="📊"
@@ -272,16 +497,15 @@ async function DashboardSection() {
         />
       </div>
 
-      {/* ── 중단: 노출 추이 + SERP 순위 추이 ── */}
+      {/* ── 차트 ── */}
       <div className="grid gap-5 lg:grid-cols-2">
         <VisibilityTrendChart data={trend} />
         <SerpRankChart trend={serpTrend} keywords={serpKeywords} />
       </div>
 
-      {/* ── 하단: 도넛 차트 + 활동 피드 + 계정별 성과 ── */}
+      {/* ── 하단 ── */}
       <div className="grid gap-5 lg:grid-cols-3">
         <KeywordDonutChart data={distribution} />
-
         <Card className="border-border/40">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-semibold">최근 활동</CardTitle>
@@ -290,7 +514,6 @@ async function DashboardSection() {
             <ActivityFeed activities={activities} />
           </CardContent>
         </Card>
-
         <Card className="border-border/40">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-semibold">계정별 성과</CardTitle>
@@ -301,7 +524,7 @@ async function DashboardSection() {
         </Card>
       </div>
 
-      {/* ── 전체 보기 모드: 브랜드별 요약 ── */}
+      {/* ── 전체 보기: 브랜드별 요약 ── */}
       {isAllMode && brandSummary && brandSummary.length > 0 && (
         <Card className="border-border/40">
           <CardHeader className="pb-3">
@@ -382,7 +605,6 @@ async function DashboardSection() {
             </Card>
           </div>
 
-          {/* 키워드 TOP 5 테이블 */}
           {analysisKpi.topKeywords.length > 0 && (
             <Card className="border-border/40">
               <CardHeader className="pb-3 flex flex-row items-center justify-between">
@@ -418,7 +640,6 @@ async function DashboardSection() {
         </div>
       )}
 
-      {/* ── 브랜드 선택됐지만 분석 없음 ── */}
       {!isAllMode && !analysisKpi.hasAnalysis && (
         <Card className="border-dashed border-border/40">
           <CardContent className="py-8 text-center">
@@ -434,17 +655,15 @@ async function DashboardSection() {
 function DashboardSkeleton() {
   return (
     <div className="space-y-6">
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-        {[0, 1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-28" />)}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-28" />)}
       </div>
       <div className="grid gap-5 lg:grid-cols-2">
-        <Skeleton className="h-64" />
-        <Skeleton className="h-64" />
+        <Skeleton className="h-48" />
+        <Skeleton className="h-48" />
       </div>
-      <div className="grid gap-5 lg:grid-cols-3">
-        <Skeleton className="h-56" />
-        <Skeleton className="h-56" />
-        <Skeleton className="h-56" />
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        {[0, 1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-28" />)}
       </div>
     </div>
   );
@@ -456,7 +675,7 @@ export default function DashboardPage() {
       <div>
         <h1 className="text-2xl font-bold tracking-tight">대시보드</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          노출 점유율 · SERP 순위 · 최근 활동 한눈에 확인
+          비즈니스 KPI · SEO 운영 · 고객 현황 한눈에 확인
         </p>
       </div>
 

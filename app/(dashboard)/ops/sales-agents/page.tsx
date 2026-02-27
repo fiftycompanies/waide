@@ -19,6 +19,10 @@ import {
   deleteSalesAgent,
   type SalesAgentWithStats,
 } from "@/lib/actions/sales-actions";
+import {
+  getBusinessDashboardData,
+  type SalesPerformance,
+} from "@/lib/actions/dashboard-actions";
 
 // ── Base URL ────────────────────────────────────────────────────────────────
 
@@ -170,6 +174,7 @@ function AgentModal({
 export default function SalesAgentsPage() {
   const router = useRouter();
   const [agents, setAgents] = useState<SalesAgentWithStats[]>([]);
+  const [salesPerf, setSalesPerf] = useState<SalesPerformance[]>([]);
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState<Partial<SalesAgentWithStats> | null | "new">(null);
   const [isPending, startTransition] = useTransition();
@@ -177,8 +182,12 @@ export default function SalesAgentsPage() {
 
   const fetchAgents = () => {
     startTransition(async () => {
-      const data = await listSalesAgents();
+      const [data, bizData] = await Promise.all([
+        listSalesAgents(),
+        getBusinessDashboardData(),
+      ]);
       setAgents(data);
+      setSalesPerf(bizData.salesPerformance);
       setLoading(false);
     });
   };
@@ -248,6 +257,49 @@ export default function SalesAgentsPage() {
             <p className="text-sm text-muted-foreground">총 상담 전환</p>
             <p className="text-2xl font-bold">{agents.reduce((s, a) => s + a.live_consultations, 0)}</p>
           </div>
+        </div>
+      )}
+
+      {/* 영업사원 성과 요약 */}
+      {salesPerf.length > 0 && (
+        <div className="border rounded-lg overflow-hidden">
+          <div className="bg-muted/30 px-4 py-3 border-b">
+            <h2 className="text-sm font-semibold">영업사원 성과 요약</h2>
+          </div>
+          <table className="w-full text-sm">
+            <thead className="bg-muted/50">
+              <tr>
+                <th className="text-left py-2.5 px-4 font-medium text-xs">영업사원</th>
+                <th className="text-center py-2.5 px-4 font-medium text-xs">담당고객</th>
+                <th className="text-center py-2.5 px-4 font-medium text-xs">Active</th>
+                <th className="text-center py-2.5 px-4 font-medium text-xs">신규계약</th>
+                <th className="text-right py-2.5 px-4 font-medium text-xs">MRR기여</th>
+                <th className="text-center py-2.5 px-4 font-medium text-xs">At Risk</th>
+              </tr>
+            </thead>
+            <tbody>
+              {salesPerf.map((sp) => (
+                <tr key={sp.id} className="border-t hover:bg-muted/20">
+                  <td className="py-2.5 px-4 font-medium">{sp.name}</td>
+                  <td className="py-2.5 px-4 text-center">{sp.total_clients}</td>
+                  <td className="py-2.5 px-4 text-center">{sp.active_clients}</td>
+                  <td className="py-2.5 px-4 text-center">
+                    {sp.new_contracts > 0 ? (
+                      <span className="font-semibold text-emerald-600">{sp.new_contracts}</span>
+                    ) : "0"}
+                  </td>
+                  <td className="py-2.5 px-4 text-right font-medium">
+                    ₩{(sp.mrr_contribution / 10000).toFixed(0)}만
+                  </td>
+                  <td className="py-2.5 px-4 text-center">
+                    {sp.at_risk > 0 ? (
+                      <span className="font-semibold text-red-500">{sp.at_risk}</span>
+                    ) : "0"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
 

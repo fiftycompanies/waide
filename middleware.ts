@@ -1,14 +1,18 @@
 /**
- * middleware.ts — 어드민 세션 기반 라우트 가드
+ * middleware.ts — 듀얼 인증 라우트 가드
+ * 1) 어드민 세션 (기존 HMAC) — /ops, /dashboard 등
+ * 2) Supabase Auth (신규) — /portal
  * Edge Runtime 호환 (Web Crypto API 사용)
  */
 import { NextResponse, type NextRequest } from "next/server";
+import { createServerClient } from "@supabase/ssr";
 
 const COOKIE_NAME = "admin_session";
 const SECRET =
   process.env.ADMIN_SESSION_SECRET || "ai-marketer-dev-secret-2026";
 
-const PROTECTED_ROUTES = [
+// ── 어드민 전용 보호 라우트 (기존) ──
+const ADMIN_PROTECTED_ROUTES = [
   "/dashboard",
   "/brands",
   "/campaigns",
@@ -20,10 +24,17 @@ const PROTECTED_ROUTES = [
   "/blog-accounts",
   "/sources",
 ];
-const AUTH_ROUTES = ["/login"];
-const PUBLIC_ROUTES = ["/analysis", "/api/analyze", "/api/consultation"];
 
-// ── Edge Runtime 호환 HMAC-SHA256 검증 ──────────────────────
+// ── 포털 보호 라우트 (신규) ──
+const PORTAL_ROUTES = ["/portal"];
+
+// ── 인증 관련 ──
+const AUTH_ROUTES = ["/login", "/signup"];
+
+// ── 퍼블릭 (인증 불필요) ──
+const PUBLIC_ROUTES = ["/analysis", "/api/analyze", "/api/consultation", "/api/cron", "/invite"];
+
+// ── Edge Runtime 호환 HMAC-SHA256 검증 (기존 유지) ──────────────────────
 async function isValidAdminSession(token: string): Promise<boolean> {
   try {
     const dotIdx = token.lastIndexOf(".");
@@ -68,46 +79,143 @@ async function isValidAdminSession(token: string): Promise<boolean> {
   }
 }
 
+// ── Supabase Auth 세션 확인 (Edge Runtime 호환) ──────────────────────
+async function getSupabaseUser(request: NextRequest, response: NextResponse) {
+  try {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    if (!supabaseUrl || !supabaseAnonKey) return null;
+
+    const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll();
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value, options }) => {
+            request.cookies.set(name, value);
+            response.cookies.set(name, value, options);
+          });
+        },
+      },
+    });
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    return user;
+  } catch {
+    return null;
+  }
+}
+
 export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
+  const response = NextResponse.next();
 
-  const isProtected = PROTECTED_ROUTES.some((r) => pathname.startsWith(r));
+  const isAdminProtected = ADMIN_PROTECTED_ROUTES.some((r) => pathname.startsWith(r));
+  const isPortal = PORTAL_ROUTES.some((r) => pathname.startsWith(r));
   const isAuth = AUTH_ROUTES.some((r) => pathname.startsWith(r));
   const isPublic = PUBLIC_ROUTES.some((r) => pathname.startsWith(r));
 
-  // 퍼블릭 라우트는 인증 체크 없이 바로 통과
+  // ─── 1. 퍼블릭 라우트 → 통과 ─────────────────────────────
   if (isPublic) {
-    return NextResponse.next();
+    return response;
   }
 
-  const token = request.cookies.get(COOKIE_NAME)?.value;
-  const isValid = token ? await isValidAdminSession(token) : false;
+  // ─── 2. 포털 라우트 → Supabase Auth 필수 ──────────────────
+  if (isPortal) {
+    const supabaseUser = await getSupabaseUser(request, response);
 
-  // 보호된 라우트 → 어드민 세션 없으면 /login
-  if (isProtected && !isValid) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/login";
-    url.searchParams.set("redirect", pathname);
-    return NextResponse.redirect(url);
+    if (!supabaseUser) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/login";
+      url.searchParams.set("redirect", pathname);
+      url.searchParams.set("mode", "customer");
+      return NextResponse.redirect(url);
+    }
+
+    // Supabase Auth 쿠키 갱신을 위해 response 반환
+    return response;
   }
 
-  // 로그인 페이지 → 이미 인증된 경우 /dashboard
-  if (isAuth && isValid) {
-    const redirectTo = request.nextUrl.searchParams.get("redirect") || "/dashboard";
-    const url = request.nextUrl.clone();
-    url.pathname = redirectTo.startsWith("/") ? redirectTo : "/dashboard";
-    url.searchParams.delete("redirect");
-    return NextResponse.redirect(url);
+  // ─── 3. 어드민 보호 라우트 → HMAC 세션 체크 ────────────────
+  if (isAdminProtected) {
+    const token = request.cookies.get(COOKIE_NAME)?.value;
+    const isValid = token ? await isValidAdminSession(token) : false;
+
+    if (!isValid) {
+      // Supabase Auth로 폴백 — 어드민 역할 사용자도 /ops 접근 가능
+      const supabaseUser = await getSupabaseUser(request, response);
+      if (supabaseUser) {
+        // Supabase Auth 인증됨 → 통과 (역할 체크는 페이지 레벨에서)
+        return response;
+      }
+
+      const url = request.nextUrl.clone();
+      url.pathname = "/login";
+      url.searchParams.set("redirect", pathname);
+      return NextResponse.redirect(url);
+    }
+
+    return response;
   }
 
-  // 루트 페이지 → 인증된 경우 /dashboard
-  if (pathname === "/" && isValid) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/dashboard";
-    return NextResponse.redirect(url);
+  // ─── 4. 인증 페이지 (로그인/회원가입) ────────────────────────
+  if (isAuth) {
+    // 어드민 세션 있으면 → /dashboard
+    const token = request.cookies.get(COOKIE_NAME)?.value;
+    const isAdminValid = token ? await isValidAdminSession(token) : false;
+
+    if (isAdminValid) {
+      const redirectTo = request.nextUrl.searchParams.get("redirect") || "/dashboard";
+      const url = request.nextUrl.clone();
+      url.pathname = redirectTo.startsWith("/") ? redirectTo : "/dashboard";
+      url.searchParams.delete("redirect");
+      url.searchParams.delete("mode");
+      return NextResponse.redirect(url);
+    }
+
+    // Supabase Auth 세션 있으면 → /portal
+    const supabaseUser = await getSupabaseUser(request, response);
+    if (supabaseUser) {
+      const redirectTo = request.nextUrl.searchParams.get("redirect");
+      const url = request.nextUrl.clone();
+      if (redirectTo && redirectTo.startsWith("/")) {
+        url.pathname = redirectTo;
+      } else {
+        url.pathname = "/portal";
+      }
+      url.searchParams.delete("redirect");
+      url.searchParams.delete("mode");
+      return NextResponse.redirect(url);
+    }
+
+    return response;
   }
 
-  return NextResponse.next();
+  // ─── 5. 루트 페이지 ──────────────────────────────────────
+  if (pathname === "/") {
+    const token = request.cookies.get(COOKIE_NAME)?.value;
+    const isAdminValid = token ? await isValidAdminSession(token) : false;
+
+    if (isAdminValid) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/dashboard";
+      return NextResponse.redirect(url);
+    }
+
+    // Supabase Auth가 있으면 포털로
+    const supabaseUser = await getSupabaseUser(request, response);
+    if (supabaseUser) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/portal";
+      return NextResponse.redirect(url);
+    }
+  }
+
+  return response;
 }
 
 export const config = {

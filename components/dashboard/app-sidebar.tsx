@@ -3,11 +3,14 @@
 import { useEffect, useState, useTransition } from "react";
 import {
   Activity,
+  AlertTriangle,
   BarChart2,
   Bot,
   Building2,
   CalendarClock,
   ClipboardList,
+  CreditCard,
+  DollarSign,
   FileEdit,
   GitBranch,
   Key,
@@ -15,6 +18,9 @@ import {
   Library,
   Loader2,
   LogOut,
+  Package,
+  Rocket,
+  Search,
   Settings,
   ShieldCheck,
   SlidersHorizontal,
@@ -56,31 +62,49 @@ const BrandSelector = dynamic(
 import type { AiMarketBrand } from "@/lib/actions/brand-actions";
 import type { AdminPayload } from "@/lib/auth/admin-session";
 
-// ── AI 마케터 파이프라인 기반 네비게이션 ───────────────────────────────────
-const primaryNavItems = [
-  { title: "대시보드",      url: "/dashboard",     icon: LayoutDashboard },
-  { title: "브랜드 관리",   url: "/brands",        icon: Building2 },
-  { title: "블로그 계정",   url: "/blog-accounts", icon: Users },
-  { title: "소스 라이브러리", url: "/sources",      icon: Library },
-  { title: "키워드 관리",   url: "/keywords",      icon: Key },
-  { title: "캠페인",        url: "/campaigns",     icon: Target },
-  { title: "콘텐츠 에디터", url: "/ops/contents",  icon: FileEdit },
+// ── 사이드바 메뉴 구조 (B2B SaaS 운영 중심) ────────────────────────────────
+
+const businessNavItems = [
+  { title: "대시보드",    url: "/dashboard",      icon: LayoutDashboard },
+  { title: "매출",        url: "/ops/revenue",     icon: DollarSign },
+  { title: "이탈 관리",   url: "/ops/churn",       icon: AlertTriangle },
+];
+
+const clientNavItems = [
+  { title: "고객 포트폴리오", url: "/ops/clients",      icon: Building2 },
+  { title: "온보딩",         url: "/ops/onboarding",    icon: Rocket },
+  { title: "브랜드 관리",     url: "/brands",            icon: Building2 },
+];
+
+const seoNavItems = [
+  { title: "키워드 관리",   url: "/keywords",                      icon: Key },
   { title: "성과 분석",     url: "/analytics",                     icon: BarChart2 },
   { title: "발행 추천",     url: "/analytics/recommendations",     icon: Sparkles },
 ];
 
-const crmNavItems = [
-  { title: "분석 로그",     url: "/ops/analysis-logs",   icon: ClipboardList },
-  { title: "영업사원 관리", url: "/ops/sales-agents",    icon: UserCheck },
+const contentNavItems = [
+  { title: "콘텐츠 관리",   url: "/ops/contents",  icon: FileEdit },
+  { title: "작업 큐",       url: "/ops/jobs",       icon: GitBranch },
 ];
 
-const opsNavItems = [
-  { title: "Jobs 모니터링", url: "/ops/jobs",             icon: GitBranch },
-  { title: "에이전트 로그", url: "/ops",                  icon: Activity },
+const crmNavItems = [
+  { title: "분석 로그",     url: "/ops/analysis-logs",   icon: ClipboardList },
+  { title: "영업사원",      url: "/ops/sales-agents",    icon: UserCheck },
+];
+
+const resourceNavItems = [
+  { title: "블로그 계정",     url: "/blog-accounts", icon: Users },
+  { title: "소스 라이브러리", url: "/sources",        icon: Library },
+  { title: "캠페인",          url: "/campaigns",     icon: Target },
+];
+
+const settingsNavItems = [
+  { title: "상품 관리",     url: "/ops/products",         icon: Package },
   { title: "에이전트 설정", url: "/ops/agent-settings",   icon: Bot },
-  { title: "SERP 스케줄러", url: "/ops/serp-settings",    icon: BarChart2 },
-  { title: "자동 스케줄러", url: "/ops/scheduler",        icon: CalendarClock },
   { title: "점수 설정",     url: "/ops/scoring-settings", icon: SlidersHorizontal },
+  { title: "SERP 스케줄러", url: "/ops/serp-settings",    icon: Search },
+  { title: "자동 스케줄러", url: "/ops/scheduler",        icon: CalendarClock },
+  { title: "에이전트 로그", url: "/ops",                  icon: Activity },
 ];
 
 interface AppSidebarProps {
@@ -105,12 +129,24 @@ export function AppSidebar({ brands = [], selectedClientId = null }: AppSidebarP
 
   const isActive = (url: string) => {
     if (url === "/dashboard") return pathname === url;
+    // /ops exact match
+    if (url === "/ops") return pathname === "/ops";
     return pathname === url || pathname.startsWith(`${url}/`);
   };
 
   const initials = admin?.displayName?.charAt(0).toUpperCase()
     ?? admin?.username?.charAt(0).toUpperCase()
     ?? "A";
+
+  const navGroups = [
+    { label: "비즈니스", items: businessNavItems },
+    { label: "고객 관리", items: clientNavItems },
+    { label: "SEO 운영", items: seoNavItems },
+    { label: "콘텐츠", items: contentNavItems },
+    { label: "영업 CRM", items: crmNavItems },
+    { label: "리소스", items: resourceNavItems },
+    { label: "설정", items: settingsNavItems },
+  ];
 
   return (
     <Sidebar className="border-r border-border/40">
@@ -127,80 +163,31 @@ export function AppSidebar({ brands = [], selectedClientId = null }: AppSidebarP
       </div>
 
       <SidebarContent className="px-2">
-        {/* 메인 워크플로우 */}
-        <SidebarGroup>
-          <SidebarGroupLabel className="text-xs font-medium text-muted-foreground px-2">
-            워크플로우
-          </SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {primaryNavItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={isActive(item.url)}
-                    className="transition-colors"
-                  >
-                    <Link href={item.url}>
-                      <item.icon className="h-4 w-4" />
-                      <span>{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        {/* 영업/CRM */}
-        <SidebarGroup>
-          <SidebarGroupLabel className="text-xs font-medium text-muted-foreground px-2">
-            영업/CRM
-          </SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {crmNavItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={isActive(item.url)}
-                    className="transition-colors"
-                  >
-                    <Link href={item.url}>
-                      <item.icon className="h-4 w-4" />
-                      <span>{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        {/* 에이전트 운영 모니터링 */}
-        <SidebarGroup>
-          <SidebarGroupLabel className="text-xs font-medium text-muted-foreground px-2">
-            에이전트 운영
-          </SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {opsNavItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={isActive(item.url)}
-                    className="transition-colors"
-                  >
-                    <Link href={item.url}>
-                      <item.icon className="h-4 w-4" />
-                      <span>{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        {navGroups.map((group) => (
+          <SidebarGroup key={group.label}>
+            <SidebarGroupLabel className="text-xs font-medium text-muted-foreground px-2">
+              {group.label}
+            </SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {group.items.map((item) => (
+                  <SidebarMenuItem key={item.url}>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={isActive(item.url)}
+                      className="transition-colors"
+                    >
+                      <Link href={item.url}>
+                        <item.icon className="h-4 w-4" />
+                        <span>{item.title}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        ))}
       </SidebarContent>
 
       {/* 어드민 프로필 */}
