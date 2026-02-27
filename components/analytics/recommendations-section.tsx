@@ -45,6 +45,17 @@ const STATUS_FILTERS = [
 // ── 통계 카드 ────────────────────────────────────────────────────────────────
 
 function StatsCards({ stats }: { stats: RecommendationStats }) {
+  if (stats.total === 0) {
+    return (
+      <div className="rounded-lg border border-dashed border-border/60 bg-muted/20 p-6 text-center">
+        <p className="text-sm font-medium text-muted-foreground">추천 데이터가 아직 없습니다</p>
+        <p className="text-xs text-muted-foreground mt-1">
+          ANALYST_MATCH 에이전트를 실행하면 계정-키워드 매칭 추천이 생성됩니다
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
       <Card className="bg-gradient-to-br from-violet-50 to-purple-50 border-violet-100">
@@ -82,7 +93,16 @@ function StatsCards({ stats }: { stats: RecommendationStats }) {
 // ── 계정 등급 요약 ────────────────────────────────────────────────────────────
 
 function AccountGradeSummary({ grades }: { grades: AccountGrade[] }) {
-  if (grades.length === 0) return null;
+  if (grades.length === 0) {
+    return (
+      <Card className="border-border/40">
+        <CardContent className="py-6 text-center">
+          <p className="text-sm text-muted-foreground">계정 등급 데이터 없음</p>
+          <p className="text-xs text-muted-foreground mt-1">ANALYST 에이전트가 계정 등급을 산정하면 여기에 표시됩니다</p>
+        </CardContent>
+      </Card>
+    );
+  }
   return (
     <Card className="border-border/40">
       <CardHeader className="pb-3">
@@ -141,7 +161,14 @@ function RecommendationRow({ rec }: { rec: PublishRecommendation }) {
   function handleAccept() {
     startTransition(async () => {
       const r = await acceptRecommendation(rec.id);
-      if (r.success) { toast.success("추천을 수락했습니다."); router.refresh(); }
+      if (r.success) {
+        toast.success(
+          r.jobId
+            ? "추천을 수락했습니다. 콘텐츠 생성 작업이 자동으로 등록되었습니다."
+            : "추천을 수락했습니다."
+        );
+        router.refresh();
+      }
       else toast.error(r.error ?? "실패");
     });
   }

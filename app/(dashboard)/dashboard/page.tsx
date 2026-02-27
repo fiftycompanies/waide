@@ -21,6 +21,7 @@ import {
   type BrandSummaryStats,
 } from "@/lib/actions/analytics-actions";
 import { getSelectedClientId } from "@/lib/actions/brand-actions";
+import { getBrandAnalysisKpi, type BrandAnalysisKpi } from "@/lib/actions/analysis-brand-actions";
 import { VisibilityTrendChart } from "@/components/dashboard/visibility-trend-chart";
 import { KeywordDonutChart } from "@/components/dashboard/keyword-donut-chart";
 import { SerpRankChart } from "@/components/analytics/serp-rank-chart";
@@ -192,11 +193,12 @@ interface DashboardData {
   serpTrend: SerpDataPoint[];
   serpKeywords: SerpKeyword[];
   brandSummary?: BrandSummaryStats[];
+  analysisKpi: BrandAnalysisKpi;
 }
 
 async function fetchDashboardData(clientId?: string): Promise<DashboardData> {
   const isAllMode = !clientId;
-  const [kpi, trend, distribution, activities, accounts, serpData, brandSummary] = await Promise.all([
+  const [kpi, trend, distribution, activities, accounts, serpData, brandSummary, analysisKpi] = await Promise.all([
     getVisibilityKpi(clientId),
     getVisibilityTrend(clientId, 30),
     getKeywordDistribution(clientId),
@@ -204,6 +206,7 @@ async function fetchDashboardData(clientId?: string): Promise<DashboardData> {
     getAccountPerformanceSummary(clientId),
     getOpsSerp(clientId, 14),
     isAllMode ? getBrandSummaryStats() : Promise.resolve(undefined),
+    getBrandAnalysisKpi(clientId),
   ]);
   return {
     kpi,
@@ -214,6 +217,7 @@ async function fetchDashboardData(clientId?: string): Promise<DashboardData> {
     serpTrend: serpData.trend,
     serpKeywords: serpData.keywords,
     brandSummary,
+    analysisKpi,
   };
 }
 
@@ -221,7 +225,7 @@ async function DashboardSection() {
   const clientId = (await getSelectedClientId()) ?? undefined;
   const isAllMode = !clientId;
   const data = await fetchDashboardData(clientId);
-  const { kpi, trend, distribution, activities, accounts, serpTrend, serpKeywords, brandSummary } = data;
+  const { kpi, trend, distribution, activities, accounts, serpTrend, serpKeywords, brandSummary, analysisKpi } = data;
 
   return (
     <div className="space-y-6">
@@ -230,17 +234,17 @@ async function DashboardSection() {
         <KpiCard
           icon="📊"
           label="노출 점유율"
-          value={`${kpi.weightedVisibilityPc.toFixed(1)}%`}
-          delta={<DeltaBadge value={kpi.visibilityDelta} />}
-          desc="vs 지난주 (가중 평균)"
+          value={kpi.totalKeywords === 0 ? "--" : `${kpi.weightedVisibilityPc.toFixed(1)}%`}
+          delta={kpi.totalKeywords === 0 ? undefined : <DeltaBadge value={kpi.visibilityDelta} />}
+          desc={kpi.totalKeywords === 0 ? "SERP 데이터 수집 중" : "vs 지난주 (가중 평균)"}
           color="from-violet-50 to-purple-50 border-violet-100"
         />
         <KpiCard
           icon="🎯"
           label="단순 노출률"
-          value={`${kpi.exposureRate.toFixed(1)}%`}
-          delta={<DeltaBadge value={kpi.exposureRateDelta} />}
-          desc={`${kpi.exposedKeywords}/${kpi.totalKeywords} 키워드`}
+          value={kpi.totalKeywords === 0 ? "--" : `${kpi.exposureRate.toFixed(1)}%`}
+          delta={kpi.totalKeywords === 0 ? undefined : <DeltaBadge value={kpi.exposureRateDelta} />}
+          desc={kpi.totalKeywords === 0 ? "SERP 데이터 수집 중" : `${kpi.exposedKeywords}/${kpi.totalKeywords} 키워드`}
           color="from-blue-50 to-sky-50 border-blue-100"
         />
         <KpiCard
@@ -305,6 +309,121 @@ async function DashboardSection() {
           </CardHeader>
           <CardContent>
             <BrandSummaryTable brands={brandSummary} />
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ── AI 분석 요약 (브랜드 선택 모드) ── */}
+      {!isAllMode && analysisKpi.hasAnalysis && (
+        <div className="space-y-4">
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">AI 분석 요약</h2>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <Card className="bg-gradient-to-br from-amber-50 to-orange-50 border-amber-100">
+              <CardContent className="p-5">
+                <p className="text-sm font-medium text-muted-foreground">마케팅 점수</p>
+                <p className="text-3xl font-bold mt-1">{analysisKpi.marketingScore ?? "—"}<span className="text-lg font-normal text-muted-foreground">/100</span></p>
+                {Object.keys(analysisKpi.scoreBreakdown).length > 0 && (
+                  <div className="mt-3 space-y-1.5">
+                    {[
+                      { key: "review_reputation", label: "리뷰" },
+                      { key: "naver_keyword", label: "네이버" },
+                      { key: "google_keyword", label: "구글" },
+                      { key: "image_quality", label: "이미지" },
+                      { key: "online_channels", label: "채널" },
+                      { key: "seo_aeo_readiness", label: "SEO" },
+                    ].map(({ key, label }) => {
+                      const area = analysisKpi.scoreBreakdown[key];
+                      if (!area) return null;
+                      const pctVal = area.max > 0 ? (area.score / area.max) * 100 : 0;
+                      const barColor = pctVal >= 80 ? "bg-emerald-500" : pctVal >= 50 ? "bg-amber-500" : "bg-red-400";
+                      return (
+                        <div key={key} className="flex items-center gap-2">
+                          <span className="text-[10px] text-muted-foreground w-10 shrink-0">{label}</span>
+                          <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
+                            <div className={`h-full rounded-full ${barColor}`} style={{ width: `${pctVal}%` }} />
+                          </div>
+                          <span className="text-[10px] text-muted-foreground w-8 text-right">{area.score}/{area.max}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+            <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-100">
+              <CardContent className="p-5">
+                <p className="text-sm font-medium text-muted-foreground">공략 키워드</p>
+                <p className="text-2xl font-bold mt-1">{analysisKpi.totalKeywords}개</p>
+                <div className="mt-1 flex flex-wrap gap-1">
+                  {analysisKpi.topKeywords.slice(0, 3).map((k, i) => (
+                    <Badge key={i} variant="secondary" className="text-[10px]">{k.keyword}</Badge>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="bg-gradient-to-br from-emerald-50 to-teal-50 border-emerald-100">
+              <CardContent className="p-5">
+                <p className="text-sm font-medium text-muted-foreground">리뷰 현황</p>
+                <p className="text-2xl font-bold mt-1">{(analysisKpi.visitorReviews + analysisKpi.blogReviews).toLocaleString()}건</p>
+                <p className="text-xs text-muted-foreground mt-1">방문자 {analysisKpi.visitorReviews.toLocaleString()} · 블로그 {analysisKpi.blogReviews.toLocaleString()}</p>
+                {analysisKpi.topSellingPoint && <p className="text-xs mt-1 truncate">💬 {analysisKpi.topSellingPoint}</p>}
+              </CardContent>
+            </Card>
+            <Card className="bg-gradient-to-br from-purple-50 to-fuchsia-50 border-purple-100">
+              <CardContent className="p-5">
+                <p className="text-sm font-medium text-muted-foreground">콘텐츠 전략</p>
+                <p className="text-lg font-bold mt-1">{analysisKpi.postingFrequency ?? "—"}</p>
+                <div className="mt-1 flex flex-wrap gap-1">
+                  {analysisKpi.contentTypes.map((t, i) => (
+                    <Badge key={i} className="text-[10px] bg-purple-100 text-purple-700">{t}</Badge>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* 키워드 TOP 5 테이블 */}
+          {analysisKpi.topKeywords.length > 0 && (
+            <Card className="border-border/40">
+              <CardHeader className="pb-3 flex flex-row items-center justify-between">
+                <CardTitle className="text-sm font-semibold">공략 키워드 TOP 5</CardTitle>
+                <a href={`/brands/${clientId}`} className="text-xs text-amber-600 hover:underline">상세 분석 보기 →</a>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b text-muted-foreground">
+                        <th className="py-2 text-left font-medium">키워드</th>
+                        <th className="py-2 text-right font-medium">월간 검색량</th>
+                        <th className="py-2 text-center font-medium">우선순위</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border/40">
+                      {analysisKpi.topKeywords.map((k, i) => (
+                        <tr key={i} className="hover:bg-muted/20">
+                          <td className="py-2 font-medium">{k.keyword}</td>
+                          <td className="py-2 text-right font-mono">{k.monthlySearch?.toLocaleString() ?? "—"}</td>
+                          <td className="py-2 text-center">
+                            <Badge className={`text-[10px] ${k.priority === "high" ? "bg-red-100 text-red-700" : k.priority === "medium" ? "bg-amber-100 text-amber-700" : "bg-slate-100 text-slate-600"}`}>{k.priority}</Badge>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
+
+      {/* ── 브랜드 선택됐지만 분석 없음 ── */}
+      {!isAllMode && !analysisKpi.hasAnalysis && (
+        <Card className="border-dashed border-border/40">
+          <CardContent className="py-8 text-center">
+            <p className="text-sm text-muted-foreground mb-2">AI 분석을 실행하면 키워드 전략과 마케팅 점수를 확인할 수 있어요</p>
+            <a href={`/brands/${clientId}`} className="inline-flex items-center gap-1.5 text-sm font-medium text-amber-600 hover:underline">분석하기 →</a>
           </CardContent>
         </Card>
       )}

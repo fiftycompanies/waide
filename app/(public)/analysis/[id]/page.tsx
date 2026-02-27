@@ -1,0 +1,1156 @@
+"use client";
+
+import { useEffect, useState, use } from "react";
+import { useRouter } from "next/navigation";
+import {
+  MapPin,
+  Phone,
+  Clock,
+  Globe,
+  Star,
+  Tag,
+  FileText,
+  MessageSquare,
+  Send,
+  Pencil,
+  Save,
+  X,
+  ExternalLink,
+  Search,
+  Award,
+  Lightbulb,
+  ArrowRight,
+  CheckCircle2,
+  PhoneCall,
+  MessageCircle,
+  ClipboardList,
+  Camera,
+  Image as ImageIcon,
+  Palette,
+  Sparkles,
+} from "lucide-react";
+
+// ═══════════════════════════════════════════
+// Score Gauge Component
+// ═══════════════════════════════════════════
+
+function ScoreGauge({ score, size = 160 }: { score: number; size?: number }) {
+  const radius = (size - 20) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const strokeDashoffset = circumference - (score / 100) * circumference;
+  const color = score >= 70 ? "#10b981" : score >= 40 ? "#f59e0b" : "#ef4444";
+
+  return (
+    <div className="relative inline-flex items-center justify-center" style={{ width: size, height: size }}>
+      <svg width={size} height={size} className="-rotate-90">
+        <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="#2a2a2a" strokeWidth="8" />
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          fill="none"
+          stroke={color}
+          strokeWidth="8"
+          strokeDasharray={circumference}
+          strokeDashoffset={strokeDashoffset}
+          strokeLinecap="round"
+          className="transition-all duration-1000 ease-out"
+        />
+      </svg>
+      <div className="absolute flex flex-col items-center">
+        <span className="text-4xl font-bold text-white">{score}</span>
+        <span className="text-xs text-[#666666]">/ 100</span>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════
+// Source Badge Component
+// ═══════════════════════════════════════════
+
+const SOURCE_COLORS: Record<string, string> = {
+  "행정구역": "bg-blue-500/20 text-blue-300 border-blue-500/30",
+  "생활권":   "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
+  "근교":     "bg-orange-500/20 text-orange-300 border-orange-500/30",
+  "관광지":   "bg-purple-500/20 text-purple-300 border-purple-500/30",
+  "브랜드":   "bg-red-500/20 text-red-300 border-red-500/30",
+};
+
+function SourceBadge({ source }: { source?: string }) {
+  if (!source || source === "-") return <span className="text-xs text-[#666666]">-</span>;
+  const cls = SOURCE_COLORS[source] ?? "bg-[#2a2a2a] text-[#a0a0a0] border-[#2a2a2a]";
+  return (
+    <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-medium border ${cls}`}>
+      {source}
+    </span>
+  );
+}
+
+// ═══════════════════════════════════════════
+// Consultation Modal
+// ═══════════════════════════════════════════
+
+function ConsultationModal({
+  analysisId,
+  salesRef,
+  onClose,
+}: {
+  analysisId: string;
+  salesRef?: string;
+  onClose: () => void;
+}) {
+  const [form, setForm] = useState({
+    contactName: "",
+    contactPhone: "",
+    contactEmail: "",
+    message: "",
+  });
+  const [submitting, setSubmitting] = useState(false);
+  const [done, setDone] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.contactName || !form.contactPhone) return;
+    setSubmitting(true);
+    try {
+      await fetch("/api/consultation", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ analysisId, salesRef: salesRef || undefined, ...form }),
+      });
+      setDone(true);
+    } catch {
+      alert("오류가 발생했습니다. 다시 시도해주세요.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (done) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+        <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-2xl p-8 max-w-md w-full text-center">
+          <div className="w-16 h-16 mx-auto rounded-full bg-[#10b981]/10 flex items-center justify-center mb-4">
+            <CheckCircle2 className="h-8 w-8 text-[#10b981]" />
+          </div>
+          <h3 className="text-xl font-bold text-white mb-2">신청이 완료되었습니다!</h3>
+          <p className="text-[#a0a0a0] mb-6">곧 연락드릴게요 😊</p>
+          <button
+            onClick={onClose}
+            className="px-6 py-3 rounded-xl bg-[#10b981] hover:bg-[#34d399] text-white font-semibold transition-colors"
+          >
+            확인
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+      <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-2xl p-8 max-w-md w-full">
+        <div className="flex justify-between items-center mb-6">
+          <h3 className="text-xl font-bold text-white">무료 상담 신청</h3>
+          <button onClick={onClose} className="text-[#666666] hover:text-white transition-colors">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="text-sm text-[#a0a0a0] mb-1.5 block">이름 <span className="text-red-400">*</span></label>
+            <input
+              value={form.contactName}
+              onChange={(e) => setForm({ ...form, contactName: e.target.value })}
+              className="w-full h-11 px-4 rounded-lg bg-[#111111] border border-[#2a2a2a] text-white text-sm focus:outline-none focus:border-[#10b981] transition-colors"
+              required
+            />
+          </div>
+          <div>
+            <label className="text-sm text-[#a0a0a0] mb-1.5 block">전화번호 <span className="text-red-400">*</span></label>
+            <input
+              value={form.contactPhone}
+              onChange={(e) => setForm({ ...form, contactPhone: e.target.value })}
+              className="w-full h-11 px-4 rounded-lg bg-[#111111] border border-[#2a2a2a] text-white text-sm focus:outline-none focus:border-[#10b981] transition-colors"
+              placeholder="010-0000-0000"
+              required
+            />
+          </div>
+          <div>
+            <label className="text-sm text-[#a0a0a0] mb-1.5 block">이메일</label>
+            <input
+              type="email"
+              value={form.contactEmail}
+              onChange={(e) => setForm({ ...form, contactEmail: e.target.value })}
+              className="w-full h-11 px-4 rounded-lg bg-[#111111] border border-[#2a2a2a] text-white text-sm focus:outline-none focus:border-[#10b981] transition-colors"
+            />
+          </div>
+          <div>
+            <label className="text-sm text-[#a0a0a0] mb-1.5 block">문의 내용</label>
+            <textarea
+              value={form.message}
+              onChange={(e) => setForm({ ...form, message: e.target.value })}
+              className="w-full px-4 py-3 rounded-lg bg-[#111111] border border-[#2a2a2a] text-white text-sm min-h-[80px] focus:outline-none focus:border-[#10b981] transition-colors"
+              placeholder="궁금한 점이 있으시면 적어주세요"
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={submitting}
+            className="w-full h-12 rounded-xl bg-[#10b981] hover:bg-[#34d399] text-white font-semibold transition-colors disabled:opacity-50"
+          >
+            {submitting ? "전송 중..." : "상담 신청하기"}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════
+// Tab Button
+// ═══════════════════════════════════════════
+
+function TabButton({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`px-4 py-2.5 text-sm font-medium rounded-lg transition-colors ${
+        active
+          ? "bg-[#10b981]/10 text-[#10b981] border border-[#10b981]/30"
+          : "text-[#666666] hover:text-[#a0a0a0] border border-transparent"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+// ═══════════════════════════════════════════
+// Main Result Page
+// ═══════════════════════════════════════════
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AnalysisData = any;
+
+export default function AnalysisResultPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = use(params);
+  const router = useRouter();
+  const [data, setData] = useState<AnalysisData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [showConsultation, setShowConsultation] = useState(false);
+  const [activeTab, setActiveTab] = useState("review");
+  const [editMode, setEditMode] = useState(false);
+  const [edits, setEdits] = useState({
+    mainMenu: "",
+    strength: "",
+    targetCustomer: "",
+    additionalKeywords: "",
+  });
+  const [savingEdits, setSavingEdits] = useState(false);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const resp = await fetch(`/api/analyze/${id}`);
+        if (!resp.ok) { router.replace("/"); return; }
+        const result = await resp.json();
+        if (result.status === "analyzing" || result.status === "pending") {
+          router.replace(`/analysis/loading?url=${encodeURIComponent(result.input_url)}`);
+          return;
+        }
+        if (result.status === "failed") { router.replace("/"); return; }
+        setData(result);
+        if (result.customer_edits) setEdits(result.customer_edits);
+      } catch { router.replace("/"); } finally { setLoading(false); }
+    };
+    fetchData();
+  }, [id, router]);
+
+  const handleSaveEdits = async () => {
+    setSavingEdits(true);
+    try {
+      await fetch(`/api/analyze/${id}/edit`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(edits),
+      });
+      setEditMode(false);
+    } catch { alert("저장 실패. 다시 시도해주세요."); } finally { setSavingEdits(false); }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="h-8 w-8 border-2 border-[#10b981]/30 border-t-[#10b981] rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (!data) return null;
+
+  const bi = data.basic_info ?? {};
+  const ka = data.keyword_analysis ?? {};
+  const cs = data.content_strategy ?? {};
+  const ba = cs.brand_analysis ?? {};
+  const ma = data.menu_analysis ?? {};
+  const ra = data.review_analysis ?? {};
+  const ia = data.image_analysis ?? {};
+  const score = data.marketing_score ?? 0;
+  const breakdown = cs.score_breakdown ?? {};
+  const hasImageAnalysis = (ia.analyzed_count ?? 0) > 0;
+  const imageList: Array<{
+    url: string;
+    description?: string;
+    type?: string;
+    mood?: string;
+    quality_score?: number;
+    marketing_usability?: number;
+    colors?: string[];
+    food_appeal?: number;
+    improvement_tip?: string;
+  }> = ia.images ?? [];
+  const collectedUrls: Array<{ url: string; type?: string }> = ia.collected_urls ?? [];
+  const keywords: Array<{
+    keyword: string;
+    intent: string;
+    priority: string;
+    monthlySearch?: number;
+    competition?: string;
+    source?: string;
+  }> = [...(ka.keywords ?? [])].sort(
+    (a: { monthlySearch?: number }, b: { monthlySearch?: number }) =>
+      (b.monthlySearch ?? 0) - (a.monthlySearch ?? 0)
+  );
+  const improvements = (cs.improvements ?? []) as string[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const seoAudit = data.seo_audit as { items: any[]; totalIssues: number; criticalIssues: number; score: number } | null;
+  const kwRankings = (data.keyword_rankings ?? []) as Array<{
+    keyword: string; searchVolume: number; rank: number | null;
+    status: "good" | "warning" | "danger" | "not_found";
+  }>;
+
+  return (
+    <>
+      <div className="mx-auto max-w-5xl px-6 py-8">
+        {/* ── Section 1: 매장 요약 ── */}
+        <div className="mb-8 rounded-2xl border border-[#2a2a2a] bg-[#1a1a1a] p-6 md:p-8">
+          <div className="flex flex-col md:flex-row items-start md:items-center gap-8">
+            <div className="flex-1">
+              <h1 className="text-2xl md:text-3xl font-bold text-white mb-3">
+                {bi.name || "매장명"}
+              </h1>
+              <div className="flex flex-wrap items-center gap-2 mb-4">
+                <span className="px-3 py-1 rounded-full text-xs font-medium bg-[#10b981]/10 text-[#10b981] border border-[#10b981]/20">
+                  {bi.category || "카테고리"}
+                </span>
+                {bi.region && (
+                  <span className="px-3 py-1 rounded-full text-xs text-[#a0a0a0] border border-[#2a2a2a] flex items-center gap-1">
+                    <MapPin className="h-3 w-3" />
+                    {bi.region}
+                  </span>
+                )}
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm text-[#a0a0a0]">
+                {bi.address && (
+                  <div className="flex items-center gap-2">
+                    <MapPin className="h-4 w-4 text-[#666666]" />
+                    <span>{bi.address}</span>
+                  </div>
+                )}
+                {bi.phone && (
+                  <div className="flex items-center gap-2">
+                    <Phone className="h-4 w-4 text-[#666666]" />
+                    <span>{bi.phone}</span>
+                  </div>
+                )}
+                {bi.hours && (
+                  <div className="flex items-center gap-2">
+                    <Clock className="h-4 w-4 text-[#666666]" />
+                    <span>{bi.hours}</span>
+                  </div>
+                )}
+                {bi.homepage_url && (
+                  <div className="flex items-center gap-2">
+                    <Globe className="h-4 w-4 text-[#666666]" />
+                    <a href={bi.homepage_url} target="_blank" rel="noreferrer" className="text-[#10b981] hover:underline truncate">
+                      홈페이지 <ExternalLink className="inline h-3 w-3 ml-0.5" />
+                    </a>
+                  </div>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-4 mt-4">
+                <div className="flex items-center gap-2 text-sm">
+                  <Star className="h-4 w-4 text-amber-400" />
+                  <span className="text-white font-medium">방문자 리뷰 {(bi.visitor_reviews ?? 0).toLocaleString()}</span>
+                </div>
+                <div className="flex items-center gap-2 text-sm">
+                  <FileText className="h-4 w-4 text-blue-400" />
+                  <span className="text-white font-medium">블로그 리뷰 {(bi.blog_reviews ?? 0).toLocaleString()}</span>
+                </div>
+                {bi.image_count > 0 && (
+                  <div className="flex items-center gap-2 text-sm">
+                    <Camera className="h-4 w-4 text-purple-400" />
+                    <span className="text-white font-medium">이미지 {bi.image_count.toLocaleString()}장</span>
+                  </div>
+                )}
+                {bi.nearby_competitors > 0 && (
+                  <div className="flex items-center gap-2 text-sm">
+                    <MapPin className="h-4 w-4 text-red-400" />
+                    <span className="text-white font-medium">주변 경쟁업체 {bi.nearby_competitors}곳</span>
+                  </div>
+                )}
+              </div>
+              {(bi.facilities ?? []).length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mt-3">
+                  {(bi.facilities as string[]).map((f: string, i: number) => (
+                    <span key={i} className="px-2 py-0.5 rounded-full text-[10px] bg-[#111111] text-[#a0a0a0] border border-[#2a2a2a]">{f}</span>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="flex flex-col items-center">
+              <p className="text-xs text-[#666666] mb-2">마케팅 종합 점수</p>
+              <ScoreGauge score={score} />
+              <p className="text-sm text-[#a0a0a0] mt-2">
+                {score >= 70 ? "우수한 편이에요!" : score >= 40 ? "개선 여지가 있어요" : "마케팅 강화가 필요해요"}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Section 1.5: 전문가 진단 (SEO + 키워드 순위) ── */}
+        {(seoAudit || kwRankings.length > 0) && (
+          <div className="mb-8 grid md:grid-cols-2 gap-4">
+            {/* SEO 진단 카드 */}
+            {seoAudit && (
+              <div className="rounded-2xl border border-[#2a2a2a] bg-[#1a1a1a] p-6">
+                <h3 className="text-lg font-semibold text-white mb-1 flex items-center gap-2">
+                  <ClipboardList className="h-5 w-5 text-amber-400" />
+                  플레이스 SEO 진단
+                </h3>
+                <p className="text-xs text-[#666666] mb-4">
+                  진단 점수{" "}
+                  <span className={`font-bold ${seoAudit.score >= 70 ? "text-[#10b981]" : seoAudit.score >= 40 ? "text-amber-400" : "text-red-400"}`}>
+                    {seoAudit.score}점
+                  </span>
+                  {seoAudit.criticalIssues > 0 && <span className="text-red-400 ml-2">결격 {seoAudit.criticalIssues}건</span>}
+                  {seoAudit.totalIssues > 0 && <span className="text-amber-400 ml-2">개선 {seoAudit.totalIssues}건</span>}
+                </p>
+                <div className="space-y-2">
+                  {seoAudit.items.map((item: { label: string; value: string; status: string; detail: string }, i: number) => (
+                    <div key={i} className="flex items-center gap-3 p-2.5 rounded-lg bg-[#111111] border border-[#2a2a2a]">
+                      <span className={`shrink-0 w-2 h-2 rounded-full ${
+                        item.status === "good" ? "bg-[#10b981]" :
+                        item.status === "warning" ? "bg-amber-400" :
+                        item.status === "danger" ? "bg-red-500" : "bg-[#666666]"
+                      }`} />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm text-[#a0a0a0]">{item.label}</span>
+                          <span className={`text-xs font-medium ${
+                            item.status === "good" ? "text-[#10b981]" :
+                            item.status === "warning" ? "text-amber-400" :
+                            item.status === "danger" ? "text-red-400" : "text-[#666666]"
+                          }`}>{item.value}</span>
+                        </div>
+                        <p className="text-[10px] text-[#666666] truncate">{item.detail}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* 키워드 순위 카드 */}
+            {kwRankings.length > 0 && (
+              <div className="rounded-2xl border border-[#2a2a2a] bg-[#1a1a1a] p-6">
+                <h3 className="text-lg font-semibold text-white mb-1 flex items-center gap-2">
+                  <Search className="h-5 w-5 text-blue-400" />
+                  키워드 순위 현황
+                </h3>
+                <p className="text-xs text-[#666666] mb-4">네이버 로컬 검색 기준 TOP 3</p>
+                <div className="space-y-3">
+                  {kwRankings.map((kw, i) => {
+                    const rankColor = kw.status === "good" ? "text-[#10b981]" :
+                      kw.status === "warning" ? "text-amber-400" :
+                      kw.status === "danger" ? "text-red-400" : "text-[#666666]";
+                    return (
+                      <div key={i} className="p-3 rounded-xl bg-[#111111] border border-[#2a2a2a]">
+                        <div className="flex justify-between items-center mb-1.5">
+                          <span className="text-white font-medium">{kw.keyword}</span>
+                          <span className={`text-lg font-bold ${rankColor}`}>
+                            {kw.rank !== null ? `${kw.rank}위` : "미노출"}
+                          </span>
+                        </div>
+                        <div className="flex justify-between text-xs">
+                          <span className="text-[#666666]">월간 검색량 {(kw.searchVolume ?? 0).toLocaleString()}</span>
+                          <span className={`font-medium ${rankColor}`}>
+                            {kw.rank !== null && kw.rank <= 5 ? "상위 노출" :
+                             kw.rank !== null && kw.rank <= 20 ? "노출 중" :
+                             kw.rank !== null ? "하위 노출" : "50위 밖"}
+                          </span>
+                        </div>
+                        <div className="mt-2 h-1.5 bg-[#2a2a2a] rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full ${
+                              kw.status === "good" ? "bg-[#10b981]" :
+                              kw.status === "warning" ? "bg-amber-400" :
+                              kw.status === "danger" ? "bg-red-500" : "bg-[#666666]"
+                            }`}
+                            style={{ width: `${kw.rank !== null ? Math.max(5, 100 - (kw.rank - 1) * 2) : 0}%` }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── SNS/채널 부족 시 블로그/홈페이지 유도 배너 ── */}
+        {seoAudit && (() => {
+          const snsItem = seoAudit.items.find((item: { label: string; status: string }) =>
+            item.label === "SNS/채널 연동"
+          );
+          const snsStatus = snsItem?.status;
+          if (snsStatus === "danger" || snsStatus === "warning") {
+            return (
+              <div className="mb-8 p-5 bg-[#10b981]/5 border border-[#10b981]/20 rounded-2xl">
+                <p className="text-sm text-[#10b981] font-semibold mb-1">
+                  자체 블로그 또는 홈페이지가 필요합니다
+                </p>
+                <p className="text-xs text-[#a0a0a0] mb-3">
+                  네이버 플레이스만으로는 검색 노출에 한계가 있습니다. 자체 블로그나 홈페이지를 통해 SEO를 강화하면 키워드 노출이 크게 향상됩니다.
+                </p>
+                <div className="p-3 bg-[#10b981]/10 border border-[#10b981]/30 rounded-lg">
+                  <p className="text-xs text-[#10b981] font-medium">
+                    Waide에서 고퀄리티 블로그 & 홈페이지를 제작해 드립니다
+                  </p>
+                  <p className="text-[10px] text-[#a0a0a0] mt-1">
+                    자체 온라인 채널이 없으면 플레이스 순위 경쟁에서 불리합니다. 블로그와 홈페이지로 검색 노출을 3배 이상 늘릴 수 있습니다.
+                  </p>
+                </div>
+              </div>
+            );
+          }
+          return null;
+        })()}
+
+        {/* ── Section 2: 심층 분석 (Custom Tabs) ── */}
+        <div className="mb-8">
+          <div className="flex gap-2 mb-4 overflow-x-auto">
+            <TabButton active={activeTab === "review"} onClick={() => setActiveTab("review")}>리뷰 분석</TabButton>
+            <TabButton active={activeTab === "menu"} onClick={() => setActiveTab("menu")}>메뉴/가격</TabButton>
+            <TabButton active={activeTab === "image"} onClick={() => setActiveTab("image")}>이미지 분석</TabButton>
+            <TabButton active={activeTab === "score"} onClick={() => setActiveTab("score")}>점수 상세</TabButton>
+          </div>
+
+          {activeTab === "review" && (
+            <div className="rounded-2xl border border-[#2a2a2a] bg-[#1a1a1a] p-6">
+              <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                <MessageSquare className="h-5 w-5 text-[#10b981]" />
+                고객 강점 TOP
+              </h3>
+              <div className="space-y-3">
+                {(ra.selling_points ?? []).map((point: string, i: number) => (
+                  <div key={i} className="flex items-center gap-3">
+                    <div className="w-6 h-6 rounded-full bg-[#10b981]/10 flex items-center justify-center text-[#10b981] text-xs font-bold">{i + 1}</div>
+                    <span className="text-[#a0a0a0]">{point}</span>
+                  </div>
+                ))}
+              </div>
+              {(ra.usp ?? []).length > 0 && (
+                <div className="mt-6">
+                  <h4 className="text-sm font-medium text-[#666666] mb-3">USP (핵심 차별화)</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {(ra.usp ?? []).map((u: string, i: number) => (
+                      <span key={i} className="px-3 py-1 rounded-full text-xs border border-[#10b981]/30 text-[#10b981]">{u}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {(ra.review_keywords ?? []).length > 0 && (
+                <div className="mt-6">
+                  <h4 className="text-sm font-medium text-[#666666] mb-3">리뷰 키워드 TOP {(ra.review_keywords as Array<{ keyword: string; count: number }>).length}</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {(ra.review_keywords as Array<{ keyword: string; count: number }>).map((rk, i: number) => (
+                      <span key={i} className="px-3 py-1.5 rounded-full text-xs bg-blue-500/10 text-blue-300 border border-blue-500/20">
+                        {rk.keyword} <span className="text-blue-400/60 ml-0.5">{rk.count}</span>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === "menu" && (
+            <div className="rounded-2xl border border-[#2a2a2a] bg-[#1a1a1a] p-6">
+              <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                <Tag className="h-5 w-5 text-amber-400" />
+                시그니처 메뉴/상품
+              </h3>
+              <div className="flex flex-wrap gap-2 mb-6">
+                {(ma.signature_products ?? []).map((item: string, i: number) => (
+                  <span key={i} className="px-3 py-1 rounded-full text-xs bg-amber-500/10 text-amber-400 border border-amber-500/20">{item}</span>
+                ))}
+              </div>
+              {ma.price_position && (
+                <div>
+                  <h4 className="text-sm text-[#666666] mb-1">가격 포지셔닝</h4>
+                  <p className="text-white">{ma.price_position}</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === "image" && (
+            <div className="rounded-2xl border border-[#2a2a2a] bg-[#1a1a1a] p-6">
+              <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                <Camera className="h-5 w-5 text-[#10b981]" />
+                이미지 분석
+              </h3>
+
+              {hasImageAnalysis ? (
+                <>
+                  {/* 종합 분석 카드 */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+                    <div className="p-3 rounded-xl bg-[#111111] border border-[#2a2a2a] text-center">
+                      <p className="text-[10px] text-[#666666] mb-1">총 이미지</p>
+                      <p className="text-lg font-bold text-white">{ia.total_images ?? 0}<span className="text-xs text-[#666666]">장</span></p>
+                    </div>
+                    <div className="p-3 rounded-xl bg-[#111111] border border-[#2a2a2a] text-center">
+                      <p className="text-[10px] text-[#666666] mb-1">분위기</p>
+                      <p className="text-base font-semibold text-[#10b981]">{ia.dominant_mood || "-"}</p>
+                    </div>
+                    <div className="p-3 rounded-xl bg-[#111111] border border-[#2a2a2a] text-center">
+                      <p className="text-[10px] text-[#666666] mb-1">평균 품질</p>
+                      <p className="text-lg font-bold text-white">{(ia.avg_quality ?? 0).toFixed(1)}<span className="text-xs text-[#666666]">/10</span></p>
+                    </div>
+                    <div className="p-3 rounded-xl bg-[#111111] border border-[#2a2a2a] text-center">
+                      <p className="text-[10px] text-[#666666] mb-1">마케팅 활용도</p>
+                      <p className="text-lg font-bold text-white">{(ia.avg_marketing_usability ?? 0).toFixed(1)}<span className="text-xs text-[#666666]">/10</span></p>
+                    </div>
+                  </div>
+
+                  {/* 컬러 팔레트 */}
+                  {(ia.color_palette ?? []).length > 0 && (
+                    <div className="mb-6">
+                      <h4 className="text-sm text-[#666666] mb-2 flex items-center gap-1.5">
+                        <Palette className="h-3.5 w-3.5" /> 주요 컬러톤
+                      </h4>
+                      <div className="flex flex-wrap gap-2">
+                        {(ia.color_palette as string[]).map((color: string, i: number) => (
+                          <span key={i} className="px-3 py-1 rounded-full text-xs bg-[#10b981]/10 text-[#10b981] border border-[#10b981]/20">
+                            {color}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 이미지 갤러리 */}
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-6">
+                    {imageList.map((img, i) => (
+                      <div key={i} className="relative group rounded-xl overflow-hidden border border-[#2a2a2a] aspect-[4/3]">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={img.url}
+                          alt={img.description || `이미지 ${i + 1}`}
+                          className="w-full h-full object-cover"
+                          loading="lazy"
+                        />
+                        {/* Overlay on hover */}
+                        <div className="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 transition-opacity p-3 flex flex-col justify-between">
+                          <div>
+                            <div className="flex items-center gap-1.5 mb-2">
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium border ${
+                                img.type === "food" ? "border-amber-500/30 text-amber-400 bg-amber-500/10" :
+                                img.type === "interior" ? "border-blue-500/30 text-blue-300 bg-blue-500/10" :
+                                img.type === "exterior" ? "border-emerald-500/30 text-emerald-300 bg-emerald-500/10" :
+                                "border-[#2a2a2a] text-[#a0a0a0] bg-[#2a2a2a]"
+                              }`}>
+                                {img.type === "food" ? "음식" : img.type === "interior" ? "내부" : img.type === "exterior" ? "외부" : img.type === "menu" ? "메뉴" : img.type === "view" ? "전망" : img.type ?? "기타"}
+                              </span>
+                              {img.mood && <span className="text-[10px] text-[#a0a0a0]">{img.mood}</span>}
+                            </div>
+                            <p className="text-xs text-[#a0a0a0] line-clamp-2">{img.description}</p>
+                          </div>
+                          <div className="flex justify-between text-[10px]">
+                            <span className="text-white">품질 <span className="text-[#10b981] font-bold">{img.quality_score}/10</span></span>
+                            <span className="text-white">활용도 <span className="text-[#10b981] font-bold">{img.marketing_usability}/10</span></span>
+                            {img.food_appeal && <span className="text-white">식욕 <span className="text-amber-400 font-bold">{img.food_appeal}/10</span></span>}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* 개선 팁 */}
+                  {(ia.improvement_tips ?? []).length > 0 && (
+                    <div>
+                      <h4 className="text-sm font-medium text-[#10b981] mb-2 flex items-center gap-1.5">
+                        <Sparkles className="h-3.5 w-3.5" /> 이미지 개선 팁
+                      </h4>
+                      <div className="space-y-2">
+                        {(ia.improvement_tips as string[]).map((tip: string, i: number) => (
+                          <div key={i} className="p-3 rounded-lg bg-[#10b981]/5 border border-[#10b981]/10 flex items-start gap-2">
+                            <span className="text-[#10b981] font-bold text-sm shrink-0">{i + 1}.</span>
+                            <span className="text-sm text-[#a0a0a0]">{tip}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              ) : collectedUrls.length > 0 ? (
+                <>
+                  <p className="text-[#a0a0a0] text-sm mb-4">
+                    수집된 이미지 {ia.total_images ?? collectedUrls.length}장 중 미리보기입니다.
+                    이미지 AI 분석을 활성화하면 품질 점수와 마케팅 활용도를 확인할 수 있어요.
+                  </p>
+                  <div className="grid grid-cols-3 md:grid-cols-4 gap-2">
+                    {collectedUrls.slice(0, 8).map((img, i) => (
+                      <div key={i} className="relative rounded-lg overflow-hidden border border-[#2a2a2a] aspect-square">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={img.url} alt={`이미지 ${i + 1}`} className="w-full h-full object-cover" loading="lazy" />
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-4 p-4 rounded-xl bg-[#10b981]/5 border border-[#10b981]/10 text-center">
+                    <ImageIcon className="h-6 w-6 text-[#10b981] mx-auto mb-2" />
+                    <p className="text-sm text-[#a0a0a0]">
+                      이미지 AI 분석을 활성화하면 더 정확한 마케팅 점수를 받을 수 있어요
+                    </p>
+                  </div>
+                </>
+              ) : (
+                <div className="p-8 text-center">
+                  <ImageIcon className="h-10 w-10 text-[#666666] mx-auto mb-3" />
+                  {ia.collection_failed ? (
+                    <>
+                      <p className="text-[#a0a0a0] text-sm mb-1">플레이스에 등록된 이미지가 없어요</p>
+                      <p className="text-[#666666] text-xs">매장 사진을 네이버 플레이스에 등록하면 이미지 분석이 가능해요</p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-[#a0a0a0] text-sm mb-1">이미지를 수집하지 못했어요</p>
+                      <p className="text-[#666666] text-xs">일시적인 오류일 수 있어요. 다시 분석하면 이미지를 가져올 수 있어요</p>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === "score" && (
+            <div className="rounded-2xl border border-[#2a2a2a] bg-[#1a1a1a] p-6">
+              <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                <Award className="h-5 w-5 text-[#10b981]" />
+                마케팅 점수 6개 영역 분석
+              </h3>
+              <div className="space-y-4">
+                {[
+                  { key: "review_reputation", label: "네이버 리뷰/평판", icon: "⭐" },
+                  { key: "naver_keyword", label: "네이버 키워드 노출", icon: "🔍" },
+                  { key: "google_keyword", label: "구글 키워드 노출", icon: "🌐" },
+                  { key: "image_quality", label: "이미지 품질", icon: "📸" },
+                  { key: "online_channels", label: "온라인 채널 완성도", icon: "📱" },
+                  { key: "seo_aeo_readiness", label: "SEO/AEO 준비도", icon: "📊" },
+                ].map(({ key, label, icon }) => {
+                  const item = breakdown[key] ?? { score: 0, max: 0, details: "" };
+                  const maxVal = item.max || 25;
+                  const pct = maxVal > 0 ? (item.score / maxVal) * 100 : 0;
+                  const isFuture = maxVal === 15 && item.score === 0 && (item.details ?? "").includes("예정");
+                  const barColor = isFuture ? "bg-[#2a2a2a]" : pct >= 80 ? "bg-[#10b981]" : pct >= 50 ? "bg-amber-500" : "bg-red-500";
+                  // 네이버 키워드 노출 서브 점수
+                  const hasSubScores = key === "naver_keyword" && item.place_score !== undefined;
+                  return (
+                    <div key={key} className={isFuture ? "opacity-40" : ""}>
+                      <div className="flex justify-between text-sm mb-1.5">
+                        <span className="text-[#a0a0a0]">{icon} {label}</span>
+                        <span className="text-white font-medium">{isFuture ? "측정 예정" : `${item.score}/${maxVal}`}</span>
+                      </div>
+                      <div className="h-2.5 bg-[#2a2a2a] rounded-full overflow-hidden">
+                        <div className={`h-full rounded-full transition-all duration-700 ${barColor}`} style={{ width: `${isFuture ? 0 : pct}%` }} />
+                      </div>
+                      {hasSubScores ? (
+                        <div className="flex gap-3 mt-1.5">
+                          <span className="text-xs text-[#666666]">
+                            📍 플레이스 <span className="text-[#a0a0a0]">{item.place_score}/{item.place_max}</span>
+                          </span>
+                          <span className="text-xs text-[#666666]">
+                            📝 블로그 <span className="text-[#a0a0a0]">{item.blog_score}/{item.blog_max}</span>
+                          </span>
+                        </div>
+                      ) : (
+                        <p className="text-xs text-[#666666] mt-1">{isFuture ? "측정 예정" : (item.details ?? item.detail ?? "")}</p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {improvements.length > 0 && (
+                <div className="mt-6 space-y-2">
+                  <h4 className="text-sm font-medium text-[#10b981] flex items-center gap-2">
+                    <Lightbulb className="h-4 w-4" />
+                    개선하면 점수가 올라가요
+                  </h4>
+                  {improvements.slice(0, 5).map((tip: string, i: number) => (
+                    <div key={i} className="p-3 rounded-lg bg-[#10b981]/5 border border-[#10b981]/10 flex items-start gap-3">
+                      <span className="text-[#10b981] font-bold shrink-0 mt-0.5">{i + 1}.</span>
+                      <span className="text-sm text-[#a0a0a0]">{tip}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* ── Section 3: 키워드 분석 ── */}
+        <div className="mb-8 rounded-2xl border border-[#2a2a2a] bg-[#1a1a1a] p-6">
+          <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+            <Search className="h-5 w-5 text-blue-400" />
+            키워드 분석
+          </h3>
+
+          {/* Main keywords */}
+          <div className="flex flex-wrap gap-3 mb-6">
+            {ka.main_keyword && (
+              <div className="px-4 py-2 rounded-xl bg-blue-500/10 border border-blue-500/20">
+                <span className="text-[10px] text-blue-300">메인</span>
+                <p className="text-lg font-bold text-blue-400">{ka.main_keyword}</p>
+              </div>
+            )}
+            {ka.secondary_keyword && (
+              <div className="px-4 py-2 rounded-xl bg-[#111111] border border-[#2a2a2a]">
+                <span className="text-[10px] text-[#666666]">2차</span>
+                <p className="text-base font-medium text-[#a0a0a0]">{ka.secondary_keyword}</p>
+              </div>
+            )}
+            {ka.tertiary_keyword && (
+              <div className="px-4 py-2 rounded-xl bg-[#111111] border border-[#2a2a2a]">
+                <span className="text-[10px] text-[#666666]">3차</span>
+                <p className="text-base font-medium text-[#a0a0a0]">{ka.tertiary_keyword}</p>
+              </div>
+            )}
+          </div>
+
+          {/* Keyword table */}
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-[#2a2a2a] text-[#666666]">
+                  <th className="text-left py-3 px-2">키워드</th>
+                  <th className="text-left py-3 px-2">검색 의도</th>
+                  <th className="text-center py-3 px-2">월간 검색량</th>
+                  <th className="text-center py-3 px-2">경쟁도</th>
+                  <th className="text-center py-3 px-2">출처</th>
+                  <th className="text-center py-3 px-2">우선순위</th>
+                </tr>
+              </thead>
+              <tbody>
+                {keywords.map((kw, i) => (
+                  <tr key={i} className="border-b border-[#2a2a2a]/50 hover:bg-white/[0.02] transition-colors">
+                    <td className="py-3 px-2 text-white font-medium">{kw.keyword}</td>
+                    <td className="py-3 px-2 text-[#a0a0a0]">{kw.intent}</td>
+                    <td className="py-3 px-2 text-center text-[#a0a0a0]">{kw.monthlySearch ? kw.monthlySearch.toLocaleString() : "-"}</td>
+                    <td className="py-3 px-2 text-center">
+                      <span className={`px-2 py-0.5 rounded-full text-xs border ${kw.competition === "높음" ? "border-red-500/30 text-red-400" : kw.competition === "중간" ? "border-amber-500/30 text-amber-400" : "border-emerald-500/30 text-emerald-400"}`}>
+                        {kw.competition ?? "-"}
+                      </span>
+                    </td>
+                    <td className="py-3 px-2 text-center"><SourceBadge source={kw.source} /></td>
+                    <td className="py-3 px-2 text-center">
+                      <span className={`px-2 py-0.5 rounded-full text-xs ${kw.priority === "high" ? "bg-red-500/10 text-red-400" : kw.priority === "medium" ? "bg-amber-500/10 text-amber-400" : "bg-[#2a2a2a] text-[#666666]"}`}>
+                        {kw.priority === "high" ? "높음" : kw.priority === "medium" ? "중간" : "낮음"}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Tag cloud */}
+          <div className="mt-6">
+            <h4 className="text-sm text-[#666666] mb-3">키워드 클라우드 (크기 = 검색량)</h4>
+            <div className="flex flex-wrap gap-2 items-center">
+              {keywords.map((kw, i) => {
+                const vol = kw.monthlySearch ?? 0;
+                const sz = vol >= 10000 ? "text-xl font-bold px-4 py-2" : vol >= 1000 ? "text-base font-semibold px-3 py-1.5" : vol >= 100 ? "text-sm px-3 py-1" : "text-xs px-2 py-1";
+                const srcCls = SOURCE_COLORS[kw.source ?? ""] ?? "bg-[#222222] text-[#a0a0a0] border-[#2a2a2a]";
+                return (
+                  <span
+                    key={i}
+                    className={`${sz} rounded-full border cursor-default transition-all hover:scale-105 ${srcCls}`}
+                    title={`${kw.keyword}\n검색량: ${vol.toLocaleString()}\n경쟁도: ${kw.competition ?? "-"}\n출처: ${kw.source ?? "-"}`}
+                  >
+                    {kw.keyword}
+                  </span>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        {/* ── Section 4: AI 콘텐츠 전략 ── */}
+        <div className="mb-8 rounded-2xl border border-[#2a2a2a] bg-[#1a1a1a] p-6">
+          <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+            <Lightbulb className="h-5 w-5 text-amber-400" />
+            AI 콘텐츠 전략 제안
+          </h3>
+          <div className="grid md:grid-cols-3 gap-4 mb-6">
+            <div className="p-4 rounded-xl bg-[#111111] border border-[#2a2a2a]">
+              <h4 className="text-sm text-[#666666] mb-2">추천 콘텐츠 타입</h4>
+              <div className="flex flex-wrap gap-2">
+                {(cs.recommended_content_types ?? []).map((type: string, i: number) => (
+                  <span key={i} className="px-2 py-0.5 rounded-full text-xs bg-[#10b981]/10 text-[#10b981] border border-[#10b981]/20">{type}</span>
+                ))}
+              </div>
+            </div>
+            <div className="p-4 rounded-xl bg-[#111111] border border-[#2a2a2a]">
+              <h4 className="text-sm text-[#666666] mb-2">추천 발행 빈도</h4>
+              <p className="text-white font-medium text-lg">{cs.posting_frequency ?? "주 2~3회"}</p>
+            </div>
+            <div className="p-4 rounded-xl bg-[#111111] border border-[#2a2a2a]">
+              <h4 className="text-sm text-[#666666] mb-2">톤앤매너</h4>
+              <p className="text-white font-medium">{ba.tone?.style ?? "-"}</p>
+              <p className="text-xs text-[#666666] mt-1">{ba.tone?.personality ?? ""}</p>
+            </div>
+          </div>
+
+          {cs.competitor_differentiation && (
+            <div className="p-4 rounded-xl bg-[#10b981]/5 border border-[#10b981]/10 mb-6">
+              <h4 className="text-sm text-[#10b981] mb-2">경쟁사 차별화 전략</h4>
+              <p className="text-[#a0a0a0]">{cs.competitor_differentiation}</p>
+            </div>
+          )}
+
+          <h4 className="text-sm text-[#666666] mb-3">콘텐츠 주제 아이디어</h4>
+          <div className="grid md:grid-cols-2 gap-2">
+            {(cs.content_angles ?? []).map((angle: string, i: number) => (
+              <div key={i} className="flex items-center gap-3 p-3 rounded-lg bg-[#111111] border border-[#2a2a2a]">
+                <div className="w-6 h-6 rounded-full bg-amber-500/10 flex items-center justify-center text-amber-400 text-xs font-bold shrink-0">{i + 1}</div>
+                <span className="text-[#a0a0a0] text-sm">{angle}</span>
+              </div>
+            ))}
+          </div>
+
+          {(ba.forbidden_terms ?? []).length > 0 && (
+            <div className="mt-6 p-4 rounded-xl bg-red-500/5 border border-red-500/10">
+              <h4 className="text-sm text-red-400 mb-2">콘텐츠 작성 시 주의 (금기 표현)</h4>
+              <div className="flex flex-wrap gap-2">
+                {(ba.forbidden_terms ?? []).map((term: string, i: number) => (
+                  <span key={i} className="px-2 py-0.5 rounded-full text-xs border border-red-500/30 text-red-400">{term}</span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* ── Section 5: 고객 보완 ── */}
+        <div className="mb-8 rounded-2xl border border-[#2a2a2a] bg-[#1a1a1a] p-6">
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+              <Pencil className="h-5 w-5 text-[#666666]" />
+              분석 결과를 보완해주세요
+            </h3>
+            {!editMode ? (
+              <button
+                onClick={() => setEditMode(true)}
+                className="px-3 py-1.5 rounded-lg text-sm border border-[#2a2a2a] text-[#a0a0a0] hover:text-white hover:border-[#10b981]/30 transition-colors"
+              >
+                <Pencil className="inline h-3.5 w-3.5 mr-1" /> 수정하기
+              </button>
+            ) : (
+              <div className="flex gap-2">
+                <button onClick={() => setEditMode(false)} className="px-3 py-1.5 rounded-lg text-sm text-[#666666] hover:text-white transition-colors">취소</button>
+                <button
+                  onClick={handleSaveEdits}
+                  disabled={savingEdits}
+                  className="px-4 py-1.5 rounded-lg text-sm bg-[#10b981] hover:bg-[#34d399] text-white font-medium transition-colors disabled:opacity-50"
+                >
+                  <Save className="inline h-3.5 w-3.5 mr-1" /> {savingEdits ? "저장 중..." : "저장"}
+                </button>
+              </div>
+            )}
+          </div>
+          <div className="grid md:grid-cols-2 gap-4">
+            {[
+              { key: "mainMenu", label: "우리 매장 주력 메뉴/서비스", placeholder: "예: 숙성 소곱창, 양곱창 세트" },
+              { key: "strength", label: "우리의 핵심 강점", placeholder: "예: 당일 손질한 신선한 재료" },
+              { key: "targetCustomer", label: "타겟 고객층", placeholder: "예: 30~40대 직장인 회식" },
+              { key: "additionalKeywords", label: "추가 공략 키워드", placeholder: "쉼표로 구분 (예: 잠실 맛집, 소곱창 맛집)" },
+            ].map(({ key, label, placeholder }) => (
+              <div key={key}>
+                <label className="text-sm text-[#666666] mb-1.5 block">{label}</label>
+                {editMode ? (
+                  <input
+                    value={edits[key as keyof typeof edits]}
+                    onChange={(e) => setEdits({ ...edits, [key]: e.target.value })}
+                    className="w-full h-10 px-3 rounded-lg bg-[#111111] border border-[#2a2a2a] text-white text-sm focus:outline-none focus:border-[#10b981] transition-colors"
+                    placeholder={placeholder}
+                  />
+                ) : (
+                  <p className="text-[#a0a0a0] py-2 min-h-[40px] text-sm">
+                    {edits[key as keyof typeof edits] || <span className="text-[#666666]">미입력</span>}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* ════════════════════════════════════════════════════════
+            CTA Section A: 3-Step Process
+           ════════════════════════════════════════════════════════ */}
+        <div className="mb-8">
+          <h3 className="text-xl font-bold text-white text-center mb-2">
+            이 문제, 어떻게 해결할까요?
+          </h3>
+          <p className="text-[#666666] text-center mb-8 text-sm">
+            3단계로 온라인 마케팅을 자동화하세요
+          </p>
+          <div className="grid md:grid-cols-3 gap-4">
+            {[
+              { step: 1, icon: "📊", title: "분석 완료", desc: "AI가 매장의 온라인 현황을 진단했어요", done: true },
+              { step: 2, icon: "🎯", title: "맞춤 키워드 전략 수립", desc: "공략 키워드와 콘텐츠 방향을 설계합니다", done: false },
+              { step: 3, icon: "✍️", title: "AI 콘텐츠 자동 발행", desc: "블로그 글을 자동 작성하고 상위노출까지", done: false },
+            ].map((item) => (
+              <div
+                key={item.step}
+                className={`relative p-6 rounded-2xl border text-center ${
+                  item.done
+                    ? "border-[#10b981]/30 bg-[#10b981]/5"
+                    : "border-[#2a2a2a] bg-[#1a1a1a]"
+                }`}
+              >
+                {item.done && (
+                  <div className="absolute top-3 right-3">
+                    <CheckCircle2 className="h-5 w-5 text-[#10b981]" />
+                  </div>
+                )}
+                <div className="text-3xl mb-3">{item.icon}</div>
+                <div className="text-xs text-[#666666] mb-1">Step {item.step}</div>
+                <h4 className="font-semibold text-white mb-1">{item.title}</h4>
+                <p className="text-sm text-[#a0a0a0]">{item.desc}</p>
+                {item.done && (
+                  <span className="inline-block mt-3 px-3 py-1 rounded-full text-xs bg-[#10b981]/10 text-[#10b981] font-medium">
+                    ✅ 지금 여기!
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* ════════════════════════════════════════════════════════
+            CTA Section B: Reviews
+           ════════════════════════════════════════════════════════ */}
+        <div className="mb-8">
+          <h3 className="text-lg font-bold text-white text-center mb-6">
+            사장님들의 후기
+          </h3>
+          <div className="grid md:grid-cols-3 gap-4">
+            {[
+              { stars: 5, text: "키워드 분석만 보고도 뭘 해야 하는지 바로 알겠더라고요", biz: "송파 곱창집" },
+              { stars: 5, text: "대행사 비용의 1/10로 더 좋은 결과가 나와요", biz: "가평 펜션" },
+              { stars: 5, text: "매주 자동으로 블로그 글이 올라가니 편해요", biz: "강남 미용실" },
+            ].map((review, i) => (
+              <div key={i} className="p-5 rounded-2xl border border-[#2a2a2a] bg-[#1a1a1a]">
+                <div className="flex gap-0.5 mb-3">
+                  {Array.from({ length: review.stars }).map((_, j) => (
+                    <Star key={j} className="h-4 w-4 fill-amber-400 text-amber-400" />
+                  ))}
+                </div>
+                <p className="text-sm text-[#a0a0a0] mb-3 leading-relaxed">&ldquo;{review.text}&rdquo;</p>
+                <p className="text-xs text-[#666666]">— {review.biz}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* ════════════════════════════════════════════════════════
+            CTA Section C: Contact
+           ════════════════════════════════════════════════════════ */}
+        <div className="mb-8">
+          <div className="rounded-2xl border border-[#10b981]/20 bg-gradient-to-b from-[#10b981]/5 to-[#1a1a1a] p-8 md:p-12 text-center">
+            <div className="text-3xl mb-3">🚀</div>
+            <h3 className="text-xl md:text-2xl font-bold text-white mb-2">
+              마케팅 점수를 올리고 싶다면
+            </h3>
+            {/* SNS 채널 부족 시 블로그/홈페이지 강조 */}
+            {seoAudit && seoAudit.items.some((item: { label: string; status: string }) =>
+              item.label === "SNS/채널 연동" && (item.status === "danger" || item.status === "warning")
+            ) ? (
+              <div className="mb-6">
+                <p className="text-[#a0a0a0] mb-3">
+                  블로그/홈페이지 제작으로 검색 노출을 극대화하세요
+                </p>
+                <div className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#10b981]/10 border border-[#10b981]/20 mb-4">
+                  <span className="text-sm text-[#10b981] font-medium">블로그/홈페이지 무료 제작 이벤트 진행 중</span>
+                </div>
+              </div>
+            ) : (
+              <p className="text-[#a0a0a0] mb-8">
+                Waide 전문가가 맞춤 전략을 안내해드려요
+              </p>
+            )}
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+              <a
+                href="tel:02-0000-0000"
+                className="flex items-center gap-2 px-6 py-3 rounded-xl border border-[#2a2a2a] bg-[#1a1a1a] text-white hover:border-[#10b981]/30 transition-colors w-full sm:w-auto justify-center"
+              >
+                <PhoneCall className="h-4 w-4 text-[#10b981]" />
+                <span className="text-sm font-medium">전화 상담</span>
+              </a>
+              <a
+                href="https://pf.kakao.com/_placeholder"
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center gap-2 px-6 py-3 rounded-xl border border-[#2a2a2a] bg-[#1a1a1a] text-white hover:border-[#10b981]/30 transition-colors w-full sm:w-auto justify-center"
+              >
+                <MessageCircle className="h-4 w-4 text-amber-400" />
+                <span className="text-sm font-medium">카카오톡 상담</span>
+              </a>
+              <button
+                onClick={() => setShowConsultation(true)}
+                className="flex items-center gap-2 px-6 py-3 rounded-xl bg-[#10b981] hover:bg-[#34d399] text-white font-medium transition-colors w-full sm:w-auto justify-center"
+              >
+                <ClipboardList className="h-4 w-4" />
+                <span className="text-sm">무료 상담 신청</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Consultation Modal */}
+      {showConsultation && (
+        <ConsultationModal
+          analysisId={id}
+          salesRef={data.sales_ref}
+          onClose={() => setShowConsultation(false)}
+        />
+      )}
+    </>
+  );
+}

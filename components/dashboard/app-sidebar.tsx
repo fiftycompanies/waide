@@ -7,6 +7,7 @@ import {
   Bot,
   Building2,
   CalendarClock,
+  ClipboardList,
   FileEdit,
   GitBranch,
   Key,
@@ -16,8 +17,10 @@ import {
   LogOut,
   Settings,
   ShieldCheck,
+  SlidersHorizontal,
   Sparkles,
   Target,
+  UserCheck,
   Users,
 } from "lucide-react";
 import { Logo } from "@/components/logo";
@@ -44,8 +47,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import dynamic from "next/dynamic";
 import { adminLogout, getAdminInfo } from "@/lib/actions/admin-actions";
-import { BrandSelector } from "@/components/dashboard/brand-selector";
+const BrandSelector = dynamic(
+  () => import("@/components/dashboard/brand-selector").then(m => m.BrandSelector),
+  { ssr: false }
+);
 import type { AiMarketBrand } from "@/lib/actions/brand-actions";
 import type { AdminPayload } from "@/lib/auth/admin-session";
 
@@ -62,12 +69,18 @@ const primaryNavItems = [
   { title: "발행 추천",     url: "/analytics/recommendations",     icon: Sparkles },
 ];
 
+const crmNavItems = [
+  { title: "분석 로그",     url: "/ops/analysis-logs",   icon: ClipboardList },
+  { title: "영업사원 관리", url: "/ops/sales-agents",    icon: UserCheck },
+];
+
 const opsNavItems = [
   { title: "Jobs 모니터링", url: "/ops/jobs",             icon: GitBranch },
   { title: "에이전트 로그", url: "/ops",                  icon: Activity },
   { title: "에이전트 설정", url: "/ops/agent-settings",   icon: Bot },
   { title: "SERP 스케줄러", url: "/ops/serp-settings",    icon: BarChart2 },
   { title: "자동 스케줄러", url: "/ops/scheduler",        icon: CalendarClock },
+  { title: "점수 설정",     url: "/ops/scoring-settings", icon: SlidersHorizontal },
 ];
 
 interface AppSidebarProps {
@@ -122,6 +135,31 @@ export function AppSidebar({ brands = [], selectedClientId = null }: AppSidebarP
           <SidebarGroupContent>
             <SidebarMenu>
               {primaryNavItems.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={isActive(item.url)}
+                    className="transition-colors"
+                  >
+                    <Link href={item.url}>
+                      <item.icon className="h-4 w-4" />
+                      <span>{item.title}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        {/* 영업/CRM */}
+        <SidebarGroup>
+          <SidebarGroupLabel className="text-xs font-medium text-muted-foreground px-2">
+            영업/CRM
+          </SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {crmNavItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton
                     asChild

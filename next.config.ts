@@ -1,7 +1,13 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  images: {
+    remotePatterns: [
+      { protocol: "https", hostname: "**.naver.com" },
+      { protocol: "https", hostname: "**.pstatic.net" },
+      { protocol: "https", hostname: "**.navermaps.com" },
+    ],
+  },
 };
 
 export default nextConfig;

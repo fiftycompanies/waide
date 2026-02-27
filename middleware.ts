@@ -21,6 +21,7 @@ const PROTECTED_ROUTES = [
   "/sources",
 ];
 const AUTH_ROUTES = ["/login"];
+const PUBLIC_ROUTES = ["/analysis", "/api/analyze", "/api/consultation"];
 
 // ── Edge Runtime 호환 HMAC-SHA256 검증 ──────────────────────
 async function isValidAdminSession(token: string): Promise<boolean> {
@@ -72,6 +73,12 @@ export async function middleware(request: NextRequest) {
 
   const isProtected = PROTECTED_ROUTES.some((r) => pathname.startsWith(r));
   const isAuth = AUTH_ROUTES.some((r) => pathname.startsWith(r));
+  const isPublic = PUBLIC_ROUTES.some((r) => pathname.startsWith(r));
+
+  // 퍼블릭 라우트는 인증 체크 없이 바로 통과
+  if (isPublic) {
+    return NextResponse.next();
+  }
 
   const token = request.cookies.get(COOKIE_NAME)?.value;
   const isValid = token ? await isValidAdminSession(token) : false;

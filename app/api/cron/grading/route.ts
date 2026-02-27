@@ -1,5 +1,7 @@
 /**
- * 계정 등급 + 키워드 난이도 + 발행 추천 크론 API
+ * 계정 등급 + 키워드 난이도 + 발행 추천 크론 API (v2)
+ *
+ * scoring_weights 설정에서 모든 가중치를 동적 로딩.
  *
  * 스케줄: 매주 월요일 새벽 5시
  * 동작:
@@ -22,16 +24,72 @@ import {
 export const maxDuration = 300;
 export const dynamic = "force-dynamic";
 
-// ── 등급 유틸 ─────────────────────────────────────────────
-const GRADE_THRESHOLDS: [number, string][] = [[75, "S"], [55, "A"], [35, "B"], [0, "C"]];
-function scoreToGrade(score: number): string {
-  for (const [th, g] of GRADE_THRESHOLDS) {
-    if (score >= th) return g;
+// ── 타입 ──────────────────────────────────────────────────
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type DB = any;
+
+interface ScoringWeights {
+  account_grade: {
+    weighted_exposure: number;
+    exposure_rate: number;
+    content_volume: number;
+    thresholds: Record<string, number>;
+    content_tiers: Record<string, number>;
+  };
+  keyword_difficulty: {
+    search_volume: number;
+    competition: number;
+    serp_dominance: number;
+    own_rank_bonus: number;
+    thresholds: Record<string, number>;
+    volume_tiers: Record<string, number>;
+  };
+  publish_recommendation: {
+    block_already_exposed: boolean;
+    block_recent_days: number;
+    grade_matching: number;
+    publish_history: number;
+    keyword_relevance: number;
+    volume_weight: number;
+  };
+  // qc_scoring & marketing_score are used elsewhere
+}
+
+// ── 유틸 ──────────────────────────────────────────────────
+function scoreToGrade(score: number, thresholds: Record<string, number>): string {
+  const sorted = Object.entries(thresholds).sort(([, a], [, b]) => b - a);
+  for (const [grade, th] of sorted) {
+    if (score >= th) return grade;
   }
   return "C";
 }
+
+function tierLookup(value: number, tiers: Record<string, number>): number {
+  const sorted = Object.entries(tiers)
+    .map(([k, v]) => [Number(k), v] as [number, number])
+    .sort(([a], [b]) => b - a);
+  for (const [threshold, pts] of sorted) {
+    if (value >= threshold) return pts;
+  }
+  return sorted[sorted.length - 1]?.[1] ?? 0;
+}
+
 const GRADE_NUM: Record<string, number> = { S: 4, A: 3, B: 2, C: 1 };
 
+// 등급 매칭 점수표
+const GRADE_MATCH_TABLE: Record<string, Record<string, number>> = {
+  S: { S: 100, A: 80, B: 50, C: 30 },
+  A: { S: 80, A: 100, B: 80, C: 50 },
+  B: { S: 40, A: 80, B: 100, C: 80 },
+  C: { S: 20, A: 40, B: 80, C: 100 },
+};
+
+async function loadWeights(db: DB): Promise<ScoringWeights> {
+  const { data } = await db.from("settings").select("value").eq("key", "scoring_weights").single();
+  return data?.value as ScoringWeights;
+}
+
+// ── API 핸들러 ────────────────────────────────────────────
 export async function POST(request: Request) {
   if (!verifyCronAuth(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -50,8 +108,8 @@ export async function POST(request: Request) {
   const result = await runScheduledTask("grading", async () => {
     const db = createAdminClient();
     const today = new Date().toISOString().slice(0, 10);
+    const weights = await loadWeights(db);
 
-    // 클라이언트 목록
     const { data: clients } = await db
       .from("clients")
       .select("id, name")
@@ -59,7 +117,7 @@ export async function POST(request: Request) {
 
     if (!clients?.length) return { accounts: 0, keywords: 0, recommendations: 0 };
 
-    const clientIds = clients.map((c) => c.id);
+    const clientIds = clients.map((c: { id: string }) => c.id);
     let totalAccounts = 0;
     let totalKeywords = 0;
     let totalRecs = 0;
@@ -67,26 +125,22 @@ export async function POST(request: Request) {
     const gradeDist = { S: 0, A: 0, B: 0, C: 0 };
 
     for (const clientId of clientIds) {
-      // ── STEP 1: 계정 등급 ──────────────────────────────
-      const accountResult = await gradeAccounts(db, clientId, today);
+      const accountResult = await gradeAccounts(db, clientId, today, weights);
       totalAccounts += accountResult.count;
       gradeChanges.push(...accountResult.changes);
 
-      // ── STEP 2: 키워드 난이도 ──────────────────────────
-      const kwResult = await gradeKeywords(db, clientId, today);
+      const kwResult = await gradeKeywords(db, clientId, today, weights);
       totalKeywords += kwResult.count;
       for (const [g, n] of Object.entries(kwResult.dist)) {
         gradeDist[g as keyof typeof gradeDist] += n;
       }
 
-      // ── STEP 3: 발행 추천 ─────────────────────────────
-      const recCount = await generateRecommendations(db, clientId, today);
+      const recCount = await generateRecommendations(db, clientId, today, weights);
       totalRecs += recCount;
     }
 
-    // Slack 알림 — 등급 변화
     const slackLines = [
-      "📊 *[분석봇] 주간 등급 재산출 완료*",
+      "📊 *[분석봇] 주간 등급 재산출 완료 (v2)*",
       "━━━━━━━━━━━━━━━━━━━━━━━━━━",
       `📅 ${today}`,
       `계정: ${totalAccounts}개 | 키워드: ${totalKeywords}개 | 추천: ${totalRecs}건`,
@@ -103,7 +157,6 @@ export async function POST(request: Request) {
 
     await sendSlackNotification(slackLines.join("\n"), undefined, "alerts");
 
-    // 매월 1일: 월간 리포트
     if (new Date().getDate() === 1) {
       await sendMonthlyReport(db);
     }
@@ -125,10 +178,10 @@ export async function GET(request: Request) {
 }
 
 // ════════════════════════════════════════════════════════════
-// 계정 등급 (run-analyst.mjs 로직 인라인)
+// Task 2: 계정 등급 (v2)
 // ════════════════════════════════════════════════════════════
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function gradeAccounts(db: any, clientId: string, today: string) {
+async function gradeAccounts(db: DB, clientId: string, today: string, weights: ScoringWeights) {
+  const w = weights.account_grade;
   const { data: accounts } = await db
     .from("blog_accounts")
     .select("id, account_name")
@@ -139,6 +192,7 @@ async function gradeAccounts(db: any, clientId: string, today: string) {
   let count = 0;
 
   for (const acc of accounts ?? []) {
+    // 발행 콘텐츠 + 키워드 조회
     const { data: contents } = await db
       .from("contents")
       .select("id, keyword_id")
@@ -157,26 +211,50 @@ async function gradeAccounts(db: any, clientId: string, today: string) {
       continue;
     }
 
-    const kwIds = [...new Set((contents ?? []).map((c: { keyword_id: string }) => c.keyword_id).filter(Boolean))];
-    const { data: kwData } = await db.from("keywords").select("id, current_rank_naver_pc").in("id", kwIds);
+    // 키워드별 순위 + 검색량
+    const kwIds = [...new Set((contents ?? []).map((c: { keyword_id: string }) => c.keyword_id).filter(Boolean))] as string[];
+    const { data: kwData } = await db.from("keywords").select("id, current_rank_naver_pc, monthly_search_total").in("id", kwIds);
+
     const rankMap: Record<string, number> = {};
-    for (const k of kwData ?? []) if (k.current_rank_naver_pc != null) rankMap[k.id] = k.current_rank_naver_pc;
+    const volMap: Record<string, number> = {};
+    for (const k of kwData ?? []) {
+      if (k.current_rank_naver_pc != null) rankMap[k.id] = k.current_rank_naver_pc;
+      volMap[k.id] = k.monthly_search_total ?? 0;
+    }
 
-    const ranks = (contents ?? []).map((c: { keyword_id: string }) => rankMap[c.keyword_id]).filter((r: number | undefined): r is number => r != null);
-    const exposedCount = ranks.length;
-    const exposureRate = total > 0 ? exposedCount / total : 0;
-    const top3 = ranks.filter((r: number) => r <= 3).length;
-    const top10 = ranks.filter((r: number) => r <= 10).length;
-    const top20 = ranks.filter((r: number) => r <= 20).length;
-    const avgRank = ranks.length > 0 ? ranks.reduce((a: number, b: number) => a + b, 0) / ranks.length : null;
+    // 검색량 가중 노출 점수
+    let weightedSum = 0;
+    let totalVolume = 0;
+    for (const kwId of kwIds) {
+      const vol = volMap[kwId] ?? 0;
+      const rank = rankMap[kwId];
+      totalVolume += vol;
+      if (rank != null) {
+        const visibility = Math.max(0, (21 - rank) / 20) * 100;
+        weightedSum += vol * visibility;
+      }
+    }
+    const weightedExposure = totalVolume > 0 ? weightedSum / totalVolume : 0;
 
-    const rankQuality = (top3 / total) * 1.0 + ((top10 - top3) / total) * 0.6 + ((top20 - top10) / total) * 0.3;
-    const consistency = 0.5;
-    const volumeBonus = Math.min(total / 30, 1.0);
+    // 노출률
+    const exposedCount = Object.keys(rankMap).length;
+    const exposureRate = kwIds.length > 0 ? (exposedCount / kwIds.length) * 100 : 0;
 
-    let score = exposureRate * 35 + rankQuality * 35 + consistency * 20 + volumeBonus * 10;
+    // 콘텐츠 보유량 점수
+    const contentVolumeScore = tierLookup(total, w.content_tiers);
+
+    // 총점
+    let score = weightedExposure * w.weighted_exposure
+              + exposureRate * w.exposure_rate
+              + contentVolumeScore * w.content_volume;
     score = Math.round(Math.min(100, score) * 10) / 10;
-    const grade = scoreToGrade(score);
+    const grade = scoreToGrade(score, w.thresholds);
+
+    // 세부 지표
+    const ranks = Object.values(rankMap);
+    const top3 = ranks.filter(r => r <= 3).length;
+    const top10 = ranks.filter(r => r <= 10).length;
+    const avgRank = ranks.length > 0 ? ranks.reduce((a, b) => a + b, 0) / ranks.length : null;
 
     // 이전 등급
     const { data: prevData } = await db
@@ -193,18 +271,18 @@ async function gradeAccounts(db: any, clientId: string, today: string) {
     }
 
     const reason = prevGrade
-      ? `등급 유지 (${grade}급). 노출률 ${(exposureRate * 100).toFixed(0)}%, TOP10 ${((top10 / total) * 100).toFixed(0)}%`
-      : `신규 발행 ${total}건, 초기 등급 ${grade}급`;
+      ? `노출률 ${exposureRate.toFixed(0)}%, 가중노출 ${weightedExposure.toFixed(0)}, 콘텐츠 ${total}건`
+      : `신규 ${total}건, 초기 등급 ${grade}급`;
 
     await db.from("account_grades").upsert(
       {
         account_id: acc.id, client_id: clientId, measured_at: today,
         total_published: total, exposed_keywords: exposedCount,
-        exposure_rate: Math.round(exposureRate * 10000) / 100,
+        exposure_rate: Math.round(exposureRate * 100) / 100,
         avg_rank: avgRank ? Math.round(avgRank * 10) / 10 : null,
         top3_count: top3, top10_count: top10,
-        top3_ratio: Math.round((top3 / total) * 10000) / 100,
-        top10_ratio: Math.round((top10 / total) * 10000) / 100,
+        top3_ratio: total > 0 ? Math.round((top3 / total) * 10000) / 100 : 0,
+        top10_ratio: total > 0 ? Math.round((top10 / total) * 10000) / 100 : 0,
         consistency_rate: 50, account_score: score, grade,
         previous_grade: prevGrade, grade_change_reason: reason,
       },
@@ -217,33 +295,63 @@ async function gradeAccounts(db: any, clientId: string, today: string) {
 }
 
 // ════════════════════════════════════════════════════════════
-// 키워드 난이도
+// Task 3: 키워드 난이도 (v2)
 // ════════════════════════════════════════════════════════════
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function gradeKeywords(db: any, clientId: string, today: string) {
+async function gradeKeywords(db: DB, clientId: string, today: string, weights: ScoringWeights) {
+  const w = weights.keyword_difficulty;
+
   const { data: keywords } = await db
     .from("keywords")
     .select("id, monthly_search_total, monthly_search_pc, monthly_search_mo, competition_level, current_rank_naver_pc, current_rank_naver_mo")
     .eq("client_id", clientId)
     .in("status", ["active", "queued", "refresh"]);
 
+  // 우리 계정의 SERP 순위 조회
+  const { data: serpRows } = await db
+    .from("serp_results")
+    .select("keyword_id, rank")
+    .eq("client_id", clientId)
+    .eq("is_own", true)
+    .order("checked_at", { ascending: false });
+
+  const ownRankMap: Record<string, number> = {};
+  for (const sr of serpRows ?? []) {
+    if (!ownRankMap[sr.keyword_id]) ownRankMap[sr.keyword_id] = sr.rank;
+  }
+
   const dist = { S: 0, A: 0, B: 0, C: 0 };
   let count = 0;
 
   for (const kw of keywords ?? []) {
     const vol = kw.monthly_search_total || 0;
-    const searchDemand = vol >= 100 ? 1.0 : vol >= 50 ? 0.7 : vol >= 20 ? 0.4 : 0.2;
-    const comp = { high: 1.0, medium: 0.6, low: 0.3 }[kw.competition_level as string] ?? 0.6;
-    const rankPc = kw.current_rank_naver_pc;
-    const gap = rankPc == null ? 1.0 : rankPc > 10 ? 0.6 : rankPc > 3 ? 0.3 : 0.1;
 
-    let diffScore = searchDemand * 30 + comp * 40 + gap * 30;
+    // 검색량 규모 점수
+    const volumeScore = tierLookup(vol, w.volume_tiers);
+
+    // 경쟁도 점수
+    const compMap: Record<string, number> = { high: 100, medium: 60, low: 25 };
+    const competitionScore = compMap[kw.competition_level as string] ?? 50;
+
+    // SERP 상위 점유 + 자사 순위 보너스
+    let serpScore = 50; // 기본값
+    const ownRank = ownRankMap[kw.id];
+    if (ownRank != null) {
+      if (ownRank <= 10) serpScore = 50 + w.own_rank_bonus; // -25 → 25
+      else if (ownRank <= 20) serpScore = 40;
+      else serpScore = 60;
+    }
+
+    // 난이도 점수
+    let diffScore = volumeScore * w.search_volume
+                  + competitionScore * w.competition
+                  + serpScore * w.serp_dominance;
     diffScore = Math.round(Math.min(100, diffScore) * 10) / 10;
-    const grade = scoreToGrade(diffScore);
+
+    const grade = scoreToGrade(diffScore, w.thresholds);
     dist[grade as keyof typeof dist]++;
 
-    let oppScore = Math.round(searchDemand * (1 - comp) * 1000) / 10;
-    oppScore = Math.min(100, oppScore);
+    // 공략 가능성 = 100 - 난이도
+    const oppScore = Math.round((100 - diffScore) * 10) / 10;
 
     const moRatio = vol > 0 ? Math.round(((kw.monthly_search_mo || 0) / vol) * 1000) / 10 : 0;
 
@@ -251,7 +359,7 @@ async function gradeKeywords(db: any, clientId: string, today: string) {
       {
         keyword_id: kw.id, client_id: clientId, measured_at: today,
         search_volume_total: vol, competition_level: kw.competition_level || "medium",
-        current_rank_pc: rankPc, current_rank_mo: kw.current_rank_naver_mo,
+        current_rank_pc: kw.current_rank_naver_pc, current_rank_mo: kw.current_rank_naver_mo,
         mo_ratio: moRatio, difficulty_score: diffScore, grade, opportunity_score: oppScore,
       },
       { onConflict: "keyword_id,measured_at" },
@@ -263,10 +371,11 @@ async function gradeKeywords(db: any, clientId: string, today: string) {
 }
 
 // ════════════════════════════════════════════════════════════
-// 발행 추천
+// Task 4: 발행 추천 (v2)
 // ════════════════════════════════════════════════════════════
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function generateRecommendations(db: any, clientId: string, today: string): Promise<number> {
+async function generateRecommendations(db: DB, clientId: string, today: string, weights: ScoringWeights): Promise<number> {
+  const w = weights.publish_recommendation;
+
   const { data: accountGrades } = await db
     .from("account_grades")
     .select("account_id, grade, account_score, total_published")
@@ -275,69 +384,160 @@ async function generateRecommendations(db: any, clientId: string, today: string)
 
   const { data: keywordGrades } = await db
     .from("keyword_difficulty")
-    .select("keyword_id, grade, difficulty_score, opportunity_score, competition_level")
+    .select("keyword_id, grade, difficulty_score, opportunity_score, competition_level, search_volume_total")
     .eq("client_id", clientId)
     .eq("measured_at", today);
 
   if (!accountGrades?.length || !keywordGrades?.length) return 0;
 
-  // 계정 이름
-  const accIds = accountGrades.map((a: { account_id: string }) => a.account_id);
-  const { data: accNames } = await db.from("blog_accounts").select("id, account_name").in("id", accIds);
-  const nameMap: Record<string, string> = {};
-  for (const a of accNames ?? []) nameMap[a.id] = a.account_name;
+  // ── 차단 데이터 로드 ──
+  // 1) 이미 노출 중인 계정 (serp_results에서 rank 있는 계정)
+  const exposedMap: Record<string, Set<string>> = {}; // keyword_id → Set<account_id>
+  if (w.block_already_exposed) {
+    const { data: serpData } = await db
+      .from("serp_results")
+      .select("keyword_id, account_id")
+      .eq("client_id", clientId)
+      .eq("is_own", true)
+      .not("rank", "is", null);
 
-  // 중복 체크
-  const { data: pubContents } = await db
-    .from("contents")
-    .select("keyword_id, account_id")
-    .eq("client_id", clientId)
-    .eq("publish_status", "published");
-  const dupeMap: Record<string, Set<string>> = {};
-  for (const c of pubContents ?? []) {
-    if (c.keyword_id && c.account_id) {
-      if (!dupeMap[c.keyword_id]) dupeMap[c.keyword_id] = new Set();
-      dupeMap[c.keyword_id].add(c.account_id);
+    for (const sr of serpData ?? []) {
+      if (sr.keyword_id && sr.account_id) {
+        if (!exposedMap[sr.keyword_id]) exposedMap[sr.keyword_id] = new Set();
+        exposedMap[sr.keyword_id].add(sr.account_id);
+      }
     }
   }
 
+  // 2) 최근 N일 내 동일 키워드 발행한 계정
+  const recentBlockDays = w.block_recent_days;
+  const recentDate = new Date();
+  recentDate.setDate(recentDate.getDate() - recentBlockDays);
+  const recentDateStr = recentDate.toISOString().slice(0, 10);
+
+  const recentPubMap: Record<string, Set<string>> = {}; // keyword_id → Set<account_id>
+  const { data: recentPubs } = await db
+    .from("contents")
+    .select("keyword_id, account_id")
+    .eq("client_id", clientId)
+    .eq("publish_status", "published")
+    .gte("published_date", recentDateStr);
+
+  for (const c of recentPubs ?? []) {
+    if (c.keyword_id && c.account_id) {
+      if (!recentPubMap[c.keyword_id]) recentPubMap[c.keyword_id] = new Set();
+      recentPubMap[c.keyword_id].add(c.account_id);
+    }
+  }
+
+  // 3) 계정별 최근 7일 발행 건수
+  const accPubCount: Record<string, number> = {};
+  const { data: acc7d } = await db
+    .from("contents")
+    .select("account_id")
+    .eq("client_id", clientId)
+    .eq("publish_status", "published")
+    .gte("published_date", recentDateStr);
+
+  for (const c of acc7d ?? []) {
+    if (c.account_id) accPubCount[c.account_id] = (accPubCount[c.account_id] ?? 0) + 1;
+  }
+
+  // 4) 계정별 유사 키워드군 TOP3 이력
+  const accKwHistory: Record<string, Set<string>> = {}; // account_id → Set<keyword_id where top3>
+  const { data: historyData } = await db
+    .from("serp_results")
+    .select("account_id, keyword_id, rank")
+    .eq("client_id", clientId)
+    .eq("is_own", true)
+    .lte("rank", 3);
+
+  for (const h of historyData ?? []) {
+    if (h.account_id) {
+      if (!accKwHistory[h.account_id]) accKwHistory[h.account_id] = new Set();
+      accKwHistory[h.account_id].add(h.keyword_id);
+    }
+  }
+
+  // ── 추천 생성 ──
   const records: Array<Record<string, unknown>> = [];
+
   for (const kw of keywordGrades) {
-    const scored: Array<{ score: number; acc: typeof accountGrades[0]; bonuses: Record<string, boolean>; penalties: Record<string, boolean> }> = [];
+    const scored: Array<{ score: number; acc: typeof accountGrades[0]; bonuses: Record<string, boolean>; penalties: Record<string, boolean>; blocked: boolean; blockReason: string }> = [];
 
     for (const acc of accountGrades) {
-      const accNum = GRADE_NUM[acc.grade] || 1;
-      const kwNum = GRADE_NUM[kw.grade] || 1;
-      let base = 100 - Math.abs(accNum - kwNum) * 25;
+      // Step 1: 차단 필터
+      let blocked = false;
+      let blockReason = "";
 
+      if (w.block_already_exposed && exposedMap[kw.keyword_id]?.has(acc.account_id)) {
+        blocked = true;
+        blockReason = "이미 노출 중 (기존 상위노출 보호)";
+      }
+      if (recentPubMap[kw.keyword_id]?.has(acc.account_id)) {
+        blocked = true;
+        blockReason = `최근 ${recentBlockDays}일 내 동일 키워드 발행`;
+      }
+
+      if (blocked) {
+        scored.push({ score: -1, acc, bonuses: {}, penalties: {}, blocked, blockReason });
+        continue;
+      }
+
+      // Step 2: 점수 산출
       const bonuses: Record<string, boolean> = {};
       const penalties: Record<string, boolean> = {};
 
-      if (kw.competition_level === "low" && accNum >= 2) bonuses.low_competition = true;
-      if ((kw.opportunity_score || 0) >= 70) bonuses.high_opportunity = true;
-      if (dupeMap[kw.keyword_id]?.has(acc.account_id)) penalties.duplicate = true;
-      if ((acc.total_published || 0) < 5 && acc.grade === "C") penalties.new_account = true;
+      // ① 등급 매칭
+      const gradeMatchScore = GRADE_MATCH_TABLE[acc.grade]?.[kw.grade] ?? 50;
 
-      const bv = (bonuses.low_competition ? 10 : 0) + (bonuses.high_opportunity ? 5 : 0);
-      const pv = (penalties.duplicate ? 15 : 0) + (penalties.new_account ? 20 : 0);
-      const score = Math.max(0, Math.min(100, base + bv - pv));
-      scored.push({ score, acc, bonuses, penalties });
+      // ② 발행 이력 여유도
+      const recent = accPubCount[acc.account_id] ?? 0;
+      const historyScore = recent === 0 ? 100 : recent <= 2 ? 70 : recent <= 5 ? 40 : 10;
+
+      // ③ 키워드 관련성
+      const hasTop3 = accKwHistory[acc.account_id]?.size ? true : false;
+      const kwRelevanceScore = hasTop3 ? 100 : 30;
+      if (hasTop3) bonuses.keyword_synergy = true;
+
+      // ④ 검색량 가중
+      const vol = kw.search_volume_total ?? 0;
+      const accNum = GRADE_NUM[acc.grade] ?? 1;
+      let volumeWeightScore: number;
+      if (vol >= 10000) {
+        volumeWeightScore = accNum >= 4 ? 100 : accNum >= 3 ? 70 : accNum >= 2 ? 40 : 20;
+      } else if (vol >= 1000) {
+        volumeWeightScore = 70;
+      } else {
+        volumeWeightScore = 100;
+      }
+
+      const score = Math.round(Math.min(100, Math.max(0,
+        gradeMatchScore * w.grade_matching
+        + historyScore * w.publish_history
+        + kwRelevanceScore * w.keyword_relevance
+        + volumeWeightScore * w.volume_weight
+      )) * 10) / 10;
+
+      scored.push({ score, acc, bonuses, penalties, blocked: false, blockReason: "" });
     }
 
-    scored.sort((a, b) => b.score - a.score);
+    // 차단되지 않은 것만 점수순 정렬
+    const available = scored.filter(s => !s.blocked).sort((a, b) => b.score - a.score);
+    const blockedList = scored.filter(s => s.blocked);
 
-    for (let i = 0; i < Math.min(scored.length, 3); i++) {
-      const s = scored[i];
+    for (let i = 0; i < Math.min(available.length, 3); i++) {
+      const s = available[i];
       records.push({
         client_id: clientId,
         keyword_id: kw.keyword_id,
         account_id: s.acc.account_id,
-        match_score: Math.round(s.score * 10) / 10,
+        match_score: s.score,
         rank: i + 1,
         account_grade: s.acc.grade,
         keyword_grade: kw.grade,
         bonuses: s.bonuses,
-        penalties: s.penalties,
+        penalties: { ...s.penalties, blocked_accounts: blockedList.map(b => ({ id: b.acc.account_id, reason: b.blockReason })) },
         reason: `${s.acc.grade}급→${kw.grade}급 매칭 ${s.score.toFixed(0)}점`,
         status: "pending",
         measured_at: today,
@@ -358,8 +558,7 @@ async function generateRecommendations(db: any, clientId: string, today: string)
 // ════════════════════════════════════════════════════════════
 // 월간 리포트
 // ════════════════════════════════════════════════════════════
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function sendMonthlyReport(db: any) {
+async function sendMonthlyReport(db: DB) {
   const lastMonth = new Date();
   lastMonth.setMonth(lastMonth.getMonth() - 1);
   const start = lastMonth.toISOString().slice(0, 7) + "-01";

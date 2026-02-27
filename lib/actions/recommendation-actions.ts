@@ -236,16 +236,67 @@ export async function getRecommendationsList(
 
 export async function acceptRecommendation(
   id: string
-): Promise<{ success: boolean; error?: string }> {
+): Promise<{ success: boolean; jobId?: string; error?: string }> {
   const db = createAdminClient();
+
+  // 추천 정보 조회 (Job 생성에 필요)
+  const { data: rec, error: recErr } = await (db as any)
+    .from("publishing_recommendations")
+    .select(
+      `id, client_id, keyword_id, account_id, match_score, rank,
+       account_grade, keyword_grade, reason,
+       blog_accounts(account_name),
+       keywords(keyword)`
+    )
+    .eq("id", id)
+    .single();
+
+  if (recErr || !rec) return { success: false, error: recErr?.message ?? "추천을 찾을 수 없습니다." };
+
+  // status → accepted
   const { error } = await (db as any)
     .from("publishing_recommendations")
     .update({ status: "accepted" })
     .eq("id", id);
 
   if (error) return { success: false, error: error.message };
+
+  // Job 자동 생성: 콘텐츠 작성 작업 추가
+  const keywordText = rec.keywords?.keyword ?? "";
+  const accountName = rec.blog_accounts?.account_name ?? "";
+  const { data: job, error: jobErr } = await (db as any)
+    .from("jobs")
+    .insert({
+      client_id: rec.client_id,
+      job_type: "CONTENT_CREATE",
+      assigned_agent: "COPYWRITER",
+      title: `[발행추천 수락] ${keywordText} → ${accountName}`,
+      priority: "medium",
+      trigger_type: "USER",
+      status: "PENDING",
+      input_payload: {
+        keyword_id: rec.keyword_id,
+        keyword: keywordText,
+        account_id: rec.account_id,
+        account_name: accountName,
+        recommendation_id: rec.id,
+        match_score: rec.match_score,
+        account_grade: rec.account_grade,
+        keyword_grade: rec.keyword_grade,
+        reason: rec.reason,
+      },
+    })
+    .select("id")
+    .single();
+
+  if (jobErr) {
+    console.error("[recommendation-actions] Job 생성 실패:", jobErr);
+    // Job 생성 실패해도 수락 자체는 성공
+  }
+
   revalidatePath("/analytics/recommendations");
-  return { success: true };
+  revalidatePath("/ops/jobs");
+  return { success: true, jobId: job?.id };
 }
 
 export async function rejectRecommendation(

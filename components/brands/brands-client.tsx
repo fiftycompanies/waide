@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import {
   Plus,
   Building2,
@@ -12,6 +13,7 @@ import {
   X,
   ChevronDown,
   ChevronRight,
+  BarChart3,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -27,6 +29,11 @@ import {
   deleteBrand,
   type BrandDetail,
 } from "@/lib/actions/brand-actions";
+import {
+  searchAnalysisByUrl,
+  createBrandFromAnalysis,
+  type BrandAnalysisRow,
+} from "@/lib/actions/analysis-brand-actions";
 import { NaverApiKeyDialog } from "@/components/brands/naver-api-key-dialog";
 import { BrandStyleDialog } from "@/components/brands/brand-style-dialog";
 
@@ -58,6 +65,7 @@ export function BrandsClient({
   workspaceId,
   companyBrands,
 }: BrandsClientProps) {
+  const router = useRouter();
   const [brands, setBrands] = useState<BrandDetail[]>(initialBrands);
   const [isPending, startTransition] = useTransition();
 
@@ -84,6 +92,14 @@ export function BrandsClient({
     client_type: "company",
     parent_id: null,
   });
+
+  // URL 분석 등록 모드
+  const [createMode, setCreateMode] = useState<"manual" | "url">("manual");
+  const [analysisUrl, setAnalysisUrl] = useState("");
+  const [analysisSearching, setAnalysisSearching] = useState(false);
+  const [foundAnalysis, setFoundAnalysis] = useState<BrandAnalysisRow | null>(null);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const [registering, setRegistering] = useState(false);
 
   // 삭제 확인
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
@@ -119,6 +135,59 @@ export function BrandsClient({
       client_type: brand.client_type,
       parent_id: brand.parent_id,
     });
+  }
+
+  // ── URL 분석 검색 ──────────────────────────────────────────────
+
+  async function handleAnalysisSearch() {
+    if (!analysisUrl.trim()) return;
+    setAnalysisSearching(true);
+    setFoundAnalysis(null);
+    setAnalysisError(null);
+    try {
+      const result = await searchAnalysisByUrl(analysisUrl.trim());
+      if (result.analysis) {
+        setFoundAnalysis(result.analysis);
+      } else if (result.placeId) {
+        setAnalysisError("이 매장의 분석 결과가 없습니다. 먼저 분석을 실행하거나 수동으로 등록하세요.");
+      } else {
+        setAnalysisError("URL에서 매장 정보를 추출할 수 없습니다. 네이버 플레이스 URL을 입력하세요.");
+      }
+    } catch {
+      setAnalysisError("검색 중 오류가 발생했습니다.");
+    } finally {
+      setAnalysisSearching(false);
+    }
+  }
+
+  async function handleRegisterFromAnalysis() {
+    if (!foundAnalysis || !workspaceId) return;
+    setRegistering(true);
+    try {
+      const result = await createBrandFromAnalysis(
+        foundAnalysis.id,
+        workspaceId,
+        {
+          clientType: createType,
+          parentId: createType === "sub_client" ? createParentId || undefined : undefined,
+        }
+      );
+      if (result.success) {
+        toast.success("분석 결과로 브랜드가 등록되었습니다!");
+        setShowCreate(false);
+        setFoundAnalysis(null);
+        setAnalysisUrl("");
+        setCreateMode("manual");
+        const updated = await getBrandList();
+        setBrands(updated);
+      } else {
+        toast.error(result.error ?? "등록 실패");
+      }
+    } catch {
+      toast.error("등록 중 오류가 발생했습니다.");
+    } finally {
+      setRegistering(false);
+    }
   }
 
   // ── CRUD 핸들러 ───────────────────────────────────────────────
@@ -259,159 +328,203 @@ export function BrandsClient({
         {/* ── 생성 폼 ─────────────────────────────────────────── */}
         {showCreate && (
           <div className="px-6 pb-4">
-            <form
-              onSubmit={handleCreate}
-              className="rounded-lg border border-dashed border-violet-300 bg-violet-50/30 p-4 space-y-4"
-            >
-              <p className="text-sm font-semibold text-violet-800">
-                {createType === "sub_client" ? "하위 업체 추가" : "새 브랜드 추가"}
-              </p>
+            <div className="rounded-lg border border-dashed border-violet-300 bg-violet-50/30 p-4 space-y-4">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-semibold text-violet-800">
+                  {createType === "sub_client" ? "하위 업체 추가" : "새 브랜드 추가"}
+                </p>
+                {/* 모드 토글 */}
+                <div className="flex gap-1 bg-white rounded-lg p-0.5 border">
+                  <button
+                    type="button"
+                    onClick={() => { setCreateMode("url"); setFoundAnalysis(null); setAnalysisError(null); }}
+                    className={`px-3 py-1 text-xs rounded-md transition-all ${
+                      createMode === "url" ? "bg-amber-500 text-white font-medium" : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    매장 URL 분석
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCreateMode("manual")}
+                    className={`px-3 py-1 text-xs rounded-md transition-all ${
+                      createMode === "manual" ? "bg-violet-500 text-white font-medium" : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    수동 입력
+                  </button>
+                </div>
+              </div>
 
-              {createError && (
+              {(createError || analysisError) && (
                 <Alert variant="destructive">
-                  <AlertDescription>{createError}</AlertDescription>
+                  <AlertDescription>{createError || analysisError}</AlertDescription>
                 </Alert>
               )}
 
-              {/* Task 1-1: 타입 라디오 */}
-              <div className="space-y-2">
-                <Label className="text-xs font-semibold text-muted-foreground uppercase">브랜드 유형</Label>
-                <div className="flex gap-3">
-                  <label
-                    className={`flex-1 flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all ${
-                      createType === "company"
-                        ? "border-violet-500 bg-violet-50"
-                        : "border-border hover:border-violet-300"
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name="clientType"
-                      value="company"
-                      checked={createType === "company"}
-                      onChange={() => { setCreateType("company"); setCreateParentId(""); }}
-                      className="h-4 w-4 accent-violet-600"
-                    />
-                    <div>
-                      <p className="text-sm font-semibold flex items-center gap-1">
-                        🏢 본사 / 플랫폼
-                      </p>
-                      <p className="text-xs text-muted-foreground">최상위 브랜드</p>
-                    </div>
-                  </label>
-
-                  <label
-                    className={`flex-1 flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all ${
-                      createType === "sub_client"
-                        ? "border-emerald-500 bg-emerald-50"
-                        : "border-border hover:border-emerald-300"
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name="clientType"
-                      value="sub_client"
-                      checked={createType === "sub_client"}
-                      onChange={() => setCreateType("sub_client")}
-                      className="h-4 w-4 accent-emerald-600"
-                    />
-                    <div>
-                      <p className="text-sm font-semibold flex items-center gap-1">
+              {/* ── URL 분석 모드 ── */}
+              {createMode === "url" && (
+                <div className="space-y-4">
+                  {/* 브랜드 유형 선택 */}
+                  <div className="space-y-2">
+                    <Label className="text-xs font-semibold text-muted-foreground uppercase">브랜드 유형</Label>
+                    <div className="flex gap-3">
+                      <label className={`flex-1 flex items-center gap-2 p-2.5 rounded-lg border-2 cursor-pointer transition-all text-sm ${createType === "company" ? "border-violet-500 bg-violet-50" : "border-border hover:border-violet-300"}`}>
+                        <input type="radio" name="ct2" value="company" checked={createType === "company"} onChange={() => { setCreateType("company"); setCreateParentId(""); }} className="h-3.5 w-3.5 accent-violet-600" />
+                        🏢 본사
+                      </label>
+                      <label className={`flex-1 flex items-center gap-2 p-2.5 rounded-lg border-2 cursor-pointer transition-all text-sm ${createType === "sub_client" ? "border-emerald-500 bg-emerald-50" : "border-border hover:border-emerald-300"}`}>
+                        <input type="radio" name="ct2" value="sub_client" checked={createType === "sub_client"} onChange={() => setCreateType("sub_client")} className="h-3.5 w-3.5 accent-emerald-600" />
                         🏠 하위 업체
-                      </p>
-                      <p className="text-xs text-muted-foreground">본사 소속 업체</p>
+                      </label>
                     </div>
-                  </label>
-                </div>
-              </div>
+                  </div>
 
-              {/* Task 1-2: 하위 업체 선택 시 부모 선택 */}
-              {createType === "sub_client" && (
-                <div className="space-y-1.5">
-                  <Label className="text-xs">
-                    상위 본사 선택 <span className="text-red-500">*</span>
-                  </Label>
-                  <select
-                    value={createParentId}
-                    onChange={(e) => setCreateParentId(e.target.value)}
-                    className={selectCls}
-                    required
-                  >
-                    <option value="">본사를 선택하세요...</option>
-                    {companyBrands.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        🏢 {c.name}
-                      </option>
-                    ))}
-                  </select>
-                  {companyBrands.length === 0 && (
-                    <p className="text-xs text-amber-600">
-                      먼저 본사 브랜드를 추가하세요.
-                    </p>
+                  {createType === "sub_client" && (
+                    <div className="space-y-1">
+                      <Label className="text-xs">상위 본사 <span className="text-red-500">*</span></Label>
+                      <select value={createParentId} onChange={(e) => setCreateParentId(e.target.value)} className={selectCls}>
+                        <option value="">선택...</option>
+                        {companyBrands.map((c) => <option key={c.id} value={c.id}>🏢 {c.name}</option>)}
+                      </select>
+                    </div>
                   )}
+
+                  {/* URL 입력 */}
+                  <div className="space-y-1">
+                    <Label className="text-xs font-semibold">매장 URL 입력</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        value={analysisUrl}
+                        onChange={(e) => setAnalysisUrl(e.target.value)}
+                        placeholder="네이버 플레이스 URL (예: https://naver.me/xxxx)"
+                        className="h-9 text-sm flex-1"
+                      />
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={handleAnalysisSearch}
+                        disabled={analysisSearching || !analysisUrl.trim()}
+                        className="h-9 bg-amber-500 hover:bg-amber-600 text-white"
+                      >
+                        {analysisSearching ? "검색 중..." : "분석 검색"}
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">네이버 플레이스, 구글맵, naver.me 단축 URL 모두 가능</p>
+                  </div>
+
+                  {/* 분석 결과 미리보기 */}
+                  {foundAnalysis && (
+                    <div className="rounded-lg border border-amber-300 bg-amber-50/50 p-4 space-y-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg">🎉</span>
+                        <p className="text-sm font-semibold text-amber-800">이미 분석된 매장입니다!</p>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3 text-sm">
+                        <div>
+                          <p className="text-xs text-muted-foreground">매장명</p>
+                          <p className="font-medium">{(foundAnalysis.basic_info as Record<string, unknown>)?.name as string ?? "—"}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">업종</p>
+                          <p className="font-medium">{(foundAnalysis.basic_info as Record<string, unknown>)?.category as string ?? "—"}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">지역</p>
+                          <p className="font-medium">{(foundAnalysis.basic_info as Record<string, unknown>)?.region as string ?? "—"}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">마케팅 점수</p>
+                          <p className="font-bold text-amber-600">{foundAnalysis.marketing_score ?? "—"}점</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">방문자 리뷰</p>
+                          <p className="font-medium">{((foundAnalysis.basic_info as Record<string, unknown>)?.visitor_reviews as number)?.toLocaleString() ?? "—"}건</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">공략 키워드</p>
+                          <p className="font-medium">{((foundAnalysis.keyword_analysis as Record<string, unknown>)?.main_keyword as string) ?? "—"}</p>
+                        </div>
+                      </div>
+                      <Button
+                        type="button"
+                        onClick={handleRegisterFromAnalysis}
+                        disabled={registering}
+                        className="w-full bg-amber-500 hover:bg-amber-600 text-white font-semibold"
+                      >
+                        {registering ? "등록 중..." : "이 정보로 브랜드 등록"}
+                      </Button>
+                    </div>
+                  )}
+
+                  <div className="flex gap-2">
+                    <Button type="button" size="sm" variant="outline" className="text-xs" onClick={() => { setShowCreate(false); setCreateError(null); setAnalysisError(null); setFoundAnalysis(null); setAnalysisUrl(""); }}>
+                      취소
+                    </Button>
+                  </div>
                 </div>
               )}
 
-              {/* 공통 입력 필드 */}
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <Label className="text-xs">
-                    {createType === "sub_client" ? "업체명" : "브랜드명"}{" "}
-                    <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    value={createForm.name}
-                    onChange={(e) => setCreateForm((p) => ({ ...p, name: e.target.value }))}
-                    placeholder={createType === "sub_client" ? "예: 강남점" : "예: 스타벅스 코리아"}
-                    required
-                    className="h-8 text-sm"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">회사명</Label>
-                  <Input
-                    value={createForm.companyName}
-                    onChange={(e) => setCreateForm((p) => ({ ...p, companyName: e.target.value }))}
-                    placeholder="공식 법인명 (선택)"
-                    className="h-8 text-sm"
-                  />
-                </div>
-                <div className="col-span-2 space-y-1">
-                  <Label className="text-xs">웹사이트 URL</Label>
-                  <Input
-                    value={createForm.websiteUrl}
-                    onChange={(e) => setCreateForm((p) => ({ ...p, websiteUrl: e.target.value }))}
-                    placeholder="https://..."
-                    type="url"
-                    className="h-8 text-sm"
-                  />
-                </div>
-              </div>
+              {/* ── 수동 입력 모드 (기존 폼) ── */}
+              {createMode === "manual" && (
+                <form onSubmit={handleCreate} className="space-y-4">
+                  {/* 타입 라디오 */}
+                  <div className="space-y-2">
+                    <Label className="text-xs font-semibold text-muted-foreground uppercase">브랜드 유형</Label>
+                    <div className="flex gap-3">
+                      <label className={`flex-1 flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all ${createType === "company" ? "border-violet-500 bg-violet-50" : "border-border hover:border-violet-300"}`}>
+                        <input type="radio" name="clientType" value="company" checked={createType === "company"} onChange={() => { setCreateType("company"); setCreateParentId(""); }} className="h-4 w-4 accent-violet-600" />
+                        <div>
+                          <p className="text-sm font-semibold flex items-center gap-1">🏢 본사 / 플랫폼</p>
+                          <p className="text-xs text-muted-foreground">최상위 브랜드</p>
+                        </div>
+                      </label>
+                      <label className={`flex-1 flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all ${createType === "sub_client" ? "border-emerald-500 bg-emerald-50" : "border-border hover:border-emerald-300"}`}>
+                        <input type="radio" name="clientType" value="sub_client" checked={createType === "sub_client"} onChange={() => setCreateType("sub_client")} className="h-4 w-4 accent-emerald-600" />
+                        <div>
+                          <p className="text-sm font-semibold flex items-center gap-1">🏠 하위 업체</p>
+                          <p className="text-xs text-muted-foreground">본사 소속 업체</p>
+                        </div>
+                      </label>
+                    </div>
+                  </div>
 
-              <div className="flex gap-2">
-                <Button
-                  type="submit"
-                  size="sm"
-                  disabled={isPending}
-                  className={`text-xs ${
-                    createType === "company"
-                      ? "bg-violet-600 hover:bg-violet-700 text-white"
-                      : "bg-emerald-600 hover:bg-emerald-700 text-white"
-                  }`}
-                >
-                  {isPending ? "생성 중..." : createType === "sub_client" ? "하위 업체 추가" : "본사 생성"}
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  className="text-xs"
-                  onClick={() => { setShowCreate(false); setCreateError(null); }}
-                >
-                  취소
-                </Button>
-              </div>
-            </form>
+                  {createType === "sub_client" && (
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">상위 본사 선택 <span className="text-red-500">*</span></Label>
+                      <select value={createParentId} onChange={(e) => setCreateParentId(e.target.value)} className={selectCls} required>
+                        <option value="">본사를 선택하세요...</option>
+                        {companyBrands.map((c) => <option key={c.id} value={c.id}>🏢 {c.name}</option>)}
+                      </select>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <Label className="text-xs">{createType === "sub_client" ? "업체명" : "브랜드명"} <span className="text-red-500">*</span></Label>
+                      <Input value={createForm.name} onChange={(e) => setCreateForm((p) => ({ ...p, name: e.target.value }))} placeholder={createType === "sub_client" ? "예: 강남점" : "예: 스타벅스 코리아"} required className="h-8 text-sm" />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">회사명</Label>
+                      <Input value={createForm.companyName} onChange={(e) => setCreateForm((p) => ({ ...p, companyName: e.target.value }))} placeholder="공식 법인명 (선택)" className="h-8 text-sm" />
+                    </div>
+                    <div className="col-span-2 space-y-1">
+                      <Label className="text-xs">웹사이트 URL</Label>
+                      <Input value={createForm.websiteUrl} onChange={(e) => setCreateForm((p) => ({ ...p, websiteUrl: e.target.value }))} placeholder="https://..." type="url" className="h-8 text-sm" />
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <Button type="submit" size="sm" disabled={isPending} className={`text-xs ${createType === "company" ? "bg-violet-600 hover:bg-violet-700 text-white" : "bg-emerald-600 hover:bg-emerald-700 text-white"}`}>
+                      {isPending ? "생성 중..." : createType === "sub_client" ? "하위 업체 추가" : "본사 생성"}
+                    </Button>
+                    <Button type="button" size="sm" variant="outline" className="text-xs" onClick={() => { setShowCreate(false); setCreateError(null); }}>
+                      취소
+                    </Button>
+                  </div>
+                </form>
+              )}
+            </div>
           </div>
         )}
 
@@ -560,6 +673,13 @@ export function BrandsClient({
                             하위 추가
                           </Button>
                         )}
+                        <button
+                          onClick={() => router.push(`/brands/${brand.id}`)}
+                          className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-amber-600"
+                          title="AI 분석"
+                        >
+                          <BarChart3 className="h-3.5 w-3.5" />
+                        </button>
                         <NaverApiKeyDialog clientId={brand.id} clientName={brand.name} />
                         <BrandStyleDialog clientId={brand.id} clientName={brand.name} />
                         <button

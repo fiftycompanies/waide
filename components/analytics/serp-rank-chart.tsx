@@ -86,6 +86,14 @@ export function SerpRankChart({ trend, keywords }: SerpRankChartProps) {
           </div>
         ) : (
           <>
+            {/* 데이터 누적 안내 (1~2일치) */}
+            {chartData.length <= 2 && (
+              <div className="mb-3 rounded-md bg-amber-50 border border-amber-200 px-3 py-2">
+                <p className="text-xs text-amber-700">
+                  데이터 누적 중 ({chartData.length}일차) — 3일 이상 수집되면 추이 그래프가 의미 있어집니다
+                </p>
+              </div>
+            )}
             {/* 현재 순위 배지 */}
             <div className="mb-4 flex flex-wrap gap-2">
               {keywords.map((kw, i) => {

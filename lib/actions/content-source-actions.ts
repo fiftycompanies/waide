@@ -39,6 +39,8 @@ function revalidateSourcePaths() {
 export async function getContentSources(clientId: string | null): Promise<ContentSource[]> {
   try {
     const db = createAdminClient();
+
+    // 먼저 clients 조인 포함해서 시도
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let query = (db as any)
       .from("content_sources")
@@ -53,16 +55,38 @@ export async function getContentSources(clientId: string | null): Promise<Conten
     const { data, error } = await query;
 
     if (error) {
-      console.error("[content-source-actions] getContentSources error:", error);
-      return [];
+      // 조인 실패 시 clients 없이 재시도
+      console.warn("[content-source-actions] getContentSources join failed, retrying without join:", error.message ?? JSON.stringify(error));
+      const FIELDS_NO_JOIN =
+        "id, client_id, source_type, title, url, content_data, content_text, content_structure, content_id, usage_mode, tags, used_count, is_active, created_at";
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let fallbackQ = (db as any)
+        .from("content_sources")
+        .select(FIELDS_NO_JOIN)
+        .eq("is_active", true)
+        .order("created_at", { ascending: false });
+      if (clientId) fallbackQ = fallbackQ.eq("client_id", clientId);
+      const { data: fbData, error: fbError } = await fallbackQ;
+
+      if (fbError) {
+        console.error("[content-source-actions] getContentSources fallback error:", fbError.message ?? JSON.stringify(fbError));
+        return [];
+      }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return ((fbData ?? []) as any[]).map((s: any) => ({
+        ...s,
+        client_name: null,
+      })) as ContentSource[];
     }
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return ((data ?? []) as any[]).map((s: any) => ({
       ...s,
       client_name: s.clients?.name ?? null,
       clients: undefined,
     })) as ContentSource[];
-  } catch {
+  } catch (err) {
+    console.error("[content-source-actions] getContentSources exception:", err instanceof Error ? err.message : err);
     return [];
   }
 }

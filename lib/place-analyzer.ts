@@ -855,10 +855,11 @@ async function calculateMarketingScore(
   if (keywordRankings && keywordRankings.length > 0) {
     const scores: number[] = keywordRankings.map(kr => {
       if (!kr.rank) return 0;
-      if (kr.rank <= 3) return 100;
-      if (kr.rank <= 5) return 80;
-      if (kr.rank <= 10) return 60;
-      if (kr.rank <= 20) return 30;
+      if (kr.rank <= 1) return 100;
+      if (kr.rank <= 3) return 95;
+      if (kr.rank <= 5) return 85;
+      if (kr.rank <= 10) return 70;
+      if (kr.rank <= 20) return 40;
       return 10;
     });
     const avgScore = scores.reduce((a, b) => a + b, 0) / scores.length;
@@ -956,6 +957,9 @@ async function calculateMarketingScore(
   else { improvements.push("홈페이지가 없어요 → 홈페이지 개설 시 +5점"); }
   if (collected.snsUrl) { channelScore += 3; channelParts.push("SNS ✓"); }
   else { improvements.push("SNS 채널이 없어요 → 인스타그램/블로그 개설 시 +3점"); }
+  if (!collected.homepageUrl && !collected.snsUrl) {
+    improvements.push("자체 블로그 또는 홈페이지가 필요합니다 → 온라인 채널 확보로 검색 노출 3배 향상 가능");
+  }
   if (collected.serviceLabels.some(l => /예약|reservation/i.test(l))) { channelScore += 3; channelParts.push("네이버 예약 ✓"); }
   else { improvements.push("네이버 예약이 비활성화 → 활성화 시 +3점"); }
   if (collected.serviceLabels.some(l => /톡톡|talktalk/i.test(l))) { channelScore += 2; channelParts.push("네이버 톡톡 ✓"); }
