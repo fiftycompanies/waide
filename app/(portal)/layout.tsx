@@ -1,5 +1,6 @@
 import { getCurrentUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
 import { PortalShell } from "@/components/portal/portal-shell";
 
 export default async function PortalLayout({
@@ -10,11 +11,13 @@ export default async function PortalLayout({
   const user = await getCurrentUser();
 
   if (!user) {
-    redirect("/login?mode=customer");
+    redirect("/login");
   }
 
   if (!user.client_id) {
-    // 고객이지만 클라이언트 연결 안 됨
+    // client_id 없는 사용자 → Supabase 세션 정리 후 로그인으로 (루프 방지)
+    const supabase = await createClient();
+    await supabase.auth.signOut();
     redirect("/login?error=no_client");
   }
 

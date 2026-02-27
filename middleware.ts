@@ -180,20 +180,24 @@ export async function middleware(request: NextRequest) {
     }
 
     // Supabase Auth 세션 있으면 → /portal
-    const supabaseUser = await getSupabaseUser(request, response);
-    if (supabaseUser) {
-      const redirectTo = request.nextUrl.searchParams.get("redirect");
-      const url = request.nextUrl.clone();
-      // Supabase Auth 사용자는 어드민 라우트 접근 불가 → /portal로 보냄 (루프 방지)
-      const isAdminRedirect = redirectTo && ADMIN_PROTECTED_ROUTES.some((r) => redirectTo.startsWith(r));
-      if (redirectTo && redirectTo.startsWith("/") && !isAdminRedirect) {
-        url.pathname = redirectTo;
-      } else {
-        url.pathname = "/portal";
+    // 단, error 파라미터가 있으면 리디렉트 하지 않음 (루프 방지: portal→login→portal)
+    const hasError = request.nextUrl.searchParams.has("error");
+    if (!hasError) {
+      const supabaseUser = await getSupabaseUser(request, response);
+      if (supabaseUser) {
+        const redirectTo = request.nextUrl.searchParams.get("redirect");
+        const url = request.nextUrl.clone();
+        // Supabase Auth 사용자는 어드민 라우트 접근 불가 → /portal로 보냄 (루프 방지)
+        const isAdminRedirect = redirectTo && ADMIN_PROTECTED_ROUTES.some((r) => redirectTo.startsWith(r));
+        if (redirectTo && redirectTo.startsWith("/") && !isAdminRedirect) {
+          url.pathname = redirectTo;
+        } else {
+          url.pathname = "/portal";
+        }
+        url.searchParams.delete("redirect");
+        url.searchParams.delete("mode");
+        return NextResponse.redirect(url);
       }
-      url.searchParams.delete("redirect");
-      url.searchParams.delete("mode");
-      return NextResponse.redirect(url);
     }
 
     return response;

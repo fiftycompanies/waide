@@ -53,27 +53,38 @@ function SignupContent() {
     }
 
     startTransition(async () => {
-      const result = await portalSignUp(
-        form.email,
-        form.password,
-        form.name,
-        form.phone || undefined,
-        inviteToken || undefined,
-      );
+      try {
+        const result = await portalSignUp(
+          form.email,
+          form.password,
+          form.name,
+          form.phone || undefined,
+          inviteToken || undefined,
+        );
 
-      if (!result.success) {
-        setError(result.error);
-        return;
+        if (!result.success) {
+          setError(result.error);
+          return;
+        }
+
+        if (result.needsEmailConfirm) {
+          setSuccess("이메일로 인증 링크를 보냈습니다. 이메일을 확인해주세요.");
+          return;
+        }
+
+        // 초대 토큰이 있으면 (client_id 있음) → 포털로
+        // 없으면 (client_id 없음) → 대기 메시지
+        if (inviteToken) {
+          router.push("/portal");
+          router.refresh();
+        } else {
+          setSuccess(
+            "회원가입이 완료되었습니다. 관리자가 계정을 활성화하면 이용할 수 있습니다."
+          );
+        }
+      } catch {
+        setError("회원가입 중 오류가 발생했습니다. 다시 시도해주세요.");
       }
-
-      if (result.needsEmailConfirm) {
-        setSuccess("이메일로 인증 링크를 보냈습니다. 이메일을 확인해주세요.");
-        return;
-      }
-
-      // 자동 로그인 후 포털로 이동
-      router.push("/portal");
-      router.refresh();
     });
   };
 

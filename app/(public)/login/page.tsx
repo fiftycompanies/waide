@@ -8,28 +8,38 @@ import { Logo } from "@/components/logo";
 import { unifiedLogin } from "@/lib/actions/auth-actions";
 
 // ── 통합 로그인 폼 ────────────────────────────────────────────────────────
+const ERROR_MESSAGES: Record<string, string> = {
+  no_client:
+    "계정에 연결된 업체가 없습니다. 관리자에게 문의하세요.",
+};
+
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirect = searchParams.get("redirect") || "";
+  const redirectTo = searchParams.get("redirect") || "";
+  const urlError = searchParams.get("error") || "";
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
+  const [error, setError] = useState(ERROR_MESSAGES[urlError] || "");
   const [isPending, startTransition] = useTransition();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     startTransition(async () => {
-      const result = await unifiedLogin(identifier.trim(), password);
-      if (!result.success) {
-        setError(result.error);
-        return;
+      try {
+        const result = await unifiedLogin(identifier.trim(), password);
+        if (!result.success) {
+          setError(result.error);
+          return;
+        }
+        // redirect 파라미터가 있으면 우선, 없으면 역할 기반 기본 경로
+        const target = redirectTo.startsWith("/") ? redirectTo : result.redirect;
+        router.push(target);
+        router.refresh();
+      } catch {
+        setError("로그인 중 오류가 발생했습니다. 다시 시도해주세요.");
       }
-      // redirect 파라미터가 있으면 우선, 없으면 역할 기반 기본 경로
-      const target = redirect.startsWith("/") ? redirect : result.redirect;
-      router.push(target);
-      router.refresh();
     });
   };
 
