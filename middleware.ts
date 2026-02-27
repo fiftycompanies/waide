@@ -171,7 +171,9 @@ export async function middleware(request: NextRequest) {
     if (isAdminValid) {
       const redirectTo = request.nextUrl.searchParams.get("redirect") || "/dashboard";
       const url = request.nextUrl.clone();
-      url.pathname = redirectTo.startsWith("/") ? redirectTo : "/dashboard";
+      // 어드민 세션으로는 /portal 접근 불가 → /dashboard로 보냄 (루프 방지)
+      const target = redirectTo.startsWith("/portal") ? "/dashboard" : redirectTo;
+      url.pathname = target.startsWith("/") ? target : "/dashboard";
       url.searchParams.delete("redirect");
       url.searchParams.delete("mode");
       return NextResponse.redirect(url);
@@ -182,7 +184,9 @@ export async function middleware(request: NextRequest) {
     if (supabaseUser) {
       const redirectTo = request.nextUrl.searchParams.get("redirect");
       const url = request.nextUrl.clone();
-      if (redirectTo && redirectTo.startsWith("/")) {
+      // Supabase Auth 사용자는 어드민 라우트 접근 불가 → /portal로 보냄 (루프 방지)
+      const isAdminRedirect = redirectTo && ADMIN_PROTECTED_ROUTES.some((r) => redirectTo.startsWith(r));
+      if (redirectTo && redirectTo.startsWith("/") && !isAdminRedirect) {
         url.pathname = redirectTo;
       } else {
         url.pathname = "/portal";
