@@ -48,7 +48,7 @@ export async function getPortalDashboard(clientId: string) {
   // 담당 영업사원
   const { data: client } = await db
     .from("clients")
-    .select("brand_name, assigned_sales_agent_id")
+    .select("brand_name:name, assigned_sales_agent_id")
     .eq("id", clientId)
     .single();
 

@@ -451,7 +451,7 @@ export async function getInvitationByToken(token: string) {
   if (data.client_id) {
     const { data: client } = await db
       .from("clients")
-      .select("brand_name")
+      .select("brand_name:name")
       .eq("id", data.client_id)
       .single();
     clientName = client?.brand_name || "";

@@ -153,7 +153,7 @@ export async function getBusinessDashboardData(): Promise<BusinessDashboardData>
   // 4. Avg marketing score
   const { data: clients } = await db
     .from("clients")
-    .select("id, brand_name, last_portal_login, assigned_sales_agent_id, onboarding_status");
+    .select("id, brand_name:name, last_portal_login, assigned_sales_agent_id, onboarding_status");
 
   const clientIds = (clients || []).map((c) => c.id);
 

@@ -91,7 +91,7 @@ export async function getClientPortfolio(
   // 1. Load clients
   const { data: clients } = await db
     .from("clients")
-    .select("id, brand_name, client_type, onboarding_status, last_portal_login, assigned_sales_agent_id, created_at")
+    .select("id, brand_name:name, client_type, onboarding_status, last_portal_login, assigned_sales_agent_id, created_at")
     .order("created_at", { ascending: false });
 
   if (!clients || clients.length === 0) {
@@ -434,7 +434,7 @@ export async function getClientDetail(clientId: string): Promise<ClientDetail | 
 
   return {
     id: client.id,
-    brand_name: client.brand_name || "알 수 없음",
+    brand_name: client.name || "알 수 없음",
     client_type: client.client_type,
     onboarding_status: client.onboarding_status ?? null,
     onboarding_checklist: (client.onboarding_checklist as ClientDetail["onboarding_checklist"]) || [],

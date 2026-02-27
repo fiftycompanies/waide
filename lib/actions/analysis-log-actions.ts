@@ -178,7 +178,7 @@ export async function getAnalysisLogs(filters: AnalysisLogFilters = {}): Promise
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: clients } = await (db as any)
       .from("clients")
-      .select("id, brand_name")
+      .select("id, brand_name:name")
       .in("id", clientIds);
     if (clients) {
       clientMap = Object.fromEntries(clients.map((c: { id: string; brand_name: string }) => [c.id, c.brand_name]));
@@ -565,7 +565,7 @@ export async function assignToClient(analysisId: string, clientId: string | null
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: client } = await (db as any)
       .from("clients")
-      .select("brand_name")
+      .select("brand_name:name")
       .eq("id", clientId)
       .maybeSingle();
     brandName = client?.brand_name ?? clientId;
@@ -613,8 +613,8 @@ export async function getClientsList(): Promise<Array<{ id: string; brand_name: 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data } = await (db as any)
     .from("clients")
-    .select("id, brand_name, status")
-    .order("brand_name");
+    .select("id, brand_name:name, status")
+    .order("name");
   return data ?? [];
 }
 

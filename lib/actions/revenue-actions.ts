@@ -134,7 +134,7 @@ export async function getRevenueData(): Promise<RevenueData> {
 
   const { data: clientsList } = await db
     .from("clients")
-    .select("id, brand_name")
+    .select("id, brand_name:name")
     .in("id", Array.from(clientIds));
   const clientMap: Record<string, string> = {};
   for (const c of clientsList || []) clientMap[c.id] = c.brand_name || "알 수 없음";

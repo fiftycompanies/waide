@@ -56,7 +56,7 @@ export async function getCurrentUser(): Promise<AppUser | null> {
     if (user.client_id) {
       const { data: client } = await db
         .from("clients")
-        .select("brand_name, status")
+        .select("brand_name:name, status")
         .eq("id", user.client_id)
         .single();
       if (client) {
