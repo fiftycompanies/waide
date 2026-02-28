@@ -820,6 +820,101 @@ async function calculateMarketingScore(
   imageAnalysis?: any,
   keywordRankings?: KeywordRanking[],
 ): Promise<MarketingScoreResult> {
+  // scoring_criteria 테이블 기반 채점 시도 → 실패 시 기존 하드코딩 로직 폴백
+  try {
+    const { calculateMarketingScoreFromCriteria } = await import("@/lib/scoring-engine");
+
+    // keywordRankings → 평균 점수 계산
+    let placeAvgScore: number | null = null;
+    if (keywordRankings && keywordRankings.length > 0) {
+      const scores: number[] = keywordRankings.map(kr => {
+        if (!kr.rank) return 0;
+        if (kr.rank <= 1) return 100;
+        if (kr.rank <= 3) return 95;
+        if (kr.rank <= 5) return 85;
+        if (kr.rank <= 10) return 70;
+        if (kr.rank <= 20) return 40;
+        return 10;
+      });
+      placeAvgScore = scores.reduce((a, b) => a + b, 0) / scores.length;
+    }
+
+    // 블로그 순위 체크
+    const topKeyword = keywords.find(k => k.source !== "브랜드" && (k.monthlySearch ?? 0) > 0);
+    const mainKw = topKeyword?.keyword ?? brandName;
+    let blogRank: number | null = null;
+    let hasBrandBlog = false;
+    let hasKeywordBlog = false;
+
+    try {
+      const { searchNaverBlog } = await import("@/lib/naver-search-api");
+      const blogResult = await searchNaverBlog(mainKw, 30);
+      for (let i = 0; i < blogResult.items.length; i++) {
+        const item = blogResult.items[i];
+        const titleClean = item.title.replace(/<[^>]+>/g, "");
+        if (titleClean.includes(brandName) || item.description.replace(/<[^>]+>/g, "").includes(brandName)) {
+          blogRank = i + 1;
+          break;
+        }
+      }
+      const brandResult = await searchNaverBlog(brandName, 10);
+      hasBrandBlog = brandResult.items.some(item => item.title.replace(/<[^>]+>/g, "").includes(brandName));
+      if (topKeyword) {
+        const kwResult = await searchNaverBlog(`${topKeyword.keyword} ${brandName}`, 10);
+        hasKeywordBlog = kwResult.items.some(item => item.title.replace(/<[^>]+>/g, "").includes(brandName));
+      }
+    } catch { /* 블로그 API 미연결 */ }
+
+    const criteriaResult = await calculateMarketingScoreFromCriteria({
+      visitorReviewCount: collected.visitorReviewCount,
+      blogReviewCount: collected.blogReviewCount,
+      imageCount: collected.imageCount,
+      homepageUrl: collected.homepageUrl,
+      snsUrl: collected.snsUrl,
+      serviceLabels: collected.serviceLabels,
+      businessHours: collected.businessHours,
+      imageAnalysis: imageAnalysis ? { avgQuality: imageAnalysis.avgQuality, avgUsability: imageAnalysis.avgUsability } : undefined,
+      blogRank,
+      placeAvgScore,
+      hasBrandBlog,
+      hasKeywordBlog,
+    });
+
+    // scoring_criteria 결과 → 기존 MarketingScoreResult 포맷 변환
+    const breakdownMap: Record<string, { score: number; max: number; details: string[] }> = {};
+    for (const r of criteriaResult.breakdown) {
+      const group = r.category;
+      if (!breakdownMap[group]) breakdownMap[group] = { score: 0, max: 0, details: [] };
+      breakdownMap[group].score += r.score;
+      breakdownMap[group].max += r.maxScore;
+      breakdownMap[group].details.push(`${r.item}: ${r.label}`);
+    }
+
+    const improvements: string[] = [];
+    for (const r of criteriaResult.breakdown) {
+      if (r.score < r.maxScore * 0.5) {
+        improvements.push(`${r.item} 개선 시 +${r.maxScore - r.score}점 가능`);
+      }
+    }
+
+    console.log("[scoring-engine] scoring_criteria 기반 채점 성공:", criteriaResult.normalizedScore);
+    return {
+      score: criteriaResult.normalizedScore,
+      breakdown: {
+        review_reputation: { score: breakdownMap.review?.score ?? 0, max: breakdownMap.review?.max ?? 20, details: breakdownMap.review?.details.join(" / ") ?? "" },
+        naver_keyword: { score: breakdownMap.keyword?.score ?? 0, max: breakdownMap.keyword?.max ?? 25, details: breakdownMap.keyword?.details.join(" / ") ?? "" },
+        google_keyword: { score: breakdownMap.google?.score ?? 0, max: breakdownMap.google?.max ?? 15, details: breakdownMap.google?.details.join(" / ") ?? "" },
+        image_quality: { score: breakdownMap.image?.score ?? 0, max: breakdownMap.image?.max ?? 10, details: breakdownMap.image?.details.join(" / ") ?? "" },
+        online_channels: { score: breakdownMap.channel?.score ?? 0, max: breakdownMap.channel?.max ?? 15, details: breakdownMap.channel?.details.join(" / ") ?? "" },
+        seo_aeo_readiness: { score: breakdownMap.seo?.score ?? 0, max: breakdownMap.seo?.max ?? 15, details: breakdownMap.seo?.details.join(" / ") ?? "" },
+      },
+      improvements,
+    };
+  } catch (scoringEngineError) {
+    console.warn("[scoring-engine] scoring_criteria 로딩 실패, 기존 로직 사용:", scoringEngineError);
+  }
+
+  // ── 기존 하드코딩 로직 (폴백) ──
   const improvements: string[] = [];
 
   // ① 네이버 리뷰/평판 (20점)

@@ -1,7 +1,7 @@
 # Waide (AI Hospitality Aide) — 서비스 IA
 
-> 최종 업데이트: 2026-02-27
-> 버전: Phase E-2 완료 + Vercel 배포 + 인증 버그픽스
+> 최종 업데이트: 2026-02-28
+> 버전: Phase F-1 완료 (AI 인프라 — 에이전트 실행 엔진 + 기준 테이블)
 
 ---
 
@@ -249,6 +249,9 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 | `invitations` | /invite/[token], /signup | 초대 토큰 (7일 만료) |
 | `products` | /ops/products | 서비스 패키지 (상품) |
 | `subscriptions` | /ops/products, /portal/settings | 고객 구독 (product_id FK) |
+| `scoring_criteria` | lib/scoring-engine.ts | 채점 기준 (마케팅 점수/QC 룰 기반) |
+| `agent_execution_logs` | lib/agent-runner.ts | 에이전트 실행 로그 (비용/성과 추적) |
+| `content_benchmarks` | lib/agent-chain.ts | 콘텐츠 벤치마크 캐시 (7일 TTL) |
 
 ### 5-2. API 라우트 맵
 
@@ -287,6 +290,14 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 | `auth-actions.ts` | portalSignIn(), portalSignUp(), portalSignOut(), inviteUser(), getClientUsers(), updateUserProfile(), changeUserPassword() | users, invitations (Supabase Auth) |
 | `portal-actions.ts` | getPortalDashboard(), getPortalKeywords(), getPortalContents(), getPortalReport(), getPortalSettings() | brand_analyses, contents, keyword_rankings, subscriptions, sales_agents |
 | `product-actions.ts` | getProducts(), createProduct(), updateProduct(), deleteProduct(), createSubscription(), updateSubscription(), cancelSubscription(), getClientSubscription() | products, subscriptions, clients |
+
+### 5-4. AI 인프라 (lib/)
+
+| 파일 | 주요 함수/역할 | 의존 테이블 |
+|------|-------------|-----------|
+| `agent-runner.ts` | runAgent() — 에이전트 공통 실행 엔진 (프롬프트 로딩 → 템플릿 치환 → Claude API → 로그 저장) | agent_prompts, agent_execution_logs |
+| `agent-chain.ts` | runAgentChain() — 에이전트 체이닝 헬퍼 (이전 결과 → 다음 context 주입) | agent_execution_logs |
+| `scoring-engine.ts` | loadCriteria(), scoreItem(), calculateMarketingScoreFromCriteria() — 채점 기준 테이블 기반 점수 산출 | scoring_criteria |
 
 ---
 
@@ -408,6 +419,14 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
   - DB: subscriptions에 product_id/mrr/expires_at 등 6컬럼 수동 추가 (043 IF NOT EXISTS 문제)
   - DB: clients에 onboarding_checklist(JSONB)/contact_name(TEXT) 컬럼 수동 추가
   - 테스트 데이터: products 2건, users 2건, subscriptions 3건 (MRR ₩750,000)
+- Phase F-1: AI 인프라 — 에이전트 실행 엔진 + 기준 테이블 (2026-02-28)
+  - DB 마이그레이션 6개 (045~050): scoring_criteria, agent_execution_logs, content_benchmarks, clients.brand_persona, agent_prompts 확장, 프롬프트 시딩
+  - lib/agent-runner.ts: 에이전트 공통 실행 엔진 (프롬프트 로딩 → {{variable}} 치환 → Claude API → 로그 저장 → 비용 추적)
+  - lib/agent-chain.ts: 에이전트 체이닝 헬퍼 (순차 실행, 이전 결과 → 다음 context 주입)
+  - lib/scoring-engine.ts: scoring_criteria 테이블 기반 채점 엔진 (기존 하드코딩 폴백 유지)
+  - place-analyzer.ts: calculateMarketingScore()에 scoring-engine 연동 (try → 폴백)
+  - agent_prompts 10개 시딩 (CMO 3, RND 3, COPYWRITER 2, QC 1, ANALYST 0 — 기존 유지)
+  - clients.brand_persona JSONB 컬럼 추가 (CMO가 생성한 페르소나 저장)
 
 ### 설계 원칙
 
@@ -416,6 +435,8 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 3. **브랜드 페르소나 = 모든 후속 작업의 기반** — brand_personas 레코드가 CMO 전략 → COPYWRITER 톤앤매너 → QC 기준에 일관되게 적용.
 
 ### 에이전트 프롬프트 목록 (agent_prompts 테이블)
+
+#### 기존 프롬프트 (Phase 2 시딩)
 
 | # | agent | task | 설명 |
 |---|-------|------|------|
@@ -430,22 +451,35 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 | 9 | ANALYST | account_grading | 계정 등급 산출 (S/A/B/C, 노출률+검색량 가중) |
 | 10 | ANALYST | keyword_difficulty | 키워드 난이도 산출 (S/A/B/C, 검색량+경쟁도+SERP 점유) |
 
+#### Phase F-1 신규 프롬프트 (050 시딩)
+
+| # | agent | task | 설명 | 실행 엔진 |
+|---|-------|------|------|---------|
+| 11 | CMO | brand_persona | 브랜드 페르소나 생성 (플레이스 데이터 → 13항목 JSON) | agent-runner.ts |
+| 12 | RND | competitor_analysis | 경쟁사 TOP5 비교 분석 (SERP 기반) | agent-runner.ts |
+| 13 | CMO | seo_diagnosis_comment | SEO 진단 업종 맞춤 코멘트 (7항목 해석) | agent-runner.ts |
+| 14 | CMO | improvement_plan | 개선포인트 전략 액션플랜 (1주/1개월/3개월 로드맵) | agent-runner.ts |
+| 15 | CMO | keyword_strategy | 키워드 공략 전략 (단기/중기/장기 분류) | agent-runner.ts |
+| 16 | RND | niche_keyword_expansion | 니치 키워드 확장 (롱테일+시즌+질문형) | agent-runner.ts |
+| 17 | RND | content_benchmark | 상위노출 글 벤치마킹 (패턴분석 → COPYWRITER 브리프) | agent-runner.ts |
+| 18 | COPYWRITER | content_create_v2 | 벤치마크 기반 콘텐츠 작성 (해요체+AEO+비교표) | agent-runner.ts |
+| 19 | COPYWRITER | content_rewrite | QC 피드백 반영 재작성 | agent-runner.ts |
+| 20 | QC | qc_review_v2 | 상세 검수 9항목 100점 + AEO + 자연스러움 | agent-runner.ts |
+
 ### 다음 작업: Phase F (AI 고도화)
 
-| 순서 | Phase | 핵심 내용 | 프롬프트 파일 |
-|------|-------|----------|-------------|
-| 1 | **F-1** | 브랜드 페르소나 강화 — brand_personas 스키마 확장, 분석 결과 → 자동 페르소나 생성 | `prompt_phase_f1.md` |
-| 2 | **F-2** | 에이전트 프롬프트 고도화 — agent_prompts 10개 시딩, 동적 로딩 검증, 프롬프트 A/B 테스트 구조 | `prompt_phase_f2.md` |
-| 3 | **F-3** | AI 해석 레이어 — 점수(룰 기반) 위에 AI 코멘트/인사이트 생성, 분석 리포트 자동 서술 | `prompt_phase_f3.md` |
-| 4 | **F-4** | 콘텐츠 생성 파이프라인 AI 연결 — CMO→RND→COPYWRITER→QC 전체 흐름 자동화, 슬랙 컨펌 | `prompt_phase_f4.md` |
-
-> ⚠️ `prompt_phase_f1.md ~ f4.md` 파일은 아직 미작성. 각 Phase 착수 전 프롬프트 파일 작성 필요.
+| 순서 | Phase | 핵심 내용 | 상태 |
+|------|-------|----------|------|
+| 1 | **F-1** | AI 인프라 — 에이전트 실행 엔진 + 기준 테이블 + 프롬프트 시딩 | ✅ 완료 |
+| 2 | **F-2** | 분석 결과 AI 해석 — 분석 플로우에 agent-runner 연동, 브랜드 페르소나 자동 생성 | 다음 |
+| 3 | **F-3** | AI 해석 레이어 — 점수(룰 기반) 위에 AI 코멘트/인사이트 생성, 분석 리포트 자동 서술 | 예정 |
+| 4 | **F-4** | 콘텐츠 생성 파이프라인 AI 연결 — RND→COPYWRITER→QC 체이닝 자동화, 슬랙 컨펌 | 예정 |
 
 ### 미구현 (우선순위 순)
 
 | # | 기능 | 우선순위 |
 |---|------|---------|
-| 1 | **Phase F-1~F-4: AI 고도화** (위 표 참조) | 높음 (다음) |
+| 1 | **Phase F-2~F-4: AI 고도화** (위 표 참조) | 높음 (다음) |
 | 2 | **Phase D: 자동 발행 관리** (슬랙 컨펌 → 블로그 발행) | 높음 |
 | 3 | **Vercel 도메인 연결** (커스텀 도메인 + SSL) | 높음 |
 | 4 | **AEO 기능** (AI 인용률 — ChatGPT/Gemini 브랜드 언급 체크) | 중간 |
@@ -485,6 +519,14 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 | 042 | users 테이블 (Supabase Auth 연동) + invitations 테이블 | 실행 완료 |
 | 043 | products + subscriptions 테이블 (IF NOT EXISTS → 컬럼 수동 추가) | 실행 완료 |
 | 044 | clients 확장 (subscription_id, onboarding_status, health_score 등) | 실행 완료 |
+| 045 | scoring_criteria 테이블 + 시딩 (마케팅 점수/QC 채점 기준 룰) | **SQL 생성 완료** |
+| 046 | agent_execution_logs 테이블 (에이전트 실행 로그 + 비용 추적) | **SQL 생성 완료** |
+| 047 | content_benchmarks 테이블 (벤치마크 캐시, 7일 TTL) | **SQL 생성 완료** |
+| 048 | clients.brand_persona JSONB + persona_updated_at 컬럼 추가 | **SQL 생성 완료** |
+| 049 | agent_prompts 확장 (task, system_prompt, model, temperature, max_tokens, output_schema, metadata) | **SQL 생성 완료** |
+| 050 | agent_prompts 시딩 (10개 프롬프트: CMO 3, RND 3, COPYWRITER 2, QC 1) | **SQL 생성 완료** |
+
+> ⚠️ 045~050: scripts/migrations/ 디렉토리에 SQL 파일 생성. Supabase Dashboard에서 실행 필요.
 
 ---
 
