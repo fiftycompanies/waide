@@ -1,6 +1,8 @@
 import { getSelectedClientId, getAiMarketBrands } from "@/lib/actions/brand-actions";
 import { getKeywords } from "@/lib/actions/keyword-actions";
+import { getKeywordStrategy } from "@/lib/actions/keyword-strategy-actions";
 import { KeywordsClient } from "@/components/keywords/keywords-client";
+import { KeywordStrategySection } from "@/components/keywords/keyword-strategy-section";
 
 export default async function KeywordsPage() {
   const [selectedClientId, brands] = await Promise.all([
@@ -11,6 +13,9 @@ export default async function KeywordsPage() {
   const selectedBrand = brands.find((b) => b.id === selectedClientId);
   const keywords = await getKeywords(selectedClientId);
   const isAllMode = !selectedClientId;
+
+  // 키워드 전략 조회 (클라이언트 선택 시만)
+  const strategy = selectedClientId ? await getKeywordStrategy(selectedClientId) : null;
 
   return (
     <div className="p-6 md:p-8 space-y-6">
@@ -28,6 +33,14 @@ export default async function KeywordsPage() {
           </p>
         </div>
       </div>
+
+      {/* AI 키워드 전략 섹션 (클라이언트 선택 시만) */}
+      {selectedClientId && (
+        <KeywordStrategySection
+          clientId={selectedClientId}
+          initialStrategy={strategy}
+        />
+      )}
 
       {/* 클라이언트 컴포넌트 (테이블 + 다이얼로그) */}
       <KeywordsClient keywords={keywords} clientId={selectedClientId} />

@@ -86,10 +86,10 @@ export async function getPortalDashboard(clientId: string) {
 export async function getPortalKeywords(clientId: string) {
   const db = createAdminClient();
 
-  // 최신 분석의 keyword_rankings
+  // 최신 분석의 keyword_rankings + analysis_result (전략 포함)
   const { data: latestAnalysis } = await db
     .from("brand_analyses")
-    .select("keyword_rankings, keyword_analysis, analyzed_at")
+    .select("keyword_rankings, keyword_analysis, analyzed_at, analysis_result")
     .eq("client_id", clientId)
     .eq("status", "completed")
     .order("analyzed_at", { ascending: false })
@@ -104,11 +104,15 @@ export async function getPortalKeywords(clientId: string) {
     .order("checked_at", { ascending: false })
     .limit(100);
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const analysisResult = (latestAnalysis as any)?.analysis_result as Record<string, unknown> | undefined;
+
   return {
     keywordRankings: latestAnalysis?.keyword_rankings || [],
     keywordAnalysis: latestAnalysis?.keyword_analysis || null,
     analyzedAt: latestAnalysis?.analyzed_at || null,
     visibilityHistory: visibilityData || [],
+    keywordStrategy: analysisResult?.keyword_strategy || null,
   };
 }
 

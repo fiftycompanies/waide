@@ -26,6 +26,10 @@ export interface Keyword {
   status: string;
   client_id: string | null;
   client_name?: string | null;   // 전체 보기 모드: 소속 브랜드명
+  // F-3: 니치 키워드 확장
+  source?: string | null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  metadata?: any;
   created_at: string;
 }
 
@@ -36,7 +40,7 @@ export async function getKeywords(clientId: string | null): Promise<Keyword[]> {
   let query = (db as any)
     .from("keywords")
     .select(
-      "id, keyword, sub_keyword, platform, monthly_search_total, monthly_search_pc, monthly_search_mo, competition_level, competition_index, priority_score, current_rank_naver, current_rank_google, current_rank_naver_pc, current_rank_naver_mo, rank_change_pc, rank_change_mo, last_tracked_at, status, client_id, created_at, clients(name)"
+      "id, keyword, sub_keyword, platform, monthly_search_total, monthly_search_pc, monthly_search_mo, competition_level, competition_index, priority_score, current_rank_naver, current_rank_google, current_rank_naver_pc, current_rank_naver_mo, rank_change_pc, rank_change_mo, last_tracked_at, status, client_id, source, metadata, created_at, clients(name)"
     )
     .neq("status", "archived")
     .order("priority_score", { ascending: false, nullsFirst: false });
@@ -99,7 +103,7 @@ export async function createKeyword(payload: {
 
 export async function updateKeywordStatus(
   id: string,
-  status: "active" | "paused" | "archived" | "queued" | "refresh"
+  status: "active" | "paused" | "archived" | "queued" | "refresh" | "suggested"
 ): Promise<{ success: boolean; error?: string }> {
   const db = createAdminClient();
   const { error } = await db

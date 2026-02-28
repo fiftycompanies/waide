@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Key, Loader2, TrendingDown, TrendingUp, Minus } from "lucide-react";
+import { Key, Lightbulb, Loader2, Target, TrendingDown, TrendingUp, Minus } from "lucide-react";
 import { getPortalKeywords } from "@/lib/actions/portal-actions";
 
 interface KeywordRanking {
@@ -14,6 +14,8 @@ export default function PortalKeywordsPage() {
   const [rankings, setRankings] = useState<KeywordRanking[]>([]);
   const [loading, setLoading] = useState(true);
   const [analyzedAt, setAnalyzedAt] = useState<string | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [keywordStrategy, setKeywordStrategy] = useState<any>(null);
 
   useEffect(() => {
     const el = document.querySelector("meta[name='portal-client-id']");
@@ -22,6 +24,7 @@ export default function PortalKeywordsPage() {
       getPortalKeywords(clientId).then((d) => {
         setRankings(d.keywordRankings || []);
         setAnalyzedAt(d.analyzedAt);
+        setKeywordStrategy(d.keywordStrategy || null);
         setLoading(false);
       });
     } else {
@@ -82,6 +85,54 @@ export default function PortalKeywordsPage() {
           </p>
         </div>
       </div>
+
+      {/* Keyword Strategy Summary (only when data exists) */}
+      {keywordStrategy && (
+        <div className="rounded-xl border bg-white p-6">
+          <div className="flex items-center gap-2 text-gray-900 mb-4">
+            <Target className="h-5 w-5 text-blue-500" />
+            <h2 className="text-lg font-semibold">키워드 전략</h2>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            {keywordStrategy.quick_win_keywords && keywordStrategy.quick_win_keywords.length > 0 && (
+              <div className="rounded-lg bg-emerald-50 p-3 space-y-1.5">
+                <p className="text-xs font-semibold text-emerald-700 flex items-center gap-1">
+                  <TrendingUp className="h-3.5 w-3.5" />
+                  Quick Win
+                </p>
+                {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                {keywordStrategy.quick_win_keywords.slice(0, 3).map((k: any, i: number) => (
+                  <p key={i} className="text-sm text-emerald-800">{k.keyword}</p>
+                ))}
+              </div>
+            )}
+            {keywordStrategy.niche_keywords && keywordStrategy.niche_keywords.length > 0 && (
+              <div className="rounded-lg bg-violet-50 p-3 space-y-1.5">
+                <p className="text-xs font-semibold text-violet-700 flex items-center gap-1">
+                  <Lightbulb className="h-3.5 w-3.5" />
+                  니치 선점
+                </p>
+                {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                {keywordStrategy.niche_keywords.slice(0, 3).map((k: any, i: number) => (
+                  <p key={i} className="text-sm text-violet-800">{k.keyword}</p>
+                ))}
+              </div>
+            )}
+            {keywordStrategy.defense_keywords && keywordStrategy.defense_keywords.length > 0 && (
+              <div className="rounded-lg bg-blue-50 p-3 space-y-1.5">
+                <p className="text-xs font-semibold text-blue-700 flex items-center gap-1">
+                  <Key className="h-3.5 w-3.5" />
+                  방어 키워드
+                </p>
+                {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                {keywordStrategy.defense_keywords.slice(0, 3).map((k: any, i: number) => (
+                  <p key={i} className="text-sm text-blue-800">{k.keyword}</p>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Keywords table */}
       <div className="rounded-xl border bg-white overflow-hidden">

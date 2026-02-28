@@ -1,7 +1,7 @@
 # Waide (AI Hospitality Aide) — 서비스 IA
 
 > 최종 업데이트: 2026-02-28
-> 버전: Phase F-2 완료 (분석 고도화 — 경쟁사 분석 + 페르소나 + SEO 코멘트 + 개선포인트)
+> 버전: Phase F-3 완료 (키워드 고도화 — 니치 키워드 확장 + 공략 전략)
 
 ---
 
@@ -15,6 +15,7 @@
    - jobs.trigger_type: 'USER'/'SCHEDULER'/'AGENT' (대문자)
    - contents.publish_status: 'draft'/'review'/'approved'/'published'/'rejected'
    - clients.client_type: 'company'/'sub_client'
+   - keywords.status: 'active'/'paused'/'archived'/'queued'/'refresh'/'suggested' (051 확장)
    - keywords.priority: 'critical'/'high'/'medium'/'low'
    - accounts.platform: 'naver'/'tistory'/'brunch' (소문자)
 5. contents.account_id FK → blog_accounts(id) (accounts 아님!)
@@ -84,7 +85,7 @@
 | 경로 | 페이지명 | 데이터 소스 |
 |------|---------|-----------|
 | `/portal` | 포털 대시보드 | `brand_analyses`, `contents`, `subscriptions`, `sales_agents` |
-| `/portal/keywords` | 키워드 순위 | `keyword_rankings`, `keyword_visibility` |
+| `/portal/keywords` | 키워드 순위 + 전략 요약 | `keyword_rankings`, `keyword_visibility`, `brand_analyses` (keyword_strategy) |
 | `/portal/contents` | 콘텐츠 목록 | `contents` |
 | `/portal/reports` | 리포트 (점수 추이) | `brand_analyses`, `contents` |
 | `/portal/settings` | 설정 (프로필, 비밀번호, 구독) | `users`, `subscriptions`, `sales_agents` |
@@ -226,7 +227,7 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 | 테이블 | 사용 페이지 | 주요 용도 |
 |--------|-----------|----------|
 | `clients` | /ops/clients, /ops/dashboard | 하위업체(고객) 관리 |
-| `keywords` | /ops/keywords, /ops/analytics, /ops/recommendations | 키워드 + 검색량 |
+| `keywords` | /ops/keywords, /keywords, /ops/analytics, /ops/recommendations | 키워드 + 검색량 + AI 추천(suggested) + 메타데이터 |
 | `serp_results` | /ops/keywords/[id], /ops/analytics | SERP 순위 (일별) |
 | `keyword_visibility` | /ops/keywords/[id], /ops/analytics | 키워드별 visibility 점수 |
 | `daily_visibility_summary` | /ops/dashboard, /ops/analytics | 일별 집계 (노출률, 점유율) |
@@ -283,7 +284,9 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 | `url-crawl-action.ts` | crawlUrl() | (외부 fetch) |
 | `blog-account-actions.ts` | getAccounts() | blog_accounts |
 | `campaign-actions.ts` | getCampaigns() | campaigns, campaign_keywords |
-| `keyword-actions.ts` | getKeywords(), getSerpByKeyword() | keywords, serp_results |
+| `keyword-actions.ts` | getKeywords(), getSerpByKeyword(), updateKeywordStatus() | keywords, serp_results |
+| `keyword-expansion-actions.ts` | expandNicheKeywords(), getClientMainKeywords(), approveSuggestedKeyword(), rejectSuggestedKeyword(), bulkApproveSuggestedKeywords() | keywords |
+| `keyword-strategy-actions.ts` | generateKeywordStrategy(), getKeywordStrategy() | keywords, brand_analyses, clients |
 | `analysis-log-actions.ts` | getAnalysisLogs(), getAnalysisLogDetail(), updateLeadStatus(), addAnalysisNote(), updateAnalysisContact(), linkAnalysisToClient(), getAnalysisStats(), assignSalesAgent(), assignToClient(), getClientsList() | brand_analyses, sales_agents, clients, consultation_requests |
 | `settings-actions.ts` | getSettings(), getScoringWeights(), getAnalysisOptions() | settings |
 | `admin-actions.ts` | getAdmin() | admins |
@@ -301,6 +304,7 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 | `scoring-engine.ts` | loadCriteria(), scoreItem(), calculateMarketingScoreFromCriteria() — 채점 기준 테이블 기반 점수 산출 | scoring_criteria |
 | `competitor-collector.ts` | collectCompetitors() — 네이버 로컬 검색 API 경쟁사 TOP5 수집 | (외부 API) |
 | `analysis-agent-chain.ts` | runAnalysisAgentChain() — 분석 후 4단계 에이전트 체인 (경쟁사→페르소나→SEO코멘트→개선플랜) | brand_analyses, clients |
+| `naver-suggest-collector.ts` | collectNaverSuggestions(), extractPlaceFeatureKeywords() — 네이버 자동완성/연관검색어 수집 + 매장 특성 키워드 추출 | (외부 API) |
 
 ---
 
@@ -441,6 +445,18 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
   - portal-actions.ts: getPortalDashboard()에 brand_persona + analysis_result AI 해석 데이터 추가
   - analysis_result JSONB에 에이전트 결과 spread 저장 (competitor_analysis, seo_comments, improvement_plan)
   - 모든 에이전트 관련 기능: ANTHROPIC_API_KEY 미설정 시 graceful skip, 기존 분석 영향 없음
+- Phase F-3: 키워드 고도화 — 니치 키워드 확장 + 공략 전략 (2026-02-28)
+  - lib/naver-suggest-collector.ts: 네이버 자동완성 API + 연관검색어 HTML 파싱 + 매장 특성 키워드 추출
+  - scripts/migrations/051_keywords_extension.sql: keywords 테이블 확장 (status에 'suggested' 추가, metadata JSONB, source TEXT)
+  - lib/actions/keyword-expansion-actions.ts: 니치 키워드 확장 (네이버 수집 → RND 에이전트 → keywords 저장 + 승인/거절/일괄승인)
+  - lib/actions/keyword-strategy-actions.ts: CMO 키워드 공략 전략 (Quick Win/니치/방어 분류 + 월간 로드맵 → analysis_result JSONB 저장)
+  - components/keywords/keyword-strategy-section.tsx: 키워드 전략 UI (발굴+전략 버튼, 3열 카드, 로드맵)
+  - keywords-client.tsx: AI 추천 탭 (suggested 상태 필터, 승인/거절 버튼, 일괄 승인, content_angle 표시)
+  - /keywords 페이지: 전략 섹션 추가 (KeywordStrategySection 컴포넌트)
+  - /portal/keywords: 키워드 전략 요약 카드 (Quick Win/니치/방어)
+  - portal-actions.ts: getPortalKeywords()에 analysis_result.keyword_strategy 연동
+  - recommendation-actions.ts: 발행 추천 전략 연동 TODO (Phase F-3 연계)
+  - GSC 키워드 자동 발견 구조 TODO 유지 (Phase E-3 예정)
 
 ### 설계 원칙
 
@@ -486,14 +502,14 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 |------|-------|----------|------|
 | 1 | **F-1** | AI 인프라 — 에이전트 실행 엔진 + 기준 테이블 + 프롬프트 시딩 | ✅ 완료 |
 | 2 | **F-2** | 분석 고도화 — 경쟁사 분석 + 페르소나 + SEO 코멘트 + 개선포인트 | ✅ 완료 |
-| 3 | **F-3** | AI 해석 레이어 — 점수(룰 기반) 위에 AI 코멘트/인사이트 생성, 분석 리포트 자동 서술 | 다음 |
-| 4 | **F-4** | 콘텐츠 생성 파이프라인 AI 연결 — RND→COPYWRITER→QC 체이닝 자동화, 슬랙 컨펌 | 예정 |
+| 3 | **F-3** | 키워드 고도화 — 니치 키워드 확장 + 공략 전략 + 키워드 UI 개편 | ✅ 완료 |
+| 4 | **F-4** | 콘텐츠 생성 파이프라인 AI 연결 — RND→COPYWRITER→QC 체이닝 자동화, 슬랙 컨펌 | 다음 |
 
 ### 미구현 (우선순위 순)
 
 | # | 기능 | 우선순위 |
 |---|------|---------|
-| 1 | **Phase F-3~F-4: AI 고도화** (위 표 참조) | 높음 (다음) |
+| 1 | **Phase F-4: 콘텐츠 생성 파이프라인 AI 연결** (위 표 참조) | 높음 (다음) |
 | 2 | **Phase D: 자동 발행 관리** (슬랙 컨펌 → 블로그 발행) | 높음 |
 | 3 | **Vercel 도메인 연결** (커스텀 도메인 + SSL) | 높음 |
 | 4 | **AEO 기능** (AI 인용률 — ChatGPT/Gemini 브랜드 언급 체크) | 중간 |
@@ -539,8 +555,9 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 | 048 | clients.brand_persona JSONB + persona_updated_at 컬럼 추가 | **SQL 생성 완료** |
 | 049 | agent_prompts 확장 (task, system_prompt, model, temperature, max_tokens, output_schema, metadata) | **SQL 생성 완료** |
 | 050 | agent_prompts 시딩 (10개 프롬프트: CMO 3, RND 3, COPYWRITER 2, QC 1) | **SQL 생성 완료** |
+| 051 | keywords 확장 (status CHECK에 'suggested' 추가, metadata JSONB, source TEXT) | **SQL 생성 완료** |
 
-> ⚠️ 045~050: scripts/migrations/ 디렉토리에 SQL 파일 생성. Supabase Dashboard에서 실행 필요.
+> ⚠️ 045~051: scripts/migrations/ 디렉토리에 SQL 파일 생성. Supabase Dashboard에서 실행 필요.
 
 ---
 
