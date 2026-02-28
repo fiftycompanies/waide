@@ -1,7 +1,7 @@
 # Waide (AI Hospitality Aide) — 서비스 IA
 
 > 최종 업데이트: 2026-02-28
-> 버전: Phase F-3 완료 (키워드 고도화 — 니치 키워드 확장 + 공략 전략)
+> 버전: Phase F-4 완료 (콘텐츠 품질 고도화 — 벤치마킹 + 작성 v2 + QC v2 + 재작성 루프)
 
 ---
 
@@ -287,6 +287,7 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 | `keyword-actions.ts` | getKeywords(), getSerpByKeyword(), updateKeywordStatus() | keywords, serp_results |
 | `keyword-expansion-actions.ts` | expandNicheKeywords(), getClientMainKeywords(), approveSuggestedKeyword(), rejectSuggestedKeyword(), bulkApproveSuggestedKeywords() | keywords |
 | `keyword-strategy-actions.ts` | generateKeywordStrategy(), getKeywordStrategy() | keywords, brand_analyses, clients |
+| `content-generate-actions.ts` | generateContentV2(), processContentJobs() | contents, jobs, clients, content_sources, content_benchmarks |
 | `analysis-log-actions.ts` | getAnalysisLogs(), getAnalysisLogDetail(), updateLeadStatus(), addAnalysisNote(), updateAnalysisContact(), linkAnalysisToClient(), getAnalysisStats(), assignSalesAgent(), assignToClient(), getClientsList() | brand_analyses, sales_agents, clients, consultation_requests |
 | `settings-actions.ts` | getSettings(), getScoringWeights(), getAnalysisOptions() | settings |
 | `admin-actions.ts` | getAdmin() | admins |
@@ -305,6 +306,10 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 | `competitor-collector.ts` | collectCompetitors() — 네이버 로컬 검색 API 경쟁사 TOP5 수집 | (외부 API) |
 | `analysis-agent-chain.ts` | runAnalysisAgentChain() — 분석 후 4단계 에이전트 체인 (경쟁사→페르소나→SEO코멘트→개선플랜) | brand_analyses, clients |
 | `naver-suggest-collector.ts` | collectNaverSuggestions(), extractPlaceFeatureKeywords() — 네이버 자동완성/연관검색어 수집 + 매장 특성 키워드 추출 | (외부 API) |
+| `content-benchmark.ts` | getBenchmark(), generateBenchmark() — 상위노출 글 TOP5 수집 + RND 벤치마킹 + 7일 캐시 | content_benchmarks, (외부 API) |
+| `content-pipeline-v2.ts` | createContentV2() — 벤치마크+페르소나+중복회피+AEO 기반 콘텐츠 생성 | clients, contents, content_sources, brand_analyses |
+| `content-qc-v2.ts` | runQcV2() — 8항목 100점 검수 (AEO 15점 포함) + 벤치마크 비교 + metadata 저장 | contents, clients, content_benchmarks |
+| `content-rewrite-loop.ts` | runRewriteLoop() — QC FAIL 시 최대 2회 재작성 + metadata.rewrite_history 기록 | contents, clients |
 
 ---
 
@@ -457,6 +462,17 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
   - portal-actions.ts: getPortalKeywords()에 analysis_result.keyword_strategy 연동
   - recommendation-actions.ts: 발행 추천 전략 연동 TODO (Phase F-3 연계)
   - GSC 키워드 자동 발견 구조 TODO 유지 (Phase E-3 예정)
+- Phase F-4: 콘텐츠 품질 고도화 — 벤치마킹 + 작성 v2 + QC v2 + 재작성 루프 (2026-02-28)
+  - lib/content-benchmark.ts: 네이버 블로그 검색 TOP5 수집 → RND 벤치마킹 → content_benchmarks 7일 캐시
+  - lib/content-pipeline-v2.ts: 벤치마크+페르소나+중복회피+AEO 기반 COPYWRITER v2 콘텐츠 생성
+  - lib/content-qc-v2.ts: QC v2 8항목 100점 검수 (AEO 15점 포함, 벤치마크 비교, 중복 체크)
+  - lib/content-rewrite-loop.ts: QC FAIL → COPYWRITER 재작성 → 재검수 루프 (최대 2회)
+  - lib/actions/content-generate-actions.ts: 통합 함수 generateContentV2() + Job 처리 processContentJobs()
+  - contents.metadata JSONB 컬럼 추가 (052 마이그레이션): qc_score, qc_pass, qc_result, rewrite_history 저장
+  - 콘텐츠 상세 페이지: QC v2 결과 섹션 (항목별 점수, 벤치마크 비교, 재작성 이력, 확장/축소)
+  - 콘텐츠 목록 페이지: QC 점수 컬럼 추가
+  - Content 인터페이스에 metadata 필드 추가
+  - 파이프라인 흐름: RND 벤치마킹 → COPYWRITER v2 → QC v2 → FAIL 시 재작성(최대2회) → PASS/수동검토
 
 ### 설계 원칙
 
@@ -503,14 +519,13 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 | 1 | **F-1** | AI 인프라 — 에이전트 실행 엔진 + 기준 테이블 + 프롬프트 시딩 | ✅ 완료 |
 | 2 | **F-2** | 분석 고도화 — 경쟁사 분석 + 페르소나 + SEO 코멘트 + 개선포인트 | ✅ 완료 |
 | 3 | **F-3** | 키워드 고도화 — 니치 키워드 확장 + 공략 전략 + 키워드 UI 개편 | ✅ 완료 |
-| 4 | **F-4** | 콘텐츠 생성 파이프라인 AI 연결 — RND→COPYWRITER→QC 체이닝 자동화, 슬랙 컨펌 | 다음 |
+| 4 | **F-4** | 콘텐츠 품질 고도화 — 벤치마킹 + 작성 v2 + QC v2 + 재작성 루프 | ✅ 완료 |
 
 ### 미구현 (우선순위 순)
 
 | # | 기능 | 우선순위 |
 |---|------|---------|
-| 1 | **Phase F-4: 콘텐츠 생성 파이프라인 AI 연결** (위 표 참조) | 높음 (다음) |
-| 2 | **Phase D: 자동 발행 관리** (슬랙 컨펌 → 블로그 발행) | 높음 |
+| 1 | **Phase D: 자동 발행 관리** (슬랙 컨펌 → 블로그 발행) | 높음 (다음) |
 | 3 | **Vercel 도메인 연결** (커스텀 도메인 + SSL) | 높음 |
 | 4 | **AEO 기능** (AI 인용률 — ChatGPT/Gemini 브랜드 언급 체크) | 중간 |
 | 5 | **구글 상위노출** (마케팅점수 15점 자리 비어있음) | 중간 |
@@ -556,8 +571,9 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 | 049 | agent_prompts 확장 (task, system_prompt, model, temperature, max_tokens, output_schema, metadata) | **SQL 생성 완료** |
 | 050 | agent_prompts 시딩 (10개 프롬프트: CMO 3, RND 3, COPYWRITER 2, QC 1) | **SQL 생성 완료** |
 | 051 | keywords 확장 (status CHECK에 'suggested' 추가, metadata JSONB, source TEXT) | **SQL 생성 완료** |
+| 052 | contents.metadata JSONB 컬럼 추가 (QC v2 결과, 재작성 이력 저장) | **SQL 생성 완료** |
 
-> ⚠️ 045~051: scripts/migrations/ 디렉토리에 SQL 파일 생성. Supabase Dashboard에서 실행 필요.
+> ⚠️ 045~052: scripts/migrations/ 디렉토리에 SQL 파일 생성. Supabase Dashboard에서 실행 필요.
 
 ---
 
