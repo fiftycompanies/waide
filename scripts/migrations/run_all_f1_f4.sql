@@ -1,20 +1,218 @@
--- 050_agent_prompts_seed.sql
--- 에이전트 프롬프트 10개 시딩
--- 컬럼: agent_type, task, prompt_section, title, content(user template), system_prompt, model, temperature, max_tokens, is_active, version
--- ★ UNIQUE 제약 필요 (ON CONFLICT 사용을 위해)
+-- ═══════════════════════════════════════════════════════════════
+-- run_all_f1_f4.sql
+-- Phase F-1 ~ F-4 통합 마이그레이션 (045~052)
+--
+-- 특징:
+--   - 전체 멱등성 보장 (여러 번 실행해도 안전)
+--   - 050 버그 수정: UNIQUE(agent_type, task) 추가 + ON CONFLICT
+--   - 051 버그 수정: keywords 테이블 전용 constraint 드롭
+--   - 트랜잭션 래핑
+--
+-- 사용법: Supabase Dashboard → SQL Editor에 붙여넣고 실행
+-- ═══════════════════════════════════════════════════════════════
 
+BEGIN;
+
+-- ═══════════════════════════════════════════
+-- 045: scoring_criteria 테이블
+-- ═══════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS scoring_criteria (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  category TEXT NOT NULL,
+  item TEXT NOT NULL,
+  description TEXT,
+  max_score INTEGER NOT NULL,
+  rules JSONB NOT NULL,
+  category_group TEXT NOT NULL DEFAULT 'marketing',
+  is_active BOOLEAN DEFAULT true,
+  sort_order INTEGER DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now(),
+  UNIQUE(category_group, category, item)
+);
+
+CREATE INDEX IF NOT EXISTS idx_scoring_criteria_group ON scoring_criteria(category_group, is_active);
+
+-- 045 seed: 마케팅 점수 기준 (6영역, 100점)
+INSERT INTO scoring_criteria (category_group, category, item, description, max_score, rules, sort_order) VALUES
+('marketing', 'review', 'visitor_review_count', '방문자 리뷰 수', 8,
+ '[{"condition":">=500","score_pct":100,"label":"우수"},{"condition":">=100","score_pct":62,"label":"양호"},{"condition":">=10","score_pct":37,"label":"보통"},{"condition":"<10","score_pct":0,"label":"부족"}]', 1),
+('marketing', 'review', 'blog_review_count', '블로그 리뷰 수', 7,
+ '[{"condition":">=200","score_pct":100,"label":"우수"},{"condition":">=50","score_pct":57,"label":"양호"},{"condition":">=10","score_pct":28,"label":"보통"},{"condition":"<10","score_pct":0,"label":"부족"}]', 2),
+('marketing', 'review', 'review_volume_bonus', '리뷰 볼륨 보정 (별점 대용)', 5,
+ '[{"condition":">=100","score_pct":100,"label":"우수"},{"condition":">=30","score_pct":60,"label":"보통"},{"condition":"<30","score_pct":20,"label":"부족"}]', 3)
+ON CONFLICT (category_group, category, item) DO NOTHING;
+
+INSERT INTO scoring_criteria (category_group, category, item, description, max_score, rules, sort_order) VALUES
+('marketing', 'keyword', 'place_exposure', '플레이스(로컬) 검색 노출', 15,
+ '[{"condition":"avg_score_formula","score_pct":100,"label":"공식 적용","note":"keywordRankings 평균: 1위→100, ~3→95, ~5→85, ~10→70, ~20→40, else→10"}]', 1),
+('marketing', 'keyword', 'blog_exposure', '블로그 검색 노출', 10,
+ '[{"condition":"rank<=3","score_pct":100,"label":"TOP3"},{"condition":"rank<=10","score_pct":70,"label":"TOP10"},{"condition":"rank<=30","score_pct":40,"label":"TOP30"},{"condition":"not_found","score_pct":0,"label":"미노출"}]', 2)
+ON CONFLICT (category_group, category, item) DO NOTHING;
+
+INSERT INTO scoring_criteria (category_group, category, item, description, max_score, rules, sort_order) VALUES
+('marketing', 'google', 'google_exposure', '구글 검색 노출', 15,
+ '[{"condition":"not_implemented","score_pct":0,"label":"측정 예정"}]', 1)
+ON CONFLICT (category_group, category, item) DO NOTHING;
+
+INSERT INTO scoring_criteria (category_group, category, item, description, max_score, rules, sort_order) VALUES
+('marketing', 'image', 'image_count', '이미지 수', 3,
+ '[{"condition":">=50","score_pct":100,"label":"충분"},{"condition":">=20","score_pct":66,"label":"보통"},{"condition":">=5","score_pct":33,"label":"부족"},{"condition":"<5","score_pct":0,"label":"매우 부족"}]', 1),
+('marketing', 'image', 'image_quality', '이미지 품질 (Vision AI)', 4,
+ '[{"condition":">=8","score_pct":100,"label":"우수"},{"condition":">=6","score_pct":75,"label":"양호"},{"condition":">=4","score_pct":50,"label":"보통"},{"condition":"<4","score_pct":25,"label":"부족"}]', 2),
+('marketing', 'image', 'image_usability', '이미지 마케팅 활용도 (Vision AI)', 3,
+ '[{"condition":">=8","score_pct":100,"label":"우수"},{"condition":">=6","score_pct":66,"label":"양호"},{"condition":"<6","score_pct":33,"label":"부족"}]', 3),
+('marketing', 'image', 'image_count_basic', '이미지 수 (Vision AI 미실행 시)', 5,
+ '[{"condition":">=50","score_pct":100,"label":"충분"},{"condition":">=20","score_pct":60,"label":"보통"},{"condition":">=5","score_pct":20,"label":"부족"},{"condition":"<5","score_pct":0,"label":"매우 부족"}]', 4)
+ON CONFLICT (category_group, category, item) DO NOTHING;
+
+INSERT INTO scoring_criteria (category_group, category, item, description, max_score, rules, sort_order) VALUES
+('marketing', 'channel', 'homepage', '홈페이지 보유', 5,
+ '[{"condition":"exists","score_pct":100,"label":"있음"},{"condition":"not_exists","score_pct":0,"label":"없음"}]', 1),
+('marketing', 'channel', 'sns', 'SNS 채널 보유', 3,
+ '[{"condition":"exists","score_pct":100,"label":"있음"},{"condition":"not_exists","score_pct":0,"label":"없음"}]', 2),
+('marketing', 'channel', 'naver_reservation', '네이버 예약', 3,
+ '[{"condition":"exists","score_pct":100,"label":"활성화"},{"condition":"not_exists","score_pct":0,"label":"비활성화"}]', 3),
+('marketing', 'channel', 'naver_talktalk', '네이버 톡톡', 2,
+ '[{"condition":"exists","score_pct":100,"label":"활성화"},{"condition":"not_exists","score_pct":0,"label":"비활성화"}]', 4),
+('marketing', 'channel', 'business_hours', '영업시간 등록', 2,
+ '[{"condition":"exists","score_pct":100,"label":"있음"},{"condition":"not_exists","score_pct":0,"label":"없음"}]', 5)
+ON CONFLICT (category_group, category, item) DO NOTHING;
+
+INSERT INTO scoring_criteria (category_group, category, item, description, max_score, rules, sort_order) VALUES
+('marketing', 'seo', 'brand_blog', '브랜드명 블로그 검색 노출', 5,
+ '[{"condition":"found","score_pct":100,"label":"노출"},{"condition":"not_found","score_pct":0,"label":"미노출"}]', 1),
+('marketing', 'seo', 'keyword_blog', '메인 키워드 블로그 검색 노출', 5,
+ '[{"condition":"found","score_pct":100,"label":"노출"},{"condition":"not_found","score_pct":0,"label":"미노출"}]', 2),
+('marketing', 'seo', 'google_seo', '구글 SEO 준비도', 5,
+ '[{"condition":"not_implemented","score_pct":0,"label":"측정 예정"}]', 3)
+ON CONFLICT (category_group, category, item) DO NOTHING;
+
+-- QC 검수 기준 (100점)
+INSERT INTO scoring_criteria (category_group, category, item, description, max_score, rules, sort_order) VALUES
+('qc', 'content', 'char_count', '글자수 (2500자+ 목표)', 15,
+ '[{"condition":">=2500","score_pct":100,"label":"충분"},{"condition":">=2000","score_pct":67,"label":"부족"},{"condition":"<2000","score_pct":33,"label":"매우 부족"}]', 1),
+('qc', 'content', 'honorific_rate', '해요체 통일', 10,
+ '[{"condition":">=90","score_pct":100,"label":"통일"},{"condition":">=80","score_pct":70,"label":"부분 혼용"},{"condition":"<80","score_pct":30,"label":"혼용 심함"}]', 2),
+('qc', 'content', 'keyword_seo', '키워드 SEO (밀도+제목+첫문단+H2)', 15,
+ '[{"condition":"density_1.5_3","score_pct":67,"label":"밀도 적정"},{"condition":"in_title","score_pct":13,"label":"제목 포함"},{"condition":"in_first_para","score_pct":7,"label":"첫문단 포함"},{"condition":"in_h2_2plus","score_pct":13,"label":"H2 포함"}]', 3),
+('qc', 'content', 'h2_structure', 'H2 구조 (4개 이상)', 10,
+ '[{"condition":">=4","score_pct":100,"label":"충분"},{"condition":">=3","score_pct":70,"label":"보통"},{"condition":"<3","score_pct":30,"label":"부족"}]', 4),
+('qc', 'content', 'image_positions', '이미지 지시 (5개 이상)', 10,
+ '[{"condition":">=5","score_pct":100,"label":"충분"},{"condition":">=3","score_pct":70,"label":"보통"},{"condition":"<3","score_pct":30,"label":"부족"}]', 5),
+('qc', 'content', 'forbidden_words', '금지 표현 (0개 목표)', 10,
+ '[{"condition":"==0","score_pct":100,"label":"없음"},{"condition":"<=2","score_pct":50,"label":"일부"},{"condition":">2","score_pct":0,"label":"다수"}]', 6),
+('qc', 'content', 'aeo_optimization', 'AEO 최적화 (답변+리스트+FAQ)', 15,
+ '[{"condition":"has_answer","score_pct":33,"label":"답변 문장"},{"condition":"has_list","score_pct":33,"label":"구조화 리스트"},{"condition":"has_faq","score_pct":34,"label":"FAQ 섹션"}]', 7),
+('qc', 'content', 'naturalness', '자연스러움', 10,
+ '[{"condition":"natural","score_pct":100,"label":"자연스러움"},{"condition":"partial","score_pct":60,"label":"부분 딱딱"},{"condition":"robotic","score_pct":20,"label":"AI체"}]', 8),
+('qc', 'content', 'meta_description', '메타 디스크립션', 5,
+ '[{"condition":"length_ok_keyword_ok","score_pct":100,"label":"완료"},{"condition":"partial","score_pct":40,"label":"부분 충족"},{"condition":"none","score_pct":0,"label":"없음"}]', 9)
+ON CONFLICT (category_group, category, item) DO NOTHING;
+
+
+-- ═══════════════════════════════════════════
+-- 046: agent_execution_logs 테이블
+-- ═══════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS agent_execution_logs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  agent TEXT NOT NULL,
+  task TEXT NOT NULL,
+  prompt_version INTEGER,
+  client_id UUID REFERENCES clients(id),
+  input_summary TEXT,
+  output_data JSONB,
+  model TEXT,
+  input_tokens INTEGER,
+  output_tokens INTEGER,
+  total_cost_usd NUMERIC(10, 6),
+  duration_ms INTEGER,
+  status TEXT DEFAULT 'success',
+  error_message TEXT,
+  chain_id UUID,
+  chain_step INTEGER,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_agent_logs_agent_task ON agent_execution_logs(agent, task);
+CREATE INDEX IF NOT EXISTS idx_agent_logs_client ON agent_execution_logs(client_id);
+CREATE INDEX IF NOT EXISTS idx_agent_logs_chain ON agent_execution_logs(chain_id);
+CREATE INDEX IF NOT EXISTS idx_agent_logs_created ON agent_execution_logs(created_at);
+
+
+-- ═══════════════════════════════════════════
+-- 047: content_benchmarks 테이블
+-- ═══════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS content_benchmarks (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  keyword TEXT NOT NULL,
+  benchmark_data JSONB NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  expires_at TIMESTAMPTZ DEFAULT (now() + interval '7 days'),
+  UNIQUE(keyword)
+);
+
+-- UNIQUE(keyword)가 이미 인덱스를 생성하므로 idx_benchmarks_keyword는 생략
+CREATE INDEX IF NOT EXISTS idx_benchmarks_expires ON content_benchmarks(expires_at);
+
+
+-- ═══════════════════════════════════════════
+-- 048: clients.brand_persona JSONB
+-- ═══════════════════════════════════════════
+
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS brand_persona JSONB;
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS persona_updated_at TIMESTAMPTZ;
+
+
+-- ═══════════════════════════════════════════
+-- 049: agent_prompts 확장 컬럼
+-- ═══════════════════════════════════════════
+
+ALTER TABLE agent_prompts ADD COLUMN IF NOT EXISTS task TEXT;
+ALTER TABLE agent_prompts ADD COLUMN IF NOT EXISTS system_prompt TEXT;
+ALTER TABLE agent_prompts ADD COLUMN IF NOT EXISTS output_schema JSONB;
+ALTER TABLE agent_prompts ADD COLUMN IF NOT EXISTS model TEXT DEFAULT 'claude-haiku-4-5';
+ALTER TABLE agent_prompts ADD COLUMN IF NOT EXISTS temperature NUMERIC(3,2) DEFAULT 0.3;
+ALTER TABLE agent_prompts ADD COLUMN IF NOT EXISTS max_tokens INTEGER DEFAULT 2000;
+ALTER TABLE agent_prompts ADD COLUMN IF NOT EXISTS metadata JSONB;
+
+CREATE INDEX IF NOT EXISTS idx_agent_prompts_task ON agent_prompts(agent_type, task);
+
+-- ★ 050 버그 수정: UNIQUE 제약 추가 (멱등)
+-- ON CONFLICT 사용을 위해 (agent_type, task) 유니크 제약 필요
 DO $$
 BEGIN
   IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint WHERE conname = 'agent_prompts_agent_type_task_key'
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'agent_prompts_agent_type_task_key'
   ) THEN
+    -- task가 NULL인 기존 행이 있을 수 있으므로, NULL끼리 충돌하지 않음 (UNIQUE는 NULL 허용)
     ALTER TABLE agent_prompts ADD CONSTRAINT agent_prompts_agent_type_task_key UNIQUE (agent_type, task);
   END IF;
+EXCEPTION
+  WHEN unique_violation THEN
+    -- 이미 중복 데이터가 있으면 먼저 정리
+    -- 가장 최근 것만 남기고 삭제
+    DELETE FROM agent_prompts a
+    USING agent_prompts b
+    WHERE a.agent_type = b.agent_type
+      AND a.task = b.task
+      AND a.task IS NOT NULL
+      AND a.created_at < b.created_at;
+
+    ALTER TABLE agent_prompts ADD CONSTRAINT agent_prompts_agent_type_task_key UNIQUE (agent_type, task);
 END $$;
 
+
 -- ═══════════════════════════════════════════
+-- 050: agent_prompts 시딩 (10개)
+-- ★ 수정: ON CONFLICT DO UPDATE 적용
+-- ═══════════════════════════════════════════
+
 -- 1. CMO / brand_persona
--- ═══════════════════════════════════════════
 INSERT INTO agent_prompts (agent_type, task, prompt_section, title, content, system_prompt, model, temperature, max_tokens, is_active, version, updated_by) VALUES (
   'CMO', 'brand_persona', 'brand_persona', '브랜드 페르소나 생성',
   '## 규칙
@@ -74,10 +272,7 @@ ON CONFLICT (agent_type, task) DO UPDATE SET
   max_tokens = EXCLUDED.max_tokens,
   updated_at = now();
 
-
--- ═══════════════════════════════════════════
 -- 2. RND / competitor_analysis
--- ═══════════════════════════════════════════
 INSERT INTO agent_prompts (agent_type, task, prompt_section, title, content, system_prompt, model, temperature, max_tokens, is_active, version, updated_by) VALUES (
   'RND', 'competitor_analysis', 'competitor_analysis', '경쟁사 TOP5 비교 분석',
   '## 규칙
@@ -130,10 +325,7 @@ ON CONFLICT (agent_type, task) DO UPDATE SET
   max_tokens = EXCLUDED.max_tokens,
   updated_at = now();
 
-
--- ═══════════════════════════════════════════
 -- 3. CMO / seo_diagnosis_comment
--- ═══════════════════════════════════════════
 INSERT INTO agent_prompts (agent_type, task, prompt_section, title, content, system_prompt, model, temperature, max_tokens, is_active, version, updated_by) VALUES (
   'CMO', 'seo_diagnosis_comment', 'seo_diagnosis_comment', 'SEO 진단 업종 맞춤 코멘트',
   '## 규칙
@@ -173,14 +365,14 @@ INSERT INTO agent_prompts (agent_type, task, prompt_section, title, content, sys
   'claude-haiku-4-5-20251001', 0.3, 1500, true, 1, 'system'
 )
 ON CONFLICT (agent_type, task) DO UPDATE SET
-  content = EXCLUDED.content, system_prompt = EXCLUDED.system_prompt,
-  model = EXCLUDED.model, temperature = EXCLUDED.temperature,
-  max_tokens = EXCLUDED.max_tokens, updated_at = now();
+  content = EXCLUDED.content,
+  system_prompt = EXCLUDED.system_prompt,
+  model = EXCLUDED.model,
+  temperature = EXCLUDED.temperature,
+  max_tokens = EXCLUDED.max_tokens,
+  updated_at = now();
 
-
--- ═══════════════════════════════════════════
 -- 4. CMO / improvement_plan
--- ═══════════════════════════════════════════
 INSERT INTO agent_prompts (agent_type, task, prompt_section, title, content, system_prompt, model, temperature, max_tokens, is_active, version, updated_by) VALUES (
   'CMO', 'improvement_plan', 'improvement_plan', '개선포인트 전략 액션플랜',
   '## 규칙
@@ -234,10 +426,7 @@ ON CONFLICT (agent_type, task) DO UPDATE SET
   max_tokens = EXCLUDED.max_tokens,
   updated_at = now();
 
-
--- ═══════════════════════════════════════════
 -- 5. CMO / keyword_strategy
--- ═══════════════════════════════════════════
 INSERT INTO agent_prompts (agent_type, task, prompt_section, title, content, system_prompt, model, temperature, max_tokens, is_active, version, updated_by) VALUES (
   'CMO', 'keyword_strategy', 'keyword_strategy', '키워드 공략 전략',
   '## 규칙
@@ -292,10 +481,7 @@ ON CONFLICT (agent_type, task) DO UPDATE SET
   max_tokens = EXCLUDED.max_tokens,
   updated_at = now();
 
-
--- ═══════════════════════════════════════════
 -- 6. RND / niche_keyword_expansion
--- ═══════════════════════════════════════════
 INSERT INTO agent_prompts (agent_type, task, prompt_section, title, content, system_prompt, model, temperature, max_tokens, is_active, version, updated_by) VALUES (
   'RND', 'niche_keyword_expansion', 'niche_keyword_expansion', '니치 키워드 확장',
   '## 규칙
@@ -339,14 +525,14 @@ INSERT INTO agent_prompts (agent_type, task, prompt_section, title, content, sys
   'claude-haiku-4-5-20251001', 0.4, 2000, true, 1, 'system'
 )
 ON CONFLICT (agent_type, task) DO UPDATE SET
-  content = EXCLUDED.content, system_prompt = EXCLUDED.system_prompt,
-  model = EXCLUDED.model, temperature = EXCLUDED.temperature,
-  max_tokens = EXCLUDED.max_tokens, updated_at = now();
+  content = EXCLUDED.content,
+  system_prompt = EXCLUDED.system_prompt,
+  model = EXCLUDED.model,
+  temperature = EXCLUDED.temperature,
+  max_tokens = EXCLUDED.max_tokens,
+  updated_at = now();
 
-
--- ═══════════════════════════════════════════
 -- 7. RND / content_benchmark
--- ═══════════════════════════════════════════
 INSERT INTO agent_prompts (agent_type, task, prompt_section, title, content, system_prompt, model, temperature, max_tokens, is_active, version, updated_by) VALUES (
   'RND', 'content_benchmark', 'content_benchmark', '상위노출 글 벤치마킹',
   '## 규칙
@@ -389,14 +575,14 @@ INSERT INTO agent_prompts (agent_type, task, prompt_section, title, content, sys
   'claude-haiku-4-5-20251001', 0.2, 2000, true, 1, 'system'
 )
 ON CONFLICT (agent_type, task) DO UPDATE SET
-  content = EXCLUDED.content, system_prompt = EXCLUDED.system_prompt,
-  model = EXCLUDED.model, temperature = EXCLUDED.temperature,
-  max_tokens = EXCLUDED.max_tokens, updated_at = now();
+  content = EXCLUDED.content,
+  system_prompt = EXCLUDED.system_prompt,
+  model = EXCLUDED.model,
+  temperature = EXCLUDED.temperature,
+  max_tokens = EXCLUDED.max_tokens,
+  updated_at = now();
 
-
--- ═══════════════════════════════════════════
 -- 8. COPYWRITER / content_create_v2
--- ═══════════════════════════════════════════
 INSERT INTO agent_prompts (agent_type, task, prompt_section, title, content, system_prompt, model, temperature, max_tokens, is_active, version, updated_by) VALUES (
   'COPYWRITER', 'content_create_v2', 'content_create_v2', '벤치마크 기반 콘텐츠 작성',
   '## 절대 규칙
@@ -443,14 +629,14 @@ INSERT INTO agent_prompts (agent_type, task, prompt_section, title, content, sys
   'claude-haiku-4-5-20251001', 0.7, 4000, true, 1, 'system'
 )
 ON CONFLICT (agent_type, task) DO UPDATE SET
-  content = EXCLUDED.content, system_prompt = EXCLUDED.system_prompt,
-  model = EXCLUDED.model, temperature = EXCLUDED.temperature,
-  max_tokens = EXCLUDED.max_tokens, updated_at = now();
+  content = EXCLUDED.content,
+  system_prompt = EXCLUDED.system_prompt,
+  model = EXCLUDED.model,
+  temperature = EXCLUDED.temperature,
+  max_tokens = EXCLUDED.max_tokens,
+  updated_at = now();
 
-
--- ═══════════════════════════════════════════
 -- 9. COPYWRITER / content_rewrite
--- ═══════════════════════════════════════════
 INSERT INTO agent_prompts (agent_type, task, prompt_section, title, content, system_prompt, model, temperature, max_tokens, is_active, version, updated_by) VALUES (
   'COPYWRITER', 'content_rewrite', 'content_rewrite', 'QC 피드백 반영 재작성',
   '## 규칙
@@ -494,14 +680,14 @@ INSERT INTO agent_prompts (agent_type, task, prompt_section, title, content, sys
   'claude-haiku-4-5-20251001', 0.5, 4000, true, 1, 'system'
 )
 ON CONFLICT (agent_type, task) DO UPDATE SET
-  content = EXCLUDED.content, system_prompt = EXCLUDED.system_prompt,
-  model = EXCLUDED.model, temperature = EXCLUDED.temperature,
-  max_tokens = EXCLUDED.max_tokens, updated_at = now();
+  content = EXCLUDED.content,
+  system_prompt = EXCLUDED.system_prompt,
+  model = EXCLUDED.model,
+  temperature = EXCLUDED.temperature,
+  max_tokens = EXCLUDED.max_tokens,
+  updated_at = now();
 
-
--- ═══════════════════════════════════════════
 -- 10. QC / qc_review_v2
--- ═══════════════════════════════════════════
 INSERT INTO agent_prompts (agent_type, task, prompt_section, title, content, system_prompt, model, temperature, max_tokens, is_active, version, updated_by) VALUES (
   'QC', 'qc_review_v2', 'qc_review_v2', '상세 검수 + AEO + 자연스러움 체크',
   '## 검수 항목 (100점 만점)
@@ -582,6 +768,78 @@ INSERT INTO agent_prompts (agent_type, task, prompt_section, title, content, sys
   'claude-haiku-4-5-20251001', 0.1, 2000, true, 1, 'system'
 )
 ON CONFLICT (agent_type, task) DO UPDATE SET
-  content = EXCLUDED.content, system_prompt = EXCLUDED.system_prompt,
-  model = EXCLUDED.model, temperature = EXCLUDED.temperature,
-  max_tokens = EXCLUDED.max_tokens, updated_at = now();
+  content = EXCLUDED.content,
+  system_prompt = EXCLUDED.system_prompt,
+  model = EXCLUDED.model,
+  temperature = EXCLUDED.temperature,
+  max_tokens = EXCLUDED.max_tokens,
+  updated_at = now();
+
+
+-- ═══════════════════════════════════════════
+-- 051: keywords 테이블 확장
+-- ★ 수정: keywords 테이블 전용 constraint만 드롭
+-- ═══════════════════════════════════════════
+
+-- status CHECK 제약 변경 (기존 → suggested 추가)
+DO $$
+DECLARE
+  v_constraint_name TEXT;
+BEGIN
+  -- keywords 테이블의 status 관련 CHECK 제약만 찾기 (pg_constraint + pg_class 조인)
+  SELECT con.conname INTO v_constraint_name
+  FROM pg_constraint con
+  JOIN pg_class rel ON rel.oid = con.conrelid
+  WHERE rel.relname = 'keywords'
+    AND con.contype = 'c'  -- CHECK constraint
+    AND pg_get_constraintdef(con.oid) LIKE '%status%'
+  LIMIT 1;
+
+  IF v_constraint_name IS NOT NULL THEN
+    EXECUTE 'ALTER TABLE keywords DROP CONSTRAINT ' || v_constraint_name;
+  END IF;
+END $$;
+
+-- 새 CHECK 제약 추가 (IF NOT EXISTS 패턴)
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint con
+    JOIN pg_class rel ON rel.oid = con.conrelid
+    WHERE rel.relname = 'keywords'
+      AND con.conname = 'keywords_status_check'
+  ) THEN
+    ALTER TABLE keywords ADD CONSTRAINT keywords_status_check
+      CHECK (status IN ('active', 'paused', 'archived', 'queued', 'refresh', 'suggested'));
+  END IF;
+END $$;
+
+-- metadata JSONB 컬럼 추가
+ALTER TABLE keywords ADD COLUMN IF NOT EXISTS metadata JSONB;
+
+-- source 컬럼 추가
+ALTER TABLE keywords ADD COLUMN IF NOT EXISTS source TEXT DEFAULT 'manual';
+
+
+-- ═══════════════════════════════════════════
+-- 052: contents.metadata JSONB
+-- ═══════════════════════════════════════════
+
+ALTER TABLE contents ADD COLUMN IF NOT EXISTS metadata JSONB;
+
+CREATE INDEX IF NOT EXISTS idx_contents_metadata ON contents USING gin(metadata);
+
+COMMENT ON COLUMN contents.metadata IS 'JSONB: qc_version, qc_score, qc_pass, qc_result, rewrite_count, rewrite_history, needs_manual_review, version 등';
+
+
+-- ═══════════════════════════════════════════
+-- 완료
+-- ═══════════════════════════════════════════
+
+COMMIT;
+
+-- 검증 쿼리 (COMMIT 후 실행)
+-- SELECT 'scoring_criteria' AS tbl, count(*) FROM scoring_criteria
+-- UNION ALL SELECT 'agent_execution_logs', count(*) FROM agent_execution_logs
+-- UNION ALL SELECT 'content_benchmarks', count(*) FROM content_benchmarks
+-- UNION ALL SELECT 'agent_prompts (with task)', count(*) FROM agent_prompts WHERE task IS NOT NULL;

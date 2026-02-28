@@ -4,20 +4,20 @@
 -- 1. status CHECK 제약 변경 (기존: active/paused/archived/queued/refresh → suggested 추가)
 -- 기존 CHECK 제약 삭제 후 재생성
 DO $$
+DECLARE
+  v_constraint_name TEXT;
 BEGIN
-  -- 기존 CHECK 제약 찾아서 삭제
-  IF EXISTS (
-    SELECT 1 FROM information_schema.check_constraints
-    WHERE constraint_name LIKE '%status%'
-    AND constraint_schema = 'public'
-  ) THEN
-    EXECUTE (
-      SELECT 'ALTER TABLE keywords DROP CONSTRAINT ' || constraint_name
-      FROM information_schema.check_constraints
-      WHERE constraint_name LIKE '%status%'
-      AND constraint_schema = 'public'
-      LIMIT 1
-    );
+  -- keywords 테이블의 status 관련 CHECK 제약만 찾기 (pg_constraint + pg_class 조인)
+  SELECT con.conname INTO v_constraint_name
+  FROM pg_constraint con
+  JOIN pg_class rel ON rel.oid = con.conrelid
+  WHERE rel.relname = 'keywords'
+    AND con.contype = 'c'  -- CHECK constraint
+    AND pg_get_constraintdef(con.oid) LIKE '%status%'
+  LIMIT 1;
+
+  IF v_constraint_name IS NOT NULL THEN
+    EXECUTE 'ALTER TABLE keywords DROP CONSTRAINT ' || v_constraint_name;
   END IF;
 END $$;
 

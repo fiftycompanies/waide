@@ -1,7 +1,7 @@
 # Waide (AI Hospitality Aide) — 서비스 IA
 
 > 최종 업데이트: 2026-02-28
-> 버전: Phase F-4 완료 (콘텐츠 품질 고도화 — 벤치마킹 + 작성 v2 + QC v2 + 재작성 루프)
+> 버전: Phase INT-1 완료 (SQL 마이그레이션 점검 + F1~F4 통합 가동 검증)
 
 ---
 
@@ -473,6 +473,13 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
   - 콘텐츠 목록 페이지: QC 점수 컬럼 추가
   - Content 인터페이스에 metadata 필드 추가
   - 파이프라인 흐름: RND 벤치마킹 → COPYWRITER v2 → QC v2 → FAIL 시 재작성(최대2회) → PASS/수동검토
+- Phase INT-1: SQL 마이그레이션 점검 + F1~F4 통합 가동 검증 (2026-02-28)
+  - scripts/migrations/run_all_f1_f4.sql: 045~052 통합 멱등 마이그레이션 (BEGIN~COMMIT 트랜잭션)
+  - 050 버그 수정: UNIQUE(agent_type, task) 제약 추가 + 10개 INSERT에 ON CONFLICT DO UPDATE 적용
+  - 051 버그 수정: keywords 전용 constraint 드롭 (pg_constraint + pg_class 조인, 다른 테이블 영향 방지)
+  - scripts/test-integration.ts: 통합 검증 스크립트 (dry-run/live 모드, 5 시나리오)
+  - 환경변수 감사: ANTHROPIC_API_KEY graceful skip 검증 완료 (모든 F1-F4 entry point)
+  - TypeScript 빌드 검증: tsc --noEmit 0 에러
 
 ### 설계 원칙
 
@@ -569,11 +576,12 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 | 047 | content_benchmarks 테이블 (벤치마크 캐시, 7일 TTL) | **SQL 생성 완료** |
 | 048 | clients.brand_persona JSONB + persona_updated_at 컬럼 추가 | **SQL 생성 완료** |
 | 049 | agent_prompts 확장 (task, system_prompt, model, temperature, max_tokens, output_schema, metadata) | **SQL 생성 완료** |
-| 050 | agent_prompts 시딩 (10개 프롬프트: CMO 3, RND 3, COPYWRITER 2, QC 1) | **SQL 생성 완료** |
-| 051 | keywords 확장 (status CHECK에 'suggested' 추가, metadata JSONB, source TEXT) | **SQL 생성 완료** |
+| 050 | agent_prompts 시딩 (10개 프롬프트: CMO 3, RND 3, COPYWRITER 2, QC 1) | **SQL 생성 완료** (★ ON CONFLICT 수정) |
+| 051 | keywords 확장 (status CHECK에 'suggested' 추가, metadata JSONB, source TEXT) | **SQL 생성 완료** (★ pg_constraint 수정) |
 | 052 | contents.metadata JSONB 컬럼 추가 (QC v2 결과, 재작성 이력 저장) | **SQL 생성 완료** |
+| INT-1 | 045~052 통합 멱등 마이그레이션 (run_all_f1_f4.sql) | **SQL 생성 완료** |
 
-> ⚠️ 045~052: scripts/migrations/ 디렉토리에 SQL 파일 생성. Supabase Dashboard에서 실행 필요.
+> ⚠️ 045~052: scripts/migrations/ 디렉토리에 SQL 파일 생성. Supabase Dashboard에서 `run_all_f1_f4.sql` 실행 권장.
 
 ---
 
