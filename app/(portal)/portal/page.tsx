@@ -3,10 +3,13 @@
 import { useEffect, useState } from "react";
 import {
   BarChart2,
+  CheckCircle2,
   FileText,
   Key,
+  Lightbulb,
   Loader2,
   Phone,
+  Sparkles,
   TrendingUp,
   Trophy,
   User,
@@ -27,6 +30,16 @@ interface DashboardData {
   } | null;
   salesAgent: { name: string; phone: string; email: string } | null;
   brandName: string;
+  brandPersona: {
+    one_liner?: string;
+    positioning?: string;
+    strengths?: string[];
+    tone?: string;
+  } | null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  improvementPlan: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  seoComments: any;
 }
 
 export default function PortalDashboardPage() {
@@ -119,6 +132,94 @@ export default function PortalDashboardPage() {
           </p>
         </div>
       </div>
+
+      {/* Brand Persona One-liner */}
+      {data?.brandPersona?.one_liner && (
+        <div className="rounded-xl border bg-gradient-to-r from-emerald-50 to-white p-5">
+          <div className="flex items-center gap-2 text-emerald-700 text-sm font-medium mb-2">
+            <Sparkles className="h-4 w-4" />
+            브랜드 한줄 정리
+          </div>
+          <p className="text-sm text-gray-700 font-medium">
+            &ldquo;{data.brandPersona.one_liner}&rdquo;
+          </p>
+          {data.brandPersona.positioning && (
+            <p className="text-xs text-gray-500 mt-2">{data.brandPersona.positioning}</p>
+          )}
+        </div>
+      )}
+
+      {/* Improvement Suggestions (Top 3) */}
+      {data?.improvementPlan?.roadmap && (
+        <div className="rounded-xl border bg-white p-6">
+          <div className="flex items-center gap-2 text-gray-900 mb-4">
+            <Lightbulb className="h-5 w-5 text-amber-500" />
+            <h2 className="text-lg font-semibold">AI 개선 제안</h2>
+          </div>
+          <div className="space-y-3">
+            {(() => {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const roadmap = data.improvementPlan.roadmap as Record<string, any>;
+              // week1 액션 먼저, 없으면 month1에서 가져옴
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const actions: any[] = [
+                ...(roadmap.week1?.actions || []),
+                ...(roadmap.month1?.actions || []),
+              ].slice(0, 3);
+
+              if (actions.length === 0) return <p className="text-sm text-gray-400">개선 제안을 준비 중입니다</p>;
+
+              return actions.map((action, i) => (
+                <div key={i} className="flex items-start gap-3 p-3 rounded-lg bg-gray-50">
+                  <div className="mt-0.5">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-gray-800">{action.title || action.action || "개선 항목"}</p>
+                    {action.description && (
+                      <p className="text-xs text-gray-500 mt-0.5">{action.description}</p>
+                    )}
+                    <div className="flex gap-2 mt-1">
+                      {action.score_gain && (
+                        <span className="text-xs text-emerald-600 font-medium">+{action.score_gain}점 예상</span>
+                      )}
+                      {action.effort && (
+                        <span className="text-xs text-gray-400">{action.effort}</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ));
+            })()}
+          </div>
+        </div>
+      )}
+
+      {/* SEO AI Comments (Priority Actions) */}
+      {data?.seoComments?.priority_actions && data.seoComments.priority_actions.length > 0 && (
+        <div className="rounded-xl border bg-white p-6">
+          <div className="flex items-center gap-2 text-gray-900 mb-4">
+            <BarChart2 className="h-5 w-5 text-blue-500" />
+            <h2 className="text-lg font-semibold">SEO 진단 코멘트</h2>
+          </div>
+          <div className="space-y-2">
+            {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+            {(data.seoComments.priority_actions as any[]).slice(0, 3).map((action, i) => (
+              <div key={i} className="flex items-start gap-3 py-2 border-b last:border-0">
+                <span className={`mt-0.5 text-sm ${
+                  action.status === "good" ? "text-emerald-500" : action.status === "warning" ? "text-amber-500" : "text-red-500"
+                }`}>
+                  {action.status === "good" ? "✓" : action.status === "warning" ? "△" : "✕"}
+                </span>
+                <div>
+                  <p className="text-sm text-gray-800">{action.item}</p>
+                  <p className="text-xs text-gray-500">{action.comment}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Keyword Rankings Summary */}
       {rankings.length > 0 && (

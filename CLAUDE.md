@@ -1,7 +1,7 @@
 # Waide (AI Hospitality Aide) — 서비스 IA
 
 > 최종 업데이트: 2026-02-28
-> 버전: Phase F-1 완료 (AI 인프라 — 에이전트 실행 엔진 + 기준 테이블)
+> 버전: Phase F-2 완료 (분석 고도화 — 경쟁사 분석 + 페르소나 + SEO 코멘트 + 개선포인트)
 
 ---
 
@@ -288,8 +288,9 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 | `settings-actions.ts` | getSettings(), getScoringWeights(), getAnalysisOptions() | settings |
 | `admin-actions.ts` | getAdmin() | admins |
 | `auth-actions.ts` | portalSignIn(), portalSignUp(), portalSignOut(), inviteUser(), getClientUsers(), updateUserProfile(), changeUserPassword() | users, invitations (Supabase Auth) |
-| `portal-actions.ts` | getPortalDashboard(), getPortalKeywords(), getPortalContents(), getPortalReport(), getPortalSettings() | brand_analyses, contents, keyword_rankings, subscriptions, sales_agents |
+| `portal-actions.ts` | getPortalDashboard(), getPortalKeywords(), getPortalContents(), getPortalReport(), getPortalSettings() | brand_analyses, contents, keyword_rankings, subscriptions, sales_agents, clients |
 | `product-actions.ts` | getProducts(), createProduct(), updateProduct(), deleteProduct(), createSubscription(), updateSubscription(), cancelSubscription(), getClientSubscription() | products, subscriptions, clients |
+| `persona-actions.ts` | updatePersona(), addManualStrength(), removeManualStrength(), regeneratePersona(), getPersona() | clients (brand_persona JSONB) |
 
 ### 5-4. AI 인프라 (lib/)
 
@@ -298,6 +299,8 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 | `agent-runner.ts` | runAgent() — 에이전트 공통 실행 엔진 (프롬프트 로딩 → 템플릿 치환 → Claude API → 로그 저장) | agent_prompts, agent_execution_logs |
 | `agent-chain.ts` | runAgentChain() — 에이전트 체이닝 헬퍼 (이전 결과 → 다음 context 주입) | agent_execution_logs |
 | `scoring-engine.ts` | loadCriteria(), scoreItem(), calculateMarketingScoreFromCriteria() — 채점 기준 테이블 기반 점수 산출 | scoring_criteria |
+| `competitor-collector.ts` | collectCompetitors() — 네이버 로컬 검색 API 경쟁사 TOP5 수집 | (외부 API) |
+| `analysis-agent-chain.ts` | runAnalysisAgentChain() — 분석 후 4단계 에이전트 체인 (경쟁사→페르소나→SEO코멘트→개선플랜) | brand_analyses, clients |
 
 ---
 
@@ -400,7 +403,7 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 - Phase E-2: B2B 대시보드 개편 + 고객 포트폴리오 + 매출/이탈/온보딩
   - 대시보드 B2B KPI 섹션 (MRR, Active 고객수, 이탈률, 평균 마케팅점수, 상태 분포, 월간 목표, At Risk 알림, 영업 성과)
   - 고객 포트폴리오 카드뷰 (/ops/clients) — 상태필터(Active/Onboarding/At Risk/Churned), 검색, 정렬
-  - 고객 상세 6탭 (/ops/clients/[id]) — 개요/키워드/콘텐츠/분석이력/구독/온보딩
+  - 고객 상세 7탭 (/ops/clients/[id]) — 개요/키워드/콘텐츠/분석이력/페르소나/구독/온보딩
   - 매출 페이지 (/ops/revenue) — MRR/ARR, 플랜 분포, 6개월 트렌드, 최근 변동
   - 이탈 관리 (/ops/churn) — At Risk 목록, 심각도(high/medium), 이탈률/유지율
   - 온보딩 관리 (/ops/onboarding) — 7항목 체크리스트, 진행률, 클라이언트별 관리
@@ -427,6 +430,17 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
   - place-analyzer.ts: calculateMarketingScore()에 scoring-engine 연동 (try → 폴백)
   - agent_prompts 10개 시딩 (CMO 3, RND 3, COPYWRITER 2, QC 1, ANALYST 0 — 기존 유지)
   - clients.brand_persona JSONB 컬럼 추가 (CMO가 생성한 페르소나 저장)
+- Phase F-2: 분석 고도화 — 경쟁사 분석 + 페르소나 + SEO 코멘트 + 개선포인트 (2026-02-28)
+  - lib/competitor-collector.ts: 네이버 로컬 검색 API 경쟁사 TOP5 수집 (checkKeywordRankings 패턴 재사용)
+  - lib/analysis-agent-chain.ts: 분석 후 4단계 에이전트 체인 (RND 경쟁사→CMO 페르소나→CMO SEO코멘트→CMO 개선플랜)
+  - place-analyzer.ts: runFullAnalysis()에 에이전트 체인 연동 (DB 저장 후, 슬랙 알림 전)
+  - 분석 결과 페이지 3개 신규 섹션: 경쟁사 비교 분석, AI SEO 진단 코멘트, 개선 액션플랜 (조건부 렌더링)
+  - lib/actions/persona-actions.ts: 페르소나 CRUD (updatePersona, addManualStrength, removeManualStrength, regeneratePersona)
+  - 어드민 클라이언트 상세 7탭 (/ops/clients/[id]): 기존 6탭 + 페르소나 탭 (표시/수정/강점관리/재생성)
+  - 고객 포털 대시보드: 브랜드 한줄 정리 (one_liner), AI 개선 제안 (improvement_plan), SEO 진단 코멘트
+  - portal-actions.ts: getPortalDashboard()에 brand_persona + analysis_result AI 해석 데이터 추가
+  - analysis_result JSONB에 에이전트 결과 spread 저장 (competitor_analysis, seo_comments, improvement_plan)
+  - 모든 에이전트 관련 기능: ANTHROPIC_API_KEY 미설정 시 graceful skip, 기존 분석 영향 없음
 
 ### 설계 원칙
 
@@ -471,15 +485,15 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 | 순서 | Phase | 핵심 내용 | 상태 |
 |------|-------|----------|------|
 | 1 | **F-1** | AI 인프라 — 에이전트 실행 엔진 + 기준 테이블 + 프롬프트 시딩 | ✅ 완료 |
-| 2 | **F-2** | 분석 결과 AI 해석 — 분석 플로우에 agent-runner 연동, 브랜드 페르소나 자동 생성 | 다음 |
-| 3 | **F-3** | AI 해석 레이어 — 점수(룰 기반) 위에 AI 코멘트/인사이트 생성, 분석 리포트 자동 서술 | 예정 |
+| 2 | **F-2** | 분석 고도화 — 경쟁사 분석 + 페르소나 + SEO 코멘트 + 개선포인트 | ✅ 완료 |
+| 3 | **F-3** | AI 해석 레이어 — 점수(룰 기반) 위에 AI 코멘트/인사이트 생성, 분석 리포트 자동 서술 | 다음 |
 | 4 | **F-4** | 콘텐츠 생성 파이프라인 AI 연결 — RND→COPYWRITER→QC 체이닝 자동화, 슬랙 컨펌 | 예정 |
 
 ### 미구현 (우선순위 순)
 
 | # | 기능 | 우선순위 |
 |---|------|---------|
-| 1 | **Phase F-2~F-4: AI 고도화** (위 표 참조) | 높음 (다음) |
+| 1 | **Phase F-3~F-4: AI 고도화** (위 표 참조) | 높음 (다음) |
 | 2 | **Phase D: 자동 발행 관리** (슬랙 컨펌 → 블로그 발행) | 높음 |
 | 3 | **Vercel 도메인 연결** (커스텀 도메인 + SSL) | 높음 |
 | 4 | **AEO 기능** (AI 인용률 — ChatGPT/Gemini 브랜드 언급 체크) | 중간 |

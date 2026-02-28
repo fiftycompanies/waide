@@ -1461,6 +1461,53 @@ export async function runFullAnalysis(analysisId: string): Promise<void> {
       })
       .eq("id", analysisId);
 
+    // ── AI 에이전트 체인 실행 (non-blocking) ──
+    try {
+      const { runAnalysisAgentChain } = await import("@/lib/analysis-agent-chain");
+      const topKwNames = keywords
+        .filter(k => k.source !== "브랜드")
+        .slice(0, 3)
+        .map(k => k.keyword);
+
+      // 리뷰 키워드에서 긍정/부정 분류
+      const posKws = collected.reviewKeywords
+        .slice(0, 5)
+        .map(rk => rk.keyword)
+        .join(", ");
+
+      await runAnalysisAgentChain({
+        analysisId,
+        clientId: (analysis.client_id as string) || undefined,
+        placeData: {
+          placeId: parsed.placeId!,
+          name: collected.name,
+          category: collected.category,
+          businessType: collected.businessType,
+          region,
+          address: collected.roadAddress || collected.address,
+          businessHours: collected.businessHours,
+          facilities: collected.facilities,
+          reviewCount: collected.visitorReviewCount,
+          blogReviewCount: collected.blogReviewCount,
+          positiveKeywords: posKws || undefined,
+          imageCount: collected.imageCount,
+          homepageUrl: collected.homepageUrl,
+          snsUrl: collected.snsUrl,
+          serviceLabels: collected.serviceLabels,
+        },
+        scoringResult: {
+          score: scoreResult.score,
+          breakdown: scoreResult.breakdown,
+          improvements: allImprovements,
+        },
+        keywords: topKwNames,
+        seoAudit: seoAuditResult,
+      });
+    } catch (agentErr) {
+      // 에이전트 실패해도 기존 분석 결과는 정상 표시
+      console.error("[place-analyzer] 에이전트 체인 실패 (기존 분석은 정상):", agentErr);
+    }
+
     // ── Slack 알림 + 영업사원 카운터 (non-blocking) ──
     try {
       const salesRef = analysis.sales_ref as string | null;

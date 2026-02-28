@@ -10,7 +10,7 @@ export async function getPortalDashboard(clientId: string) {
   // 최신 분석 결과
   const { data: latestAnalysis } = await db
     .from("brand_analyses")
-    .select("id, marketing_score, basic_info, keyword_rankings, content_strategy, analyzed_at, seo_audit")
+    .select("id, marketing_score, basic_info, keyword_rankings, content_strategy, analyzed_at, seo_audit, analysis_result")
     .eq("client_id", clientId)
     .eq("status", "completed")
     .order("analyzed_at", { ascending: false })
@@ -45,10 +45,10 @@ export async function getPortalDashboard(clientId: string) {
     .limit(1)
     .maybeSingle();
 
-  // 담당 영업사원
+  // 담당 영업사원 + 페르소나
   const { data: client } = await db
     .from("clients")
-    .select("brand_name:name, assigned_sales_agent_id")
+    .select("brand_name:name, assigned_sales_agent_id, brand_persona")
     .eq("id", clientId)
     .single();
 
@@ -62,6 +62,12 @@ export async function getPortalDashboard(clientId: string) {
     salesAgent = agent;
   }
 
+  // analysis_result에서 AI 해석 데이터 추출
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const analysisResult = (latestAnalysis as any)?.analysis_result as Record<string, unknown> | undefined;
+  const improvementPlan = analysisResult?.improvement_plan || null;
+  const seoComments = analysisResult?.seo_comments || null;
+
   return {
     latestAnalysis,
     contentCount: contentCount || 0,
@@ -69,6 +75,9 @@ export async function getPortalDashboard(clientId: string) {
     subscription,
     salesAgent,
     brandName: client?.brand_name || "",
+    brandPersona: (client?.brand_persona as Record<string, unknown>) || null,
+    improvementPlan,
+    seoComments,
   };
 }
 

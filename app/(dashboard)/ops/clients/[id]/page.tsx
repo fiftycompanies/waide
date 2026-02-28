@@ -10,14 +10,20 @@ import {
   Calendar,
   CheckSquare,
   CreditCard,
+  Edit3,
   FileText,
   Key,
   Loader2,
+  Minus,
+  Plus,
+  RefreshCw,
   Save,
+  Sparkles,
   TrendingDown,
   TrendingUp,
   User,
   Users,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -25,6 +31,13 @@ import {
   updateOnboardingChecklist,
   type ClientDetail,
 } from "@/lib/actions/client-portfolio-actions";
+import {
+  updatePersona,
+  addManualStrength,
+  removeManualStrength,
+  regeneratePersona,
+  type BrandPersona,
+} from "@/lib/actions/persona-actions";
 
 // ── Tab button ─────────────────────────────────────────────────────────────
 
@@ -384,9 +397,267 @@ function OnboardingTab({ client }: { client: ClientDetail }) {
   );
 }
 
+// ── Persona Tab ──────────────────────────────────────────────────────────
+
+function PersonaTab({ client, onRefresh }: { client: ClientDetail; onRefresh: () => void }) {
+  const persona = client.brand_persona as BrandPersona | null;
+  const [isRegenerating, startRegenerate] = useTransition();
+  const [isEditing, setIsEditing] = useState(false);
+  const [editValues, setEditValues] = useState<Partial<BrandPersona>>({});
+  const [isSaving, startSave] = useTransition();
+  const [newStrength, setNewStrength] = useState("");
+  const [isAddingStrength, startAddStrength] = useTransition();
+
+  const handleRegenerate = () => {
+    startRegenerate(async () => {
+      const result = await regeneratePersona(client.id);
+      if (result.success) {
+        toast.success("페르소나가 재생성되었습니다.");
+        onRefresh();
+      } else {
+        toast.error(result.error || "재생성 실패");
+      }
+    });
+  };
+
+  const handleSaveEdit = () => {
+    startSave(async () => {
+      const result = await updatePersona(client.id, editValues);
+      if (result.success) {
+        toast.success("페르소나가 수정되었습니다.");
+        setIsEditing(false);
+        setEditValues({});
+        onRefresh();
+      } else {
+        toast.error(result.error || "저장 실패");
+      }
+    });
+  };
+
+  const handleAddStrength = () => {
+    if (!newStrength.trim()) return;
+    startAddStrength(async () => {
+      const result = await addManualStrength(client.id, newStrength.trim());
+      if (result.success) {
+        toast.success("강점이 추가되었습니다.");
+        setNewStrength("");
+        onRefresh();
+      } else {
+        toast.error(result.error || "추가 실패");
+      }
+    });
+  };
+
+  const handleRemoveStrength = (index: number) => {
+    startAddStrength(async () => {
+      const result = await removeManualStrength(client.id, index);
+      if (result.success) {
+        onRefresh();
+      } else {
+        toast.error(result.error || "삭제 실패");
+      }
+    });
+  };
+
+  // 빈 상태
+  if (!persona) {
+    return (
+      <div className="text-center py-12 text-muted-foreground">
+        <Sparkles className="h-8 w-8 mx-auto mb-2 opacity-40" />
+        <p className="text-sm mb-3">아직 페르소나가 생성되지 않았습니다</p>
+        <p className="text-xs mb-4">분석을 실행하면 AI가 자동으로 브랜드 페르소나를 생성합니다.</p>
+        <button
+          onClick={handleRegenerate}
+          disabled={isRegenerating}
+          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50"
+        >
+          {isRegenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+          {isRegenerating ? "생성 중..." : "페르소나 생성"}
+        </button>
+      </div>
+    );
+  }
+
+  // 편집 모드 헬퍼
+  const renderField = (label: string, key: keyof BrandPersona, value: string | undefined) => {
+    if (isEditing) {
+      return (
+        <div>
+          <label className="text-xs text-muted-foreground">{label}</label>
+          <textarea
+            className="w-full mt-1 p-2 border rounded-lg text-sm bg-background resize-none"
+            rows={2}
+            defaultValue={value || ""}
+            onChange={(e) => setEditValues((prev) => ({ ...prev, [key]: e.target.value }))}
+          />
+        </div>
+      );
+    }
+    return (
+      <div>
+        <span className="text-xs text-muted-foreground">{label}</span>
+        <p className="text-sm mt-0.5">{value || "-"}</p>
+      </div>
+    );
+  };
+
+  const renderList = (label: string, items: string[] | undefined) => (
+    <div>
+      <span className="text-xs text-muted-foreground">{label}</span>
+      {items && items.length > 0 ? (
+        <div className="flex flex-wrap gap-1.5 mt-1">
+          {items.map((item, i) => (
+            <span key={i} className="px-2 py-0.5 rounded-full bg-muted text-xs">{item}</span>
+          ))}
+        </div>
+      ) : (
+        <p className="text-xs text-muted-foreground mt-0.5">-</p>
+      )}
+    </div>
+  );
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="font-semibold text-sm">브랜드 페르소나</h3>
+          {client.persona_updated_at && (
+            <p className="text-xs text-muted-foreground mt-0.5">
+              최종 업데이트: {new Date(client.persona_updated_at).toLocaleDateString("ko-KR")}
+              {persona.manually_edited && " (수동 수정됨)"}
+            </p>
+          )}
+        </div>
+        <div className="flex gap-2">
+          {isEditing ? (
+            <>
+              <button
+                onClick={() => { setIsEditing(false); setEditValues({}); }}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg border text-xs font-medium hover:bg-muted"
+              >
+                <X className="h-3 w-3" />
+                취소
+              </button>
+              <button
+                onClick={handleSaveEdit}
+                disabled={isSaving}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium disabled:opacity-50"
+              >
+                {isSaving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+                저장
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                onClick={() => setIsEditing(true)}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg border text-xs font-medium hover:bg-muted"
+              >
+                <Edit3 className="h-3 w-3" />
+                수정
+              </button>
+              <button
+                onClick={handleRegenerate}
+                disabled={isRegenerating}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg border text-xs font-medium hover:bg-muted disabled:opacity-50"
+              >
+                {isRegenerating ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+                {isRegenerating ? "생성 중..." : "재생성"}
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* One-liner */}
+      {persona.one_liner && (
+        <div className="border rounded-lg p-4 bg-gradient-to-r from-primary/5 to-transparent">
+          <p className="text-sm font-medium">&ldquo;{persona.one_liner}&rdquo;</p>
+        </div>
+      )}
+
+      {/* Core Fields */}
+      <div className="grid gap-4 lg:grid-cols-2">
+        <div className="border rounded-lg p-4 space-y-4">
+          <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">포지셔닝</h4>
+          {renderField("포지셔닝", "positioning", persona.positioning)}
+          {renderField("타겟 고객", "target_audience", persona.target_audience)}
+          {renderField("톤 앤 매너", "tone", persona.tone)}
+        </div>
+
+        <div className="border rounded-lg p-4 space-y-4">
+          <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">브랜드 스토리</h4>
+          {renderField("브랜드 스토리 훅", "brand_story_hook", persona.brand_story_hook)}
+          {renderField("비주얼 방향", "visual_direction", persona.visual_direction)}
+        </div>
+      </div>
+
+      {/* Strengths with add/remove */}
+      <div className="border rounded-lg p-4 space-y-3">
+        <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">강점</h4>
+        {persona.strengths && persona.strengths.length > 0 ? (
+          <div className="flex flex-wrap gap-2">
+            {persona.strengths.map((s, i) => (
+              <span key={i} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs border border-emerald-100">
+                {s}
+                <button
+                  onClick={() => handleRemoveStrength(i)}
+                  className="hover:text-red-500 transition-colors"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </span>
+            ))}
+          </div>
+        ) : (
+          <p className="text-xs text-muted-foreground">아직 강점이 등록되지 않았습니다</p>
+        )}
+        <div className="flex gap-2">
+          <input
+            type="text"
+            placeholder="강점 추가..."
+            value={newStrength}
+            onChange={(e) => setNewStrength(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleAddStrength()}
+            className="flex-1 px-3 py-1.5 border rounded-lg text-sm bg-background"
+          />
+          <button
+            onClick={handleAddStrength}
+            disabled={!newStrength.trim() || isAddingStrength}
+            className="flex items-center gap-1 px-3 py-1.5 rounded-lg border text-xs font-medium hover:bg-muted disabled:opacity-50"
+          >
+            {isAddingStrength ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
+            추가
+          </button>
+        </div>
+      </div>
+
+      {/* Weaknesses */}
+      {renderList("약점/개선 영역", persona.weaknesses)}
+
+      {/* Content Strategy */}
+      <div className="grid gap-4 lg:grid-cols-2">
+        <div className="border rounded-lg p-4 space-y-3">
+          <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">콘텐츠 방향</h4>
+          {renderList("추천 콘텐츠 앵글", persona.content_angles)}
+          {renderList("피해야 할 앵글", persona.avoid_angles)}
+        </div>
+
+        <div className="border rounded-lg p-4 space-y-3">
+          <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">키워드/시즌</h4>
+          {renderList("추천 키워드", persona.recommended_keywords)}
+          {renderList("시즌별 훅", persona.seasonal_hooks)}
+          {renderList("경쟁사 차별점", persona.competitor_differentiators)}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Main Page ──────────────────────────────────────────────────────────────
 
-type TabKey = "overview" | "keywords" | "contents" | "analyses" | "subscription" | "onboarding";
+type TabKey = "overview" | "keywords" | "contents" | "analyses" | "persona" | "subscription" | "onboarding";
 
 export default function ClientDetailPage() {
   const params = useParams();
@@ -422,11 +693,18 @@ export default function ClientDetailPage() {
     );
   }
 
+  const refreshClient = () => {
+    getClientDetail(clientId).then((data) => {
+      if (data) setClient(data);
+    });
+  };
+
   const tabs: { key: TabKey; label: string; icon: React.ElementType }[] = [
     { key: "overview", label: "개요", icon: Building2 },
     { key: "keywords", label: "키워드", icon: Key },
     { key: "contents", label: "콘텐츠", icon: FileText },
     { key: "analyses", label: "분석이력", icon: BarChart2 },
+    { key: "persona", label: "페르소나", icon: Sparkles },
     { key: "subscription", label: "구독/결제", icon: CreditCard },
     { key: "onboarding", label: "온보딩", icon: CheckSquare },
   ];
@@ -507,6 +785,7 @@ export default function ClientDetailPage() {
           </Link>
         </div>
       )}
+      {activeTab === "persona" && <PersonaTab client={client} onRefresh={refreshClient} />}
       {activeTab === "subscription" && <SubscriptionTab client={client} />}
       {activeTab === "onboarding" && <OnboardingTab client={client} />}
     </div>
