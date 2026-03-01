@@ -678,7 +678,7 @@ function RankingsTab({ clientId }: { clientId: string }) {
     setChecking(true);
     const result = await triggerClientSerpCheck(clientId);
     if (result.success) {
-      toast.success(`순위 체크 완료: ${result.count}개 키워드 중 ${result.exposed}개 노출`);
+      toast.success(`순위 체크 완료: 네이버 ${result.exposed}개 / 구글 ${result.googleExposed ?? 0}개 노출 (${result.count}개 키워드)`);
       const d = await getClientRankings(clientId);
       setData(d);
     } else {
@@ -761,8 +761,8 @@ function RankingsTab({ clientId }: { clientId: string }) {
             <thead className="bg-muted/50 border-b">
               <tr>
                 <th className="text-left py-2.5 px-3 font-medium text-muted-foreground">키워드</th>
-                <th className="text-center py-2.5 px-3 font-medium text-muted-foreground">PC 순위</th>
-                <th className="text-center py-2.5 px-3 font-medium text-muted-foreground hidden sm:table-cell">MO 순위</th>
+                <th className="text-center py-2.5 px-3 font-medium text-muted-foreground">네이버</th>
+                <th className="text-center py-2.5 px-3 font-medium text-muted-foreground">구글</th>
                 <th className="text-center py-2.5 px-3 font-medium text-muted-foreground hidden md:table-cell">검색량</th>
                 <th className="text-center py-2.5 px-3 font-medium text-muted-foreground hidden lg:table-cell">수집일</th>
               </tr>
@@ -784,14 +784,14 @@ function RankingsTab({ clientId }: { clientId: string }) {
                       <span className="text-muted-foreground">-</span>
                     )}
                   </td>
-                  <td className="py-2.5 px-3 text-center hidden sm:table-cell">
-                    {r.rank_mo != null ? (
+                  <td className="py-2.5 px-3 text-center">
+                    {r.rank_google != null ? (
                       <span className={`font-bold ${
-                        r.rank_mo <= 3 ? "text-emerald-600" :
-                        r.rank_mo <= 10 ? "text-blue-600" :
-                        r.rank_mo <= 20 ? "text-amber-600" : "text-gray-400"
+                        r.rank_google <= 3 ? "text-emerald-600" :
+                        r.rank_google <= 10 ? "text-blue-600" :
+                        r.rank_google <= 20 ? "text-amber-600" : "text-gray-400"
                       }`}>
-                        {r.rank_mo}위
+                        {r.rank_google}위
                       </span>
                     ) : (
                       <span className="text-muted-foreground">-</span>

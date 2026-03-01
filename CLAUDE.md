@@ -1,7 +1,7 @@
 # Waide (AI Hospitality Aide) — 서비스 IA
 
 > 최종 업데이트: 2026-03-01
-> 버전: Phase E-3-1 완료 (SERP 추적 검증 + 포털 연결)
+> 버전: Phase E-3-2 완료 (구글 검색 순위 추적 — Serper API 연동)
 
 ---
 
@@ -313,6 +313,8 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 | `content-pipeline-v2.ts` | createContentV2() — 벤치마크+페르소나+중복회피+AEO 기반 콘텐츠 생성 | clients, contents, content_sources, brand_analyses |
 | `content-qc-v2.ts` | runQcV2() — 8항목 100점 검수 (AEO 15점 포함) + 벤치마크 비교 + metadata 저장 | contents, clients, content_benchmarks |
 | `content-rewrite-loop.ts` | runRewriteLoop() — QC FAIL 시 최대 2회 재작성 + metadata.rewrite_history 기록 | contents, clients |
+| `google-serp-api.ts` | searchGoogle(), findGoogleRank() — Serper API 구글 검색 순위 조회 (SERPER_API_KEY 없으면 skip) | (외부 API) |
+| `google-serp-collector.ts` | collectGoogleSerpForKeyword(), collectGoogleSerpAll() — 구글 SERP 수집 + DB 저장 | keywords, keyword_visibility |
 
 ---
 
@@ -372,6 +374,7 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 | 네이버 플레이스 GraphQL API (`pcmap-api.place.naver.com/graphql`) | 매장 정보 + 리뷰 수집 | 무료 |
 | 네이버 로컬 검색 API (`/v1/search/local`) | 키워드 순위 체크 (50위) | 무료 (25,000/일) |
 | Claude API (Haiku 4.5) | 콘텐츠 생성 + 이미지 분석 + 대표사진 진단 | ~40원/콘텐츠, ~100원/이미지분석 |
+| Serper API (`google.serper.dev/search`) | 구글 검색 순위 조회 | 월 2,500건 무료 |
 | Slack API (Webhook) | 알림 발송 | 무료 |
 
 ---
@@ -502,6 +505,20 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
   - 어드민 클라이언트 상세 (/ops/clients/[id]): "순위" 탭 추가 (8탭 → 개요/키워드/콘텐츠/분석이력/순위/페르소나/구독/온보딩)
   - 순위 탭: 요약 카드 4종 (노출키워드/노출률/TOP3·10/평균순위) + 순위 테이블 + [순위 체크 실행] 버튼
   - TypeScript 빌드 검증: tsc --noEmit 0 에러
+- Phase E-3-2: 구글 검색 순위 추적 — Serper API 연동 (2026-03-01)
+  - lib/google-serp-api.ts: Serper API 래퍼 (searchGoogle, findGoogleRank) — SERPER_API_KEY 없으면 graceful skip
+  - lib/google-serp-collector.ts: 구글 SERP 수집 모듈 (collectGoogleSerpForKeyword, collectGoogleSerpAll)
+  - triggerClientSerpCheck(): 네이버 + 구글 병렬 수집 (Promise.allSettled, 한쪽 실패해도 다른 쪽 진행)
+  - ClientRanking 인터페이스: rank_google 필드 추가
+  - getClientRankings(): current_rank_google 포함하여 반환
+  - 어드민 순위 탭: 네이버 | 구글 | 검색량 | 수집일 컬럼 구성 (기존 PC/MO 대신 네이버/구글 병렬)
+  - 포털 월간 리포트: 순위 테이블에 네이버/구글 컬럼 추가 (rank_google 포함)
+  - getPortalReportV2(): keyword_visibility.rank_google + keywords.current_rank_google 폴백
+  - 구글 순위 저장: keywords.current_rank_google (기존 컬럼) + keyword_visibility.rank_google (053 마이그레이션)
+  - scripts/migrations/053_keyword_visibility_google.sql: rank_google, visibility_score_google 컬럼 추가
+  - 환경변수: SERPER_API_KEY (Serper.dev API 키)
+  - SERP 추적 현황: 네이버 ✅ / 구글 ✅ / GSC 예정 / AEO 예정
+  - TypeScript 빌드 검증: tsc --noEmit 0 에러
 
 ### 설계 원칙
 
@@ -573,7 +590,7 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 - **Vercel 배포 URL**: https://web-five-gold-12.vercel.app (프로덕션)
 - **Vercel 프로젝트**: fiftycompanies-projects/web, 리전: icn1 (서울)
 - agents/.env: NSERP_EC2_URL, NSERP_EC2_SECRET, SUPABASE_URL/KEY, ANTHROPIC_API_KEY, SLACK_BOT_TOKEN, TAVILY_API_KEY
-- apps/web/.env.local: SUPABASE URLs, NAVER_AD_API_KEY/SECRET_KEY/CUSTOMER_ID, ANTHROPIC_API_KEY
+- apps/web/.env.local: SUPABASE URLs, NAVER_AD_API_KEY/SECRET_KEY/CUSTOMER_ID, ANTHROPIC_API_KEY, SERPER_API_KEY
 - 배포 가이드: `apps/web/DEPLOY.md` (환경변수 전체 목록 + 배포 절차)
 - 현재 실데이터: 키워드 174개, 콘텐츠 174건, 블로그 계정 4개, SERP 레코드 417건
 

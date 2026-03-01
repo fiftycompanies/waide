@@ -363,19 +363,37 @@ export async function triggerClientSerpCheck(clientId: string): Promise<{
   exposed?: number;
   top3?: number;
   top10?: number;
+  googleExposed?: number;
   error?: string;
 }> {
   try {
     const { collectSerpAll } = await import("@/lib/serp-collector");
-    const summary = await collectSerpAll(clientId);
+    const { collectGoogleSerpAll } = await import("@/lib/google-serp-collector");
+
+    // 네이버 + 구글 병렬 수집 (한쪽 실패해도 다른 쪽 진행)
+    const [naverResult, googleResult] = await Promise.allSettled([
+      collectSerpAll(clientId),
+      collectGoogleSerpAll(clientId),
+    ]);
+
+    const naverSummary = naverResult.status === "fulfilled" ? naverResult.value : null;
+    const googleSummary = googleResult.status === "fulfilled" ? googleResult.value : null;
+
+    if (naverResult.status === "rejected") {
+      console.warn("[triggerClientSerpCheck] 네이버 수집 실패:", naverResult.reason);
+    }
+    if (googleResult.status === "rejected") {
+      console.warn("[triggerClientSerpCheck] 구글 수집 실패:", googleResult.reason);
+    }
 
     revalidatePath(`/ops/clients/${clientId}`);
     return {
       success: true,
-      count: summary.total,
-      exposed: summary.exposed,
-      top3: summary.top3,
-      top10: summary.top10,
+      count: naverSummary?.total ?? 0,
+      exposed: naverSummary?.exposed ?? 0,
+      top3: naverSummary?.top3 ?? 0,
+      top10: naverSummary?.top10 ?? 0,
+      googleExposed: googleSummary?.exposed ?? 0,
     };
   } catch (err) {
     return { success: false, error: err instanceof Error ? err.message : "알 수 없는 오류" };
@@ -387,6 +405,7 @@ export interface ClientRanking {
   keyword: string;
   rank_pc: number | null;
   rank_mo: number | null;
+  rank_google: number | null;
   search_volume: number;
   is_exposed: boolean;
   last_tracked_at: string | null;
@@ -410,7 +429,7 @@ export async function getClientRankings(clientId: string): Promise<ClientRanking
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [kwRes, summaryRes] = await Promise.all([
     (db as any).from("keywords")
-      .select("id, keyword, current_rank_naver_pc, current_rank_naver_mo, last_tracked_at, monthly_search_pc")
+      .select("id, keyword, current_rank_naver_pc, current_rank_naver_mo, current_rank_google, last_tracked_at, monthly_search_pc")
       .eq("client_id", clientId)
       .neq("status", "archived")
       .order("current_rank_naver_pc", { ascending: true, nullsFirst: false }),
@@ -431,6 +450,7 @@ export async function getClientRankings(clientId: string): Promise<ClientRanking
     keyword: string;
     current_rank_naver_pc: number | null;
     current_rank_naver_mo: number | null;
+    current_rank_google: number | null;
     last_tracked_at: string | null;
     monthly_search_pc: number | null;
   }[]).map((kw) => ({
@@ -438,6 +458,7 @@ export async function getClientRankings(clientId: string): Promise<ClientRanking
     keyword: kw.keyword,
     rank_pc: kw.current_rank_naver_pc,
     rank_mo: kw.current_rank_naver_mo,
+    rank_google: kw.current_rank_google,
     search_volume: kw.monthly_search_pc || 0,
     is_exposed: kw.current_rank_naver_pc != null,
     last_tracked_at: kw.last_tracked_at,

@@ -56,7 +56,7 @@ interface ReportData {
   };
   contentsTrend: { month: string; count: number }[];
   keywordsTrend: { month: string; count: number }[];
-  serpRankings: { keyword: string; rank: number; device: string; checked_at: string }[];
+  serpRankings: { keyword: string; rank: number; rank_google?: number | null; device: string; checked_at: string }[];
   agentTypeCounts: Record<string, number>;
   analyses: Array<{
     id: string;
@@ -271,8 +271,8 @@ export default function PortalReportsPage() {
               <thead className="bg-gray-50 border-b">
                 <tr>
                   <th className="text-left py-2 px-3 font-medium text-gray-600">키워드</th>
-                  <th className="text-center py-2 px-3 font-medium text-gray-600">순위</th>
-                  <th className="text-center py-2 px-3 font-medium text-gray-600 hidden sm:table-cell">기기</th>
+                  <th className="text-center py-2 px-3 font-medium text-gray-600">네이버</th>
+                  <th className="text-center py-2 px-3 font-medium text-gray-600">구글</th>
                   <th className="text-center py-2 px-3 font-medium text-gray-600 hidden sm:table-cell">확인일</th>
                 </tr>
               </thead>
@@ -281,16 +281,30 @@ export default function PortalReportsPage() {
                   <tr key={i} className="border-b last:border-0">
                     <td className="py-2 px-3 text-gray-900">{r.keyword}</td>
                     <td className="py-2 px-3 text-center">
-                      <span className={`font-bold ${
-                        r.rank <= 3 ? "text-emerald-600" :
-                        r.rank <= 10 ? "text-blue-600" :
-                        r.rank <= 20 ? "text-amber-600" : "text-gray-400"
-                      }`}>
-                        {r.rank}위
-                      </span>
+                      {r.rank > 0 ? (
+                        <span className={`font-bold ${
+                          r.rank <= 3 ? "text-emerald-600" :
+                          r.rank <= 10 ? "text-blue-600" :
+                          r.rank <= 20 ? "text-amber-600" : "text-gray-400"
+                        }`}>
+                          {r.rank}위
+                        </span>
+                      ) : (
+                        <span className="text-gray-300">-</span>
+                      )}
                     </td>
-                    <td className="py-2 px-3 text-center text-xs text-gray-500 hidden sm:table-cell">
-                      {r.device === "pc" ? "PC" : r.device === "mo" ? "모바일" : r.device}
+                    <td className="py-2 px-3 text-center">
+                      {r.rank_google != null ? (
+                        <span className={`font-bold ${
+                          r.rank_google <= 3 ? "text-emerald-600" :
+                          r.rank_google <= 10 ? "text-blue-600" :
+                          r.rank_google <= 20 ? "text-amber-600" : "text-gray-400"
+                        }`}>
+                          {r.rank_google}위
+                        </span>
+                      ) : (
+                        <span className="text-gray-300">-</span>
+                      )}
                     </td>
                     <td className="py-2 px-3 text-center text-xs text-gray-400 hidden sm:table-cell">
                       {new Date(r.checked_at).toLocaleDateString("ko-KR")}

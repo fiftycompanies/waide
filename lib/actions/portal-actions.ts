@@ -430,7 +430,7 @@ export async function getPortalReportV2(clientId: string, year?: number, month?:
       .eq("status", "active"),
     // SERP 순위 데이터 → keyword_visibility (client_id FK 보유)
     db.from("keyword_visibility")
-      .select("keyword_id, rank_pc, rank_mo, measured_at, is_exposed")
+      .select("keyword_id, rank_pc, rank_mo, rank_google, measured_at, is_exposed")
       .eq("client_id", clientId)
       .order("measured_at", { ascending: false })
       .limit(100),
@@ -471,22 +471,27 @@ export async function getPortalReportV2(clientId: string, year?: number, month?:
     keywordsTrend.push({ month: labelMonth, count });
   }
 
-  // SERP 순위: keyword_visibility → 키워드명 매핑
-  const visibilityRows = (serpRes.data || []) as { keyword_id: string; rank_pc: number | null; rank_mo: number | null; measured_at: string; is_exposed: boolean }[];
+  // SERP 순위: keyword_visibility → 키워드명 + 구글 순위 매핑
+  const visibilityRows = (serpRes.data || []) as { keyword_id: string; rank_pc: number | null; rank_mo: number | null; rank_google: number | null; measured_at: string; is_exposed: boolean }[];
   const rankKwIds = [...new Set(visibilityRows.map((r) => r.keyword_id))];
   let kwNameMap: Record<string, string> = {};
+  let kwGoogleMap: Record<string, number | null> = {};
   if (rankKwIds.length > 0) {
-    const { data: kwNames } = await db.from("keywords").select("id, keyword").in("id", rankKwIds);
+    const { data: kwNames } = await db.from("keywords").select("id, keyword, current_rank_google").in("id", rankKwIds);
     kwNameMap = Object.fromEntries((kwNames || []).map((k: { id: string; keyword: string }) => [k.id, k.keyword]));
+    kwGoogleMap = Object.fromEntries((kwNames || []).map((k: { id: string; current_rank_google: number | null }) => [k.id, k.current_rank_google]));
   }
 
-  // 키워드별 최신 순위 (keyword_id dedup)
-  const serpMap = new Map<string, { keyword: string; rank: number; device: string; checked_at: string }>();
+  // 키워드별 최신 순위 (keyword_id dedup) — 네이버 + 구글
+  const serpMap = new Map<string, { keyword: string; rank: number; rank_google: number | null; device: string; checked_at: string }>();
   for (const r of visibilityRows) {
-    if (!serpMap.has(r.keyword_id) && r.rank_pc != null) {
+    if (!serpMap.has(r.keyword_id)) {
+      // rank_google: keyword_visibility에 있으면 사용, 없으면 keywords 테이블 폴백
+      const googleRank = r.rank_google ?? kwGoogleMap[r.keyword_id] ?? null;
       serpMap.set(r.keyword_id, {
         keyword: kwNameMap[r.keyword_id] || r.keyword_id,
-        rank: r.rank_pc,
+        rank: r.rank_pc ?? 0,
+        rank_google: googleRank,
         device: "pc",
         checked_at: r.measured_at,
       });
