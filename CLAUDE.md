@@ -1,7 +1,7 @@
 # Waide (AI Hospitality Aide) — 서비스 IA
 
 > 최종 업데이트: 2026-02-28
-> 버전: Phase INT-1 완료 (SQL 마이그레이션 점검 + F1~F4 통합 가동 검증)
+> 버전: Phase P-1 완료 (포털 MVP — 고객용 핵심 4화면)
 
 ---
 
@@ -84,11 +84,14 @@
 
 | 경로 | 페이지명 | 데이터 소스 |
 |------|---------|-----------|
-| `/portal` | 포털 대시보드 | `brand_analyses`, `contents`, `subscriptions`, `sales_agents` |
-| `/portal/keywords` | 키워드 순위 + 전략 요약 | `keyword_rankings`, `keyword_visibility`, `brand_analyses` (keyword_strategy) |
-| `/portal/contents` | 콘텐츠 목록 | `contents` |
-| `/portal/reports` | 리포트 (점수 추이) | `brand_analyses`, `contents` |
+| `/portal` | 포털 대시보드 (KPI 4종 + 브랜드 요약 + 최근 활동 타임라인) | `keywords`, `contents`, `brand_analyses`, `clients` (brand_persona), `sales_agents` |
+| `/portal/keywords` | 키워드 관리 (활성/AI추천/보관 탭 + 승인/거절) | `keywords`, `brand_analyses` (keyword_strategy) |
+| `/portal/contents` | 콘텐츠 현황 (필터 + 상세보기 + QC 결과) | `contents` (metadata: qc_result, rewrite_history) |
+| `/portal/reports` | 월간 리포트 (발행추이 차트 + 키워드성장 차트 + 순위현황 + AI활동) | `contents`, `keywords`, `agent_execution_logs`, `serp_results`, `brand_analyses` |
 | `/portal/settings` | 설정 (프로필, 비밀번호, 구독) | `users`, `subscriptions`, `sales_agents` |
+
+> 포털 키워드 승인/거절: `approveSuggestedKeyword()`, `rejectSuggestedKeyword()` — keyword-expansion-actions.ts
+> 포털 순위 섹션: serp_results 데이터 있으면 표시, 없으면 "준비 중" — E-3 SERP 추적 구현 후 자동 활성화
 
 ### 3-3. 어드민 (Admin) — 라이트 테마
 
@@ -292,7 +295,7 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 | `settings-actions.ts` | getSettings(), getScoringWeights(), getAnalysisOptions() | settings |
 | `admin-actions.ts` | getAdmin() | admins |
 | `auth-actions.ts` | portalSignIn(), portalSignUp(), portalSignOut(), inviteUser(), getClientUsers(), updateUserProfile(), changeUserPassword() | users, invitations (Supabase Auth) |
-| `portal-actions.ts` | getPortalDashboard(), getPortalKeywords(), getPortalContents(), getPortalReport(), getPortalSettings() | brand_analyses, contents, keyword_rankings, subscriptions, sales_agents, clients |
+| `portal-actions.ts` | getPortalDashboard(), getPortalKeywords(), getPortalContents(), getPortalReport(), getPortalSettings(), getPortalDashboardV2(), getPortalKeywordsV2(), getPortalContentsV2(), getPortalReportV2() | brand_analyses, contents, keywords, keyword_rankings, subscriptions, sales_agents, clients, agent_execution_logs, serp_results |
 | `product-actions.ts` | getProducts(), createProduct(), updateProduct(), deleteProduct(), createSubscription(), updateSubscription(), cancelSubscription(), getClientSubscription() | products, subscriptions, clients |
 | `persona-actions.ts` | updatePersona(), addManualStrength(), removeManualStrength(), regeneratePersona(), getPersona() | clients (brand_persona JSONB) |
 
@@ -479,6 +482,16 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
   - 051 버그 수정: keywords 전용 constraint 드롭 (pg_constraint + pg_class 조인, 다른 테이블 영향 방지)
   - scripts/test-integration.ts: 통합 검증 스크립트 (dry-run/live 모드, 5 시나리오)
   - 환경변수 감사: ANTHROPIC_API_KEY graceful skip 검증 완료 (모든 F1-F4 entry point)
+  - TypeScript 빌드 검증: tsc --noEmit 0 에러
+- Phase P-1: 포털 MVP — 고객용 핵심 4화면 (2026-03-01)
+  - /portal 대시보드 고도화: KPI 4종 (활성키워드/이번달콘텐츠/AI추천대기/평균QC점수) + 브랜드 요약 + 최근 활동 타임라인
+  - /portal/keywords 키워드 관리 고도화: 3탭(활성/AI추천/보관) + 승인/거절 버튼 + 키워드 전략 섹션
+  - /portal/contents 콘텐츠 현황 고도화: 상태 필터 5종 + 상세 보기 (본문 미리보기 + QC 검수 결과 + 재작성 이력)
+  - /portal/reports 월간 리포트 고도화: 월 선택기 + 요약 카드 3종 + 콘텐츠 발행 추이 Bar 차트 + 키워드 성장 Line 차트 + 순위 현황 + AI 활동 로그
+  - portal-actions.ts: V2 서버 액션 4개 추가 (getPortalDashboardV2, getPortalKeywordsV2, getPortalContentsV2, getPortalReportV2)
+  - portal-shell.tsx: 네비게이션 라벨 업데이트 (키워드 관리/콘텐츠 현황/월간 리포트)
+  - 기존 V1 함수 하위 호환 유지 — 기존 코드 동작 영향 없음
+  - 순위 섹션: serp_results 데이터 있으면 표시, 없으면 "순위 추적 준비 중" — E-3 SERP 추적 구현 후 자동 활성화
   - TypeScript 빌드 검증: tsc --noEmit 0 에러
 
 ### 설계 원칙

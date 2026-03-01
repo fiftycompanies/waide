@@ -4,31 +4,51 @@ import { useEffect, useState } from "react";
 import {
   BarChart2,
   CheckCircle2,
+  Clock,
   FileText,
   Key,
   Lightbulb,
   Loader2,
   Phone,
   Sparkles,
+  Target,
   TrendingUp,
   Trophy,
   User,
 } from "lucide-react";
-import { getPortalDashboard } from "@/lib/actions/portal-actions";
+import { getPortalDashboardV2 } from "@/lib/actions/portal-actions";
+
+interface KpiData {
+  activeKeywords: number;
+  monthlyContents: number;
+  suggestedKeywords: number;
+  avgQcScore: number | null;
+}
+
+interface RecentContent {
+  id: string;
+  title: string;
+  keyword: string;
+  status: string;
+  date: string;
+}
+
+interface RecentKeywordActivity {
+  id: string;
+  keyword: string;
+  status: string;
+  date: string;
+}
 
 interface DashboardData {
+  kpi: KpiData;
   latestAnalysis: {
     marketing_score: number;
     keyword_rankings: Array<{ keyword: string; rank: number | null }>;
     analyzed_at: string;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    analysis_result?: any;
   } | null;
-  contentCount: number;
-  monthlyContentCount: number;
-  subscription: {
-    status: string;
-    products: { name: string } | null;
-  } | null;
-  salesAgent: { name: string; phone: string; email: string } | null;
   brandName: string;
   brandPersona: {
     one_liner?: string;
@@ -40,6 +60,30 @@ interface DashboardData {
   improvementPlan: any;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   seoComments: any;
+  recentContents: RecentContent[];
+  recentKeywordActivity: RecentKeywordActivity[];
+  salesAgent: { name: string; phone: string; email: string } | null;
+  subscription: { status: string; products: { name: string } | null } | null;
+}
+
+const statusLabels: Record<string, { text: string; color: string }> = {
+  published: { text: "발행됨", color: "bg-emerald-100 text-emerald-700" },
+  approved: { text: "검수완료", color: "bg-blue-100 text-blue-700" },
+  review: { text: "검토중", color: "bg-amber-100 text-amber-700" },
+  draft: { text: "작성중", color: "bg-gray-100 text-gray-600" },
+  rejected: { text: "반려", color: "bg-red-100 text-red-700" },
+};
+
+function timeAgo(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const minutes = Math.floor(diff / 60000);
+  if (minutes < 1) return "방금";
+  if (minutes < 60) return `${minutes}분 전`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}시간 전`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days}일 전`;
+  return new Date(dateStr).toLocaleDateString("ko-KR");
 }
 
 export default function PortalDashboardPage() {
@@ -47,13 +91,10 @@ export default function PortalDashboardPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // clientId는 layout에서 확인됨, 여기서는 server action이 처리
-    // 실제로는 clientId를 prop으로 받아야 하지만,
-    // 포털 레이아웃에서 검증된 상태이므로 window의 meta에서 추출
     const el = document.querySelector("meta[name='portal-client-id']");
     const clientId = el?.getAttribute("content") || "";
     if (clientId) {
-      getPortalDashboard(clientId).then((d) => {
+      getPortalDashboardV2(clientId).then((d) => {
         setData(d as DashboardData);
         setLoading(false);
       });
@@ -70,71 +111,76 @@ export default function PortalDashboardPage() {
     );
   }
 
-  const score = data?.latestAnalysis?.marketing_score ?? 0;
-  const rankings = data?.latestAnalysis?.keyword_rankings ?? [];
-  const top3Count = rankings.filter((kr) => kr.rank && kr.rank <= 3).length;
-  const top10Count = rankings.filter((kr) => kr.rank && kr.rank <= 10).length;
+  if (!data) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <p className="text-gray-500">데이터를 불러올 수 없습니다</p>
+      </div>
+    );
+  }
+
+  const { kpi } = data;
 
   return (
     <div className="space-y-6">
       {/* Welcome */}
       <div>
         <h1 className="text-2xl font-bold text-gray-900">
-          {data?.brandName || "대시보드"}
+          {data.brandName || "대시보드"}
         </h1>
         <p className="text-sm text-gray-500 mt-1">
           마케팅 현황을 한눈에 확인하세요
         </p>
       </div>
 
-      {/* Score + KPI cards */}
+      {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Marketing Score */}
-        <div className="col-span-2 lg:col-span-1 p-6 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-600 text-white">
-          <p className="text-emerald-100 text-sm font-medium">마케팅 종합 점수</p>
-          <p className="text-4xl font-bold mt-2">{score}</p>
-          <p className="text-emerald-200 text-sm mt-1">/100점</p>
-        </div>
-
-        {/* Place Ranking */}
         <div className="p-5 rounded-xl border bg-white">
           <div className="flex items-center gap-2 text-gray-500 text-sm">
-            <Trophy className="h-4 w-4 text-amber-500" />
-            플레이스 TOP 3
+            <Key className="h-4 w-4 text-emerald-500" />
+            활성 키워드
           </div>
-          <p className="text-2xl font-bold text-gray-900 mt-2">{top3Count}개</p>
-          <p className="text-xs text-gray-400 mt-1">
-            {rankings.length}개 키워드 중
+          <p className="text-2xl font-bold text-gray-900 mt-2">
+            {kpi.activeKeywords}개
           </p>
         </div>
 
-        {/* Top 10 Keywords */}
-        <div className="p-5 rounded-xl border bg-white">
-          <div className="flex items-center gap-2 text-gray-500 text-sm">
-            <TrendingUp className="h-4 w-4 text-blue-500" />
-            TOP 10 키워드
-          </div>
-          <p className="text-2xl font-bold text-gray-900 mt-2">{top10Count}개</p>
-          <p className="text-xs text-gray-400 mt-1">상위 노출 중</p>
-        </div>
-
-        {/* Monthly Content */}
         <div className="p-5 rounded-xl border bg-white">
           <div className="flex items-center gap-2 text-gray-500 text-sm">
             <FileText className="h-4 w-4 text-purple-500" />
-            이번 달 발행
+            이번 달 콘텐츠
           </div>
           <p className="text-2xl font-bold text-gray-900 mt-2">
-            {data?.monthlyContentCount ?? 0}건
+            {kpi.monthlyContents}건
           </p>
-          <p className="text-xs text-gray-400 mt-1">
-            총 {data?.contentCount ?? 0}건 발행
+        </div>
+
+        <div className="p-5 rounded-xl border bg-white">
+          <div className="flex items-center gap-2 text-gray-500 text-sm">
+            <Sparkles className="h-4 w-4 text-violet-500" />
+            AI 추천 대기
+          </div>
+          <p className="text-2xl font-bold text-gray-900 mt-2">
+            {kpi.suggestedKeywords}개
+          </p>
+          {kpi.suggestedKeywords > 0 && (
+            <p className="text-xs text-violet-600 mt-1">승인 대기 중</p>
+          )}
+        </div>
+
+        <div className="p-5 rounded-xl border bg-white">
+          <div className="flex items-center gap-2 text-gray-500 text-sm">
+            <Trophy className="h-4 w-4 text-amber-500" />
+            평균 QC 점수
+          </div>
+          <p className="text-2xl font-bold text-gray-900 mt-2">
+            {kpi.avgQcScore !== null ? `${kpi.avgQcScore}점` : "-"}
           </p>
         </div>
       </div>
 
       {/* Brand Persona One-liner */}
-      {data?.brandPersona?.one_liner && (
+      {data.brandPersona?.one_liner ? (
         <div className="rounded-xl border bg-gradient-to-r from-emerald-50 to-white p-5">
           <div className="flex items-center gap-2 text-emerald-700 text-sm font-medium mb-2">
             <Sparkles className="h-4 w-4" />
@@ -147,10 +193,16 @@ export default function PortalDashboardPage() {
             <p className="text-xs text-gray-500 mt-2">{data.brandPersona.positioning}</p>
           )}
         </div>
+      ) : (
+        <div className="rounded-xl border bg-gray-50 p-5 text-center">
+          <Sparkles className="h-6 w-6 text-gray-300 mx-auto mb-2" />
+          <p className="text-sm text-gray-500">분석 준비 중입니다</p>
+          <p className="text-xs text-gray-400 mt-1">브랜드 분석이 완료되면 맞춤 인사이트가 표시됩니다</p>
+        </div>
       )}
 
       {/* Improvement Suggestions (Top 3) */}
-      {data?.improvementPlan?.roadmap && (
+      {data.improvementPlan?.roadmap && (
         <div className="rounded-xl border bg-white p-6">
           <div className="flex items-center gap-2 text-gray-900 mb-4">
             <Lightbulb className="h-5 w-5 text-amber-500" />
@@ -160,7 +212,6 @@ export default function PortalDashboardPage() {
             {(() => {
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
               const roadmap = data.improvementPlan.roadmap as Record<string, any>;
-              // week1 액션 먼저, 없으면 month1에서 가져옴
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
               const actions: any[] = [
                 ...(roadmap.week1?.actions || []),
@@ -195,8 +246,8 @@ export default function PortalDashboardPage() {
         </div>
       )}
 
-      {/* SEO AI Comments (Priority Actions) */}
-      {data?.seoComments?.priority_actions && data.seoComments.priority_actions.length > 0 && (
+      {/* SEO AI Comments */}
+      {data.seoComments?.priority_actions && data.seoComments.priority_actions.length > 0 && (
         <div className="rounded-xl border bg-white p-6">
           <div className="flex items-center gap-2 text-gray-900 mb-4">
             <BarChart2 className="h-5 w-5 text-blue-500" />
@@ -221,38 +272,62 @@ export default function PortalDashboardPage() {
         </div>
       )}
 
-      {/* Keyword Rankings Summary */}
-      {rankings.length > 0 && (
-        <div className="rounded-xl border bg-white p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">
-            키워드 순위 현황
-          </h2>
+      {/* Recent Activity Timeline */}
+      <div className="rounded-xl border bg-white p-6">
+        <div className="flex items-center gap-2 text-gray-900 mb-4">
+          <Clock className="h-5 w-5 text-gray-500" />
+          <h2 className="text-lg font-semibold">최근 활동</h2>
+        </div>
+        {data.recentContents.length === 0 && data.recentKeywordActivity.length === 0 ? (
+          <p className="text-sm text-gray-400 text-center py-6">아직 활동 내역이 없습니다</p>
+        ) : (
           <div className="space-y-3">
-            {rankings.map((kr, i) => (
-              <div
-                key={i}
-                className="flex items-center justify-between py-2 border-b last:border-0"
-              >
-                <span className="text-sm text-gray-700">{kr.keyword}</span>
-                <span
-                  className={`text-sm font-bold ${
-                    kr.rank && kr.rank <= 3
-                      ? "text-emerald-600"
-                      : kr.rank && kr.rank <= 10
-                        ? "text-blue-600"
-                        : "text-gray-400"
-                  }`}
-                >
-                  {kr.rank ? `${kr.rank}위` : "미노출"}
-                </span>
+            {/* Recent contents */}
+            {data.recentContents.map((c) => {
+              const st = statusLabels[c.status] || statusLabels.draft;
+              return (
+                <div key={`c-${c.id}`} className="flex items-center gap-3 py-2 border-b last:border-0">
+                  <div className="h-8 w-8 rounded-full bg-purple-50 flex items-center justify-center shrink-0">
+                    <FileText className="h-4 w-4 text-purple-500" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-gray-900 truncate">{c.title || "제목 없음"}</p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      {c.keyword && (
+                        <span className="text-xs text-gray-500">{c.keyword}</span>
+                      )}
+                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${st.color}`}>
+                        {st.text}
+                      </span>
+                    </div>
+                  </div>
+                  <span className="text-xs text-gray-400 shrink-0">{timeAgo(c.date)}</span>
+                </div>
+              );
+            })}
+            {/* Recent keyword activity */}
+            {data.recentKeywordActivity.slice(0, 3).map((k) => (
+              <div key={`k-${k.id}`} className="flex items-center gap-3 py-2 border-b last:border-0">
+                <div className={`h-8 w-8 rounded-full flex items-center justify-center shrink-0 ${
+                  k.status === "active" ? "bg-emerald-50" : "bg-gray-50"
+                }`}>
+                  <Target className={`h-4 w-4 ${k.status === "active" ? "text-emerald-500" : "text-gray-400"}`} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-gray-900">{k.keyword}</p>
+                  <p className="text-xs text-gray-500">
+                    {k.status === "active" ? "키워드 승인됨" : "키워드 보관됨"}
+                  </p>
+                </div>
+                <span className="text-xs text-gray-400 shrink-0">{timeAgo(k.date)}</span>
               </div>
             ))}
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Sales Agent */}
-      {data?.salesAgent && (
+      {data.salesAgent && (
         <div className="rounded-xl border bg-white p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-3">
             담당 매니저
@@ -281,23 +356,6 @@ export default function PortalDashboardPage() {
           <p className="text-xs text-gray-400 mt-3">
             문의사항은 담당 매니저에게 연락하세요
           </p>
-        </div>
-      )}
-
-      {/* Subscription info */}
-      {data?.subscription && (
-        <div className="rounded-xl border bg-white p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-2">
-            구독 정보
-          </h2>
-          <div className="flex items-center gap-3">
-            <span className="px-3 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700">
-              {data.subscription.status === "active" ? "활성" : data.subscription.status}
-            </span>
-            <span className="text-sm text-gray-600">
-              {data.subscription.products?.name || "기본 플랜"}
-            </span>
-          </div>
         </div>
       )}
     </div>

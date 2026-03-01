@@ -1,29 +1,64 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Key, Lightbulb, Loader2, Target, TrendingDown, TrendingUp, Minus } from "lucide-react";
-import { getPortalKeywords } from "@/lib/actions/portal-actions";
+import { useEffect, useState, useCallback } from "react";
+import {
+  Check,
+  Key,
+  Lightbulb,
+  Loader2,
+  Sparkles,
+  Target,
+  TrendingUp,
+  X,
+  Archive,
+} from "lucide-react";
+import { getPortalKeywordsV2 } from "@/lib/actions/portal-actions";
+import {
+  approveSuggestedKeyword,
+  rejectSuggestedKeyword,
+} from "@/lib/actions/keyword-expansion-actions";
 
-interface KeywordRanking {
+interface KeywordItem {
+  id: string;
   keyword: string;
-  rank: number | null;
-  monthlySearch?: number;
+  status: string;
+  source: string | null;
+  created_at: string;
+  metadata: {
+    content_angle?: string;
+    search_intent?: string;
+    relevance?: string;
+    competition_estimate?: string;
+    reason?: string;
+  } | null;
 }
 
+type TabType = "active" | "suggested" | "archived";
+
+const sourceLabels: Record<string, string> = {
+  manual: "수동 등록",
+  niche_expansion: "AI 발굴",
+  gsc_discovery: "GSC 발견",
+};
+
 export default function PortalKeywordsPage() {
-  const [rankings, setRankings] = useState<KeywordRanking[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [analyzedAt, setAnalyzedAt] = useState<string | null>(null);
+  const [activeKeywords, setActiveKeywords] = useState<KeywordItem[]>([]);
+  const [suggestedKeywords, setSuggestedKeywords] = useState<KeywordItem[]>([]);
+  const [archivedKeywords, setArchivedKeywords] = useState<KeywordItem[]>([]);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [keywordStrategy, setKeywordStrategy] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<TabType>("active");
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
 
-  useEffect(() => {
+  const loadData = useCallback(() => {
     const el = document.querySelector("meta[name='portal-client-id']");
     const clientId = el?.getAttribute("content") || "";
     if (clientId) {
-      getPortalKeywords(clientId).then((d) => {
-        setRankings(d.keywordRankings || []);
-        setAnalyzedAt(d.analyzedAt);
+      getPortalKeywordsV2(clientId).then((d) => {
+        setActiveKeywords(d.activeKeywords as KeywordItem[]);
+        setSuggestedKeywords(d.suggestedKeywords as KeywordItem[]);
+        setArchivedKeywords(d.archivedKeywords as KeywordItem[]);
         setKeywordStrategy(d.keywordStrategy || null);
         setLoading(false);
       });
@@ -31,6 +66,36 @@ export default function PortalKeywordsPage() {
       setLoading(false);
     }
   }, []);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  const handleApprove = async (keywordId: string) => {
+    setActionLoading(keywordId);
+    const result = await approveSuggestedKeyword(keywordId);
+    if (result.success) {
+      const approved = suggestedKeywords.find((k) => k.id === keywordId);
+      if (approved) {
+        setSuggestedKeywords((prev) => prev.filter((k) => k.id !== keywordId));
+        setActiveKeywords((prev) => [{ ...approved, status: "active" }, ...prev]);
+      }
+    }
+    setActionLoading(null);
+  };
+
+  const handleReject = async (keywordId: string) => {
+    setActionLoading(keywordId);
+    const result = await rejectSuggestedKeyword(keywordId);
+    if (result.success) {
+      const rejected = suggestedKeywords.find((k) => k.id === keywordId);
+      if (rejected) {
+        setSuggestedKeywords((prev) => prev.filter((k) => k.id !== keywordId));
+        setArchivedKeywords((prev) => [{ ...rejected, status: "archived" }, ...prev]);
+      }
+    }
+    setActionLoading(null);
+  };
 
   if (loading) {
     return (
@@ -40,53 +105,204 @@ export default function PortalKeywordsPage() {
     );
   }
 
-  const exposed = rankings.filter((r) => r.rank !== null);
-  const top3 = exposed.filter((r) => r.rank! <= 3).length;
-  const top10 = exposed.filter((r) => r.rank! <= 10).length;
-  const top20 = exposed.filter((r) => r.rank! <= 20).length;
-  const total = rankings.length || 1;
+  const tabs: { key: TabType; label: string; count: number; icon: typeof Key }[] = [
+    { key: "active", label: "활성 키워드", count: activeKeywords.length, icon: Key },
+    { key: "suggested", label: "AI 추천", count: suggestedKeywords.length, icon: Sparkles },
+    { key: "archived", label: "보관", count: archivedKeywords.length, icon: Archive },
+  ];
+
+  const currentKeywords =
+    activeTab === "active"
+      ? activeKeywords
+      : activeTab === "suggested"
+        ? suggestedKeywords
+        : archivedKeywords;
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">키워드 순위</h1>
+        <h1 className="text-2xl font-bold text-gray-900">키워드 관리</h1>
         <p className="text-sm text-gray-500 mt-1">
-          네이버 플레이스 검색 순위 현황
-          {analyzedAt && (
-            <span className="ml-2 text-gray-400">
-              (마지막 분석:{" "}
-              {new Date(analyzedAt).toLocaleDateString("ko-KR")})
-            </span>
-          )}
+          키워드 현황을 관리하고 AI 추천 키워드를 승인하세요
         </p>
       </div>
 
-      {/* Summary cards */}
-      <div className="grid grid-cols-3 gap-4">
-        <div className="p-5 rounded-xl border bg-white text-center">
-          <p className="text-sm text-gray-500">TOP 3</p>
-          <p className="text-3xl font-bold text-emerald-600 mt-1">{top3}개</p>
-          <p className="text-xs text-gray-400 mt-1">
-            {Math.round((top3 / total) * 100)}%
-          </p>
-        </div>
-        <div className="p-5 rounded-xl border bg-white text-center">
-          <p className="text-sm text-gray-500">TOP 10</p>
-          <p className="text-3xl font-bold text-blue-600 mt-1">{top10}개</p>
-          <p className="text-xs text-gray-400 mt-1">
-            {Math.round((top10 / total) * 100)}%
-          </p>
-        </div>
-        <div className="p-5 rounded-xl border bg-white text-center">
-          <p className="text-sm text-gray-500">TOP 20</p>
-          <p className="text-3xl font-bold text-purple-600 mt-1">{top20}개</p>
-          <p className="text-xs text-gray-400 mt-1">
-            {Math.round((top20 / total) * 100)}%
-          </p>
-        </div>
+      {/* Tabs */}
+      <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
+        {tabs.map((tab) => (
+          <button
+            key={tab.key}
+            onClick={() => setActiveTab(tab.key)}
+            className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+              activeTab === tab.key
+                ? "bg-white text-gray-900 shadow-sm"
+                : "text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            <tab.icon className="h-3.5 w-3.5" />
+            {tab.label}
+            {tab.count > 0 && (
+              <span className={`ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                activeTab === tab.key
+                  ? tab.key === "suggested" ? "bg-violet-100 text-violet-700" : "bg-gray-200 text-gray-600"
+                  : "bg-gray-200 text-gray-500"
+              }`}>
+                {tab.count}
+              </span>
+            )}
+          </button>
+        ))}
       </div>
 
-      {/* Keyword Strategy Summary (only when data exists) */}
+      {/* Active Tab Content */}
+      {activeTab === "active" && (
+        <>
+          {activeKeywords.length === 0 ? (
+            <div className="rounded-xl border bg-white p-12 text-center">
+              <Key className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+              <p className="text-gray-500">등록된 키워드가 없습니다</p>
+              <p className="text-sm text-gray-400 mt-1">AI 추천 탭에서 키워드를 승인하거나 매니저에게 문의하세요</p>
+            </div>
+          ) : (
+            <div className="rounded-xl border bg-white overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 border-b">
+                  <tr>
+                    <th className="text-left py-3 px-4 font-medium text-gray-600">키워드</th>
+                    <th className="text-center py-3 px-4 font-medium text-gray-600 hidden sm:table-cell">소스</th>
+                    <th className="text-center py-3 px-4 font-medium text-gray-600">등록일</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {activeKeywords.map((kw) => (
+                    <tr key={kw.id} className="border-b last:border-0 hover:bg-gray-50 transition-colors">
+                      <td className="py-3 px-4">
+                        <span className="font-medium text-gray-900">{kw.keyword}</span>
+                      </td>
+                      <td className="py-3 px-4 text-center hidden sm:table-cell">
+                        <span className="text-xs text-gray-500">
+                          {sourceLabels[kw.source || ""] || kw.source || "-"}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-center text-xs text-gray-500">
+                        {new Date(kw.created_at).toLocaleDateString("ko-KR")}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Suggested Tab Content */}
+      {activeTab === "suggested" && (
+        <>
+          {suggestedKeywords.length === 0 ? (
+            <div className="rounded-xl border bg-white p-12 text-center">
+              <Sparkles className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+              <p className="text-gray-500">대기 중인 AI 추천 키워드가 없습니다</p>
+              <p className="text-sm text-gray-400 mt-1">AI가 새로운 키워드를 발굴하면 여기에 표시됩니다</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {suggestedKeywords.map((kw) => (
+                <div
+                  key={kw.id}
+                  className="rounded-xl border bg-white p-4 hover:shadow-sm transition-shadow"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-gray-900">{kw.keyword}</p>
+                      {kw.metadata?.content_angle && (
+                        <p className="text-xs text-violet-600 mt-1">
+                          콘텐츠 각도: {kw.metadata.content_angle}
+                        </p>
+                      )}
+                      {kw.metadata?.search_intent && (
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          검색 의도: {kw.metadata.search_intent}
+                        </p>
+                      )}
+                      {kw.metadata?.relevance && (
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          관련도: {kw.metadata.relevance}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        onClick={() => handleApprove(kw.id)}
+                        disabled={actionLoading === kw.id}
+                        className="h-8 w-8 rounded-full bg-emerald-50 text-emerald-600 hover:bg-emerald-100 flex items-center justify-center transition-colors disabled:opacity-50"
+                        title="승인"
+                      >
+                        {actionLoading === kw.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Check className="h-4 w-4" />
+                        )}
+                      </button>
+                      <button
+                        onClick={() => handleReject(kw.id)}
+                        disabled={actionLoading === kw.id}
+                        className="h-8 w-8 rounded-full bg-red-50 text-red-500 hover:bg-red-100 flex items-center justify-center transition-colors disabled:opacity-50"
+                        title="거절"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Archived Tab Content */}
+      {activeTab === "archived" && (
+        <>
+          {archivedKeywords.length === 0 ? (
+            <div className="rounded-xl border bg-white p-12 text-center">
+              <Archive className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+              <p className="text-gray-500">보관된 키워드가 없습니다</p>
+            </div>
+          ) : (
+            <div className="rounded-xl border bg-white overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 border-b">
+                  <tr>
+                    <th className="text-left py-3 px-4 font-medium text-gray-600">키워드</th>
+                    <th className="text-center py-3 px-4 font-medium text-gray-600 hidden sm:table-cell">소스</th>
+                    <th className="text-center py-3 px-4 font-medium text-gray-600">등록일</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {archivedKeywords.map((kw) => (
+                    <tr key={kw.id} className="border-b last:border-0 hover:bg-gray-50 transition-colors">
+                      <td className="py-3 px-4">
+                        <span className="text-gray-500">{kw.keyword}</span>
+                      </td>
+                      <td className="py-3 px-4 text-center hidden sm:table-cell">
+                        <span className="text-xs text-gray-400">
+                          {sourceLabels[kw.source || ""] || kw.source || "-"}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-center text-xs text-gray-400">
+                        {new Date(kw.created_at).toLocaleDateString("ko-KR")}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Keyword Strategy Section (only when data exists) */}
       {keywordStrategy && (
         <div className="rounded-xl border bg-white p-6">
           <div className="flex items-center gap-2 text-gray-900 mb-4">
@@ -133,104 +349,6 @@ export default function PortalKeywordsPage() {
           </div>
         </div>
       )}
-
-      {/* Keywords table */}
-      <div className="rounded-xl border bg-white overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-gray-50 border-b">
-            <tr>
-              <th className="text-left py-3 px-4 font-medium text-gray-600">
-                키워드
-              </th>
-              <th className="text-center py-3 px-4 font-medium text-gray-600">
-                현재 순위
-              </th>
-              <th className="text-center py-3 px-4 font-medium text-gray-600">
-                월간 검색량
-              </th>
-              <th className="text-center py-3 px-4 font-medium text-gray-600">
-                노출 점유율
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {rankings.length === 0 ? (
-              <tr>
-                <td
-                  colSpan={4}
-                  className="text-center py-12 text-gray-400"
-                >
-                  아직 키워드 순위 데이터가 없습니다
-                </td>
-              </tr>
-            ) : (
-              rankings.map((kr, i) => {
-                const visibilityScore = kr.rank
-                  ? Math.max(0, Math.round(((21 - kr.rank) / 20) * 100))
-                  : 0;
-                return (
-                  <tr
-                    key={i}
-                    className="border-b last:border-0 hover:bg-gray-50 transition-colors"
-                  >
-                    <td className="py-3 px-4">
-                      <div className="flex items-center gap-2">
-                        <Key className="h-3.5 w-3.5 text-gray-400" />
-                        <span className="font-medium text-gray-900">
-                          {kr.keyword}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="py-3 px-4 text-center">
-                      {kr.rank ? (
-                        <span
-                          className={`inline-flex items-center gap-1 font-bold ${
-                            kr.rank <= 3
-                              ? "text-emerald-600"
-                              : kr.rank <= 10
-                                ? "text-blue-600"
-                                : kr.rank <= 20
-                                  ? "text-amber-600"
-                                  : "text-gray-500"
-                          }`}
-                        >
-                          {kr.rank}위
-                        </span>
-                      ) : (
-                        <span className="text-gray-300">-</span>
-                      )}
-                    </td>
-                    <td className="py-3 px-4 text-center text-gray-600">
-                      {kr.monthlySearch
-                        ? kr.monthlySearch.toLocaleString()
-                        : "-"}
-                    </td>
-                    <td className="py-3 px-4 text-center">
-                      <div className="flex items-center justify-center gap-2">
-                        <div className="w-16 h-1.5 bg-gray-200 rounded-full overflow-hidden">
-                          <div
-                            className={`h-full rounded-full ${
-                              visibilityScore >= 80
-                                ? "bg-emerald-500"
-                                : visibilityScore >= 50
-                                  ? "bg-blue-500"
-                                  : "bg-gray-400"
-                            }`}
-                            style={{ width: `${visibilityScore}%` }}
-                          />
-                        </div>
-                        <span className="text-xs text-gray-500 w-8">
-                          {visibilityScore}%
-                        </span>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
-      </div>
     </div>
   );
 }
