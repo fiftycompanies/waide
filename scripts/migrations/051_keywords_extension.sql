@@ -21,9 +21,19 @@ BEGIN
   END IF;
 END $$;
 
--- 새 CHECK 제약 추가
-ALTER TABLE keywords ADD CONSTRAINT keywords_status_check
-  CHECK (status IN ('active', 'paused', 'archived', 'queued', 'refresh', 'suggested'));
+-- 새 CHECK 제약 추가 (멱등: IF NOT EXISTS 패턴)
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint con
+    JOIN pg_class rel ON rel.oid = con.conrelid
+    WHERE rel.relname = 'keywords'
+      AND con.conname = 'keywords_status_check'
+  ) THEN
+    ALTER TABLE keywords ADD CONSTRAINT keywords_status_check
+      CHECK (status IN ('active', 'paused', 'archived', 'queued', 'refresh', 'suggested'));
+  END IF;
+END $$;
 
 -- 2. metadata JSONB 컬럼 추가
 ALTER TABLE keywords ADD COLUMN IF NOT EXISTS metadata JSONB;
