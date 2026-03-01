@@ -1,7 +1,7 @@
 # Waide (AI Hospitality Aide) — 서비스 IA
 
 > 최종 업데이트: 2026-03-01
-> 버전: Phase E-3-2 완료 (구글 검색 순위 추적 — Serper API 연동)
+> 버전: Phase G-1 완료 (월간 PDF 리포트 + 이메일 발송 + 어드민 설정)
 
 ---
 
@@ -18,6 +18,7 @@
    - keywords.status: 'active'/'paused'/'archived'/'queued'/'refresh'/'suggested' (051 확장)
    - keywords.priority: 'critical'/'high'/'medium'/'low'
    - accounts.platform: 'naver'/'tistory'/'brunch' (소문자)
+   - report_deliveries.status: 'pending'/'generating'/'sent'/'failed'/'skipped'
 5. contents.account_id FK → blog_accounts(id) (accounts 아님!)
 6. PL/pgSQL 변수명: v_ 접두어
 7. HTML 테이블: Link 금지 → <tr onClick> 패턴
@@ -51,6 +52,8 @@
 | 크론 | Vercel Cron |
 | 알림 | Slack Webhook API |
 | 인증 | Supabase Auth (고객 포털) + HMAC-SHA256 (어드민) — 이중 인증 |
+| PDF | @react-pdf/renderer (서버사이드 Buffer 생성, NotoSansKR 한글 폰트) |
+| 이메일 | Resend + @react-email/components (리포트 PDF 첨부 발송) |
 | 배포 | Vercel (icn1 서울, 프로덕션 배포 완료) |
 | 외부 API | 네이버 검색, 광고, DataLab, 플레이스 |
 
@@ -106,7 +109,7 @@
 | 경로 | 페이지명 | 데이터 소스 |
 |------|---------|-----------|
 | `/ops/clients` | 고객 포트폴리오 (카드뷰, 상태필터, At Risk 감지) | `clients`, `subscriptions`, `brand_analyses`, `sales_agents` |
-| `/ops/clients/[id]` | 고객 상세 (8탭: 개요/키워드/콘텐츠/분석/순위/페르소나/구독/온보딩) | `clients`, `subscriptions`, `brand_analyses`, `keywords`, `contents`, `keyword_visibility`, `daily_visibility_summary` |
+| `/ops/clients/[id]` | 고객 상세 (9탭: 개요/키워드/콘텐츠/분석/순위/페르소나/구독/온보딩/리포트) | `clients`, `subscriptions`, `brand_analyses`, `keywords`, `contents`, `keyword_visibility`, `daily_visibility_summary`, `report_deliveries` |
 | `/ops/onboarding` | 온보딩 관리 (체크리스트, 진행률) | `clients` (onboarding_checklist JSONB) |
 | `/ops/brands` | 분석된 브랜드 목록 | `brand_analyses` |
 | `/ops/brands/[id]` | 마케팅 점수 + 개선포인트 | `brand_analyses` |
@@ -255,6 +258,7 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 | `subscriptions` | /ops/products, /portal/settings | 고객 구독 (product_id FK) |
 | `scoring_criteria` | lib/scoring-engine.ts | 채점 기준 (마케팅 점수/QC 룰 기반) |
 | `agent_execution_logs` | lib/agent-runner.ts | 에이전트 실행 로그 (비용/성과 추적) |
+| `report_deliveries` | /ops/clients/[id] (리포트 탭), /api/cron/monthly-report | 월간 리포트 발송 이력 |
 | `content_benchmarks` | lib/agent-chain.ts | 콘텐츠 벤치마크 캐시 (7일 TTL) |
 
 ### 5-2. API 라우트 맵
@@ -269,6 +273,8 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 | `/api/cron/serp` | GET | 일일 SERP 수집 크론 |
 | `/api/cron/search-volume` | GET | 검색량 수집 크론 |
 | `/api/cron/grading` | GET | 계정 등급/난이도 산출 크론 |
+| `/api/cron/monthly-report` | GET/POST | 월간 리포트 자동 발송 크론 (매월 1일) |
+| `/api/portal/report-pdf` | GET | PDF 리포트 다운로드 (어드민/포털) |
 
 ### 5-3. Server Actions 맵 (lib/actions/)
 
@@ -298,6 +304,7 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 | `portal-actions.ts` | getPortalDashboard(), getPortalKeywords(), getPortalContents(), getPortalReport(), getPortalSettings(), getPortalDashboardV2(), getPortalKeywordsV2(), getPortalContentsV2(), getPortalReportV2() | brand_analyses, contents, keywords, keyword_rankings, subscriptions, sales_agents, clients, agent_execution_logs, serp_results |
 | `product-actions.ts` | getProducts(), createProduct(), updateProduct(), deleteProduct(), createSubscription(), updateSubscription(), cancelSubscription(), getClientSubscription() | products, subscriptions, clients |
 | `persona-actions.ts` | updatePersona(), addManualStrength(), removeManualStrength(), regeneratePersona(), getPersona() | clients (brand_persona JSONB) |
+| `report-actions.ts` | getMonthlyReportData(), getReportSettings(), updateReportSettings(), getReportDeliveries(), generateAndSendReport(), resendReport() | clients (metadata JSONB), report_deliveries, keywords, contents, keyword_visibility |
 
 ### 5-4. AI 인프라 (lib/)
 
@@ -315,6 +322,10 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 | `content-rewrite-loop.ts` | runRewriteLoop() — QC FAIL 시 최대 2회 재작성 + metadata.rewrite_history 기록 | contents, clients |
 | `google-serp-api.ts` | searchGoogle(), findGoogleRank() — Serper API 구글 검색 순위 조회 (SERPER_API_KEY 없으면 skip) | (외부 API) |
 | `google-serp-collector.ts` | collectGoogleSerpForKeyword(), collectGoogleSerpAll() — 구글 SERP 수집 + DB 저장 | keywords, keyword_visibility |
+| `pdf/generate-report.ts` | generateReportPdf() — 월간 리포트 PDF 생성 (@react-pdf/renderer) | (MonthlyReportData 입력) |
+| `pdf/monthly-report-template.tsx` | MonthlyReportDocument — 4페이지 PDF 템플릿 (KPI, 콘텐츠, 순위, 계획) | - |
+| `email/send-report.ts` | sendReportEmail() — Resend API로 리포트 이메일 발송 (PDF 첨부) | (외부 API) |
+| `email/monthly-report-email.tsx` | MonthlyReportEmail — React Email 리포트 이메일 템플릿 | - |
 
 ---
 
@@ -376,6 +387,7 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 | Claude API (Haiku 4.5) | 콘텐츠 생성 + 이미지 분석 + 대표사진 진단 | ~40원/콘텐츠, ~100원/이미지분석 |
 | Serper API (`google.serper.dev/search`) | 구글 검색 순위 조회 | 월 2,500건 무료 |
 | Slack API (Webhook) | 알림 발송 | 무료 |
+| Resend API | 리포트 이메일 발송 (PDF 첨부) | 월 100건 무료 |
 
 ---
 
@@ -519,6 +531,26 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
   - 환경변수: SERPER_API_KEY (Serper.dev API 키)
   - SERP 추적 현황: 네이버 ✅ / 구글 ✅ / GSC 예정 / AEO 예정
   - TypeScript 빌드 검증: tsc --noEmit 0 에러
+- Phase G-1: 월간 PDF 리포트 + 이메일 발송 + 어드민 설정 (2026-03-01)
+  - scripts/migrations/054_report_deliveries.sql: clients.metadata JSONB + report_deliveries 테이블
+  - lib/pdf/monthly-report-template.tsx: 4페이지 PDF 템플릿 (@react-pdf/renderer, NotoSansKR 한글 폰트)
+  - lib/pdf/generate-report.ts: generateReportPdf() — PDF Buffer 생성
+  - lib/email/monthly-report-email.tsx: React Email 리포트 이메일 템플릿 (Resend 발송용)
+  - lib/email/send-report.ts: sendReportEmail() — Resend API 이메일 발송 (PDF 첨부, RESEND_API_KEY 없으면 graceful skip)
+  - lib/actions/report-actions.ts: 리포트 전체 로직 (데이터 수집, 설정 CRUD, 발송 이력, 생성+발송)
+  - 어드민 클라이언트 상세 (/ops/clients/[id]): "리포트" 탭 추가 (9탭)
+    - 리포트 설정: ON/OFF 토글 + 수신 이메일 입력 + 저장
+    - 수동 발송: [PDF 미리보기] + [리포트 생성 + 발송] 버튼
+    - 발송 이력: report_deliveries 테이블 조회 (월, 발송일, 상태, 재발송 버튼)
+  - clients.metadata.report_settings: { enabled: boolean, recipient_email: string | null } (기본 OFF)
+  - app/api/cron/monthly-report/route.ts: 월간 리포트 자동 발송 크론 (매월 1일, 최대 10건/배치)
+  - vercel.json: monthly-report 크론 추가 (0 0 1 * *)
+  - app/api/portal/report-pdf/route.ts: PDF 다운로드 API (어드민 clientId 또는 포털 Supabase Auth)
+  - 포털 월간 리포트: [PDF 다운로드] 버튼 추가
+  - 패키지: @react-pdf/renderer, resend, @react-email/components
+  - 한글 폰트: public/fonts/NotoSansKR-Regular.ttf, NotoSansKR-Bold.ttf
+  - 환경변수: RESEND_API_KEY, CRON_SECRET, REPORT_FROM_EMAIL (모두 optional, 없으면 graceful skip)
+  - TypeScript 빌드 검증: tsc --noEmit 0 에러
 
 ### 설계 원칙
 
@@ -558,7 +590,7 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 | 19 | COPYWRITER | content_rewrite | QC 피드백 반영 재작성 | agent-runner.ts |
 | 20 | QC | qc_review_v2 | 상세 검수 9항목 100점 + AEO + 자연스러움 | agent-runner.ts |
 
-### 다음 작업: Phase F (AI 고도화)
+### 완료된 Phase 목록
 
 | 순서 | Phase | 핵심 내용 | 상태 |
 |------|-------|----------|------|
@@ -566,6 +598,7 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 | 2 | **F-2** | 분석 고도화 — 경쟁사 분석 + 페르소나 + SEO 코멘트 + 개선포인트 | ✅ 완료 |
 | 3 | **F-3** | 키워드 고도화 — 니치 키워드 확장 + 공략 전략 + 키워드 UI 개편 | ✅ 완료 |
 | 4 | **F-4** | 콘텐츠 품질 고도화 — 벤치마킹 + 작성 v2 + QC v2 + 재작성 루프 | ✅ 완료 |
+| 5 | **G-1** | 월간 PDF 리포트 + 이메일 발송 + 어드민 설정 | ✅ 완료 |
 
 ### 미구현 (우선순위 순)
 
@@ -590,7 +623,7 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 - **Vercel 배포 URL**: https://web-five-gold-12.vercel.app (프로덕션)
 - **Vercel 프로젝트**: fiftycompanies-projects/web, 리전: icn1 (서울)
 - agents/.env: NSERP_EC2_URL, NSERP_EC2_SECRET, SUPABASE_URL/KEY, ANTHROPIC_API_KEY, SLACK_BOT_TOKEN, TAVILY_API_KEY
-- apps/web/.env.local: SUPABASE URLs, NAVER_AD_API_KEY/SECRET_KEY/CUSTOMER_ID, ANTHROPIC_API_KEY, SERPER_API_KEY
+- apps/web/.env.local: SUPABASE URLs, NAVER_AD_API_KEY/SECRET_KEY/CUSTOMER_ID, ANTHROPIC_API_KEY, SERPER_API_KEY, RESEND_API_KEY, CRON_SECRET, REPORT_FROM_EMAIL
 - 배포 가이드: `apps/web/DEPLOY.md` (환경변수 전체 목록 + 배포 절차)
 - 현재 실데이터: 키워드 174개, 콘텐츠 174건, 블로그 계정 4개, SERP 레코드 417건
 
@@ -619,8 +652,10 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 | 051 | keywords 확장 (status CHECK에 'suggested' 추가, metadata JSONB, source TEXT) | **SQL 생성 완료** (★ pg_constraint 수정) |
 | 052 | contents.metadata JSONB 컬럼 추가 (QC v2 결과, 재작성 이력 저장) | **SQL 생성 완료** |
 | INT-1 | 045~052 통합 멱등 마이그레이션 (run_all_f1_f4.sql) | **SQL 생성 완료** |
+| 053 | keyword_visibility에 rank_google, visibility_score_google 컬럼 추가 | **SQL 생성 완료** |
+| 054 | clients.metadata JSONB + report_deliveries 테이블 (월간 리포트 발송 이력) | **SQL 생성 완료** |
 
-> ⚠️ 045~052: scripts/migrations/ 디렉토리에 SQL 파일 생성. Supabase Dashboard에서 `run_all_f1_f4.sql` 실행 권장.
+> ⚠️ 045~054: scripts/migrations/ 디렉토리에 SQL 파일 생성. Supabase Dashboard에서 실행 필요.
 
 ---
 

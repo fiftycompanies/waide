@@ -4,6 +4,7 @@ import { useEffect, useState, useMemo } from "react";
 import {
   BarChart2,
   Calendar,
+  Download,
   FileText,
   Key,
   Loader2,
@@ -151,8 +152,19 @@ export default function PortalReportsPage() {
           <h1 className="text-2xl font-bold text-gray-900">월간 리포트</h1>
           <p className="text-sm text-gray-500 mt-1">마케팅 성과를 확인하세요</p>
         </div>
-        {/* Month selector */}
-        <select
+        <div className="flex items-center gap-2">
+          {/* PDF Download */}
+          <button
+            onClick={() => {
+              window.open(`/api/portal/report-pdf?month=${selectedYear}-${String(selectedMonth).padStart(2, "0")}`, "_blank");
+            }}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+          >
+            <Download className="h-4 w-4" />
+            <span className="hidden sm:inline">PDF 다운로드</span>
+          </button>
+          {/* Month selector */}
+          <select
           value={`${selectedYear}-${selectedMonth}`}
           onChange={handleMonthChange}
           className="px-3 py-2 rounded-lg border border-gray-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
@@ -163,6 +175,7 @@ export default function PortalReportsPage() {
             </option>
           ))}
         </select>
+        </div>
       </div>
 
       {/* Section 1: Monthly Summary Cards */}

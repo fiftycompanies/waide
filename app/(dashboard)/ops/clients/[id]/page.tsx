@@ -10,14 +10,18 @@ import {
   Calendar,
   CheckSquare,
   CreditCard,
+  Download,
   Edit3,
+  FileBarChart,
   FileText,
   Key,
   Loader2,
+  Mail,
   Minus,
   Plus,
   RefreshCw,
   Save,
+  Send,
   Sparkles,
   TrendingDown,
   TrendingUp,
@@ -43,6 +47,15 @@ import {
   triggerClientSerpCheck,
   type ClientRankingSummary,
 } from "@/lib/actions/keyword-actions";
+import {
+  getReportSettings,
+  updateReportSettings,
+  getReportDeliveries,
+  generateAndSendReport,
+  resendReport,
+  type ReportSettings,
+  type ReportDelivery,
+} from "@/lib/actions/report-actions";
 
 // ── Tab button ─────────────────────────────────────────────────────────────
 
@@ -813,9 +826,234 @@ function RankingsTab({ clientId }: { clientId: string }) {
   );
 }
 
+// ── Report Tab ──────────────────────────────────────────────────────────
+
+function ReportTab({ clientId }: { clientId: string }) {
+  const [settings, setSettings] = useState<ReportSettings>({ enabled: false, recipient_email: null });
+  const [deliveries, setDeliveries] = useState<ReportDelivery[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, startSave] = useTransition();
+  const [sending, setSending] = useState(false);
+  const [resending, setResending] = useState<string | null>(null);
+  const [emailInput, setEmailInput] = useState("");
+
+  useEffect(() => {
+    Promise.all([
+      getReportSettings(clientId),
+      getReportDeliveries(clientId),
+    ]).then(([s, d]) => {
+      setSettings(s);
+      setEmailInput(s.recipient_email || "");
+      setDeliveries(d);
+      setLoading(false);
+    });
+  }, [clientId]);
+
+  const handleSaveSettings = () => {
+    startSave(async () => {
+      const result = await updateReportSettings(clientId, {
+        enabled: settings.enabled,
+        recipient_email: emailInput.trim() || null,
+      });
+      if (result.success) {
+        setSettings({ enabled: settings.enabled, recipient_email: emailInput.trim() || null });
+        toast.success("리포트 설정이 저장되었습니다.");
+      } else {
+        toast.error(result.error || "저장 실패");
+      }
+    });
+  };
+
+  const handleGenerateAndSend = async () => {
+    setSending(true);
+    const now = new Date();
+    const result = await generateAndSendReport(clientId, now.getFullYear(), now.getMonth() + 1);
+    if (result.success) {
+      toast.success(result.status === "sent" ? "리포트가 이메일로 발송되었습니다." : "PDF가 생성되었습니다. (이메일 미설정)");
+      const d = await getReportDeliveries(clientId);
+      setDeliveries(d);
+    } else {
+      toast.error(result.error || "리포트 생성 실패");
+    }
+    setSending(false);
+  };
+
+  const handlePreview = () => {
+    window.open(`/api/portal/report-pdf?clientId=${clientId}`, "_blank");
+  };
+
+  const handleResend = async (deliveryId: string) => {
+    setResending(deliveryId);
+    const result = await resendReport(deliveryId);
+    if (result.success) {
+      toast.success("리포트가 재발송되었습니다.");
+      const d = await getReportDeliveries(clientId);
+      setDeliveries(d);
+    } else {
+      toast.error(result.error || "재발송 실패");
+    }
+    setResending(null);
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  const statusBadge = (status: string) => {
+    const map: Record<string, { label: string; cls: string }> = {
+      sent: { label: "발송완료", cls: "bg-emerald-100 text-emerald-700" },
+      failed: { label: "실패", cls: "bg-red-100 text-red-700" },
+      skipped: { label: "스킵", cls: "bg-gray-100 text-gray-600" },
+      pending: { label: "대기", cls: "bg-amber-100 text-amber-700" },
+      generating: { label: "생성중", cls: "bg-blue-100 text-blue-700" },
+    };
+    const b = map[status] || { label: status, cls: "bg-gray-100 text-gray-600" };
+    return <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${b.cls}`}>{b.label}</span>;
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* 설정 영역 */}
+      <div className="border rounded-lg p-4 space-y-4">
+        <h3 className="font-semibold text-sm">리포트 설정</h3>
+
+        {/* 토글 */}
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium">월간 리포트 자동 발송</p>
+            <p className="text-xs text-muted-foreground">매월 1일 자동으로 리포트를 생성하여 이메일로 발송합니다</p>
+          </div>
+          <button
+            onClick={() => setSettings((s) => ({ ...s, enabled: !s.enabled }))}
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+              settings.enabled ? "bg-emerald-500" : "bg-gray-200"
+            }`}
+          >
+            <span
+              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                settings.enabled ? "translate-x-6" : "translate-x-1"
+              }`}
+            />
+          </button>
+        </div>
+
+        {/* 이메일 */}
+        <div>
+          <label className="text-xs text-muted-foreground">수신 이메일</label>
+          <input
+            type="email"
+            value={emailInput}
+            onChange={(e) => setEmailInput(e.target.value)}
+            placeholder="report@example.com"
+            className="w-full mt-1 px-3 py-2 border rounded-lg text-sm bg-background"
+          />
+        </div>
+
+        <button
+          onClick={handleSaveSettings}
+          disabled={saving}
+          className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50"
+        >
+          {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+          저장
+        </button>
+      </div>
+
+      {/* 수동 발송 영역 */}
+      <div className="border rounded-lg p-4 space-y-3">
+        <h3 className="font-semibold text-sm">수동 리포트</h3>
+        <p className="text-xs text-muted-foreground">리포트 ON/OFF와 관계없이 수동으로 리포트를 생성하고 발송할 수 있습니다.</p>
+        <div className="flex gap-2">
+          <button
+            onClick={handlePreview}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-lg border text-sm font-medium hover:bg-muted"
+          >
+            <Download className="h-3.5 w-3.5" />
+            PDF 미리보기
+          </button>
+          <button
+            onClick={handleGenerateAndSend}
+            disabled={sending}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50"
+          >
+            {sending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+            {sending ? "생성 중..." : "리포트 생성 + 발송"}
+          </button>
+        </div>
+      </div>
+
+      {/* 발송 이력 */}
+      <div className="border rounded-lg p-4">
+        <h3 className="font-semibold text-sm mb-3">발송 이력</h3>
+        {deliveries.length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground">
+            <Mail className="h-8 w-8 mx-auto mb-2 opacity-40" />
+            <p className="text-sm">발송 이력이 없습니다</p>
+          </div>
+        ) : (
+          <div className="border rounded-lg overflow-hidden">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/50 border-b">
+                <tr>
+                  <th className="text-left py-2.5 px-3 font-medium text-muted-foreground">리포트 월</th>
+                  <th className="text-left py-2.5 px-3 font-medium text-muted-foreground hidden md:table-cell">발송일</th>
+                  <th className="text-left py-2.5 px-3 font-medium text-muted-foreground hidden lg:table-cell">수신 이메일</th>
+                  <th className="text-center py-2.5 px-3 font-medium text-muted-foreground">상태</th>
+                  <th className="text-center py-2.5 px-3 font-medium text-muted-foreground">작업</th>
+                </tr>
+              </thead>
+              <tbody>
+                {deliveries.map((d) => (
+                  <tr key={d.id} className="border-b last:border-0 hover:bg-muted/30">
+                    <td className="py-2.5 px-3 font-medium">
+                      {new Date(d.report_month).toLocaleDateString("ko-KR", { year: "numeric", month: "long" })}
+                    </td>
+                    <td className="py-2.5 px-3 text-xs text-muted-foreground hidden md:table-cell">
+                      {d.email_sent_at ? new Date(d.email_sent_at).toLocaleDateString("ko-KR") : "-"}
+                    </td>
+                    <td className="py-2.5 px-3 text-xs text-muted-foreground hidden lg:table-cell">
+                      {d.email_to || "-"}
+                    </td>
+                    <td className="py-2.5 px-3 text-center">{statusBadge(d.status)}</td>
+                    <td className="py-2.5 px-3 text-center">
+                      {d.status === "failed" && (
+                        <button
+                          onClick={() => handleResend(d.id)}
+                          disabled={resending === d.id}
+                          className="inline-flex items-center gap-1 px-2 py-1 rounded border text-xs font-medium hover:bg-muted disabled:opacity-50"
+                        >
+                          {resending === d.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+                          재발송
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        {deliveries.some((d) => d.error_message) && (
+          <div className="mt-3 space-y-1">
+            {deliveries.filter((d) => d.error_message).map((d) => (
+              <p key={d.id} className="text-xs text-red-500">
+                {new Date(d.report_month).toLocaleDateString("ko-KR", { year: "numeric", month: "long" })}: {d.error_message}
+              </p>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Main Page ──────────────────────────────────────────────────────────────
 
-type TabKey = "overview" | "keywords" | "contents" | "analyses" | "persona" | "subscription" | "onboarding" | "rankings";
+type TabKey = "overview" | "keywords" | "contents" | "analyses" | "persona" | "subscription" | "onboarding" | "rankings" | "reports";
 
 export default function ClientDetailPage() {
   const params = useParams();
@@ -866,6 +1104,7 @@ export default function ClientDetailPage() {
     { key: "persona", label: "페르소나", icon: Sparkles },
     { key: "subscription", label: "구독/결제", icon: CreditCard },
     { key: "onboarding", label: "온보딩", icon: CheckSquare },
+    { key: "reports", label: "리포트", icon: FileBarChart },
   ];
 
   return (
@@ -948,6 +1187,7 @@ export default function ClientDetailPage() {
       {activeTab === "persona" && <PersonaTab client={client} onRefresh={refreshClient} />}
       {activeTab === "subscription" && <SubscriptionTab client={client} />}
       {activeTab === "onboarding" && <OnboardingTab client={client} />}
+      {activeTab === "reports" && <ReportTab clientId={client.id} />}
     </div>
   );
 }
