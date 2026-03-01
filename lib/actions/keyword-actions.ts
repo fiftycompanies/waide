@@ -26,6 +26,10 @@ export interface Keyword {
   status: string;
   client_id: string | null;
   client_name?: string | null;   // 전체 보기 모드: 소속 브랜드명
+  // F-3: 니치 키워드 확장
+  source?: string | null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  metadata?: any;
   created_at: string;
 }
 
@@ -36,7 +40,7 @@ export async function getKeywords(clientId: string | null): Promise<Keyword[]> {
   let query = (db as any)
     .from("keywords")
     .select(
-      "id, keyword, sub_keyword, platform, monthly_search_total, monthly_search_pc, monthly_search_mo, competition_level, competition_index, priority_score, current_rank_naver, current_rank_google, current_rank_naver_pc, current_rank_naver_mo, rank_change_pc, rank_change_mo, last_tracked_at, status, client_id, created_at, clients(name)"
+      "id, keyword, sub_keyword, platform, monthly_search_total, monthly_search_pc, monthly_search_mo, competition_level, competition_index, priority_score, current_rank_naver, current_rank_google, current_rank_naver_pc, current_rank_naver_mo, rank_change_pc, rank_change_mo, last_tracked_at, status, client_id, source, metadata, created_at, clients(name)"
     )
     .neq("status", "archived")
     .order("priority_score", { ascending: false, nullsFirst: false });
@@ -99,7 +103,7 @@ export async function createKeyword(payload: {
 
 export async function updateKeywordStatus(
   id: string,
-  status: "active" | "paused" | "archived" | "queued" | "refresh"
+  status: "active" | "paused" | "archived" | "queued" | "refresh" | "suggested"
 ): Promise<{ success: boolean; error?: string }> {
   const db = createAdminClient();
   const { error } = await db
@@ -351,6 +355,126 @@ export async function triggerAllSerpCheck(): Promise<{
   } catch (err) {
     return { success: false, error: err instanceof Error ? err.message : "알 수 없는 오류" };
   }
+}
+
+export async function triggerClientSerpCheck(clientId: string): Promise<{
+  success: boolean;
+  count?: number;
+  exposed?: number;
+  top3?: number;
+  top10?: number;
+  googleExposed?: number;
+  error?: string;
+}> {
+  try {
+    const { collectSerpAll } = await import("@/lib/serp-collector");
+    const { collectGoogleSerpAll } = await import("@/lib/google-serp-collector");
+
+    // 네이버 + 구글 병렬 수집 (한쪽 실패해도 다른 쪽 진행)
+    const [naverResult, googleResult] = await Promise.allSettled([
+      collectSerpAll(clientId),
+      collectGoogleSerpAll(clientId),
+    ]);
+
+    const naverSummary = naverResult.status === "fulfilled" ? naverResult.value : null;
+    const googleSummary = googleResult.status === "fulfilled" ? googleResult.value : null;
+
+    if (naverResult.status === "rejected") {
+      console.warn("[triggerClientSerpCheck] 네이버 수집 실패:", naverResult.reason);
+    }
+    if (googleResult.status === "rejected") {
+      console.warn("[triggerClientSerpCheck] 구글 수집 실패:", googleResult.reason);
+    }
+
+    revalidatePath(`/ops/clients/${clientId}`);
+    return {
+      success: true,
+      count: naverSummary?.total ?? 0,
+      exposed: naverSummary?.exposed ?? 0,
+      top3: naverSummary?.top3 ?? 0,
+      top10: naverSummary?.top10 ?? 0,
+      googleExposed: googleSummary?.exposed ?? 0,
+    };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : "알 수 없는 오류" };
+  }
+}
+
+export interface ClientRanking {
+  keyword_id: string;
+  keyword: string;
+  rank_pc: number | null;
+  rank_mo: number | null;
+  rank_google: number | null;
+  search_volume: number;
+  is_exposed: boolean;
+  last_tracked_at: string | null;
+}
+
+export interface ClientRankingSummary {
+  total_keywords: number;
+  exposed_keywords: number;
+  exposure_rate: number;
+  top3_count: number;
+  top10_count: number;
+  avg_rank: number | null;
+  weighted_visibility: number;
+  last_collected_at: string | null;
+  rankings: ClientRanking[];
+}
+
+export async function getClientRankings(clientId: string): Promise<ClientRankingSummary> {
+  const db = createAdminClient();
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [kwRes, summaryRes] = await Promise.all([
+    (db as any).from("keywords")
+      .select("id, keyword, current_rank_naver_pc, current_rank_naver_mo, current_rank_google, last_tracked_at, monthly_search_pc")
+      .eq("client_id", clientId)
+      .neq("status", "archived")
+      .order("current_rank_naver_pc", { ascending: true, nullsFirst: false }),
+    db.from("daily_visibility_summary")
+      .select("*")
+      .eq("client_id", clientId)
+      .order("measured_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ]);
+
+  const keywords = kwRes.data || [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const summary = summaryRes.data as any;
+
+  const rankings: ClientRanking[] = (keywords as {
+    id: string;
+    keyword: string;
+    current_rank_naver_pc: number | null;
+    current_rank_naver_mo: number | null;
+    current_rank_google: number | null;
+    last_tracked_at: string | null;
+    monthly_search_pc: number | null;
+  }[]).map((kw) => ({
+    keyword_id: kw.id,
+    keyword: kw.keyword,
+    rank_pc: kw.current_rank_naver_pc,
+    rank_mo: kw.current_rank_naver_mo,
+    rank_google: kw.current_rank_google,
+    search_volume: kw.monthly_search_pc || 0,
+    is_exposed: kw.current_rank_naver_pc != null,
+    last_tracked_at: kw.last_tracked_at,
+  }));
+
+  return {
+    total_keywords: summary?.total_keywords ?? keywords.length,
+    exposed_keywords: summary?.exposed_keywords ?? rankings.filter((r: ClientRanking) => r.is_exposed).length,
+    exposure_rate: summary?.exposure_rate ?? 0,
+    top3_count: summary?.top3_count ?? 0,
+    top10_count: summary?.top10_count ?? 0,
+    avg_rank: summary?.avg_rank_pc ?? null,
+    weighted_visibility: summary?.weighted_visibility_pc ?? 0,
+    last_collected_at: summary?.measured_at ?? null,
+    rankings,
+  };
 }
 
 export async function getAccountPerfByKeyword(keywordId: string): Promise<AccountPerf[]> {

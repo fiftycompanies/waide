@@ -1,7 +1,7 @@
 # Waide (AI Hospitality Aide) — 서비스 IA
 
-> 최종 업데이트: 2026-02-27
-> 버전: Phase E-2 완료 + Vercel 배포 + 인증 버그픽스
+> 최종 업데이트: 2026-03-01
+> 버전: Phase G-1 완료 (월간 PDF 리포트 + 이메일 발송 + 어드민 설정)
 
 ---
 
@@ -15,8 +15,10 @@
    - jobs.trigger_type: 'USER'/'SCHEDULER'/'AGENT' (대문자)
    - contents.publish_status: 'draft'/'review'/'approved'/'published'/'rejected'
    - clients.client_type: 'company'/'sub_client'
+   - keywords.status: 'active'/'paused'/'archived'/'queued'/'refresh'/'suggested' (051 확장)
    - keywords.priority: 'critical'/'high'/'medium'/'low'
    - accounts.platform: 'naver'/'tistory'/'brunch' (소문자)
+   - report_deliveries.status: 'pending'/'generating'/'sent'/'failed'/'skipped'
 5. contents.account_id FK → blog_accounts(id) (accounts 아님!)
 6. PL/pgSQL 변수명: v_ 접두어
 7. HTML 테이블: Link 금지 → <tr onClick> 패턴
@@ -50,6 +52,8 @@
 | 크론 | Vercel Cron |
 | 알림 | Slack Webhook API |
 | 인증 | Supabase Auth (고객 포털) + HMAC-SHA256 (어드민) — 이중 인증 |
+| PDF | @react-pdf/renderer (서버사이드 Buffer 생성, NotoSansKR 한글 폰트) |
+| 이메일 | Resend + @react-email/components (리포트 PDF 첨부 발송) |
 | 배포 | Vercel (icn1 서울, 프로덕션 배포 완료) |
 | 외부 API | 네이버 검색, 광고, DataLab, 플레이스 |
 
@@ -83,11 +87,14 @@
 
 | 경로 | 페이지명 | 데이터 소스 |
 |------|---------|-----------|
-| `/portal` | 포털 대시보드 | `brand_analyses`, `contents`, `subscriptions`, `sales_agents` |
-| `/portal/keywords` | 키워드 순위 | `keyword_rankings`, `keyword_visibility` |
-| `/portal/contents` | 콘텐츠 목록 | `contents` |
-| `/portal/reports` | 리포트 (점수 추이) | `brand_analyses`, `contents` |
+| `/portal` | 포털 대시보드 (KPI 4종 + 브랜드 요약 + 최근 활동 타임라인) | `keywords`, `contents`, `brand_analyses`, `clients` (brand_persona), `sales_agents` |
+| `/portal/keywords` | 키워드 관리 (활성/AI추천/보관 탭 + 승인/거절) | `keywords`, `brand_analyses` (keyword_strategy) |
+| `/portal/contents` | 콘텐츠 현황 (필터 + 상세보기 + QC 결과) | `contents` (metadata: qc_result, rewrite_history) |
+| `/portal/reports` | 월간 리포트 (발행추이 차트 + 키워드성장 차트 + 순위현황 + AI활동) | `contents`, `keywords`, `agent_execution_logs`, `serp_results`, `brand_analyses` |
 | `/portal/settings` | 설정 (프로필, 비밀번호, 구독) | `users`, `subscriptions`, `sales_agents` |
+
+> 포털 키워드 승인/거절: `approveSuggestedKeyword()`, `rejectSuggestedKeyword()` — keyword-expansion-actions.ts
+> 포털 순위 섹션: keyword_visibility 테이블 사용 (E-3-1에서 수정, serp_results는 client_id 없어 사용 불가) — SERP 크론 실행 시 자동 표시
 
 ### 3-3. 어드민 (Admin) — 라이트 테마
 
@@ -102,7 +109,7 @@
 | 경로 | 페이지명 | 데이터 소스 |
 |------|---------|-----------|
 | `/ops/clients` | 고객 포트폴리오 (카드뷰, 상태필터, At Risk 감지) | `clients`, `subscriptions`, `brand_analyses`, `sales_agents` |
-| `/ops/clients/[id]` | 고객 상세 (6탭: 개요/키워드/콘텐츠/분석/구독/온보딩) | `clients`, `subscriptions`, `brand_analyses`, `keywords`, `contents` |
+| `/ops/clients/[id]` | 고객 상세 (9탭: 개요/키워드/콘텐츠/분석/순위/페르소나/구독/온보딩/리포트) | `clients`, `subscriptions`, `brand_analyses`, `keywords`, `contents`, `keyword_visibility`, `daily_visibility_summary`, `report_deliveries` |
 | `/ops/onboarding` | 온보딩 관리 (체크리스트, 진행률) | `clients` (onboarding_checklist JSONB) |
 | `/ops/brands` | 분석된 브랜드 목록 | `brand_analyses` |
 | `/ops/brands/[id]` | 마케팅 점수 + 개선포인트 | `brand_analyses` |
@@ -226,7 +233,7 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 | 테이블 | 사용 페이지 | 주요 용도 |
 |--------|-----------|----------|
 | `clients` | /ops/clients, /ops/dashboard | 하위업체(고객) 관리 |
-| `keywords` | /ops/keywords, /ops/analytics, /ops/recommendations | 키워드 + 검색량 |
+| `keywords` | /ops/keywords, /keywords, /ops/analytics, /ops/recommendations | 키워드 + 검색량 + AI 추천(suggested) + 메타데이터 |
 | `serp_results` | /ops/keywords/[id], /ops/analytics | SERP 순위 (일별) |
 | `keyword_visibility` | /ops/keywords/[id], /ops/analytics | 키워드별 visibility 점수 |
 | `daily_visibility_summary` | /ops/dashboard, /ops/analytics | 일별 집계 (노출률, 점유율) |
@@ -249,6 +256,10 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 | `invitations` | /invite/[token], /signup | 초대 토큰 (7일 만료) |
 | `products` | /ops/products | 서비스 패키지 (상품) |
 | `subscriptions` | /ops/products, /portal/settings | 고객 구독 (product_id FK) |
+| `scoring_criteria` | lib/scoring-engine.ts | 채점 기준 (마케팅 점수/QC 룰 기반) |
+| `agent_execution_logs` | lib/agent-runner.ts | 에이전트 실행 로그 (비용/성과 추적) |
+| `report_deliveries` | /ops/clients/[id] (리포트 탭), /api/cron/monthly-report | 월간 리포트 발송 이력 |
+| `content_benchmarks` | lib/agent-chain.ts | 콘텐츠 벤치마크 캐시 (7일 TTL) |
 
 ### 5-2. API 라우트 맵
 
@@ -262,6 +273,8 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 | `/api/cron/serp` | GET | 일일 SERP 수집 크론 |
 | `/api/cron/search-volume` | GET | 검색량 수집 크론 |
 | `/api/cron/grading` | GET | 계정 등급/난이도 산출 크론 |
+| `/api/cron/monthly-report` | GET/POST | 월간 리포트 자동 발송 크론 (매월 1일) |
+| `/api/portal/report-pdf` | GET | PDF 리포트 다운로드 (어드민/포털) |
 
 ### 5-3. Server Actions 맵 (lib/actions/)
 
@@ -280,13 +293,39 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 | `url-crawl-action.ts` | crawlUrl() | (외부 fetch) |
 | `blog-account-actions.ts` | getAccounts() | blog_accounts |
 | `campaign-actions.ts` | getCampaigns() | campaigns, campaign_keywords |
-| `keyword-actions.ts` | getKeywords(), getSerpByKeyword() | keywords, serp_results |
+| `keyword-actions.ts` | getKeywords(), getSerpByKeyword(), updateKeywordStatus(), triggerClientSerpCheck(), getClientRankings() | keywords, serp_results, keyword_visibility, daily_visibility_summary |
+| `keyword-expansion-actions.ts` | expandNicheKeywords(), getClientMainKeywords(), approveSuggestedKeyword(), rejectSuggestedKeyword(), bulkApproveSuggestedKeywords() | keywords |
+| `keyword-strategy-actions.ts` | generateKeywordStrategy(), getKeywordStrategy() | keywords, brand_analyses, clients |
+| `content-generate-actions.ts` | generateContentV2(), processContentJobs() | contents, jobs, clients, content_sources, content_benchmarks |
 | `analysis-log-actions.ts` | getAnalysisLogs(), getAnalysisLogDetail(), updateLeadStatus(), addAnalysisNote(), updateAnalysisContact(), linkAnalysisToClient(), getAnalysisStats(), assignSalesAgent(), assignToClient(), getClientsList() | brand_analyses, sales_agents, clients, consultation_requests |
 | `settings-actions.ts` | getSettings(), getScoringWeights(), getAnalysisOptions() | settings |
 | `admin-actions.ts` | getAdmin() | admins |
 | `auth-actions.ts` | portalSignIn(), portalSignUp(), portalSignOut(), inviteUser(), getClientUsers(), updateUserProfile(), changeUserPassword() | users, invitations (Supabase Auth) |
-| `portal-actions.ts` | getPortalDashboard(), getPortalKeywords(), getPortalContents(), getPortalReport(), getPortalSettings() | brand_analyses, contents, keyword_rankings, subscriptions, sales_agents |
+| `portal-actions.ts` | getPortalDashboard(), getPortalKeywords(), getPortalContents(), getPortalReport(), getPortalSettings(), getPortalDashboardV2(), getPortalKeywordsV2(), getPortalContentsV2(), getPortalReportV2() | brand_analyses, contents, keywords, keyword_rankings, subscriptions, sales_agents, clients, agent_execution_logs, serp_results |
 | `product-actions.ts` | getProducts(), createProduct(), updateProduct(), deleteProduct(), createSubscription(), updateSubscription(), cancelSubscription(), getClientSubscription() | products, subscriptions, clients |
+| `persona-actions.ts` | updatePersona(), addManualStrength(), removeManualStrength(), regeneratePersona(), getPersona() | clients (brand_persona JSONB) |
+| `report-actions.ts` | getMonthlyReportData(), getReportSettings(), updateReportSettings(), getReportDeliveries(), generateAndSendReport(), resendReport() | clients (metadata JSONB), report_deliveries, keywords, contents, keyword_visibility |
+
+### 5-4. AI 인프라 (lib/)
+
+| 파일 | 주요 함수/역할 | 의존 테이블 |
+|------|-------------|-----------|
+| `agent-runner.ts` | runAgent() — 에이전트 공통 실행 엔진 (프롬프트 로딩 → 템플릿 치환 → Claude API → 로그 저장) | agent_prompts, agent_execution_logs |
+| `agent-chain.ts` | runAgentChain() — 에이전트 체이닝 헬퍼 (이전 결과 → 다음 context 주입) | agent_execution_logs |
+| `scoring-engine.ts` | loadCriteria(), scoreItem(), calculateMarketingScoreFromCriteria() — 채점 기준 테이블 기반 점수 산출 | scoring_criteria |
+| `competitor-collector.ts` | collectCompetitors() — 네이버 로컬 검색 API 경쟁사 TOP5 수집 | (외부 API) |
+| `analysis-agent-chain.ts` | runAnalysisAgentChain() — 분석 후 4단계 에이전트 체인 (경쟁사→페르소나→SEO코멘트→개선플랜) | brand_analyses, clients |
+| `naver-suggest-collector.ts` | collectNaverSuggestions(), extractPlaceFeatureKeywords() — 네이버 자동완성/연관검색어 수집 + 매장 특성 키워드 추출 | (외부 API) |
+| `content-benchmark.ts` | getBenchmark(), generateBenchmark() — 상위노출 글 TOP5 수집 + RND 벤치마킹 + 7일 캐시 | content_benchmarks, (외부 API) |
+| `content-pipeline-v2.ts` | createContentV2() — 벤치마크+페르소나+중복회피+AEO 기반 콘텐츠 생성 | clients, contents, content_sources, brand_analyses |
+| `content-qc-v2.ts` | runQcV2() — 8항목 100점 검수 (AEO 15점 포함) + 벤치마크 비교 + metadata 저장 | contents, clients, content_benchmarks |
+| `content-rewrite-loop.ts` | runRewriteLoop() — QC FAIL 시 최대 2회 재작성 + metadata.rewrite_history 기록 | contents, clients |
+| `google-serp-api.ts` | searchGoogle(), findGoogleRank() — Serper API 구글 검색 순위 조회 (SERPER_API_KEY 없으면 skip) | (외부 API) |
+| `google-serp-collector.ts` | collectGoogleSerpForKeyword(), collectGoogleSerpAll() — 구글 SERP 수집 + DB 저장 | keywords, keyword_visibility |
+| `pdf/generate-report.ts` | generateReportPdf() — 월간 리포트 PDF 생성 (@react-pdf/renderer) | (MonthlyReportData 입력) |
+| `pdf/monthly-report-template.tsx` | MonthlyReportDocument — 4페이지 PDF 템플릿 (KPI, 콘텐츠, 순위, 계획) | - |
+| `email/send-report.ts` | sendReportEmail() — Resend API로 리포트 이메일 발송 (PDF 첨부) | (외부 API) |
+| `email/monthly-report-email.tsx` | MonthlyReportEmail — React Email 리포트 이메일 템플릿 | - |
 
 ---
 
@@ -346,7 +385,9 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 | 네이버 플레이스 GraphQL API (`pcmap-api.place.naver.com/graphql`) | 매장 정보 + 리뷰 수집 | 무료 |
 | 네이버 로컬 검색 API (`/v1/search/local`) | 키워드 순위 체크 (50위) | 무료 (25,000/일) |
 | Claude API (Haiku 4.5) | 콘텐츠 생성 + 이미지 분석 + 대표사진 진단 | ~40원/콘텐츠, ~100원/이미지분석 |
+| Serper API (`google.serper.dev/search`) | 구글 검색 순위 조회 | 월 2,500건 무료 |
 | Slack API (Webhook) | 알림 발송 | 무료 |
+| Resend API | 리포트 이메일 발송 (PDF 첨부) | 월 100건 무료 |
 
 ---
 
@@ -389,7 +430,7 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 - Phase E-2: B2B 대시보드 개편 + 고객 포트폴리오 + 매출/이탈/온보딩
   - 대시보드 B2B KPI 섹션 (MRR, Active 고객수, 이탈률, 평균 마케팅점수, 상태 분포, 월간 목표, At Risk 알림, 영업 성과)
   - 고객 포트폴리오 카드뷰 (/ops/clients) — 상태필터(Active/Onboarding/At Risk/Churned), 검색, 정렬
-  - 고객 상세 6탭 (/ops/clients/[id]) — 개요/키워드/콘텐츠/분석이력/구독/온보딩
+  - 고객 상세 7탭 (/ops/clients/[id]) — 개요/키워드/콘텐츠/분석이력/페르소나/구독/온보딩
   - 매출 페이지 (/ops/revenue) — MRR/ARR, 플랜 분포, 6개월 트렌드, 최근 변동
   - 이탈 관리 (/ops/churn) — At Risk 목록, 심각도(high/medium), 이탈률/유지율
   - 온보딩 관리 (/ops/onboarding) — 7항목 체크리스트, 진행률, 클라이언트별 관리
@@ -408,6 +449,108 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
   - DB: subscriptions에 product_id/mrr/expires_at 등 6컬럼 수동 추가 (043 IF NOT EXISTS 문제)
   - DB: clients에 onboarding_checklist(JSONB)/contact_name(TEXT) 컬럼 수동 추가
   - 테스트 데이터: products 2건, users 2건, subscriptions 3건 (MRR ₩750,000)
+- Phase F-1: AI 인프라 — 에이전트 실행 엔진 + 기준 테이블 (2026-02-28)
+  - DB 마이그레이션 6개 (045~050): scoring_criteria, agent_execution_logs, content_benchmarks, clients.brand_persona, agent_prompts 확장, 프롬프트 시딩
+  - lib/agent-runner.ts: 에이전트 공통 실행 엔진 (프롬프트 로딩 → {{variable}} 치환 → Claude API → 로그 저장 → 비용 추적)
+  - lib/agent-chain.ts: 에이전트 체이닝 헬퍼 (순차 실행, 이전 결과 → 다음 context 주입)
+  - lib/scoring-engine.ts: scoring_criteria 테이블 기반 채점 엔진 (기존 하드코딩 폴백 유지)
+  - place-analyzer.ts: calculateMarketingScore()에 scoring-engine 연동 (try → 폴백)
+  - agent_prompts 10개 시딩 (CMO 3, RND 3, COPYWRITER 2, QC 1, ANALYST 0 — 기존 유지)
+  - clients.brand_persona JSONB 컬럼 추가 (CMO가 생성한 페르소나 저장)
+- Phase F-2: 분석 고도화 — 경쟁사 분석 + 페르소나 + SEO 코멘트 + 개선포인트 (2026-02-28)
+  - lib/competitor-collector.ts: 네이버 로컬 검색 API 경쟁사 TOP5 수집 (checkKeywordRankings 패턴 재사용)
+  - lib/analysis-agent-chain.ts: 분석 후 4단계 에이전트 체인 (RND 경쟁사→CMO 페르소나→CMO SEO코멘트→CMO 개선플랜)
+  - place-analyzer.ts: runFullAnalysis()에 에이전트 체인 연동 (DB 저장 후, 슬랙 알림 전)
+  - 분석 결과 페이지 3개 신규 섹션: 경쟁사 비교 분석, AI SEO 진단 코멘트, 개선 액션플랜 (조건부 렌더링)
+  - lib/actions/persona-actions.ts: 페르소나 CRUD (updatePersona, addManualStrength, removeManualStrength, regeneratePersona)
+  - 어드민 클라이언트 상세 7탭 (/ops/clients/[id]): 기존 6탭 + 페르소나 탭 (표시/수정/강점관리/재생성)
+  - 고객 포털 대시보드: 브랜드 한줄 정리 (one_liner), AI 개선 제안 (improvement_plan), SEO 진단 코멘트
+  - portal-actions.ts: getPortalDashboard()에 brand_persona + analysis_result AI 해석 데이터 추가
+  - analysis_result JSONB에 에이전트 결과 spread 저장 (competitor_analysis, seo_comments, improvement_plan)
+  - 모든 에이전트 관련 기능: ANTHROPIC_API_KEY 미설정 시 graceful skip, 기존 분석 영향 없음
+- Phase F-3: 키워드 고도화 — 니치 키워드 확장 + 공략 전략 (2026-02-28)
+  - lib/naver-suggest-collector.ts: 네이버 자동완성 API + 연관검색어 HTML 파싱 + 매장 특성 키워드 추출
+  - scripts/migrations/051_keywords_extension.sql: keywords 테이블 확장 (status에 'suggested' 추가, metadata JSONB, source TEXT)
+  - lib/actions/keyword-expansion-actions.ts: 니치 키워드 확장 (네이버 수집 → RND 에이전트 → keywords 저장 + 승인/거절/일괄승인)
+  - lib/actions/keyword-strategy-actions.ts: CMO 키워드 공략 전략 (Quick Win/니치/방어 분류 + 월간 로드맵 → analysis_result JSONB 저장)
+  - components/keywords/keyword-strategy-section.tsx: 키워드 전략 UI (발굴+전략 버튼, 3열 카드, 로드맵)
+  - keywords-client.tsx: AI 추천 탭 (suggested 상태 필터, 승인/거절 버튼, 일괄 승인, content_angle 표시)
+  - /keywords 페이지: 전략 섹션 추가 (KeywordStrategySection 컴포넌트)
+  - /portal/keywords: 키워드 전략 요약 카드 (Quick Win/니치/방어)
+  - portal-actions.ts: getPortalKeywords()에 analysis_result.keyword_strategy 연동
+  - recommendation-actions.ts: 발행 추천 전략 연동 TODO (Phase F-3 연계)
+  - GSC 키워드 자동 발견 구조 TODO 유지 (Phase E-3 예정)
+- Phase F-4: 콘텐츠 품질 고도화 — 벤치마킹 + 작성 v2 + QC v2 + 재작성 루프 (2026-02-28)
+  - lib/content-benchmark.ts: 네이버 블로그 검색 TOP5 수집 → RND 벤치마킹 → content_benchmarks 7일 캐시
+  - lib/content-pipeline-v2.ts: 벤치마크+페르소나+중복회피+AEO 기반 COPYWRITER v2 콘텐츠 생성
+  - lib/content-qc-v2.ts: QC v2 8항목 100점 검수 (AEO 15점 포함, 벤치마크 비교, 중복 체크)
+  - lib/content-rewrite-loop.ts: QC FAIL → COPYWRITER 재작성 → 재검수 루프 (최대 2회)
+  - lib/actions/content-generate-actions.ts: 통합 함수 generateContentV2() + Job 처리 processContentJobs()
+  - contents.metadata JSONB 컬럼 추가 (052 마이그레이션): qc_score, qc_pass, qc_result, rewrite_history 저장
+  - 콘텐츠 상세 페이지: QC v2 결과 섹션 (항목별 점수, 벤치마크 비교, 재작성 이력, 확장/축소)
+  - 콘텐츠 목록 페이지: QC 점수 컬럼 추가
+  - Content 인터페이스에 metadata 필드 추가
+  - 파이프라인 흐름: RND 벤치마킹 → COPYWRITER v2 → QC v2 → FAIL 시 재작성(최대2회) → PASS/수동검토
+- Phase INT-1: SQL 마이그레이션 점검 + F1~F4 통합 가동 검증 (2026-02-28)
+  - scripts/migrations/run_all_f1_f4.sql: 045~052 통합 멱등 마이그레이션 (BEGIN~COMMIT 트랜잭션)
+  - 050 버그 수정: UNIQUE(agent_type, task) 제약 추가 + 10개 INSERT에 ON CONFLICT DO UPDATE 적용
+  - 051 버그 수정: keywords 전용 constraint 드롭 (pg_constraint + pg_class 조인, 다른 테이블 영향 방지)
+  - scripts/test-integration.ts: 통합 검증 스크립트 (dry-run/live 모드, 5 시나리오)
+  - 환경변수 감사: ANTHROPIC_API_KEY graceful skip 검증 완료 (모든 F1-F4 entry point)
+  - TypeScript 빌드 검증: tsc --noEmit 0 에러
+- Phase P-1: 포털 MVP — 고객용 핵심 4화면 (2026-03-01)
+  - /portal 대시보드 고도화: KPI 4종 (활성키워드/이번달콘텐츠/AI추천대기/평균QC점수) + 브랜드 요약 + 최근 활동 타임라인
+  - /portal/keywords 키워드 관리 고도화: 3탭(활성/AI추천/보관) + 승인/거절 버튼 + 키워드 전략 섹션
+  - /portal/contents 콘텐츠 현황 고도화: 상태 필터 5종 + 상세 보기 (본문 미리보기 + QC 검수 결과 + 재작성 이력)
+  - /portal/reports 월간 리포트 고도화: 월 선택기 + 요약 카드 3종 + 콘텐츠 발행 추이 Bar 차트 + 키워드 성장 Line 차트 + 순위 현황 + AI 활동 로그
+  - portal-actions.ts: V2 서버 액션 4개 추가 (getPortalDashboardV2, getPortalKeywordsV2, getPortalContentsV2, getPortalReportV2)
+  - portal-shell.tsx: 네비게이션 라벨 업데이트 (키워드 관리/콘텐츠 현황/월간 리포트)
+  - 기존 V1 함수 하위 호환 유지 — 기존 코드 동작 영향 없음
+  - 순위 섹션: serp_results 데이터 있으면 표시, 없으면 "순위 추적 준비 중" — E-3 SERP 추적 구현 후 자동 활성화
+  - TypeScript 빌드 검증: tsc --noEmit 0 에러
+- Phase E-3-1: SERP 추적 검증 + 포털 연결 (2026-03-01)
+  - SERP 인프라 전체 감사: serp-collector.ts, naver-search-api.ts, cron/serp, keyword-actions.ts 점검 완료
+  - 포털 리포트 순위 데이터 버그 수정: getPortalReportV2()가 serp_results(client_id 없음) 대신 keyword_visibility(client_id 보유) 테이블 사용하도록 수정
+  - keyword_visibility → keywords 테이블 조인으로 키워드명 매핑 추가
+  - triggerClientSerpCheck(clientId): 고객사별 SERP 수집 서버 액션 추가 (collectSerpAll(clientId) 래핑)
+  - getClientRankings(clientId): 고객사 순위 현황 조회 서버 액션 추가 (keywords + daily_visibility_summary 통합)
+  - 어드민 클라이언트 상세 (/ops/clients/[id]): "순위" 탭 추가 (8탭 → 개요/키워드/콘텐츠/분석이력/순위/페르소나/구독/온보딩)
+  - 순위 탭: 요약 카드 4종 (노출키워드/노출률/TOP3·10/평균순위) + 순위 테이블 + [순위 체크 실행] 버튼
+  - TypeScript 빌드 검증: tsc --noEmit 0 에러
+- Phase E-3-2: 구글 검색 순위 추적 — Serper API 연동 (2026-03-01)
+  - lib/google-serp-api.ts: Serper API 래퍼 (searchGoogle, findGoogleRank) — SERPER_API_KEY 없으면 graceful skip
+  - lib/google-serp-collector.ts: 구글 SERP 수집 모듈 (collectGoogleSerpForKeyword, collectGoogleSerpAll)
+  - triggerClientSerpCheck(): 네이버 + 구글 병렬 수집 (Promise.allSettled, 한쪽 실패해도 다른 쪽 진행)
+  - ClientRanking 인터페이스: rank_google 필드 추가
+  - getClientRankings(): current_rank_google 포함하여 반환
+  - 어드민 순위 탭: 네이버 | 구글 | 검색량 | 수집일 컬럼 구성 (기존 PC/MO 대신 네이버/구글 병렬)
+  - 포털 월간 리포트: 순위 테이블에 네이버/구글 컬럼 추가 (rank_google 포함)
+  - getPortalReportV2(): keyword_visibility.rank_google + keywords.current_rank_google 폴백
+  - 구글 순위 저장: keywords.current_rank_google (기존 컬럼) + keyword_visibility.rank_google (053 마이그레이션)
+  - scripts/migrations/053_keyword_visibility_google.sql: rank_google, visibility_score_google 컬럼 추가
+  - 환경변수: SERPER_API_KEY (Serper.dev API 키)
+  - SERP 추적 현황: 네이버 ✅ / 구글 ✅ / GSC 예정 / AEO 예정
+  - TypeScript 빌드 검증: tsc --noEmit 0 에러
+- Phase G-1: 월간 PDF 리포트 + 이메일 발송 + 어드민 설정 (2026-03-01)
+  - scripts/migrations/054_report_deliveries.sql: clients.metadata JSONB + report_deliveries 테이블
+  - lib/pdf/monthly-report-template.tsx: 4페이지 PDF 템플릿 (@react-pdf/renderer, NotoSansKR 한글 폰트)
+  - lib/pdf/generate-report.ts: generateReportPdf() — PDF Buffer 생성
+  - lib/email/monthly-report-email.tsx: React Email 리포트 이메일 템플릿 (Resend 발송용)
+  - lib/email/send-report.ts: sendReportEmail() — Resend API 이메일 발송 (PDF 첨부, RESEND_API_KEY 없으면 graceful skip)
+  - lib/actions/report-actions.ts: 리포트 전체 로직 (데이터 수집, 설정 CRUD, 발송 이력, 생성+발송)
+  - 어드민 클라이언트 상세 (/ops/clients/[id]): "리포트" 탭 추가 (9탭)
+    - 리포트 설정: ON/OFF 토글 + 수신 이메일 입력 + 저장
+    - 수동 발송: [PDF 미리보기] + [리포트 생성 + 발송] 버튼
+    - 발송 이력: report_deliveries 테이블 조회 (월, 발송일, 상태, 재발송 버튼)
+  - clients.metadata.report_settings: { enabled: boolean, recipient_email: string | null } (기본 OFF)
+  - app/api/cron/monthly-report/route.ts: 월간 리포트 자동 발송 크론 (매월 1일, 최대 10건/배치)
+  - vercel.json: monthly-report 크론 추가 (0 0 1 * *)
+  - app/api/portal/report-pdf/route.ts: PDF 다운로드 API (어드민 clientId 또는 포털 Supabase Auth)
+  - 포털 월간 리포트: [PDF 다운로드] 버튼 추가
+  - 패키지: @react-pdf/renderer, resend, @react-email/components
+  - 한글 폰트: public/fonts/NotoSansKR-Regular.ttf, NotoSansKR-Bold.ttf
+  - 환경변수: RESEND_API_KEY, CRON_SECRET, REPORT_FROM_EMAIL (모두 optional, 없으면 graceful skip)
+  - TypeScript 빌드 검증: tsc --noEmit 0 에러
 
 ### 설계 원칙
 
@@ -416,6 +559,8 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 3. **브랜드 페르소나 = 모든 후속 작업의 기반** — brand_personas 레코드가 CMO 전략 → COPYWRITER 톤앤매너 → QC 기준에 일관되게 적용.
 
 ### 에이전트 프롬프트 목록 (agent_prompts 테이블)
+
+#### 기존 프롬프트 (Phase 2 시딩)
 
 | # | agent | task | 설명 |
 |---|-------|------|------|
@@ -430,23 +575,36 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 | 9 | ANALYST | account_grading | 계정 등급 산출 (S/A/B/C, 노출률+검색량 가중) |
 | 10 | ANALYST | keyword_difficulty | 키워드 난이도 산출 (S/A/B/C, 검색량+경쟁도+SERP 점유) |
 
-### 다음 작업: Phase F (AI 고도화)
+#### Phase F-1 신규 프롬프트 (050 시딩)
 
-| 순서 | Phase | 핵심 내용 | 프롬프트 파일 |
-|------|-------|----------|-------------|
-| 1 | **F-1** | 브랜드 페르소나 강화 — brand_personas 스키마 확장, 분석 결과 → 자동 페르소나 생성 | `prompt_phase_f1.md` |
-| 2 | **F-2** | 에이전트 프롬프트 고도화 — agent_prompts 10개 시딩, 동적 로딩 검증, 프롬프트 A/B 테스트 구조 | `prompt_phase_f2.md` |
-| 3 | **F-3** | AI 해석 레이어 — 점수(룰 기반) 위에 AI 코멘트/인사이트 생성, 분석 리포트 자동 서술 | `prompt_phase_f3.md` |
-| 4 | **F-4** | 콘텐츠 생성 파이프라인 AI 연결 — CMO→RND→COPYWRITER→QC 전체 흐름 자동화, 슬랙 컨펌 | `prompt_phase_f4.md` |
+| # | agent | task | 설명 | 실행 엔진 |
+|---|-------|------|------|---------|
+| 11 | CMO | brand_persona | 브랜드 페르소나 생성 (플레이스 데이터 → 13항목 JSON) | agent-runner.ts |
+| 12 | RND | competitor_analysis | 경쟁사 TOP5 비교 분석 (SERP 기반) | agent-runner.ts |
+| 13 | CMO | seo_diagnosis_comment | SEO 진단 업종 맞춤 코멘트 (7항목 해석) | agent-runner.ts |
+| 14 | CMO | improvement_plan | 개선포인트 전략 액션플랜 (1주/1개월/3개월 로드맵) | agent-runner.ts |
+| 15 | CMO | keyword_strategy | 키워드 공략 전략 (단기/중기/장기 분류) | agent-runner.ts |
+| 16 | RND | niche_keyword_expansion | 니치 키워드 확장 (롱테일+시즌+질문형) | agent-runner.ts |
+| 17 | RND | content_benchmark | 상위노출 글 벤치마킹 (패턴분석 → COPYWRITER 브리프) | agent-runner.ts |
+| 18 | COPYWRITER | content_create_v2 | 벤치마크 기반 콘텐츠 작성 (해요체+AEO+비교표) | agent-runner.ts |
+| 19 | COPYWRITER | content_rewrite | QC 피드백 반영 재작성 | agent-runner.ts |
+| 20 | QC | qc_review_v2 | 상세 검수 9항목 100점 + AEO + 자연스러움 | agent-runner.ts |
 
-> ⚠️ `prompt_phase_f1.md ~ f4.md` 파일은 아직 미작성. 각 Phase 착수 전 프롬프트 파일 작성 필요.
+### 완료된 Phase 목록
+
+| 순서 | Phase | 핵심 내용 | 상태 |
+|------|-------|----------|------|
+| 1 | **F-1** | AI 인프라 — 에이전트 실행 엔진 + 기준 테이블 + 프롬프트 시딩 | ✅ 완료 |
+| 2 | **F-2** | 분석 고도화 — 경쟁사 분석 + 페르소나 + SEO 코멘트 + 개선포인트 | ✅ 완료 |
+| 3 | **F-3** | 키워드 고도화 — 니치 키워드 확장 + 공략 전략 + 키워드 UI 개편 | ✅ 완료 |
+| 4 | **F-4** | 콘텐츠 품질 고도화 — 벤치마킹 + 작성 v2 + QC v2 + 재작성 루프 | ✅ 완료 |
+| 5 | **G-1** | 월간 PDF 리포트 + 이메일 발송 + 어드민 설정 | ✅ 완료 |
 
 ### 미구현 (우선순위 순)
 
 | # | 기능 | 우선순위 |
 |---|------|---------|
-| 1 | **Phase F-1~F-4: AI 고도화** (위 표 참조) | 높음 (다음) |
-| 2 | **Phase D: 자동 발행 관리** (슬랙 컨펌 → 블로그 발행) | 높음 |
+| 1 | **Phase D: 자동 발행 관리** (슬랙 컨펌 → 블로그 발행) | 높음 (다음) |
 | 3 | **Vercel 도메인 연결** (커스텀 도메인 + SSL) | 높음 |
 | 4 | **AEO 기능** (AI 인용률 — ChatGPT/Gemini 브랜드 언급 체크) | 중간 |
 | 5 | **구글 상위노출** (마케팅점수 15점 자리 비어있음) | 중간 |
@@ -465,7 +623,7 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 - **Vercel 배포 URL**: https://web-five-gold-12.vercel.app (프로덕션)
 - **Vercel 프로젝트**: fiftycompanies-projects/web, 리전: icn1 (서울)
 - agents/.env: NSERP_EC2_URL, NSERP_EC2_SECRET, SUPABASE_URL/KEY, ANTHROPIC_API_KEY, SLACK_BOT_TOKEN, TAVILY_API_KEY
-- apps/web/.env.local: SUPABASE URLs, NAVER_AD_API_KEY/SECRET_KEY/CUSTOMER_ID, ANTHROPIC_API_KEY
+- apps/web/.env.local: SUPABASE URLs, NAVER_AD_API_KEY/SECRET_KEY/CUSTOMER_ID, ANTHROPIC_API_KEY, SERPER_API_KEY, RESEND_API_KEY, CRON_SECRET, REPORT_FROM_EMAIL
 - 배포 가이드: `apps/web/DEPLOY.md` (환경변수 전체 목록 + 배포 절차)
 - 현재 실데이터: 키워드 174개, 콘텐츠 174건, 블로그 계정 4개, SERP 레코드 417건
 
@@ -485,6 +643,19 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 | 042 | users 테이블 (Supabase Auth 연동) + invitations 테이블 | 실행 완료 |
 | 043 | products + subscriptions 테이블 (IF NOT EXISTS → 컬럼 수동 추가) | 실행 완료 |
 | 044 | clients 확장 (subscription_id, onboarding_status, health_score 등) | 실행 완료 |
+| 045 | scoring_criteria 테이블 + 시딩 (마케팅 점수/QC 채점 기준 룰) | **SQL 생성 완료** |
+| 046 | agent_execution_logs 테이블 (에이전트 실행 로그 + 비용 추적) | **SQL 생성 완료** |
+| 047 | content_benchmarks 테이블 (벤치마크 캐시, 7일 TTL) | **SQL 생성 완료** |
+| 048 | clients.brand_persona JSONB + persona_updated_at 컬럼 추가 | **SQL 생성 완료** |
+| 049 | agent_prompts 확장 (task, system_prompt, model, temperature, max_tokens, output_schema, metadata) | **SQL 생성 완료** |
+| 050 | agent_prompts 시딩 (10개 프롬프트: CMO 3, RND 3, COPYWRITER 2, QC 1) | **SQL 생성 완료** (★ ON CONFLICT 수정) |
+| 051 | keywords 확장 (status CHECK에 'suggested' 추가, metadata JSONB, source TEXT) | **SQL 생성 완료** (★ pg_constraint 수정) |
+| 052 | contents.metadata JSONB 컬럼 추가 (QC v2 결과, 재작성 이력 저장) | **SQL 생성 완료** |
+| INT-1 | 045~052 통합 멱등 마이그레이션 (run_all_f1_f4.sql) | **SQL 생성 완료** |
+| 053 | keyword_visibility에 rank_google, visibility_score_google 컬럼 추가 | **SQL 생성 완료** |
+| 054 | clients.metadata JSONB + report_deliveries 테이블 (월간 리포트 발송 이력) | **SQL 생성 완료** |
+
+> ⚠️ 045~054: scripts/migrations/ 디렉토리에 SQL 파일 생성. Supabase Dashboard에서 실행 필요.
 
 ---
 
@@ -515,3 +686,4 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 - Portal↔Login 리디렉트 루프: client_id 없는 Supabase 사용자 → portal layout에서 redirect 금지, 인라인 대기 페이지 렌더링
 - middleware에서 error 파라미터 있으면 Supabase 세션 리디렉트 건너뜀 (루프 방지)
 - CREATE TABLE IF NOT EXISTS 함정: 테이블이 이미 존재하면 새 컬럼 무시됨 → ALTER TABLE ADD COLUMN IF NOT EXISTS로 수동 추가
+- serp_results 테이블에는 client_id 컬럼 없음! content_id FK만 있음. 클라이언트별 순위 데이터는 keyword_visibility 테이블(client_id 보유) 사용 필수

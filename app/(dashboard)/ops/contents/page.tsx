@@ -113,11 +113,12 @@ export default async function ContentsPage({ searchParams }: ContentsPageProps) 
       ) : (
         <div className="rounded-lg border overflow-hidden">
           {/* Header */}
-          <div className={`grid ${isAllMode ? "grid-cols-[auto_1fr_auto_auto_auto_auto]" : "grid-cols-[1fr_auto_auto_auto_auto]"} gap-4 px-4 py-3 bg-muted/50 text-xs font-medium text-muted-foreground border-b`}>
+          <div className={`grid ${isAllMode ? "grid-cols-[auto_1fr_auto_auto_auto_auto_auto]" : "grid-cols-[1fr_auto_auto_auto_auto_auto]"} gap-4 px-4 py-3 bg-muted/50 text-xs font-medium text-muted-foreground border-b`}>
             {isAllMode && <span>브랜드</span>}
             <span>제목</span>
             <span>구분</span>
             <span>글자수</span>
+            <span>QC</span>
             <span>상태</span>
             <span>생성일</span>
           </div>
@@ -127,7 +128,7 @@ export default async function ContentsPage({ searchParams }: ContentsPageProps) 
               <Link
                 key={content.id}
                 href={`/ops/contents/${content.id}`}
-                className={`grid ${isAllMode ? "grid-cols-[auto_1fr_auto_auto_auto_auto]" : "grid-cols-[1fr_auto_auto_auto_auto]"} gap-4 px-4 py-3 items-center hover:bg-muted/30 transition-colors`}
+                className={`grid ${isAllMode ? "grid-cols-[auto_1fr_auto_auto_auto_auto_auto]" : "grid-cols-[1fr_auto_auto_auto_auto_auto]"} gap-4 px-4 py-3 items-center hover:bg-muted/30 transition-colors`}
               >
                 {isAllMode && (
                   <div>
@@ -155,6 +156,17 @@ export default async function ContentsPage({ searchParams }: ContentsPageProps) 
 
                 <span className="text-xs text-muted-foreground whitespace-nowrap">
                   {content.word_count?.toLocaleString() ?? "—"}자
+                </span>
+
+                {/* QC 점수 */}
+                <span className="text-xs whitespace-nowrap">
+                  {content.metadata?.qc_score != null ? (
+                    <span className={content.metadata.qc_pass ? "text-emerald-600 font-medium" : "text-amber-600 font-medium"}>
+                      {content.metadata.qc_score}점
+                    </span>
+                  ) : (
+                    <span className="text-muted-foreground/40">—</span>
+                  )}
                 </span>
 
                 <Badge

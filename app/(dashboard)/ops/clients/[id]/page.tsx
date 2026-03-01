@@ -10,14 +10,24 @@ import {
   Calendar,
   CheckSquare,
   CreditCard,
+  Download,
+  Edit3,
+  FileBarChart,
   FileText,
   Key,
   Loader2,
+  Mail,
+  Minus,
+  Plus,
+  RefreshCw,
   Save,
+  Send,
+  Sparkles,
   TrendingDown,
   TrendingUp,
   User,
   Users,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -25,6 +35,27 @@ import {
   updateOnboardingChecklist,
   type ClientDetail,
 } from "@/lib/actions/client-portfolio-actions";
+import {
+  updatePersona,
+  addManualStrength,
+  removeManualStrength,
+  regeneratePersona,
+  type BrandPersona,
+} from "@/lib/actions/persona-actions";
+import {
+  getClientRankings,
+  triggerClientSerpCheck,
+  type ClientRankingSummary,
+} from "@/lib/actions/keyword-actions";
+import {
+  getReportSettings,
+  updateReportSettings,
+  getReportDeliveries,
+  generateAndSendReport,
+  resendReport,
+  type ReportSettings,
+  type ReportDelivery,
+} from "@/lib/actions/report-actions";
 
 // ── Tab button ─────────────────────────────────────────────────────────────
 
@@ -384,9 +415,645 @@ function OnboardingTab({ client }: { client: ClientDetail }) {
   );
 }
 
+// ── Persona Tab ──────────────────────────────────────────────────────────
+
+function PersonaTab({ client, onRefresh }: { client: ClientDetail; onRefresh: () => void }) {
+  const persona = client.brand_persona as BrandPersona | null;
+  const [isRegenerating, startRegenerate] = useTransition();
+  const [isEditing, setIsEditing] = useState(false);
+  const [editValues, setEditValues] = useState<Partial<BrandPersona>>({});
+  const [isSaving, startSave] = useTransition();
+  const [newStrength, setNewStrength] = useState("");
+  const [isAddingStrength, startAddStrength] = useTransition();
+
+  const handleRegenerate = () => {
+    startRegenerate(async () => {
+      const result = await regeneratePersona(client.id);
+      if (result.success) {
+        toast.success("페르소나가 재생성되었습니다.");
+        onRefresh();
+      } else {
+        toast.error(result.error || "재생성 실패");
+      }
+    });
+  };
+
+  const handleSaveEdit = () => {
+    startSave(async () => {
+      const result = await updatePersona(client.id, editValues);
+      if (result.success) {
+        toast.success("페르소나가 수정되었습니다.");
+        setIsEditing(false);
+        setEditValues({});
+        onRefresh();
+      } else {
+        toast.error(result.error || "저장 실패");
+      }
+    });
+  };
+
+  const handleAddStrength = () => {
+    if (!newStrength.trim()) return;
+    startAddStrength(async () => {
+      const result = await addManualStrength(client.id, newStrength.trim());
+      if (result.success) {
+        toast.success("강점이 추가되었습니다.");
+        setNewStrength("");
+        onRefresh();
+      } else {
+        toast.error(result.error || "추가 실패");
+      }
+    });
+  };
+
+  const handleRemoveStrength = (index: number) => {
+    startAddStrength(async () => {
+      const result = await removeManualStrength(client.id, index);
+      if (result.success) {
+        onRefresh();
+      } else {
+        toast.error(result.error || "삭제 실패");
+      }
+    });
+  };
+
+  // 빈 상태
+  if (!persona) {
+    return (
+      <div className="text-center py-12 text-muted-foreground">
+        <Sparkles className="h-8 w-8 mx-auto mb-2 opacity-40" />
+        <p className="text-sm mb-3">아직 페르소나가 생성되지 않았습니다</p>
+        <p className="text-xs mb-4">분석을 실행하면 AI가 자동으로 브랜드 페르소나를 생성합니다.</p>
+        <button
+          onClick={handleRegenerate}
+          disabled={isRegenerating}
+          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50"
+        >
+          {isRegenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+          {isRegenerating ? "생성 중..." : "페르소나 생성"}
+        </button>
+      </div>
+    );
+  }
+
+  // 편집 모드 헬퍼
+  const renderField = (label: string, key: keyof BrandPersona, value: string | undefined) => {
+    if (isEditing) {
+      return (
+        <div>
+          <label className="text-xs text-muted-foreground">{label}</label>
+          <textarea
+            className="w-full mt-1 p-2 border rounded-lg text-sm bg-background resize-none"
+            rows={2}
+            defaultValue={value || ""}
+            onChange={(e) => setEditValues((prev) => ({ ...prev, [key]: e.target.value }))}
+          />
+        </div>
+      );
+    }
+    return (
+      <div>
+        <span className="text-xs text-muted-foreground">{label}</span>
+        <p className="text-sm mt-0.5">{value || "-"}</p>
+      </div>
+    );
+  };
+
+  const renderList = (label: string, items: string[] | undefined) => (
+    <div>
+      <span className="text-xs text-muted-foreground">{label}</span>
+      {items && items.length > 0 ? (
+        <div className="flex flex-wrap gap-1.5 mt-1">
+          {items.map((item, i) => (
+            <span key={i} className="px-2 py-0.5 rounded-full bg-muted text-xs">{item}</span>
+          ))}
+        </div>
+      ) : (
+        <p className="text-xs text-muted-foreground mt-0.5">-</p>
+      )}
+    </div>
+  );
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="font-semibold text-sm">브랜드 페르소나</h3>
+          {client.persona_updated_at && (
+            <p className="text-xs text-muted-foreground mt-0.5">
+              최종 업데이트: {new Date(client.persona_updated_at).toLocaleDateString("ko-KR")}
+              {persona.manually_edited && " (수동 수정됨)"}
+            </p>
+          )}
+        </div>
+        <div className="flex gap-2">
+          {isEditing ? (
+            <>
+              <button
+                onClick={() => { setIsEditing(false); setEditValues({}); }}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg border text-xs font-medium hover:bg-muted"
+              >
+                <X className="h-3 w-3" />
+                취소
+              </button>
+              <button
+                onClick={handleSaveEdit}
+                disabled={isSaving}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium disabled:opacity-50"
+              >
+                {isSaving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+                저장
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                onClick={() => setIsEditing(true)}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg border text-xs font-medium hover:bg-muted"
+              >
+                <Edit3 className="h-3 w-3" />
+                수정
+              </button>
+              <button
+                onClick={handleRegenerate}
+                disabled={isRegenerating}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg border text-xs font-medium hover:bg-muted disabled:opacity-50"
+              >
+                {isRegenerating ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+                {isRegenerating ? "생성 중..." : "재생성"}
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* One-liner */}
+      {persona.one_liner && (
+        <div className="border rounded-lg p-4 bg-gradient-to-r from-primary/5 to-transparent">
+          <p className="text-sm font-medium">&ldquo;{persona.one_liner}&rdquo;</p>
+        </div>
+      )}
+
+      {/* Core Fields */}
+      <div className="grid gap-4 lg:grid-cols-2">
+        <div className="border rounded-lg p-4 space-y-4">
+          <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">포지셔닝</h4>
+          {renderField("포지셔닝", "positioning", persona.positioning)}
+          {renderField("타겟 고객", "target_audience", persona.target_audience)}
+          {renderField("톤 앤 매너", "tone", persona.tone)}
+        </div>
+
+        <div className="border rounded-lg p-4 space-y-4">
+          <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">브랜드 스토리</h4>
+          {renderField("브랜드 스토리 훅", "brand_story_hook", persona.brand_story_hook)}
+          {renderField("비주얼 방향", "visual_direction", persona.visual_direction)}
+        </div>
+      </div>
+
+      {/* Strengths with add/remove */}
+      <div className="border rounded-lg p-4 space-y-3">
+        <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">강점</h4>
+        {persona.strengths && persona.strengths.length > 0 ? (
+          <div className="flex flex-wrap gap-2">
+            {persona.strengths.map((s, i) => (
+              <span key={i} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs border border-emerald-100">
+                {s}
+                <button
+                  onClick={() => handleRemoveStrength(i)}
+                  className="hover:text-red-500 transition-colors"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </span>
+            ))}
+          </div>
+        ) : (
+          <p className="text-xs text-muted-foreground">아직 강점이 등록되지 않았습니다</p>
+        )}
+        <div className="flex gap-2">
+          <input
+            type="text"
+            placeholder="강점 추가..."
+            value={newStrength}
+            onChange={(e) => setNewStrength(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleAddStrength()}
+            className="flex-1 px-3 py-1.5 border rounded-lg text-sm bg-background"
+          />
+          <button
+            onClick={handleAddStrength}
+            disabled={!newStrength.trim() || isAddingStrength}
+            className="flex items-center gap-1 px-3 py-1.5 rounded-lg border text-xs font-medium hover:bg-muted disabled:opacity-50"
+          >
+            {isAddingStrength ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
+            추가
+          </button>
+        </div>
+      </div>
+
+      {/* Weaknesses */}
+      {renderList("약점/개선 영역", persona.weaknesses)}
+
+      {/* Content Strategy */}
+      <div className="grid gap-4 lg:grid-cols-2">
+        <div className="border rounded-lg p-4 space-y-3">
+          <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">콘텐츠 방향</h4>
+          {renderList("추천 콘텐츠 앵글", persona.content_angles)}
+          {renderList("피해야 할 앵글", persona.avoid_angles)}
+        </div>
+
+        <div className="border rounded-lg p-4 space-y-3">
+          <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">키워드/시즌</h4>
+          {renderList("추천 키워드", persona.recommended_keywords)}
+          {renderList("시즌별 훅", persona.seasonal_hooks)}
+          {renderList("경쟁사 차별점", persona.competitor_differentiators)}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Rankings Tab ────────────────────────────────────────────────────────
+
+function RankingsTab({ clientId }: { clientId: string }) {
+  const [data, setData] = useState<ClientRankingSummary | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [checking, setChecking] = useState(false);
+
+  useEffect(() => {
+    getClientRankings(clientId).then((d) => {
+      setData(d);
+      setLoading(false);
+    });
+  }, [clientId]);
+
+  const handleCheck = async () => {
+    setChecking(true);
+    const result = await triggerClientSerpCheck(clientId);
+    if (result.success) {
+      toast.success(`순위 체크 완료: 네이버 ${result.exposed}개 / 구글 ${result.googleExposed ?? 0}개 노출 (${result.count}개 키워드)`);
+      const d = await getClientRankings(clientId);
+      setData(d);
+    } else {
+      toast.error(result.error || "순위 체크 실패");
+    }
+    setChecking(false);
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (!data) {
+    return (
+      <div className="text-center py-12 text-muted-foreground">
+        <TrendingUp className="h-8 w-8 mx-auto mb-2 opacity-40" />
+        <p className="text-sm">순위 데이터를 불러올 수 없습니다</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Header with action button */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="font-semibold text-sm">순위 현황</h3>
+          {data.last_collected_at && (
+            <p className="text-xs text-muted-foreground mt-0.5">
+              마지막 수집: {new Date(data.last_collected_at).toLocaleDateString("ko-KR")}
+            </p>
+          )}
+        </div>
+        <button
+          onClick={handleCheck}
+          disabled={checking}
+          className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-medium disabled:opacity-50"
+        >
+          {checking ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+          {checking ? "수집 중..." : "순위 체크 실행"}
+        </button>
+      </div>
+
+      {/* Summary Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="border rounded-lg p-3 text-center">
+          <p className="text-xs text-muted-foreground">노출 키워드</p>
+          <p className="text-xl font-bold mt-1">
+            {data.exposed_keywords}/{data.total_keywords}
+          </p>
+        </div>
+        <div className="border rounded-lg p-3 text-center">
+          <p className="text-xs text-muted-foreground">노출률</p>
+          <p className="text-xl font-bold mt-1">{data.exposure_rate}%</p>
+        </div>
+        <div className="border rounded-lg p-3 text-center">
+          <p className="text-xs text-muted-foreground">TOP 3 / TOP 10</p>
+          <p className="text-xl font-bold mt-1">{data.top3_count} / {data.top10_count}</p>
+        </div>
+        <div className="border rounded-lg p-3 text-center">
+          <p className="text-xs text-muted-foreground">평균 순위</p>
+          <p className="text-xl font-bold mt-1">{data.avg_rank ? `${data.avg_rank}위` : "-"}</p>
+        </div>
+      </div>
+
+      {/* Rankings Table */}
+      {data.rankings.length === 0 ? (
+        <div className="text-center py-8 text-muted-foreground">
+          <TrendingUp className="h-8 w-8 mx-auto mb-2 opacity-40" />
+          <p className="text-sm">순위 데이터가 없습니다</p>
+          <p className="text-xs mt-1">&quot;순위 체크 실행&quot; 버튼을 클릭하세요</p>
+        </div>
+      ) : (
+        <div className="border rounded-lg overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/50 border-b">
+              <tr>
+                <th className="text-left py-2.5 px-3 font-medium text-muted-foreground">키워드</th>
+                <th className="text-center py-2.5 px-3 font-medium text-muted-foreground">네이버</th>
+                <th className="text-center py-2.5 px-3 font-medium text-muted-foreground">구글</th>
+                <th className="text-center py-2.5 px-3 font-medium text-muted-foreground hidden md:table-cell">검색량</th>
+                <th className="text-center py-2.5 px-3 font-medium text-muted-foreground hidden lg:table-cell">수집일</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.rankings.map((r) => (
+                <tr key={r.keyword_id} className="border-b last:border-0 hover:bg-muted/30">
+                  <td className="py-2.5 px-3 font-medium">{r.keyword}</td>
+                  <td className="py-2.5 px-3 text-center">
+                    {r.rank_pc != null ? (
+                      <span className={`font-bold ${
+                        r.rank_pc <= 3 ? "text-emerald-600" :
+                        r.rank_pc <= 10 ? "text-blue-600" :
+                        r.rank_pc <= 20 ? "text-amber-600" : "text-gray-400"
+                      }`}>
+                        {r.rank_pc}위
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground">-</span>
+                    )}
+                  </td>
+                  <td className="py-2.5 px-3 text-center">
+                    {r.rank_google != null ? (
+                      <span className={`font-bold ${
+                        r.rank_google <= 3 ? "text-emerald-600" :
+                        r.rank_google <= 10 ? "text-blue-600" :
+                        r.rank_google <= 20 ? "text-amber-600" : "text-gray-400"
+                      }`}>
+                        {r.rank_google}위
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground">-</span>
+                    )}
+                  </td>
+                  <td className="py-2.5 px-3 text-center text-xs text-muted-foreground hidden md:table-cell">
+                    {r.search_volume > 0 ? r.search_volume.toLocaleString() : "-"}
+                  </td>
+                  <td className="py-2.5 px-3 text-center text-xs text-muted-foreground hidden lg:table-cell">
+                    {r.last_tracked_at ? new Date(r.last_tracked_at).toLocaleDateString("ko-KR") : "-"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Report Tab ──────────────────────────────────────────────────────────
+
+function ReportTab({ clientId }: { clientId: string }) {
+  const [settings, setSettings] = useState<ReportSettings>({ enabled: false, recipient_email: null });
+  const [deliveries, setDeliveries] = useState<ReportDelivery[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, startSave] = useTransition();
+  const [sending, setSending] = useState(false);
+  const [resending, setResending] = useState<string | null>(null);
+  const [emailInput, setEmailInput] = useState("");
+
+  useEffect(() => {
+    Promise.all([
+      getReportSettings(clientId),
+      getReportDeliveries(clientId),
+    ]).then(([s, d]) => {
+      setSettings(s);
+      setEmailInput(s.recipient_email || "");
+      setDeliveries(d);
+      setLoading(false);
+    });
+  }, [clientId]);
+
+  const handleSaveSettings = () => {
+    startSave(async () => {
+      const result = await updateReportSettings(clientId, {
+        enabled: settings.enabled,
+        recipient_email: emailInput.trim() || null,
+      });
+      if (result.success) {
+        setSettings({ enabled: settings.enabled, recipient_email: emailInput.trim() || null });
+        toast.success("리포트 설정이 저장되었습니다.");
+      } else {
+        toast.error(result.error || "저장 실패");
+      }
+    });
+  };
+
+  const handleGenerateAndSend = async () => {
+    setSending(true);
+    const now = new Date();
+    const result = await generateAndSendReport(clientId, now.getFullYear(), now.getMonth() + 1);
+    if (result.success) {
+      toast.success(result.status === "sent" ? "리포트가 이메일로 발송되었습니다." : "PDF가 생성되었습니다. (이메일 미설정)");
+      const d = await getReportDeliveries(clientId);
+      setDeliveries(d);
+    } else {
+      toast.error(result.error || "리포트 생성 실패");
+    }
+    setSending(false);
+  };
+
+  const handlePreview = () => {
+    window.open(`/api/portal/report-pdf?clientId=${clientId}`, "_blank");
+  };
+
+  const handleResend = async (deliveryId: string) => {
+    setResending(deliveryId);
+    const result = await resendReport(deliveryId);
+    if (result.success) {
+      toast.success("리포트가 재발송되었습니다.");
+      const d = await getReportDeliveries(clientId);
+      setDeliveries(d);
+    } else {
+      toast.error(result.error || "재발송 실패");
+    }
+    setResending(null);
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  const statusBadge = (status: string) => {
+    const map: Record<string, { label: string; cls: string }> = {
+      sent: { label: "발송완료", cls: "bg-emerald-100 text-emerald-700" },
+      failed: { label: "실패", cls: "bg-red-100 text-red-700" },
+      skipped: { label: "스킵", cls: "bg-gray-100 text-gray-600" },
+      pending: { label: "대기", cls: "bg-amber-100 text-amber-700" },
+      generating: { label: "생성중", cls: "bg-blue-100 text-blue-700" },
+    };
+    const b = map[status] || { label: status, cls: "bg-gray-100 text-gray-600" };
+    return <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${b.cls}`}>{b.label}</span>;
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* 설정 영역 */}
+      <div className="border rounded-lg p-4 space-y-4">
+        <h3 className="font-semibold text-sm">리포트 설정</h3>
+
+        {/* 토글 */}
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium">월간 리포트 자동 발송</p>
+            <p className="text-xs text-muted-foreground">매월 1일 자동으로 리포트를 생성하여 이메일로 발송합니다</p>
+          </div>
+          <button
+            onClick={() => setSettings((s) => ({ ...s, enabled: !s.enabled }))}
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+              settings.enabled ? "bg-emerald-500" : "bg-gray-200"
+            }`}
+          >
+            <span
+              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                settings.enabled ? "translate-x-6" : "translate-x-1"
+              }`}
+            />
+          </button>
+        </div>
+
+        {/* 이메일 */}
+        <div>
+          <label className="text-xs text-muted-foreground">수신 이메일</label>
+          <input
+            type="email"
+            value={emailInput}
+            onChange={(e) => setEmailInput(e.target.value)}
+            placeholder="report@example.com"
+            className="w-full mt-1 px-3 py-2 border rounded-lg text-sm bg-background"
+          />
+        </div>
+
+        <button
+          onClick={handleSaveSettings}
+          disabled={saving}
+          className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50"
+        >
+          {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+          저장
+        </button>
+      </div>
+
+      {/* 수동 발송 영역 */}
+      <div className="border rounded-lg p-4 space-y-3">
+        <h3 className="font-semibold text-sm">수동 리포트</h3>
+        <p className="text-xs text-muted-foreground">리포트 ON/OFF와 관계없이 수동으로 리포트를 생성하고 발송할 수 있습니다.</p>
+        <div className="flex gap-2">
+          <button
+            onClick={handlePreview}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-lg border text-sm font-medium hover:bg-muted"
+          >
+            <Download className="h-3.5 w-3.5" />
+            PDF 미리보기
+          </button>
+          <button
+            onClick={handleGenerateAndSend}
+            disabled={sending}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50"
+          >
+            {sending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+            {sending ? "생성 중..." : "리포트 생성 + 발송"}
+          </button>
+        </div>
+      </div>
+
+      {/* 발송 이력 */}
+      <div className="border rounded-lg p-4">
+        <h3 className="font-semibold text-sm mb-3">발송 이력</h3>
+        {deliveries.length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground">
+            <Mail className="h-8 w-8 mx-auto mb-2 opacity-40" />
+            <p className="text-sm">발송 이력이 없습니다</p>
+          </div>
+        ) : (
+          <div className="border rounded-lg overflow-hidden">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/50 border-b">
+                <tr>
+                  <th className="text-left py-2.5 px-3 font-medium text-muted-foreground">리포트 월</th>
+                  <th className="text-left py-2.5 px-3 font-medium text-muted-foreground hidden md:table-cell">발송일</th>
+                  <th className="text-left py-2.5 px-3 font-medium text-muted-foreground hidden lg:table-cell">수신 이메일</th>
+                  <th className="text-center py-2.5 px-3 font-medium text-muted-foreground">상태</th>
+                  <th className="text-center py-2.5 px-3 font-medium text-muted-foreground">작업</th>
+                </tr>
+              </thead>
+              <tbody>
+                {deliveries.map((d) => (
+                  <tr key={d.id} className="border-b last:border-0 hover:bg-muted/30">
+                    <td className="py-2.5 px-3 font-medium">
+                      {new Date(d.report_month).toLocaleDateString("ko-KR", { year: "numeric", month: "long" })}
+                    </td>
+                    <td className="py-2.5 px-3 text-xs text-muted-foreground hidden md:table-cell">
+                      {d.email_sent_at ? new Date(d.email_sent_at).toLocaleDateString("ko-KR") : "-"}
+                    </td>
+                    <td className="py-2.5 px-3 text-xs text-muted-foreground hidden lg:table-cell">
+                      {d.email_to || "-"}
+                    </td>
+                    <td className="py-2.5 px-3 text-center">{statusBadge(d.status)}</td>
+                    <td className="py-2.5 px-3 text-center">
+                      {d.status === "failed" && (
+                        <button
+                          onClick={() => handleResend(d.id)}
+                          disabled={resending === d.id}
+                          className="inline-flex items-center gap-1 px-2 py-1 rounded border text-xs font-medium hover:bg-muted disabled:opacity-50"
+                        >
+                          {resending === d.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+                          재발송
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        {deliveries.some((d) => d.error_message) && (
+          <div className="mt-3 space-y-1">
+            {deliveries.filter((d) => d.error_message).map((d) => (
+              <p key={d.id} className="text-xs text-red-500">
+                {new Date(d.report_month).toLocaleDateString("ko-KR", { year: "numeric", month: "long" })}: {d.error_message}
+              </p>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Main Page ──────────────────────────────────────────────────────────────
 
-type TabKey = "overview" | "keywords" | "contents" | "analyses" | "subscription" | "onboarding";
+type TabKey = "overview" | "keywords" | "contents" | "analyses" | "persona" | "subscription" | "onboarding" | "rankings" | "reports";
 
 export default function ClientDetailPage() {
   const params = useParams();
@@ -422,13 +1089,22 @@ export default function ClientDetailPage() {
     );
   }
 
+  const refreshClient = () => {
+    getClientDetail(clientId).then((data) => {
+      if (data) setClient(data);
+    });
+  };
+
   const tabs: { key: TabKey; label: string; icon: React.ElementType }[] = [
     { key: "overview", label: "개요", icon: Building2 },
     { key: "keywords", label: "키워드", icon: Key },
     { key: "contents", label: "콘텐츠", icon: FileText },
     { key: "analyses", label: "분석이력", icon: BarChart2 },
+    { key: "rankings", label: "순위", icon: TrendingUp },
+    { key: "persona", label: "페르소나", icon: Sparkles },
     { key: "subscription", label: "구독/결제", icon: CreditCard },
     { key: "onboarding", label: "온보딩", icon: CheckSquare },
+    { key: "reports", label: "리포트", icon: FileBarChart },
   ];
 
   return (
@@ -507,8 +1183,11 @@ export default function ClientDetailPage() {
           </Link>
         </div>
       )}
+      {activeTab === "rankings" && <RankingsTab clientId={client.id} />}
+      {activeTab === "persona" && <PersonaTab client={client} onRefresh={refreshClient} />}
       {activeTab === "subscription" && <SubscriptionTab client={client} />}
       {activeTab === "onboarding" && <OnboardingTab client={client} />}
+      {activeTab === "reports" && <ReportTab clientId={client.id} />}
     </div>
   );
 }
