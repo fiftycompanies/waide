@@ -357,6 +357,105 @@ export async function triggerAllSerpCheck(): Promise<{
   }
 }
 
+export async function triggerClientSerpCheck(clientId: string): Promise<{
+  success: boolean;
+  count?: number;
+  exposed?: number;
+  top3?: number;
+  top10?: number;
+  error?: string;
+}> {
+  try {
+    const { collectSerpAll } = await import("@/lib/serp-collector");
+    const summary = await collectSerpAll(clientId);
+
+    revalidatePath(`/ops/clients/${clientId}`);
+    return {
+      success: true,
+      count: summary.total,
+      exposed: summary.exposed,
+      top3: summary.top3,
+      top10: summary.top10,
+    };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : "알 수 없는 오류" };
+  }
+}
+
+export interface ClientRanking {
+  keyword_id: string;
+  keyword: string;
+  rank_pc: number | null;
+  rank_mo: number | null;
+  search_volume: number;
+  is_exposed: boolean;
+  last_tracked_at: string | null;
+}
+
+export interface ClientRankingSummary {
+  total_keywords: number;
+  exposed_keywords: number;
+  exposure_rate: number;
+  top3_count: number;
+  top10_count: number;
+  avg_rank: number | null;
+  weighted_visibility: number;
+  last_collected_at: string | null;
+  rankings: ClientRanking[];
+}
+
+export async function getClientRankings(clientId: string): Promise<ClientRankingSummary> {
+  const db = createAdminClient();
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [kwRes, summaryRes] = await Promise.all([
+    (db as any).from("keywords")
+      .select("id, keyword, current_rank_naver_pc, current_rank_naver_mo, last_tracked_at, monthly_search_pc")
+      .eq("client_id", clientId)
+      .neq("status", "archived")
+      .order("current_rank_naver_pc", { ascending: true, nullsFirst: false }),
+    db.from("daily_visibility_summary")
+      .select("*")
+      .eq("client_id", clientId)
+      .order("measured_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ]);
+
+  const keywords = kwRes.data || [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const summary = summaryRes.data as any;
+
+  const rankings: ClientRanking[] = (keywords as {
+    id: string;
+    keyword: string;
+    current_rank_naver_pc: number | null;
+    current_rank_naver_mo: number | null;
+    last_tracked_at: string | null;
+    monthly_search_pc: number | null;
+  }[]).map((kw) => ({
+    keyword_id: kw.id,
+    keyword: kw.keyword,
+    rank_pc: kw.current_rank_naver_pc,
+    rank_mo: kw.current_rank_naver_mo,
+    search_volume: kw.monthly_search_pc || 0,
+    is_exposed: kw.current_rank_naver_pc != null,
+    last_tracked_at: kw.last_tracked_at,
+  }));
+
+  return {
+    total_keywords: summary?.total_keywords ?? keywords.length,
+    exposed_keywords: summary?.exposed_keywords ?? rankings.filter((r: ClientRanking) => r.is_exposed).length,
+    exposure_rate: summary?.exposure_rate ?? 0,
+    top3_count: summary?.top3_count ?? 0,
+    top10_count: summary?.top10_count ?? 0,
+    avg_rank: summary?.avg_rank_pc ?? null,
+    weighted_visibility: summary?.weighted_visibility_pc ?? 0,
+    last_collected_at: summary?.measured_at ?? null,
+    rankings,
+  };
+}
+
 export async function getAccountPerfByKeyword(keywordId: string): Promise<AccountPerf[]> {
   const db = createAdminClient();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

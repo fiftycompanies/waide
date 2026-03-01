@@ -428,12 +428,12 @@ export async function getPortalReportV2(clientId: string, year?: number, month?:
       .select("id, created_at, status")
       .eq("client_id", clientId)
       .eq("status", "active"),
-    // SERP 순위 데이터 (최신)
-    db.from("serp_results")
-      .select("keyword, rank, device, checked_at")
+    // SERP 순위 데이터 → keyword_visibility (client_id FK 보유)
+    db.from("keyword_visibility")
+      .select("keyword_id, rank_pc, rank_mo, measured_at, is_exposed")
       .eq("client_id", clientId)
-      .order("checked_at", { ascending: false })
-      .limit(50),
+      .order("measured_at", { ascending: false })
+      .limit(100),
     // 분석 이력
     db.from("brand_analyses")
       .select("id, marketing_score, analyzed_at, content_strategy")
@@ -471,11 +471,25 @@ export async function getPortalReportV2(clientId: string, year?: number, month?:
     keywordsTrend.push({ month: labelMonth, count });
   }
 
-  // SERP 순위 데이터 정리 (키워드별 최신 순위)
+  // SERP 순위: keyword_visibility → 키워드명 매핑
+  const visibilityRows = (serpRes.data || []) as { keyword_id: string; rank_pc: number | null; rank_mo: number | null; measured_at: string; is_exposed: boolean }[];
+  const rankKwIds = [...new Set(visibilityRows.map((r) => r.keyword_id))];
+  let kwNameMap: Record<string, string> = {};
+  if (rankKwIds.length > 0) {
+    const { data: kwNames } = await db.from("keywords").select("id, keyword").in("id", rankKwIds);
+    kwNameMap = Object.fromEntries((kwNames || []).map((k: { id: string; keyword: string }) => [k.id, k.keyword]));
+  }
+
+  // 키워드별 최신 순위 (keyword_id dedup)
   const serpMap = new Map<string, { keyword: string; rank: number; device: string; checked_at: string }>();
-  for (const r of (serpRes.data || []) as { keyword: string; rank: number; device: string; checked_at: string }[]) {
-    if (!serpMap.has(r.keyword)) {
-      serpMap.set(r.keyword, r);
+  for (const r of visibilityRows) {
+    if (!serpMap.has(r.keyword_id) && r.rank_pc != null) {
+      serpMap.set(r.keyword_id, {
+        keyword: kwNameMap[r.keyword_id] || r.keyword_id,
+        rank: r.rank_pc,
+        device: "pc",
+        checked_at: r.measured_at,
+      });
     }
   }
   const serpRankings = Array.from(serpMap.values());

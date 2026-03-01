@@ -38,6 +38,11 @@ import {
   regeneratePersona,
   type BrandPersona,
 } from "@/lib/actions/persona-actions";
+import {
+  getClientRankings,
+  triggerClientSerpCheck,
+  type ClientRankingSummary,
+} from "@/lib/actions/keyword-actions";
 
 // ── Tab button ─────────────────────────────────────────────────────────────
 
@@ -655,9 +660,162 @@ function PersonaTab({ client, onRefresh }: { client: ClientDetail; onRefresh: ()
   );
 }
 
+// ── Rankings Tab ────────────────────────────────────────────────────────
+
+function RankingsTab({ clientId }: { clientId: string }) {
+  const [data, setData] = useState<ClientRankingSummary | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [checking, setChecking] = useState(false);
+
+  useEffect(() => {
+    getClientRankings(clientId).then((d) => {
+      setData(d);
+      setLoading(false);
+    });
+  }, [clientId]);
+
+  const handleCheck = async () => {
+    setChecking(true);
+    const result = await triggerClientSerpCheck(clientId);
+    if (result.success) {
+      toast.success(`순위 체크 완료: ${result.count}개 키워드 중 ${result.exposed}개 노출`);
+      const d = await getClientRankings(clientId);
+      setData(d);
+    } else {
+      toast.error(result.error || "순위 체크 실패");
+    }
+    setChecking(false);
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (!data) {
+    return (
+      <div className="text-center py-12 text-muted-foreground">
+        <TrendingUp className="h-8 w-8 mx-auto mb-2 opacity-40" />
+        <p className="text-sm">순위 데이터를 불러올 수 없습니다</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Header with action button */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="font-semibold text-sm">순위 현황</h3>
+          {data.last_collected_at && (
+            <p className="text-xs text-muted-foreground mt-0.5">
+              마지막 수집: {new Date(data.last_collected_at).toLocaleDateString("ko-KR")}
+            </p>
+          )}
+        </div>
+        <button
+          onClick={handleCheck}
+          disabled={checking}
+          className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-medium disabled:opacity-50"
+        >
+          {checking ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+          {checking ? "수집 중..." : "순위 체크 실행"}
+        </button>
+      </div>
+
+      {/* Summary Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="border rounded-lg p-3 text-center">
+          <p className="text-xs text-muted-foreground">노출 키워드</p>
+          <p className="text-xl font-bold mt-1">
+            {data.exposed_keywords}/{data.total_keywords}
+          </p>
+        </div>
+        <div className="border rounded-lg p-3 text-center">
+          <p className="text-xs text-muted-foreground">노출률</p>
+          <p className="text-xl font-bold mt-1">{data.exposure_rate}%</p>
+        </div>
+        <div className="border rounded-lg p-3 text-center">
+          <p className="text-xs text-muted-foreground">TOP 3 / TOP 10</p>
+          <p className="text-xl font-bold mt-1">{data.top3_count} / {data.top10_count}</p>
+        </div>
+        <div className="border rounded-lg p-3 text-center">
+          <p className="text-xs text-muted-foreground">평균 순위</p>
+          <p className="text-xl font-bold mt-1">{data.avg_rank ? `${data.avg_rank}위` : "-"}</p>
+        </div>
+      </div>
+
+      {/* Rankings Table */}
+      {data.rankings.length === 0 ? (
+        <div className="text-center py-8 text-muted-foreground">
+          <TrendingUp className="h-8 w-8 mx-auto mb-2 opacity-40" />
+          <p className="text-sm">순위 데이터가 없습니다</p>
+          <p className="text-xs mt-1">&quot;순위 체크 실행&quot; 버튼을 클릭하세요</p>
+        </div>
+      ) : (
+        <div className="border rounded-lg overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/50 border-b">
+              <tr>
+                <th className="text-left py-2.5 px-3 font-medium text-muted-foreground">키워드</th>
+                <th className="text-center py-2.5 px-3 font-medium text-muted-foreground">PC 순위</th>
+                <th className="text-center py-2.5 px-3 font-medium text-muted-foreground hidden sm:table-cell">MO 순위</th>
+                <th className="text-center py-2.5 px-3 font-medium text-muted-foreground hidden md:table-cell">검색량</th>
+                <th className="text-center py-2.5 px-3 font-medium text-muted-foreground hidden lg:table-cell">수집일</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.rankings.map((r) => (
+                <tr key={r.keyword_id} className="border-b last:border-0 hover:bg-muted/30">
+                  <td className="py-2.5 px-3 font-medium">{r.keyword}</td>
+                  <td className="py-2.5 px-3 text-center">
+                    {r.rank_pc != null ? (
+                      <span className={`font-bold ${
+                        r.rank_pc <= 3 ? "text-emerald-600" :
+                        r.rank_pc <= 10 ? "text-blue-600" :
+                        r.rank_pc <= 20 ? "text-amber-600" : "text-gray-400"
+                      }`}>
+                        {r.rank_pc}위
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground">-</span>
+                    )}
+                  </td>
+                  <td className="py-2.5 px-3 text-center hidden sm:table-cell">
+                    {r.rank_mo != null ? (
+                      <span className={`font-bold ${
+                        r.rank_mo <= 3 ? "text-emerald-600" :
+                        r.rank_mo <= 10 ? "text-blue-600" :
+                        r.rank_mo <= 20 ? "text-amber-600" : "text-gray-400"
+                      }`}>
+                        {r.rank_mo}위
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground">-</span>
+                    )}
+                  </td>
+                  <td className="py-2.5 px-3 text-center text-xs text-muted-foreground hidden md:table-cell">
+                    {r.search_volume > 0 ? r.search_volume.toLocaleString() : "-"}
+                  </td>
+                  <td className="py-2.5 px-3 text-center text-xs text-muted-foreground hidden lg:table-cell">
+                    {r.last_tracked_at ? new Date(r.last_tracked_at).toLocaleDateString("ko-KR") : "-"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main Page ──────────────────────────────────────────────────────────────
 
-type TabKey = "overview" | "keywords" | "contents" | "analyses" | "persona" | "subscription" | "onboarding";
+type TabKey = "overview" | "keywords" | "contents" | "analyses" | "persona" | "subscription" | "onboarding" | "rankings";
 
 export default function ClientDetailPage() {
   const params = useParams();
@@ -704,6 +862,7 @@ export default function ClientDetailPage() {
     { key: "keywords", label: "키워드", icon: Key },
     { key: "contents", label: "콘텐츠", icon: FileText },
     { key: "analyses", label: "분석이력", icon: BarChart2 },
+    { key: "rankings", label: "순위", icon: TrendingUp },
     { key: "persona", label: "페르소나", icon: Sparkles },
     { key: "subscription", label: "구독/결제", icon: CreditCard },
     { key: "onboarding", label: "온보딩", icon: CheckSquare },
@@ -785,6 +944,7 @@ export default function ClientDetailPage() {
           </Link>
         </div>
       )}
+      {activeTab === "rankings" && <RankingsTab clientId={client.id} />}
       {activeTab === "persona" && <PersonaTab client={client} onRefresh={refreshClient} />}
       {activeTab === "subscription" && <SubscriptionTab client={client} />}
       {activeTab === "onboarding" && <OnboardingTab client={client} />}

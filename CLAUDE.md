@@ -1,7 +1,7 @@
 # Waide (AI Hospitality Aide) — 서비스 IA
 
-> 최종 업데이트: 2026-02-28
-> 버전: Phase P-1 완료 (포털 MVP — 고객용 핵심 4화면)
+> 최종 업데이트: 2026-03-01
+> 버전: Phase E-3-1 완료 (SERP 추적 검증 + 포털 연결)
 
 ---
 
@@ -91,7 +91,7 @@
 | `/portal/settings` | 설정 (프로필, 비밀번호, 구독) | `users`, `subscriptions`, `sales_agents` |
 
 > 포털 키워드 승인/거절: `approveSuggestedKeyword()`, `rejectSuggestedKeyword()` — keyword-expansion-actions.ts
-> 포털 순위 섹션: serp_results 데이터 있으면 표시, 없으면 "준비 중" — E-3 SERP 추적 구현 후 자동 활성화
+> 포털 순위 섹션: keyword_visibility 테이블 사용 (E-3-1에서 수정, serp_results는 client_id 없어 사용 불가) — SERP 크론 실행 시 자동 표시
 
 ### 3-3. 어드민 (Admin) — 라이트 테마
 
@@ -106,7 +106,7 @@
 | 경로 | 페이지명 | 데이터 소스 |
 |------|---------|-----------|
 | `/ops/clients` | 고객 포트폴리오 (카드뷰, 상태필터, At Risk 감지) | `clients`, `subscriptions`, `brand_analyses`, `sales_agents` |
-| `/ops/clients/[id]` | 고객 상세 (6탭: 개요/키워드/콘텐츠/분석/구독/온보딩) | `clients`, `subscriptions`, `brand_analyses`, `keywords`, `contents` |
+| `/ops/clients/[id]` | 고객 상세 (8탭: 개요/키워드/콘텐츠/분석/순위/페르소나/구독/온보딩) | `clients`, `subscriptions`, `brand_analyses`, `keywords`, `contents`, `keyword_visibility`, `daily_visibility_summary` |
 | `/ops/onboarding` | 온보딩 관리 (체크리스트, 진행률) | `clients` (onboarding_checklist JSONB) |
 | `/ops/brands` | 분석된 브랜드 목록 | `brand_analyses` |
 | `/ops/brands/[id]` | 마케팅 점수 + 개선포인트 | `brand_analyses` |
@@ -287,7 +287,7 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 | `url-crawl-action.ts` | crawlUrl() | (외부 fetch) |
 | `blog-account-actions.ts` | getAccounts() | blog_accounts |
 | `campaign-actions.ts` | getCampaigns() | campaigns, campaign_keywords |
-| `keyword-actions.ts` | getKeywords(), getSerpByKeyword(), updateKeywordStatus() | keywords, serp_results |
+| `keyword-actions.ts` | getKeywords(), getSerpByKeyword(), updateKeywordStatus(), triggerClientSerpCheck(), getClientRankings() | keywords, serp_results, keyword_visibility, daily_visibility_summary |
 | `keyword-expansion-actions.ts` | expandNicheKeywords(), getClientMainKeywords(), approveSuggestedKeyword(), rejectSuggestedKeyword(), bulkApproveSuggestedKeywords() | keywords |
 | `keyword-strategy-actions.ts` | generateKeywordStrategy(), getKeywordStrategy() | keywords, brand_analyses, clients |
 | `content-generate-actions.ts` | generateContentV2(), processContentJobs() | contents, jobs, clients, content_sources, content_benchmarks |
@@ -493,6 +493,15 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
   - 기존 V1 함수 하위 호환 유지 — 기존 코드 동작 영향 없음
   - 순위 섹션: serp_results 데이터 있으면 표시, 없으면 "순위 추적 준비 중" — E-3 SERP 추적 구현 후 자동 활성화
   - TypeScript 빌드 검증: tsc --noEmit 0 에러
+- Phase E-3-1: SERP 추적 검증 + 포털 연결 (2026-03-01)
+  - SERP 인프라 전체 감사: serp-collector.ts, naver-search-api.ts, cron/serp, keyword-actions.ts 점검 완료
+  - 포털 리포트 순위 데이터 버그 수정: getPortalReportV2()가 serp_results(client_id 없음) 대신 keyword_visibility(client_id 보유) 테이블 사용하도록 수정
+  - keyword_visibility → keywords 테이블 조인으로 키워드명 매핑 추가
+  - triggerClientSerpCheck(clientId): 고객사별 SERP 수집 서버 액션 추가 (collectSerpAll(clientId) 래핑)
+  - getClientRankings(clientId): 고객사 순위 현황 조회 서버 액션 추가 (keywords + daily_visibility_summary 통합)
+  - 어드민 클라이언트 상세 (/ops/clients/[id]): "순위" 탭 추가 (8탭 → 개요/키워드/콘텐츠/분석이력/순위/페르소나/구독/온보딩)
+  - 순위 탭: 요약 카드 4종 (노출키워드/노출률/TOP3·10/평균순위) + 순위 테이블 + [순위 체크 실행] 버튼
+  - TypeScript 빌드 검증: tsc --noEmit 0 에러
 
 ### 설계 원칙
 
@@ -625,3 +634,4 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 - Portal↔Login 리디렉트 루프: client_id 없는 Supabase 사용자 → portal layout에서 redirect 금지, 인라인 대기 페이지 렌더링
 - middleware에서 error 파라미터 있으면 Supabase 세션 리디렉트 건너뜀 (루프 방지)
 - CREATE TABLE IF NOT EXISTS 함정: 테이블이 이미 존재하면 새 컬럼 무시됨 → ALTER TABLE ADD COLUMN IF NOT EXISTS로 수동 추가
+- serp_results 테이블에는 client_id 컬럼 없음! content_id FK만 있음. 클라이언트별 순위 데이터는 keyword_visibility 테이블(client_id 보유) 사용 필수
