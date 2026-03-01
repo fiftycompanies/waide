@@ -3,6 +3,7 @@ import { getBrandList, getSelectedClientId } from "@/lib/actions/brand-actions";
 import { Badge } from "@/components/ui/badge";
 import { BrandBadge } from "@/components/ui/brand-badge";
 import Link from "next/link";
+import { ExternalLink, Radio } from "lucide-react";
 import { ContentsPageHeaderWithSelector } from "@/components/ops/contents-page-header";
 
 const PUBLISH_STATUSES = [
@@ -140,9 +141,21 @@ export default async function ContentsPage({ searchParams }: ContentsPageProps) 
                   </div>
                 )}
                 <div className="min-w-0">
-                  <p className="text-sm font-medium truncate">
-                    {content.title ?? "(제목 없음)"}
-                  </p>
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-sm font-medium truncate">
+                      {content.title ?? "(제목 없음)"}
+                    </p>
+                    {content.published_url && (
+                      <span title="발행됨">
+                        <ExternalLink className="h-3 w-3 text-emerald-500 shrink-0" />
+                      </span>
+                    )}
+                    {content.is_tracking && (
+                      <span title="순위 추적 중">
+                        <Radio className="h-3 w-3 text-blue-500 shrink-0" />
+                      </span>
+                    )}
+                  </div>
                   {content.tags && content.tags.length > 0 && (
                     <p className="text-xs text-muted-foreground mt-0.5 truncate">
                       {content.tags.slice(0, 3).join(", ")}

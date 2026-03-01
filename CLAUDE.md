@@ -1,7 +1,7 @@
 # Waide (AI Hospitality Aide) — 서비스 IA
 
 > 최종 업데이트: 2026-03-01
-> 버전: Phase G-1 완료 (월간 PDF 리포트 + 이메일 발송 + 어드민 설정)
+> 버전: Phase PIPE-1 완료 (캠페인 기획 + 에디터 브릿지 + 콘텐츠 목록 보강)
 
 ---
 
@@ -123,7 +123,8 @@
 #### 콘텐츠 관리
 | 경로 | 페이지명 | 데이터 소스 |
 |------|---------|-----------|
-| `/ops/contents` | 전체 콘텐츠 + QC 점수 + 상태 | `contents` |
+| `/campaigns/plan` | 캠페인 기획 (키워드 추천/입력 + 스타일참조 + 콘텐츠 생성 지시) | `keywords`, `contents`, `jobs`, `clients` |
+| `/ops/contents` | 전체 콘텐츠 + QC 점수 + 상태 + 발행URL/추적 표시 | `contents` |
 | `/ops/contents/[id]` | 본문 보기/편집 + QC 결과 | `contents` |
 
 #### 분석/성과
@@ -204,7 +205,32 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 [발행] (Phase D 미구현) → 슬랙 컨펌 → 블로그 발행
 ```
 
-### 4-4. 영업사원 트래킹 + CRM 플로우
+### 4-4. 캠페인 기획 → 콘텐츠 생성 → 발행 → 추적 플로우
+
+```
+[캠페인 기획 /campaigns/plan]
+  ├─ AI 추천 키워드 (suggestKeywordsForClient → Claude Haiku → status='suggested')
+  ├─ 어드민 승인 → status='active' (approveSuggestedKeyword)
+  ├─ 수동 키워드 입력 → status='active' (addManualKeyword)
+  ├─ Style Transfer 참조 선택 (bestContents, 최대 3개)
+  └─ [콘텐츠 생성 지시] 버튼 → triggerContentGeneration()
+       ↓
+  jobs INSERT (CONTENT_CREATE, PENDING)
+       ↓
+  processContentJobs() → generateContentV2()
+  ├─ COPYWRITER v2 → QC v2 → 재작성(필요 시)
+  └─ contents INSERT (draft → approved)
+       ↓
+[에디터 /ops/contents/[id]]
+  ├─ 마크다운 복사 → 블로그 수동 발행
+  └─ 발행 URL 입력 → updatePublishedUrl()
+       ↓
+  is_tracking=true, publish_status='published'
+       ↓
+[SERP 추적] (daily cron → 순위 → 대시보드)
+```
+
+### 4-5. 영업사원 트래킹 + CRM 플로우
 
 ```
 [/ops/sales-agents] → 등록 → ref_code 생성 → 링크 복사
@@ -292,7 +318,8 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 | `content-prompt-actions.ts` | getPrompts(), updatePrompt() | content_prompts |
 | `url-crawl-action.ts` | crawlUrl() | (외부 fetch) |
 | `blog-account-actions.ts` | getAccounts() | blog_accounts |
-| `campaign-actions.ts` | getCampaigns() | campaigns, campaign_keywords |
+| `campaign-actions.ts` | getCampaigns(), createCampaignWithJob(), getActiveKeywordsForClient(), getBestRankContents() | campaigns, campaign_keywords, keywords, contents |
+| `campaign-planning-actions.ts` | suggestKeywordsForClient(), addManualKeyword(), getActiveKeywordPool(), getSuggestedKeywords(), triggerContentGeneration() | keywords, contents, jobs, clients |
 | `keyword-actions.ts` | getKeywords(), getSerpByKeyword(), updateKeywordStatus(), triggerClientSerpCheck(), getClientRankings() | keywords, serp_results, keyword_visibility, daily_visibility_summary |
 | `keyword-expansion-actions.ts` | expandNicheKeywords(), getClientMainKeywords(), approveSuggestedKeyword(), rejectSuggestedKeyword(), bulkApproveSuggestedKeywords() | keywords |
 | `keyword-strategy-actions.ts` | generateKeywordStrategy(), getKeywordStrategy() | keywords, brand_analyses, clients |
@@ -551,6 +578,28 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
   - 한글 폰트: public/fonts/NotoSansKR-Regular.ttf, NotoSansKR-Bold.ttf
   - 환경변수: RESEND_API_KEY, CRON_SECRET, REPORT_FROM_EMAIL (모두 optional, 없으면 graceful skip)
   - TypeScript 빌드 검증: tsc --noEmit 0 에러
+- Phase PIPE-1: 캠페인 기획 + 에디터 브릿지 (실전 파이프라인 UI) (2026-03-01)
+  - lib/actions/campaign-planning-actions.ts: 캠페인 기획용 서버 액션 5개
+    - suggestKeywordsForClient(clientId, count): AI(Claude Haiku) 키워드 추천 → keywords INSERT (status='suggested')
+    - addManualKeyword(clientId, keyword): 수동 키워드 추가 (중복 체크, 바로 active)
+    - getActiveKeywordPool(clientId): 활성 키워드 풀 (콘텐츠 수, 순위 포함)
+    - getSuggestedKeywords(clientId): 추천 대기 키워드 목록
+    - triggerContentGeneration(params): CONTENT_CREATE Job INSERT → processContentJobs()에서 처리
+  - app/(dashboard)/campaigns/plan/page.tsx: 캠페인 기획 화면
+  - components/campaigns/campaign-planning-client.tsx: 기획 클라이언트 컴포넌트
+    - AI 추천 키워드 섹션: 추천 요청 → 승인/보류 (기존 approveSuggestedKeyword/rejectSuggestedKeyword 재사용)
+    - 수동 키워드 입력 섹션: 즉시 active 등록
+    - 활성 키워드 풀: 키워드 선택 → 콘텐츠/순위 현황 표시
+    - Style Transfer 참조: 상위노출 베스트 글 선택 (최대 3개)
+    - 생성 옵션: 콘텐츠 유형 + 추가 지시사항
+    - 콘텐츠 생성 지시 버튼 → triggerContentGeneration → CONTENT_CREATE Job
+  - 사이드바: "콘텐츠" 그룹에 "캠페인 기획" 메뉴 추가 (/campaigns/plan, Zap 아이콘)
+  - 콘텐츠 목록 보강: 발행 URL 아이콘(ExternalLink) + 순위추적 아이콘(Radio) 표시
+  - 에디터 브릿지: 기존 ContentEditor에 이미 구현됨 (마크다운 복사, 발행 URL → SERP 추적)
+  - 키워드 확보 플로우: AI 추천(suggested) → 어드민 승인(active) → 콘텐츠 생성 가능
+  - 콘텐츠 생성 플로우: 키워드 선택 → triggerContentGeneration → CONTENT_CREATE Job INSERT → processContentJobs() → generateContentV2() 파이프라인
+  - 발행 플로우: 에디터에서 마크다운 복사 → 블로그 수동 발행 → URL 입력 → updatePublishedUrl() → is_tracking=true → 다음 SERP 크론에서 순위 추적
+  - TypeScript 빌드 검증: tsc --noEmit 0 에러
 
 ### 설계 원칙
 
@@ -599,6 +648,7 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 | 3 | **F-3** | 키워드 고도화 — 니치 키워드 확장 + 공략 전략 + 키워드 UI 개편 | ✅ 완료 |
 | 4 | **F-4** | 콘텐츠 품질 고도화 — 벤치마킹 + 작성 v2 + QC v2 + 재작성 루프 | ✅ 완료 |
 | 5 | **G-1** | 월간 PDF 리포트 + 이메일 발송 + 어드민 설정 | ✅ 완료 |
+| 6 | **PIPE-1** | 캠페인 기획 + 에디터 브릿지 (실전 파이프라인 UI) | ✅ 완료 |
 
 ### 미구현 (우선순위 순)
 

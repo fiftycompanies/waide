@@ -28,6 +28,7 @@ import {
   Target,
   UserCheck,
   Users,
+  Zap,
 } from "lucide-react";
 import { Logo } from "@/components/logo";
 import Link from "next/link";
@@ -83,6 +84,7 @@ const seoNavItems = [
 ];
 
 const contentNavItems = [
+  { title: "캠페인 기획",   url: "/campaigns/plan", icon: Zap },
   { title: "콘텐츠 관리",   url: "/ops/contents",  icon: FileEdit },
   { title: "작업 큐",       url: "/ops/jobs",       icon: GitBranch },
 ];
