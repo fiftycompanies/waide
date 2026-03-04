@@ -1,7 +1,7 @@
 # Waide (AI Hospitality Aide) — 서비스 IA
 
-> 최종 업데이트: 2026-03-01
-> 버전: Phase PIPE-1 완료 (캠페인 기획 + 에디터 브릿지 + 콘텐츠 목록 보강)
+> 최종 업데이트: 2026-03-04
+> 버전: Phase UX-P0 완료 (error.tsx + not-found.tsx + 설정 정리 + 랜딩 정리)
 
 ---
 
@@ -600,6 +600,15 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
   - 콘텐츠 생성 플로우: 키워드 선택 → triggerContentGeneration → CONTENT_CREATE Job INSERT → processContentJobs() → generateContentV2() 파이프라인
   - 발행 플로우: 에디터에서 마크다운 복사 → 블로그 수동 발행 → URL 입력 → updatePublishedUrl() → is_tracking=true → 다음 SERP 크론에서 순위 추적
   - TypeScript 빌드 검증: tsc --noEmit 0 에러
+- Phase UX-P0: P0 크리티컬 이슈 수정 (2026-03-04)
+  - error.tsx 3개 추가: app/(public)/error.tsx, app/(dashboard)/error.tsx, app/(portal)/error.tsx
+  - not-found.tsx 3개 추가: app/(public)/not-found.tsx, app/(dashboard)/not-found.tsx, app/(portal)/not-found.tsx
+  - error.tsx: "use client", 한글 메시지, [다시 시도] reset() + [홈으로] 각 영역 홈 링크
+  - not-found.tsx: 커스텀 404, 각 영역 홈 링크
+  - /ops/contents clientId 필터: 이미 적용 확인 (getSelectedClientId() → getContents({clientId}) 전달됨)
+  - /settings/page.tsx 정리: 미작동 섹션 제거 (프로필 목업/테마/알림 토글/요금제/계정삭제), "추가 설정 준비 중" 안내 카드 + /settings/account, /settings/admins 바로가기로 교체
+  - 랜딩 페이지 Stats 정리: 근거 없는 "1,247+ 매장 분석 완료" → "100점 마케팅 종합 진단"으로 교체 (사실 기반)
+  - npm run build 성공 (pre-existing @react-pdf/renderer 등 누락 → 설치 완료)
 
 ### 설계 원칙
 
@@ -649,6 +658,7 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 | 4 | **F-4** | 콘텐츠 품질 고도화 — 벤치마킹 + 작성 v2 + QC v2 + 재작성 루프 | ✅ 완료 |
 | 5 | **G-1** | 월간 PDF 리포트 + 이메일 발송 + 어드민 설정 | ✅ 완료 |
 | 6 | **PIPE-1** | 캠페인 기획 + 에디터 브릿지 (실전 파이프라인 UI) | ✅ 완료 |
+| 7 | **UX-P0** | P0 크리티컬 이슈 수정 (error.tsx + not-found.tsx + 설정 정리 + 랜딩 정리) | ✅ 완료 |
 
 ### 미구현 (우선순위 순)
 

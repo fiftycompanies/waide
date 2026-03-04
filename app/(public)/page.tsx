@@ -383,7 +383,7 @@ function LandingContent() {
       <section className="py-16 bg-[#111111]">
         <div className="mx-auto max-w-3xl px-6">
           <div className="grid grid-cols-3 gap-8">
-            <StatCounter value="1,247" suffix="+" label="매장 분석 완료" />
+            <StatCounter value="100" suffix="점" label="마케팅 종합 진단" />
             <StatCounter value="6" suffix="개" label="분석 영역" />
             <StatCounter value="30" suffix="초" label="분석 소요 시간" />
           </div>
