@@ -24,6 +24,7 @@ import {
   Settings,
   ShieldCheck,
   SlidersHorizontal,
+  Store,
   Sparkles,
   Target,
   UserCheck,
@@ -74,7 +75,7 @@ const businessNavItems = [
 const clientNavItems = [
   { title: "고객 포트폴리오", url: "/ops/clients",      icon: Building2 },
   { title: "온보딩",         url: "/ops/onboarding",    icon: Rocket },
-  { title: "브랜드 관리",     url: "/brands",            icon: Building2 },
+  { title: "브랜드 관리",     url: "/brands",            icon: Store },
 ];
 
 const seoNavItems = [

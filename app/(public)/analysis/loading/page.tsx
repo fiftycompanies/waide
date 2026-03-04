@@ -90,10 +90,19 @@ function LoadingContent() {
       } catch { /* retry */ }
     }, 2000);
 
+    // 120초 타임아웃
+    const timeoutId = setTimeout(() => {
+      clearInterval(progressInterval);
+      clearInterval(stepInterval);
+      clearInterval(pollInterval);
+      setError("분석 시간이 초과되었어요. 잠시 후 다시 시도해주세요.");
+    }, 120_000);
+
     return () => {
       clearInterval(progressInterval);
       clearInterval(stepInterval);
       clearInterval(pollInterval);
+      clearTimeout(timeoutId);
     };
   }, [analysisId, router]);
 

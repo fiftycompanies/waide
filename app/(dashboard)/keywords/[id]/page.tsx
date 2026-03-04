@@ -9,9 +9,10 @@ import {
 import { getAccountGrades, getRecommendationsForKeyword } from "@/lib/actions/recommendation-actions";
 import { getSelectedClientId } from "@/lib/actions/brand-actions";
 import { Badge } from "@/components/ui/badge";
+import { Breadcrumb } from "@/components/ui/breadcrumb";
 import { KeywordSerpChart } from "@/components/keywords/keyword-serp-chart";
 import { KeywordContentsTable } from "@/components/keywords/keyword-contents-table";
-import { ChevronLeft, Plus, FileEdit } from "lucide-react";
+import { Plus, FileEdit } from "lucide-react";
 import { KeywordDetailActions } from "@/components/keywords/keyword-detail-actions";
 
 // ── 상수 ──────────────────────────────────────────────────────────────────────
@@ -74,14 +75,10 @@ export default async function KeywordDetailPage({ params }: PageProps) {
 
   return (
     <div className="p-6 space-y-6 max-w-6xl">
-      {/* 뒤로 가기 */}
-      <Link
-        href="/keywords"
-        className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
-      >
-        <ChevronLeft className="h-3.5 w-3.5" />
-        키워드 목록
-      </Link>
+      <Breadcrumb items={[
+        { label: "키워드", href: "/keywords" },
+        { label: keyword.keyword },
+      ]} />
 
       {/* ── 3-1. 헤더 ── */}
       <div className="rounded-lg border p-6 space-y-4">

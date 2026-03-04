@@ -126,7 +126,7 @@ export default function RevenuePage() {
             ))}
           </div>
         ) : (
-          <p className="text-sm text-muted-foreground text-center py-4">데이터 없음</p>
+          <p className="text-sm text-muted-foreground text-center py-8">등록된 플랜이 없습니다</p>
         )}
       </div>
 
@@ -156,7 +156,7 @@ export default function RevenuePage() {
             ))}
           </div>
         ) : (
-          <p className="text-sm text-muted-foreground text-center py-4">이번 달 변동 없음</p>
+          <p className="text-sm text-muted-foreground text-center py-8">이번 달 변동 내역이 없습니다</p>
         )}
       </div>
     </div>

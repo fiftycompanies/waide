@@ -3,6 +3,7 @@
 import { useEffect, useState, useTransition } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import { Breadcrumb } from "@/components/ui/breadcrumb";
 import {
   AlertTriangle,
   BarChart2,
@@ -1110,15 +1111,13 @@ export default function ClientDetailPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
+      <Breadcrumb items={[
+        { label: "고객 포트폴리오", href: "/ops/clients" },
+        { label: client.brand_name },
+      ]} />
       <div className="flex items-center justify-between">
         <div>
-          <div className="flex items-center gap-2">
-            <Link href="/ops/clients" className="text-sm text-muted-foreground hover:text-foreground">
-              고객 포트폴리오
-            </Link>
-            <span className="text-muted-foreground">/</span>
-            <h1 className="text-2xl font-bold">{client.brand_name}</h1>
-          </div>
+          <h1 className="text-2xl font-bold">{client.brand_name}</h1>
           <div className="flex items-center gap-3 mt-1">
             {client.subscription && (
               <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${

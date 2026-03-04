@@ -2,9 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { Inbox } from "lucide-react";
 import type { Job, JobStatus } from "@/lib/actions/ops-actions";
 import { JobStatusBadge } from "@/components/ops/job-status-badge";
 import { Badge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/empty-state";
 
 const AGENT_ICONS: Record<string, string> = {
   ACCOUNT_MANAGER: "👤",
@@ -113,10 +115,11 @@ export function JobsClient({ initialJobs }: JobsClientProps) {
 
       {/* Table */}
       {filtered.length === 0 ? (
-        <div className="text-center py-16 text-muted-foreground">
-          <p className="text-4xl mb-3">📭</p>
-          <p className="text-sm">Jobs 없음</p>
-        </div>
+        <EmptyState
+          icon={Inbox}
+          title="작업이 없습니다"
+          description="콘텐츠 생성이나 발행 작업이 생성되면 여기에 표시됩니다."
+        />
       ) : (
         <div className="rounded-lg border overflow-hidden">
           {/* Header */}

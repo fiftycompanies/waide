@@ -5,7 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, BarChart3, Brain, FileText, MessageSquare, RefreshCw, Search, Star } from "lucide-react";
+import { BarChart3, Brain, FileText, MessageSquare, RefreshCw, Search, Star } from "lucide-react";
+import { Breadcrumb } from "@/components/ui/breadcrumb";
 import { createAdminClient } from "@/lib/supabase/service";
 import {
   getBrandAnalysis,
@@ -352,15 +353,14 @@ async function BrandDetailContent({ id }: { id: string }) {
   return (
     <div className="space-y-6">
       {/* Header */}
+      <Breadcrumb items={[
+        { label: "브랜드", href: "/brands" },
+        { label: client.name },
+      ]} />
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Link href="/brands">
-            <Button variant="ghost" size="sm"><ArrowLeft className="h-4 w-4 mr-1" /> 목록</Button>
-          </Link>
-          <div>
-            <h1 className="text-xl font-bold">{client.name}</h1>
-            <p className="text-sm text-muted-foreground">{client.industry ?? client.company_name ?? ""}</p>
-          </div>
+        <div>
+          <h1 className="text-xl font-bold">{client.name}</h1>
+          <p className="text-sm text-muted-foreground">{client.industry ?? client.company_name ?? ""}</p>
         </div>
         {analysis && (
           <form action={async () => {

@@ -10,6 +10,7 @@ import {
   Loader2,
   X,
 } from "lucide-react";
+import ReactMarkdown from "react-markdown";
 import { getPortalContentsV2 } from "@/lib/actions/portal-actions";
 
 interface ContentItem {
@@ -153,16 +154,17 @@ export default function PortalContentsPage() {
           {/* Body preview */}
           {selectedContent.body ? (
             <div className="prose prose-sm max-w-none text-gray-700">
-              <div
-                dangerouslySetInnerHTML={{
-                  __html: selectedContent.body.length > 3000
-                    ? selectedContent.body.substring(0, 3000) + "..."
-                    : selectedContent.body,
-                }}
-              />
+              <ReactMarkdown>
+                {selectedContent.body.length > 3000
+                  ? selectedContent.body.substring(0, 3000) + "..."
+                  : selectedContent.body}
+              </ReactMarkdown>
             </div>
           ) : (
-            <p className="text-sm text-gray-400 text-center py-8">본문 내용이 없습니다</p>
+            <div className="flex flex-col items-center py-12 text-center">
+              <FileText className="h-8 w-8 text-gray-300 mb-2" />
+              <p className="text-sm text-gray-400">본문 내용이 없습니다</p>
+            </div>
           )}
         </div>
 

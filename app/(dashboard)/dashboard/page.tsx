@@ -121,7 +121,7 @@ function ActivityFeed({ activities }: { activities: RecentActivity[] }) {
 // ── 계정별 성과 테이블 ────────────────────────────────────────────────────────
 function AccountPerfTable({ accounts }: { accounts: AccountPerfSummary[] }) {
   if (accounts.length === 0)
-    return <p className="text-xs text-muted-foreground text-center py-4">데이터 없음</p>;
+    return <p className="text-xs text-muted-foreground text-center py-8">계정 성과 데이터가 없습니다</p>;
 
   return (
     <div className="overflow-x-auto">

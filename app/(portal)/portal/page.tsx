@@ -113,8 +113,12 @@ export default function PortalDashboardPage() {
 
   if (!data) {
     return (
-      <div className="flex items-center justify-center py-20">
-        <p className="text-gray-500">데이터를 불러올 수 없습니다</p>
+      <div className="flex flex-col items-center justify-center py-20 text-center">
+        <div className="flex h-14 w-14 items-center justify-center rounded-full bg-gray-100 mb-4">
+          <BarChart2 className="h-7 w-7 text-gray-400" />
+        </div>
+        <p className="text-lg font-semibold text-gray-900 mb-1">데이터를 불러올 수 없습니다</p>
+        <p className="text-sm text-gray-500">잠시 후 다시 시도해 주세요.</p>
       </div>
     );
   }

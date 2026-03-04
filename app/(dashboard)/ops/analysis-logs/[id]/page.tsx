@@ -3,6 +3,7 @@
 import { useEffect, useState, useTransition, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Copy } from "lucide-react";
+import { Breadcrumb } from "@/components/ui/breadcrumb";
 import { toast } from "sonner";
 import {
   getAnalysisLogDetail,
@@ -517,10 +518,11 @@ export default function AnalysisLogDetailPage() {
   return (
     <div className="space-y-6">
       {/* Back + Title */}
+      <Breadcrumb items={[
+        { label: "분석 로그", href: "/ops/analysis-logs" },
+        { label: detail.place_name },
+      ]} />
       <div className="flex items-center gap-3">
-        <button onClick={() => router.push("/ops/analysis-logs")} className="text-muted-foreground hover:text-foreground text-sm">
-          &larr; 목록
-        </button>
         <h1 className="text-2xl font-bold">{detail.place_name}</h1>
         <span className="text-sm text-muted-foreground">{detail.category}</span>
       </div>

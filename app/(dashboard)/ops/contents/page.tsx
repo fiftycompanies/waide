@@ -3,7 +3,8 @@ import { getBrandList, getSelectedClientId } from "@/lib/actions/brand-actions";
 import { Badge } from "@/components/ui/badge";
 import { BrandBadge } from "@/components/ui/brand-badge";
 import Link from "next/link";
-import { ExternalLink, Radio } from "lucide-react";
+import { ExternalLink, FileText, Radio } from "lucide-react";
+import { EmptyState } from "@/components/ui/empty-state";
 import { ContentsPageHeaderWithSelector } from "@/components/ops/contents-page-header";
 
 const PUBLISH_STATUSES = [
@@ -107,10 +108,13 @@ export default async function ContentsPage({ searchParams }: ContentsPageProps) 
 
       {/* Content table */}
       {contents.length === 0 ? (
-        <div className="text-center py-16 text-muted-foreground">
-          <p className="text-4xl mb-3">📭</p>
-          <p className="text-sm">콘텐츠 없음</p>
-        </div>
+        <EmptyState
+          icon={FileText}
+          title="콘텐츠가 없습니다"
+          description="콘텐츠가 생성되면 여기에 표시됩니다."
+          actionLabel="캠페인 기획"
+          actionHref="/campaigns/plan"
+        />
       ) : (
         <div className="rounded-lg border overflow-hidden">
           {/* Header */}

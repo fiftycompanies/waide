@@ -1,7 +1,7 @@
 # Waide (AI Hospitality Aide) — 서비스 IA
 
 > 최종 업데이트: 2026-03-04
-> 버전: Phase UX-P0 완료 (error.tsx + not-found.tsx + 설정 정리 + 랜딩 정리)
+> 버전: Phase UX-P1 완료 (loading.tsx + EmptyState + Breadcrumb + misc fixes)
 
 ---
 
@@ -609,6 +609,17 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
   - /settings/page.tsx 정리: 미작동 섹션 제거 (프로필 목업/테마/알림 토글/요금제/계정삭제), "추가 설정 준비 중" 안내 카드 + /settings/account, /settings/admins 바로가기로 교체
   - 랜딩 페이지 Stats 정리: 근거 없는 "1,247+ 매장 분석 완료" → "100점 마케팅 종합 진단"으로 교체 (사실 기반)
   - npm run build 성공 (pre-existing @react-pdf/renderer 등 누락 → 설치 완료)
+- Phase UX-P1: P1 UX 개선 (2026-03-04)
+  - loading.tsx 13개 추가: 3 레이아웃 (public=dark spinner, dashboard/portal=skeleton) + 10 개별 페이지 (dashboard, clients, contents, analysis-logs, jobs, revenue, keywords, portal keywords/contents/reports)
+  - EmptyState 공통 컴포넌트: components/ui/empty-state.tsx (icon, title, description, actionLabel, actionHref props)
+  - EmptyState 적용: jobs(📭→Inbox 아이콘), contents(📭→FileText+캠페인기획 링크), portal dashboard(에러 상태 개선), portal contents(본문 없음 아이콘)
+  - Breadcrumb 공통 컴포넌트: components/ui/breadcrumb.tsx (items: {label, href?}[])
+  - Breadcrumb 적용: clients/[id], keywords/[id], contents/[id], analysis-logs/[id], brands/[id] — 기존 수동 뒤로가기 링크 교체
+  - 사이드바 아이콘 중복 수정: "브랜드 관리" Building2 → Store 아이콘 (고객 포트폴리오와 구분)
+  - 분석 로딩 120초 타임아웃 추가: analysis/loading/page.tsx — 무한 폴링 방지
+  - dangerouslySetInnerHTML 제거: portal/contents → ReactMarkdown 컴포넌트로 교체
+  - revenue 빈 상태 메시지 개선, dashboard 계정 성과 빈 상태 메시지 개선
+  - npm run build 성공
 
 ### 설계 원칙
 
@@ -659,6 +670,7 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 | 5 | **G-1** | 월간 PDF 리포트 + 이메일 발송 + 어드민 설정 | ✅ 완료 |
 | 6 | **PIPE-1** | 캠페인 기획 + 에디터 브릿지 (실전 파이프라인 UI) | ✅ 완료 |
 | 7 | **UX-P0** | P0 크리티컬 이슈 수정 (error.tsx + not-found.tsx + 설정 정리 + 랜딩 정리) | ✅ 완료 |
+| 8 | **UX-P1** | P1 UX 개선 (loading.tsx + EmptyState + Breadcrumb + sidebar/timeout/XSS fix) | ✅ 완료 |
 
 ### 미구현 (우선순위 순)
 
