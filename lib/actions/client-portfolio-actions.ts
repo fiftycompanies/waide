@@ -301,6 +301,9 @@ export interface ClientDetail {
   risk_reasons: string[];
   // recent activity
   recent_activities: { date: string; description: string; type: string }[];
+  // brand persona
+  brand_persona: Record<string, unknown> | null;
+  persona_updated_at: string | null;
 }
 
 export async function getClientDetail(clientId: string): Promise<ClientDetail | null> {
@@ -467,6 +470,8 @@ export async function getClientDetail(clientId: string): Promise<ClientDetail | 
     at_risk: atRisk,
     risk_reasons: reasons,
     recent_activities: recentActivities.slice(0, 10),
+    brand_persona: (client.brand_persona as Record<string, unknown>) || null,
+    persona_updated_at: client.persona_updated_at ?? null,
   };
 }
 

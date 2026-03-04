@@ -362,3 +362,20 @@ export async function getRecommendationStats(
     notExposedCount: notExposed,
   };
 }
+
+// ═══════════════════════════════════════════
+// TODO: Phase F-3 키워드 전략 연동
+// ═══════════════════════════════════════════
+//
+// keyword_strategy.content_publish_recommendation을 활용하여
+// 발행 추천 생성 시 "전략 추천 키워드" 우선순위 반영
+//
+// 구현 계획:
+// 1. generateRecommendations()에서 keyword_strategy 조회
+// 2. quick_win_keywords, niche_keywords에 보너스 점수 부여 (+15점)
+// 3. abandon_keywords에 페널티 점수 부여 (-30점)
+// 4. monthly_roadmap의 현재 주차 키워드 우선 배치
+//
+// ⚠️ 이 기능은 향후 Phase D(자동 발행 관리)에서 본격 구현
+// ⚠️ 기존 publishing_recommendations 테이블 구조 변경 없이 match_score 가중치만 조정
+

@@ -3,7 +3,7 @@
 import { useState, useTransition, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, Trash2, PauseCircle, PlayCircle, TrendingUp, TrendingDown, Upload } from "lucide-react";
+import { Check, Loader2 as Spinner, Plus, Sparkles, Trash2, PauseCircle, PlayCircle, TrendingUp, TrendingDown, Upload, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/dialog";
 import type { Keyword } from "@/lib/actions/keyword-actions";
 import { createKeyword, archiveKeyword, updateKeywordStatus } from "@/lib/actions/keyword-actions";
+import { approveSuggestedKeyword, rejectSuggestedKeyword, bulkApproveSuggestedKeywords } from "@/lib/actions/keyword-expansion-actions";
 import { KeywordCsvDialog } from "@/components/keywords/keyword-csv-dialog";
 import { BrandBadge } from "@/components/ui/brand-badge";
 import { BrandFilter } from "@/components/ui/brand-filter";
@@ -28,6 +29,7 @@ const STATUS_LABELS: Record<string, string> = {
   archived: "보관",
   queued: "대기",
   refresh: "리프레시",
+  suggested: "AI 추천",
 };
 
 const STATUS_COLORS: Record<string, string> = {
@@ -36,6 +38,7 @@ const STATUS_COLORS: Record<string, string> = {
   archived: "bg-gray-500/10 text-gray-500 border-gray-200",
   queued: "bg-yellow-500/10 text-yellow-700 border-yellow-200",
   refresh: "bg-red-500/10 text-red-700 border-red-200",
+  suggested: "bg-violet-500/10 text-violet-700 border-violet-200",
 };
 
 // ── 정렬 타입 ────────────────────────────────────────────────────────────────
@@ -313,14 +316,15 @@ interface KeywordsClientProps {
   clientId: string | null;
 }
 
-type FilterTab = "active" | "paused" | "archived" | "queued" | "refresh";
+type FilterTab = "active" | "suggested" | "paused" | "archived" | "queued" | "refresh";
 
 const TABS: { key: FilterTab; label: string }[] = [
-  { key: "active",   label: "활성" },
-  { key: "paused",   label: "일시정지" },
-  { key: "queued",   label: "대기" },
-  { key: "refresh",  label: "리프레시" },
-  { key: "archived", label: "보관" },
+  { key: "active",    label: "활성" },
+  { key: "suggested", label: "AI 추천" },
+  { key: "paused",    label: "일시정지" },
+  { key: "queued",    label: "대기" },
+  { key: "refresh",   label: "리프레시" },
+  { key: "archived",  label: "보관" },
 ];
 
 export function KeywordsClient({ keywords, clientId }: KeywordsClientProps) {
@@ -369,11 +373,12 @@ export function KeywordsClient({ keywords, clientId }: KeywordsClientProps) {
   }
 
   const tabCounts: Record<FilterTab, number> = {
-    active:   brandFiltered.filter((k) => k.status === "active").length,
-    paused:   brandFiltered.filter((k) => k.status === "paused").length,
-    archived: brandFiltered.filter((k) => k.status === "archived").length,
-    queued:   brandFiltered.filter((k) => k.status === "queued").length,
-    refresh:  brandFiltered.filter((k) => k.status === "refresh").length,
+    active:    brandFiltered.filter((k) => k.status === "active").length,
+    suggested: brandFiltered.filter((k) => k.status === "suggested").length,
+    paused:    brandFiltered.filter((k) => k.status === "paused").length,
+    archived:  brandFiltered.filter((k) => k.status === "archived").length,
+    queued:    brandFiltered.filter((k) => k.status === "queued").length,
+    refresh:   brandFiltered.filter((k) => k.status === "refresh").length,
   };
 
   function handleTogglePause(kw: Keyword) {
@@ -385,6 +390,44 @@ export function KeywordsClient({ keywords, clientId }: KeywordsClientProps) {
         router.refresh();
       } else {
         toast.error(result.error ?? "변경 실패");
+      }
+    });
+  }
+
+  function handleApprove(keywordId: string) {
+    startTransition(async () => {
+      const result = await approveSuggestedKeyword(keywordId);
+      if (result.success) {
+        toast.success("키워드가 승인되었습니다.");
+        router.refresh();
+      } else {
+        toast.error(result.error ?? "승인 실패");
+      }
+    });
+  }
+
+  function handleReject(keywordId: string) {
+    startTransition(async () => {
+      const result = await rejectSuggestedKeyword(keywordId);
+      if (result.success) {
+        toast.success("키워드가 제외되었습니다.");
+        router.refresh();
+      } else {
+        toast.error(result.error ?? "제외 실패");
+      }
+    });
+  }
+
+  function handleBulkApprove() {
+    const suggestedIds = tabFiltered.map((k) => k.id);
+    if (suggestedIds.length === 0) return;
+    startTransition(async () => {
+      const result = await bulkApproveSuggestedKeywords(suggestedIds);
+      if (result.success) {
+        toast.success(`${result.approved}개 키워드가 승인되었습니다.`);
+        router.refresh();
+      } else {
+        toast.error(result.error ?? "일괄 승인 실패");
       }
     });
   }
@@ -423,6 +466,12 @@ export function KeywordsClient({ keywords, clientId }: KeywordsClientProps) {
 
         {!isAllMode && (
           <div className="flex items-center gap-2">
+            {activeTab === "suggested" && tabCounts.suggested > 0 && (
+              <Button size="sm" variant="outline" onClick={handleBulkApprove} disabled={isPending} className="gap-1.5 h-8 border-emerald-200 text-emerald-700 hover:bg-emerald-50">
+                <Check className="h-3.5 w-3.5" />
+                {isPending ? "처리 중..." : "선택 일괄 승인"}
+              </Button>
+            )}
             <Button size="sm" variant="outline" onClick={() => setCsvOpen(true)} className="gap-1.5 h-8">
               <Upload className="h-3.5 w-3.5" />
               CSV 대량 등록
@@ -439,10 +488,15 @@ export function KeywordsClient({ keywords, clientId }: KeywordsClientProps) {
       {sorted.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border/60 py-16 text-center">
           <p className="text-sm font-medium text-muted-foreground">
-            {activeTab === "active" ? "등록된 키워드가 없습니다" : `${STATUS_LABELS[activeTab]} 키워드가 없습니다`}
+            {activeTab === "active" ? "등록된 키워드가 없습니다"
+              : activeTab === "suggested" ? "AI 추천 키워드가 없습니다"
+              : `${STATUS_LABELS[activeTab]} 키워드가 없습니다`}
           </p>
           {activeTab === "active" && !isAllMode && (
             <p className="text-xs text-muted-foreground mt-1">[+ 키워드 추가] 버튼으로 첫 키워드를 등록해보세요.</p>
+          )}
+          {activeTab === "suggested" && !isAllMode && (
+            <p className="text-xs text-muted-foreground mt-1">니치 키워드 발굴을 실행하면 AI가 추천 키워드를 생성합니다.</p>
           )}
         </div>
       ) : (
@@ -477,7 +531,12 @@ export function KeywordsClient({ keywords, clientId }: KeywordsClientProps) {
                       {kw.client_name ? <BrandBadge name={kw.client_name} /> : <span className="text-muted-foreground/40 text-xs">—</span>}
                     </td>
                   )}
-                  <td className="px-3 py-3 font-medium text-sm">{kw.keyword}</td>
+                  <td className="px-3 py-3">
+                    <span className="font-medium text-sm">{kw.keyword}</span>
+                    {kw.status === "suggested" && kw.metadata?.content_angle && (
+                      <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-1">{kw.metadata.content_angle}</p>
+                    )}
+                  </td>
                   <td className="px-3 py-3 text-xs text-muted-foreground">
                     {kw.sub_keyword ?? <span className="text-muted-foreground/40">—</span>}
                   </td>
@@ -526,23 +585,46 @@ export function KeywordsClient({ keywords, clientId }: KeywordsClientProps) {
                   </td>
                   <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center justify-center gap-1">
-                      {kw.status !== "archived" && (
-                        <button
-                          onClick={() => handleTogglePause(kw)}
-                          disabled={isPending}
-                          title={kw.status === "active" ? "일시정지" : "재개"}
-                          className="rounded p-1 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-50"
-                        >
-                          {kw.status === "active" ? <PauseCircle className="h-3.5 w-3.5" /> : <PlayCircle className="h-3.5 w-3.5" />}
-                        </button>
+                      {kw.status === "suggested" ? (
+                        <>
+                          <button
+                            onClick={() => handleApprove(kw.id)}
+                            disabled={isPending}
+                            title="승인 (Active로 변경)"
+                            className="rounded p-1 text-emerald-600 hover:bg-emerald-50 transition-colors disabled:opacity-50"
+                          >
+                            <Check className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            onClick={() => handleReject(kw.id)}
+                            disabled={isPending}
+                            title="제외 (보관 처리)"
+                            className="rounded p-1 text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          {kw.status !== "archived" && (
+                            <button
+                              onClick={() => handleTogglePause(kw)}
+                              disabled={isPending}
+                              title={kw.status === "active" ? "일시정지" : "재개"}
+                              className="rounded p-1 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-50"
+                            >
+                              {kw.status === "active" ? <PauseCircle className="h-3.5 w-3.5" /> : <PlayCircle className="h-3.5 w-3.5" />}
+                            </button>
+                          )}
+                          <button
+                            onClick={() => setDeleteTarget(kw)}
+                            title="보관 처리"
+                            className="rounded p-1 text-muted-foreground hover:text-red-500 hover:bg-red-50 transition-colors"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </>
                       )}
-                      <button
-                        onClick={() => setDeleteTarget(kw)}
-                        title="보관 처리"
-                        className="rounded p-1 text-muted-foreground hover:text-red-500 hover:bg-red-50 transition-colors"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
                     </div>
                   </td>
                 </tr>

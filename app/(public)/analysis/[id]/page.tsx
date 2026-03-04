@@ -342,6 +342,18 @@ export default function AnalysisResultPage({
     status: "good" | "warning" | "danger" | "not_found";
   }>;
 
+  // ── 에이전트 체인 결과 (analysis_result JSONB) ──
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const analysisResult = (data.analysis_result ?? {}) as Record<string, any>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const competitorAnalysis = analysisResult.competitor_analysis as Record<string, any> | null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const competitorRawData = (analysisResult.competitor_raw_data ?? []) as Array<Record<string, any>>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const seoComments = analysisResult.seo_comments as Record<string, any> | null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const improvementPlan = analysisResult.improvement_plan as Record<string, any> | null;
+
   return (
     <>
       <div className="mx-auto max-w-5xl px-6 py-8">
@@ -1018,6 +1030,213 @@ export default function AnalysisResultPage({
             ))}
           </div>
         </div>
+
+        {/* ── Section 6: 경쟁사 비교 분석 (에이전트 결과) ── */}
+        {competitorAnalysis && (
+          <div className="mb-8 rounded-2xl border border-[#2a2a2a] bg-[#1a1a1a] p-6">
+            <h3 className="text-lg font-semibold text-white flex items-center gap-2 mb-4">
+              <Award className="h-5 w-5 text-amber-400" />
+              경쟁사 비교 분석
+            </h3>
+
+            {/* 경쟁사 테이블 */}
+            {(competitorAnalysis.competitors ?? competitorRawData)?.length > 0 && (
+              <div className="overflow-x-auto mb-6">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-[#666666] border-b border-[#2a2a2a]">
+                      <th className="text-left py-2 px-3">순위</th>
+                      <th className="text-left py-2 px-3">매장명</th>
+                      <th className="text-left py-2 px-3">카테고리</th>
+                      <th className="text-left py-2 px-3">강점</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                    {(competitorAnalysis.competitors ?? competitorRawData)?.slice(0, 5).map((comp: any, i: number) => (
+                      <tr key={i} className="border-b border-[#2a2a2a]/50 hover:bg-[#111111]">
+                        <td className="py-2.5 px-3 text-[#a0a0a0]">{comp.position ?? comp.rank ?? i + 1}위</td>
+                        <td className="py-2.5 px-3 text-white font-medium">{comp.name}</td>
+                        <td className="py-2.5 px-3 text-[#a0a0a0]">{comp.category ?? "-"}</td>
+                        <td className="py-2.5 px-3 text-[#a0a0a0] text-xs">
+                          {(comp.strengths ?? []).slice(0, 2).join(", ") || "-"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* 내 포지션 */}
+            {competitorAnalysis.our_position && (
+              <div className="grid md:grid-cols-2 gap-4">
+                <div className="p-4 rounded-xl bg-[#111111] border border-[#2a2a2a]">
+                  <h4 className="text-sm text-[#10b981] mb-2">우리의 강점</h4>
+                  <ul className="space-y-1">
+                    {(competitorAnalysis.our_position.competitive_advantages ?? []).map((adv: string, i: number) => (
+                      <li key={i} className="text-sm text-[#a0a0a0] flex items-start gap-2">
+                        <CheckCircle2 className="h-3.5 w-3.5 text-[#10b981] mt-0.5 shrink-0" />
+                        {adv}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                <div className="p-4 rounded-xl bg-[#111111] border border-[#2a2a2a]">
+                  <h4 className="text-sm text-amber-400 mb-2">보강 필요</h4>
+                  <ul className="space-y-1">
+                    {(competitorAnalysis.our_position.gaps_to_close ?? []).map((gap: string, i: number) => (
+                      <li key={i} className="text-sm text-[#a0a0a0] flex items-start gap-2">
+                        <ArrowRight className="h-3.5 w-3.5 text-amber-400 mt-0.5 shrink-0" />
+                        {gap}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            )}
+
+            {competitorAnalysis.differentiation_strategy && (
+              <div className="mt-4 p-4 rounded-xl bg-[#10b981]/5 border border-[#10b981]/10">
+                <h4 className="text-sm text-[#10b981] mb-1">차별화 전략</h4>
+                <p className="text-sm text-[#a0a0a0]">{competitorAnalysis.differentiation_strategy}</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Section 7: AI SEO 진단 코멘트 (에이전트 결과) ── */}
+        {seoComments && (
+          <div className="mb-8 rounded-2xl border border-[#2a2a2a] bg-[#1a1a1a] p-6">
+            <h3 className="text-lg font-semibold text-white flex items-center gap-2 mb-2">
+              <Search className="h-5 w-5 text-blue-400" />
+              AI SEO 진단 코멘트
+            </h3>
+            {seoComments.overall_diagnosis && (
+              <p className="text-sm text-[#a0a0a0] mb-4">{seoComments.overall_diagnosis}</p>
+            )}
+
+            <div className="space-y-3">
+              {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+              {(seoComments.priority_actions ?? []).map((action: any, i: number) => {
+                const statusColor = action.status === "pass" ? "text-[#10b981]" : action.status === "warning" ? "text-amber-400" : "text-red-400";
+                const statusIcon = action.status === "pass" ? "✅" : action.status === "warning" ? "⚠️" : "❌";
+                return (
+                  <div key={i} className="p-4 rounded-xl bg-[#111111] border border-[#2a2a2a]">
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <span>{statusIcon}</span>
+                      <span className={`text-sm font-medium ${statusColor}`}>{action.item}</span>
+                      {action.difficulty && (
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full border ${
+                          action.difficulty === "easy" ? "border-[#10b981]/30 text-[#10b981]" :
+                          action.difficulty === "medium" ? "border-amber-500/30 text-amber-400" :
+                          "border-red-500/30 text-red-400"
+                        }`}>
+                          {action.difficulty === "easy" ? "쉬움" : action.difficulty === "medium" ? "보통" : "어려움"}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-sm text-[#a0a0a0] mb-1">{action.comment}</p>
+                    {action.expected_impact && (
+                      <p className="text-xs text-[#666666]">기대 효과: {action.expected_impact}</p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {(seoComments.industry_specific_tips ?? []).length > 0 && (
+              <div className="mt-4 p-4 rounded-xl bg-blue-500/5 border border-blue-500/10">
+                <h4 className="text-sm text-blue-400 mb-2">업종 특화 팁</h4>
+                <ul className="space-y-1">
+                  {(seoComments.industry_specific_tips ?? []).map((tip: string, i: number) => (
+                    <li key={i} className="text-sm text-[#a0a0a0] flex items-start gap-2">
+                      <Lightbulb className="h-3.5 w-3.5 text-blue-400 mt-0.5 shrink-0" />
+                      {tip}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Section 8: 개선 액션플랜 (에이전트 결과) ── */}
+        {improvementPlan && (
+          <div className="mb-8 rounded-2xl border border-[#2a2a2a] bg-[#1a1a1a] p-6">
+            <h3 className="text-lg font-semibold text-white flex items-center gap-2 mb-2">
+              <Lightbulb className="h-5 w-5 text-amber-400" />
+              개선 액션플랜
+            </h3>
+            {improvementPlan.priority_summary && (
+              <p className="text-sm text-[#a0a0a0] mb-4">{improvementPlan.priority_summary}</p>
+            )}
+
+            {improvementPlan.roadmap && (
+              <div className="space-y-4">
+                {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                {(["week1", "month1", "month3"] as const).map((period) => {
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  const items = (improvementPlan.roadmap?.[period] ?? []) as any[];
+                  if (items.length === 0) return null;
+                  const periodLabel = period === "week1" ? "1주 내" : period === "month1" ? "1개월" : "3개월";
+                  const periodColor = period === "week1" ? "text-[#10b981]" : period === "month1" ? "text-blue-400" : "text-purple-400";
+                  return (
+                    <div key={period}>
+                      <h4 className={`text-sm font-medium ${periodColor} mb-2`}>{periodLabel} 액션</h4>
+                      <div className="space-y-2">
+                        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                        {items.map((item: any, i: number) => (
+                          <div key={i} className="p-3 rounded-lg bg-[#111111] border border-[#2a2a2a] flex items-start gap-3">
+                            <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
+                              period === "week1" ? "bg-[#10b981]/10 text-[#10b981]" :
+                              period === "month1" ? "bg-blue-500/10 text-blue-400" :
+                              "bg-purple-500/10 text-purple-400"
+                            }`}>{i + 1}</div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm text-white font-medium">{item.action}</p>
+                              <div className="flex flex-wrap gap-2 mt-1">
+                                {item.expected_score_gain && (
+                                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[#10b981]/10 text-[#10b981]">
+                                    +{item.expected_score_gain}점
+                                  </span>
+                                )}
+                                {item.effort && (
+                                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full border ${
+                                    item.effort === "low" ? "border-[#10b981]/30 text-[#10b981]" :
+                                    item.effort === "medium" ? "border-amber-500/30 text-amber-400" :
+                                    "border-red-500/30 text-red-400"
+                                  }`}>
+                                    {item.effort === "low" ? "간단" : item.effort === "medium" ? "보통" : "높음"}
+                                  </span>
+                                )}
+                                {item.cost && (
+                                  <span className="text-[10px] px-1.5 py-0.5 rounded-full border border-[#2a2a2a] text-[#666666]">
+                                    {item.cost}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {(improvementPlan.expected_total_gain || improvementPlan.target_score) && (
+              <div className="mt-4 p-4 rounded-xl bg-amber-500/5 border border-amber-500/10 text-center">
+                <p className="text-sm text-amber-400 font-medium">
+                  {improvementPlan.expected_total_gain
+                    ? `3개월 후 예상: ${improvementPlan.expected_total_gain}`
+                    : `목표 점수: ${improvementPlan.target_score}점`}
+                </p>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* ════════════════════════════════════════════════════════
             CTA Section A: 3-Step Process

@@ -72,6 +72,9 @@ export interface Content {
   refreshed_at: string | null;
   // 생성 주체
   generated_by: string | null;
+  // v2 파이프라인 메타데이터 (QC 결과, 재작성 이력 등)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  metadata?: Record<string, any> | null;
   // 전체 보기 모드
   client_name?: string | null;
 }
@@ -262,7 +265,7 @@ export async function getContents(params?: {
   let query = (supabase as any)
     .from("contents")
     .select(
-      "id, title, word_count, publish_status, created_at, generated_by, tags, body, meta_description, content_type, client_id, keyword_id, published_url, is_tracking, peak_rank_naver, peak_rank_google, clients(name)"
+      "id, title, word_count, publish_status, created_at, generated_by, tags, body, meta_description, content_type, client_id, keyword_id, published_url, is_tracking, peak_rank_naver, peak_rank_google, metadata, clients(name)"
     )
     .order("created_at", { ascending: false })
     .limit(50);
@@ -302,7 +305,7 @@ export async function getContent(id: string): Promise<Content | null> {
   const { data, error } = await (supabase as any)
     .from("contents")
     .select(
-      "id, title, word_count, publish_status, created_at, updated_at, tags, body, meta_description, content_type, client_id, keyword_id, url, is_active, published_url, published_at, actual_title, actual_word_count, actual_image_count, actual_h2_count, actual_h3_count, peak_rank_naver, peak_rank_google, is_tracking, seo_checklist, blog_account_id:account_id"
+      "id, title, word_count, publish_status, created_at, updated_at, tags, body, meta_description, content_type, client_id, keyword_id, url, is_active, published_url, published_at, actual_title, actual_word_count, actual_image_count, actual_h2_count, actual_h3_count, peak_rank_naver, peak_rank_google, is_tracking, seo_checklist, blog_account_id:account_id, metadata"
     )
     .eq("id", id)
     .single();
