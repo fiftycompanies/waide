@@ -16,6 +16,7 @@ import {
   FileBarChart,
   FileText,
   Key,
+  Link2,
   Loader2,
   Mail,
   Minus,
@@ -26,6 +27,7 @@ import {
   Sparkles,
   TrendingDown,
   TrendingUp,
+  Unlink,
   User,
   Users,
   X,
@@ -57,6 +59,13 @@ import {
   type ReportSettings,
   type ReportDelivery,
 } from "@/lib/actions/report-actions";
+import {
+  getLinkedAccount,
+  linkClientAccount,
+  unlinkClientAccount,
+  inviteClientUser,
+  type LinkedAccount,
+} from "@/lib/actions/client-account-actions";
 
 // ── Tab button ─────────────────────────────────────────────────────────────
 
@@ -1052,9 +1061,161 @@ function ReportTab({ clientId }: { clientId: string }) {
   );
 }
 
+// ── Account Tab ────────────────────────────────────────────────────────────
+
+function AccountTab({ clientId }: { clientId: string }) {
+  const [account, setAccount] = useState<LinkedAccount | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [email, setEmail] = useState("");
+  const [isPending, startTransition] = useTransition();
+  const [inviteUrl, setInviteUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    getLinkedAccount(clientId).then((data) => {
+      setAccount(data);
+      setLoading(false);
+    });
+  }, [clientId]);
+
+  const handleLink = () => {
+    if (!email.trim()) return;
+    startTransition(async () => {
+      const result = await linkClientAccount(clientId, email.trim());
+      if (result.success) {
+        toast.success("계정이 연결되었습니다.");
+        setEmail("");
+        const updated = await getLinkedAccount(clientId);
+        setAccount(updated);
+      } else {
+        toast.error(result.error ?? "연결 실패");
+      }
+    });
+  };
+
+  const handleUnlink = () => {
+    if (!account) return;
+    startTransition(async () => {
+      const result = await unlinkClientAccount(clientId, account.id);
+      if (result.success) {
+        toast.success("계정 연결이 해제되었습니다.");
+        setAccount(null);
+      } else {
+        toast.error(result.error ?? "해제 실패");
+      }
+    });
+  };
+
+  const handleInvite = () => {
+    if (!email.trim()) return;
+    startTransition(async () => {
+      const result = await inviteClientUser(clientId, email.trim());
+      if (result.success) {
+        toast.success("초대가 발송되었습니다.");
+        setInviteUrl(result.inviteUrl ?? null);
+        setEmail("");
+      } else {
+        toast.error(result.error ?? "초대 실패");
+      }
+    });
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="border rounded-lg p-6 space-y-4">
+        <h3 className="font-semibold flex items-center gap-2">
+          <Link2 className="h-4 w-4" />
+          연결된 포털 계정
+        </h3>
+
+        {account ? (
+          <div className="flex items-center justify-between p-4 border rounded-lg bg-muted/30">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-violet-100">
+                <User className="h-5 w-5 text-violet-600" />
+              </div>
+              <div>
+                <p className="font-medium">{account.name || account.email}</p>
+                <p className="text-sm text-muted-foreground">{account.email}</p>
+                <p className="text-xs text-muted-foreground">
+                  연결일: {new Date(account.created_at).toLocaleDateString("ko-KR")}
+                  {account.last_login_at && (
+                    <> · 최근 로그인: {new Date(account.last_login_at).toLocaleDateString("ko-KR")}</>
+                  )}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={handleUnlink}
+              disabled={isPending}
+              className="flex items-center gap-1.5 text-sm text-red-500 hover:text-red-600 transition-colors"
+            >
+              <Unlink className="h-4 w-4" />
+              연결 해제
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">연결된 포털 계정이 없습니다.</p>
+
+            <div className="flex gap-2">
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="이메일 입력"
+                className="flex-1 h-9 px-3 text-sm rounded-md border border-input bg-background"
+              />
+              <button
+                onClick={handleLink}
+                disabled={isPending || !email.trim()}
+                className="h-9 px-4 text-sm font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+              >
+                {isPending ? "처리 중..." : "계정 연결"}
+              </button>
+              <button
+                onClick={handleInvite}
+                disabled={isPending || !email.trim()}
+                className="h-9 px-4 text-sm font-medium rounded-md border border-input hover:bg-muted disabled:opacity-50"
+              >
+                초대 발송
+              </button>
+            </div>
+
+            {inviteUrl && (
+              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-sm">
+                <p className="font-medium text-emerald-700">초대 링크가 생성되었습니다</p>
+                <div className="flex items-center gap-2 mt-1">
+                  <code className="text-xs bg-white px-2 py-1 rounded border flex-1 truncate">{inviteUrl}</code>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(inviteUrl);
+                      toast.success("링크가 복사되었습니다.");
+                    }}
+                    className="text-xs text-emerald-600 hover:text-emerald-700 font-medium shrink-0"
+                  >
+                    복사
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Main Page ──────────────────────────────────────────────────────────────
 
-type TabKey = "overview" | "keywords" | "contents" | "analyses" | "persona" | "subscription" | "onboarding" | "rankings" | "reports";
+type TabKey = "overview" | "keywords" | "contents" | "analyses" | "persona" | "subscription" | "onboarding" | "rankings" | "reports" | "account";
 
 export default function ClientDetailPage() {
   const params = useParams();
@@ -1105,6 +1266,7 @@ export default function ClientDetailPage() {
     { key: "persona", label: "페르소나", icon: Sparkles },
     { key: "subscription", label: "구독/결제", icon: CreditCard },
     { key: "onboarding", label: "온보딩", icon: CheckSquare },
+    { key: "account", label: "계정", icon: Link2 },
     { key: "reports", label: "리포트", icon: FileBarChart },
   ];
 
@@ -1186,6 +1348,7 @@ export default function ClientDetailPage() {
       {activeTab === "persona" && <PersonaTab client={client} onRefresh={refreshClient} />}
       {activeTab === "subscription" && <SubscriptionTab client={client} />}
       {activeTab === "onboarding" && <OnboardingTab client={client} />}
+      {activeTab === "account" && <AccountTab clientId={client.id} />}
       {activeTab === "reports" && <ReportTab clientId={client.id} />}
     </div>
   );

@@ -20,8 +20,9 @@ import {
   type SerpKeyword,
   type BrandSummaryStats,
 } from "@/lib/actions/analytics-actions";
-import { getSelectedClientId } from "@/lib/actions/brand-actions";
+import { getSelectedClientId, getSelectedBrandInfo } from "@/lib/actions/brand-actions";
 import { getBrandAnalysisKpi, type BrandAnalysisKpi } from "@/lib/actions/analysis-brand-actions";
+import { BrandInfoCard } from "@/components/dashboard/brand-info-card";
 import { VisibilityTrendChart } from "@/components/dashboard/visibility-trend-chart";
 import { KeywordDonutChart } from "@/components/dashboard/keyword-donut-chart";
 import { SerpRankChart } from "@/components/analytics/serp-rank-chart";
@@ -435,15 +436,19 @@ async function DashboardSection() {
   const clientId = (await getSelectedClientId()) ?? undefined;
   const isAllMode = !clientId;
 
-  const [bizData, seoData] = await Promise.all([
+  const [bizData, seoData, brandInfo] = await Promise.all([
     isAllMode ? getBusinessDashboardData() : Promise.resolve(null),
     fetchSeoData(clientId),
+    clientId ? getSelectedBrandInfo(clientId) : Promise.resolve(null),
   ]);
 
   const { kpi, trend, distribution, activities, accounts, serpTrend, serpKeywords, brandSummary, analysisKpi } = seoData;
 
   return (
     <div className="space-y-8">
+      {/* ── 브랜드 정보 카드 (개별 브랜드 모드) ── */}
+      {!isAllMode && brandInfo && <BrandInfoCard brand={brandInfo} />}
+
       {/* ── B2B 비즈니스 KPI (전체 모드에서만) ── */}
       {isAllMode && bizData && <BusinessKpiSection data={bizData} />}
 

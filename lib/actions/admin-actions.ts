@@ -169,7 +169,7 @@ export async function createAdminUser(payload: {
   username: string;
   password: string;
   displayName?: string;
-  role: "admin" | "viewer";
+  role: "admin" | "sales" | "viewer";
 }): Promise<{ success: boolean; error?: string }> {
   await requireSuperAdmin();
 
@@ -229,7 +229,7 @@ export async function toggleAdminStatus(
 // ── 어드민 역할 변경 (super_admin만) ─────────────────────────
 export async function updateAdminRole(
   adminId: string,
-  role: "super_admin" | "admin" | "viewer"
+  role: "super_admin" | "admin" | "sales" | "viewer"
 ): Promise<{ success: boolean; error?: string }> {
   const me = await requireSuperAdmin();
   if (me.id === adminId) {

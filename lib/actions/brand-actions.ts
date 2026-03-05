@@ -597,6 +597,72 @@ export async function updateBrandPersonaSettings(
   }
 }
 
+/** 선택된 브랜드의 기본 정보 + 온보딩 상태 조회 (대시보드용) */
+export interface SelectedBrandInfo {
+  id: string;
+  name: string;
+  status: string | null;
+  onboarding_status: string | null;
+  client_type: string | null;
+  plan_name: string | null;
+  subscription_status: string | null;
+  sales_agent_name: string | null;
+  created_at: string;
+  has_brand_persona: boolean;
+}
+
+export async function getSelectedBrandInfo(
+  clientId: string
+): Promise<SelectedBrandInfo | null> {
+  try {
+    const db = createAdminClient();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (db as any)
+      .from("clients")
+      .select(`
+        id, name, status, onboarding_status, client_type, created_at,
+        brand_persona
+      `)
+      .eq("id", clientId)
+      .maybeSingle();
+
+    if (error || !data) return null;
+
+    // 구독 정보
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: sub } = await (db as any)
+      .from("subscriptions")
+      .select("status, products(name)")
+      .eq("client_id", clientId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    // 영업사원 정보
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: sales } = await (db as any)
+      .from("sales_agents")
+      .select("name")
+      .eq("id", data.assigned_sales_agent_id ?? "___")
+      .maybeSingle();
+
+    return {
+      id: data.id,
+      name: data.name,
+      status: data.status,
+      onboarding_status: data.onboarding_status,
+      client_type: data.client_type,
+      plan_name: sub?.products?.name ?? null,
+      subscription_status: sub?.status ?? null,
+      sales_agent_name: sales?.name ?? null,
+      created_at: data.created_at,
+      has_brand_persona: !!data.brand_persona,
+    };
+  } catch {
+    return null;
+  }
+}
+
 /** 글로벌 브랜드 필터 쿠키 읽기 */
 export async function getSelectedClientId(): Promise<string | null> {
   const cookieStore = await cookies();

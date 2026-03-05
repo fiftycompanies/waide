@@ -64,58 +64,81 @@ const BrandSelector = dynamic(
 import type { AiMarketBrand } from "@/lib/actions/brand-actions";
 import type { AdminPayload } from "@/lib/auth/admin-session";
 
-// ── 사이드바 메뉴 구조 (B2B SaaS 운영 중심) ────────────────────────────────
+// ── 역할 타입 ─────────────────────────────────────────────────────────────
+type AdminRole = AdminPayload["role"];
 
-const businessNavItems = [
-  { title: "대시보드",    url: "/dashboard",      icon: LayoutDashboard },
-  { title: "매출",        url: "/ops/revenue",     icon: DollarSign },
-  { title: "이탈 관리",   url: "/ops/churn",       icon: AlertTriangle },
+// ── 메뉴 아이템 타입 ──────────────────────────────────────────────────────
+interface NavItem {
+  title: string;
+  url: string;
+  icon: React.ElementType;
+  roles: AdminRole[]; // 접근 가능한 역할 목록
+}
+
+// ── 사이드바 메뉴 구조 (역할 기반 필터링 지원) ────────────────────────────
+
+const ALL_ROLES: AdminRole[] = ["super_admin", "admin", "sales", "viewer"];
+const ADMIN_ONLY: AdminRole[] = ["super_admin", "admin", "viewer"];
+
+const businessNavItems: NavItem[] = [
+  { title: "대시보드",    url: "/dashboard",      icon: LayoutDashboard, roles: ALL_ROLES },
+  { title: "매출",        url: "/ops/revenue",     icon: DollarSign,     roles: ADMIN_ONLY },
+  { title: "이탈 관리",   url: "/ops/churn",       icon: AlertTriangle,  roles: ADMIN_ONLY },
 ];
 
-const clientNavItems = [
-  { title: "고객 포트폴리오", url: "/ops/clients",      icon: Building2 },
-  { title: "온보딩",         url: "/ops/onboarding",    icon: Rocket },
-  { title: "브랜드 관리",     url: "/brands",            icon: Store },
+const clientNavItems: NavItem[] = [
+  { title: "고객 포트폴리오", url: "/ops/clients",      icon: Building2, roles: ALL_ROLES },
+  { title: "온보딩",         url: "/ops/onboarding",    icon: Rocket,    roles: ALL_ROLES },
+  { title: "브랜드 관리",     url: "/brands",            icon: Store,     roles: ALL_ROLES },
 ];
 
-const seoNavItems = [
-  { title: "키워드 관리",   url: "/keywords",                      icon: Key },
-  { title: "성과 분석",     url: "/analytics",                     icon: BarChart2 },
-  { title: "발행 추천",     url: "/analytics/recommendations",     icon: Sparkles },
+const seoNavItems: NavItem[] = [
+  { title: "키워드 관리",   url: "/keywords",                      icon: Key,      roles: ADMIN_ONLY },
+  { title: "성과 분석",     url: "/analytics",                     icon: BarChart2, roles: ALL_ROLES },
+  { title: "발행 추천",     url: "/analytics/recommendations",     icon: Sparkles, roles: ADMIN_ONLY },
 ];
 
-const contentNavItems = [
-  { title: "캠페인 기획",   url: "/campaigns/plan", icon: Zap },
-  { title: "콘텐츠 관리",   url: "/ops/contents",  icon: FileEdit },
-  { title: "작업 큐",       url: "/ops/jobs",       icon: GitBranch },
+const contentNavItems: NavItem[] = [
+  { title: "캠페인 기획",   url: "/campaigns/plan", icon: Zap,      roles: ADMIN_ONLY },
+  { title: "콘텐츠 관리",   url: "/ops/contents",  icon: FileEdit,  roles: ALL_ROLES },
+  { title: "작업 큐",       url: "/ops/jobs",       icon: GitBranch, roles: ADMIN_ONLY },
 ];
 
-const crmNavItems = [
-  { title: "분석 로그",     url: "/ops/analysis-logs",   icon: ClipboardList },
-  { title: "영업사원",      url: "/ops/sales-agents",    icon: UserCheck },
+const crmNavItems: NavItem[] = [
+  { title: "분석 로그",     url: "/ops/analysis-logs",   icon: ClipboardList, roles: ALL_ROLES },
+  { title: "영업사원",      url: "/ops/sales-agents",    icon: UserCheck,     roles: ADMIN_ONLY },
 ];
 
-const resourceNavItems = [
-  { title: "블로그 계정",     url: "/blog-accounts", icon: Users },
-  { title: "소스 라이브러리", url: "/sources",        icon: Library },
-  { title: "캠페인",          url: "/campaigns",     icon: Target },
+const resourceNavItems: NavItem[] = [
+  { title: "블로그 계정",     url: "/blog-accounts", icon: Users,   roles: ADMIN_ONLY },
+  { title: "소스 라이브러리", url: "/sources",        icon: Library, roles: ADMIN_ONLY },
+  { title: "캠페인",          url: "/campaigns",     icon: Target,  roles: ADMIN_ONLY },
 ];
 
-const settingsNavItems = [
-  { title: "상품 관리",     url: "/ops/products",         icon: Package },
-  { title: "에이전트 설정", url: "/ops/agent-settings",   icon: Bot },
-  { title: "점수 설정",     url: "/ops/scoring-settings", icon: SlidersHorizontal },
-  { title: "SERP 스케줄러", url: "/ops/serp-settings",    icon: Search },
-  { title: "자동 스케줄러", url: "/ops/scheduler",        icon: CalendarClock },
-  { title: "에이전트 로그", url: "/ops",                  icon: Activity },
+const settingsNavItems: NavItem[] = [
+  { title: "상품 관리",     url: "/ops/products",         icon: Package,          roles: ADMIN_ONLY },
+  { title: "에이전트 설정", url: "/ops/agent-settings",   icon: Bot,              roles: ADMIN_ONLY },
+  { title: "점수 설정",     url: "/ops/scoring-settings", icon: SlidersHorizontal, roles: ADMIN_ONLY },
+  { title: "SERP 스케줄러", url: "/ops/serp-settings",    icon: Search,           roles: ADMIN_ONLY },
+  { title: "자동 스케줄러", url: "/ops/scheduler",        icon: CalendarClock,    roles: ADMIN_ONLY },
+  { title: "에이전트 로그", url: "/ops",                  icon: Activity,         roles: ADMIN_ONLY },
 ];
+
+// ── 역할 라벨 매핑 ────────────────────────────────────────────────────────
+const ROLE_LABELS: Record<string, string> = {
+  super_admin: "슈퍼 어드민",
+  admin: "어드민",
+  sales: "영업",
+  viewer: "뷰어",
+};
 
 interface AppSidebarProps {
   brands?: AiMarketBrand[];
   selectedClientId?: string | null;
+  adminRole?: string | null;
 }
 
-export function AppSidebar({ brands = [], selectedClientId = null }: AppSidebarProps) {
+export function AppSidebar({ brands = [], selectedClientId = null, adminRole = null }: AppSidebarProps) {
   const pathname = usePathname();
   const [isPending, startTransition] = useTransition();
   const [admin, setAdmin] = useState<AdminPayload | null>(null);
@@ -123,6 +146,9 @@ export function AppSidebar({ brands = [], selectedClientId = null }: AppSidebarP
   useEffect(() => {
     getAdminInfo().then(setAdmin);
   }, []);
+
+  // 서버에서 전달받은 role 우선, 폴백으로 클라이언트 조회
+  const currentRole: AdminRole = (adminRole as AdminRole) || admin?.role || "viewer";
 
   const handleSignOut = () => {
     startTransition(async () => {
@@ -141,15 +167,19 @@ export function AppSidebar({ brands = [], selectedClientId = null }: AppSidebarP
     ?? admin?.username?.charAt(0).toUpperCase()
     ?? "A";
 
+  // 역할에 따라 메뉴 항목 필터링
+  const filterByRole = (items: NavItem[]) =>
+    items.filter((item) => item.roles.includes(currentRole));
+
   const navGroups = [
-    { label: "비즈니스", items: businessNavItems },
-    { label: "고객 관리", items: clientNavItems },
-    { label: "SEO 운영", items: seoNavItems },
-    { label: "콘텐츠", items: contentNavItems },
-    { label: "영업 CRM", items: crmNavItems },
-    { label: "리소스", items: resourceNavItems },
-    { label: "설정", items: settingsNavItems },
-  ];
+    { label: "비즈니스", items: filterByRole(businessNavItems) },
+    { label: "고객 관리", items: filterByRole(clientNavItems) },
+    { label: "SEO 운영", items: filterByRole(seoNavItems) },
+    { label: "콘텐츠", items: filterByRole(contentNavItems) },
+    { label: "영업 CRM", items: filterByRole(crmNavItems) },
+    { label: "리소스", items: filterByRole(resourceNavItems) },
+    { label: "설정", items: filterByRole(settingsNavItems) },
+  ].filter((group) => group.items.length > 0); // 빈 그룹 숨김
 
   return (
     <Sidebar className="border-r border-border/40">
@@ -208,7 +238,7 @@ export function AppSidebar({ brands = [], selectedClientId = null }: AppSidebarP
                   {admin?.displayName || admin?.username || "어드민"}
                 </span>
                 <span className="text-xs text-muted-foreground truncate">
-                  {admin?.role === "super_admin" ? "슈퍼 어드민" : admin?.role === "viewer" ? "뷰어" : "어드민"}
+                  {ROLE_LABELS[currentRole] || "어드민"}
                 </span>
               </div>
             </button>
@@ -220,7 +250,7 @@ export function AppSidebar({ brands = [], selectedClientId = null }: AppSidebarP
                 계정 설정
               </Link>
             </DropdownMenuItem>
-            {admin?.role === "super_admin" && (
+            {currentRole === "super_admin" && (
               <DropdownMenuItem asChild>
                 <Link href="/settings/admins">
                   <ShieldCheck className="h-4 w-4 mr-2" />

@@ -15,7 +15,7 @@ const SECRET =
 export interface AdminPayload {
   id: string;
   username: string;
-  role: "super_admin" | "admin" | "viewer";
+  role: "super_admin" | "admin" | "sales" | "viewer";
   displayName: string;
 }
 

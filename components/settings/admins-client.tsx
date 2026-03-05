@@ -25,12 +25,14 @@ import {
 const ROLE_LABELS: Record<string, string> = {
   super_admin: "슈퍼 어드민",
   admin: "어드민",
+  sales: "영업",
   viewer: "뷰어",
 };
 
 const ROLE_COLORS: Record<string, string> = {
   super_admin: "bg-amber-500/10 text-amber-700 border-amber-200",
   admin: "bg-violet-500/10 text-violet-700 border-violet-200",
+  sales: "bg-blue-500/10 text-blue-700 border-blue-200",
   viewer: "bg-slate-500/10 text-slate-700 border-slate-200",
 };
 
@@ -50,7 +52,7 @@ export function AdminsClient({ admins: initialAdmins, currentAdminId }: AdminsCl
     username: "",
     password: "",
     displayName: "",
-    role: "admin" as "admin" | "viewer",
+    role: "admin" as "admin" | "sales" | "viewer",
   });
 
   // 삭제 확인 상태
@@ -93,7 +95,7 @@ export function AdminsClient({ admins: initialAdmins, currentAdminId }: AdminsCl
     });
   }
 
-  function handleRoleChange(adminId: string, role: "super_admin" | "admin" | "viewer") {
+  function handleRoleChange(adminId: string, role: "super_admin" | "admin" | "sales" | "viewer") {
     startTransition(async () => {
       const result = await updateAdminRole(adminId, role);
       if (result.success) {
@@ -202,6 +204,7 @@ export function AdminsClient({ admins: initialAdmins, currentAdminId }: AdminsCl
                     className="flex h-8 w-full rounded-md border border-input bg-background px-2 py-1 text-sm"
                   >
                     <option value="admin">어드민</option>
+                    <option value="sales">영업</option>
                     <option value="viewer">뷰어</option>
                   </select>
                 </div>
@@ -249,13 +252,14 @@ export function AdminsClient({ admins: initialAdmins, currentAdminId }: AdminsCl
                     <select
                       value={admin.role}
                       onChange={(e) =>
-                        handleRoleChange(admin.id, e.target.value as "super_admin" | "admin" | "viewer")
+                        handleRoleChange(admin.id, e.target.value as "super_admin" | "admin" | "sales" | "viewer")
                       }
                       disabled={isPending}
                       className={`appearance-none text-xs px-2 py-1 pr-6 rounded-full border font-medium cursor-pointer ${ROLE_COLORS[admin.role] ?? ""}`}
                     >
                       <option value="super_admin">슈퍼 어드민</option>
                       <option value="admin">어드민</option>
+                      <option value="sales">영업</option>
                       <option value="viewer">뷰어</option>
                     </select>
                     <ChevronDown className="absolute right-1.5 top-1/2 -translate-y-1/2 h-3 w-3 pointer-events-none" />

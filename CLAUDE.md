@@ -1,7 +1,7 @@
 # Waide (AI Hospitality Aide) — 서비스 IA
 
-> 최종 업데이트: 2026-03-04
-> 버전: Phase UX-P1 완료 (loading.tsx + EmptyState + Breadcrumb + misc fixes)
+> 최종 업데이트: 2026-03-05
+> 버전: Phase STRUCT-1 완료 (계정관리, 역할메뉴, 브랜드뷰, 온보딩 플로우)
 
 ---
 
@@ -29,6 +29,8 @@
 12. 인증 이중 구조: 어드민=HMAC-SHA256 (admins 테이블), 고객=Supabase Auth (users 테이블). 절대 혼용 금지.
 13. users.role CHECK: 'super_admin'/'admin'/'sales'/'client_owner'/'client_member'
 14. subscriptions.status CHECK: 'trial'/'active'/'past_due'/'cancelled'/'expired'
+15. admin_users.role CHECK: 'super_admin'/'admin'/'sales'/'viewer' — 사이드바 메뉴 자동 필터링
+16. 고객 계정 연결: users.client_id FK → clients.id (client_users 별도 테이블 없음, 1:N 직접 연결)
 
 ---
 
@@ -620,6 +622,22 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
   - dangerouslySetInnerHTML 제거: portal/contents → ReactMarkdown 컴포넌트로 교체
   - revenue 빈 상태 메시지 개선, dashboard 계정 성과 빈 상태 메시지 개선
   - npm run build 성공
+- Phase STRUCT-1: 서비스 구조 전면 정리 (2026-03-05)
+  - 역할 체계 확장: admin_users CHECK에 'sales' 역할 추가 (super_admin/admin/sales/viewer)
+  - AdminPayload 타입 확장: role에 'sales' 추가
+  - 역할 기반 사이드바 메뉴 필터링: 각 메뉴 항목에 roles[] 속성, 역할별 메뉴 자동 숨김
+  - 메뉴 권한 매핑:
+    - super_admin/admin/viewer: 전체 메뉴 접근
+    - sales: 대시보드, 고객포트폴리오, 온보딩, 브랜드관리, 성과분석, 콘텐츠관리, 분석로그만
+  - 어드민 관리 페이지: sales 역할 생성/변경 지원 (생성 폼 + 역할 셀렉트에 추가)
+  - 고객 계정 연결: client-account-actions.ts (linkClientAccount/unlinkClientAccount/getLinkedAccount/inviteClientUser)
+  - 고객 상세 10탭: 기존 9탭 + "계정" 탭 (포털 계정 연결/해제/초대)
+  - 브랜드 정보 카드: 개별 브랜드 선택 시 대시보드 상단에 BrandInfoCard 표시 (이름/상태/온보딩/플랜/담당자)
+  - 온보딩 체크 모달: 브랜드 선택 시 온보딩 미완료면 모달 표시 (세션당 1회)
+  - 대시보드 레이아웃: getSelectedBrandInfo() 조회 → 온보딩 상태 체크 → 모달 렌더링
+  - 대시보드 레이아웃: adminRole 서버에서 조회하여 sidebar에 prop 전달 (SSR 역할 필터링)
+  - 마이그레이션: 055_admin_sales_role.sql (admin_users CHECK 재생성)
+  - npm run build 성공
 
 ### 설계 원칙
 
@@ -671,6 +689,7 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 | 6 | **PIPE-1** | 캠페인 기획 + 에디터 브릿지 (실전 파이프라인 UI) | ✅ 완료 |
 | 7 | **UX-P0** | P0 크리티컬 이슈 수정 (error.tsx + not-found.tsx + 설정 정리 + 랜딩 정리) | ✅ 완료 |
 | 8 | **UX-P1** | P1 UX 개선 (loading.tsx + EmptyState + Breadcrumb + sidebar/timeout/XSS fix) | ✅ 완료 |
+| 9 | **STRUCT-1** | 서비스 구조 정리 — 계정관리, 역할메뉴, 브랜드뷰, 온보딩 플로우 | ✅ 완료 |
 
 ### 미구현 (우선순위 순)
 
