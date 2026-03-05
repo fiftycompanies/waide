@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useRef, Suspense, useCallback } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useState, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
 import {
   Search,
   BarChart3,
@@ -245,17 +245,22 @@ function StatCounter({ value, suffix, label }: { value: string; suffix?: string;
 // ── Main Landing ─────────────────────────────────────────────────────────────
 
 function LandingContent() {
-  const searchParams = useSearchParams();
-  const defaultPlace = searchParams.get("place") ?? "";
-  const hasPlace = !!searchParams.get("place");
+  const [defaultPlace, setDefaultPlace] = useState("");
+  const [hasPlace, setHasPlace] = useState(false);
 
   useEffect(() => {
-    const ref = searchParams.get("ref");
+    const params = new URLSearchParams(window.location.search);
+    const place = params.get("place") ?? "";
+    if (place) {
+      setDefaultPlace(place);
+      setHasPlace(true);
+    }
+    const ref = params.get("ref");
     if (ref) {
       // waide_sales_ref 쿠키에 30일 저장
       document.cookie = `waide_sales_ref=${ref}; path=/; max-age=${30 * 24 * 60 * 60}; SameSite=Lax`;
     }
-  }, [searchParams]);
+  }, []);
 
   return (
     <>
@@ -412,15 +417,5 @@ function LandingContent() {
 }
 
 export default function LandingPage() {
-  return (
-    <Suspense
-      fallback={
-        <div className="flex items-center justify-center min-h-[60vh]">
-          <div className="h-8 w-8 border-2 border-[#10b981]/30 border-t-[#10b981] rounded-full animate-spin" />
-        </div>
-      }
-    >
-      <LandingContent />
-    </Suspense>
-  );
+  return <LandingContent />;
 }
