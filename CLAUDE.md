@@ -650,7 +650,7 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
   - 크론 에러 연동: lib/scheduler.ts runScheduledTask() catch 블록, monthly-report/search-volume 개별 catch 블록
   - /ops/error-logs: 에러 로그 관리 페이지 (통계카드 4종, 상태/유형/기간 필터, 목록 테이블, 상세 모달)
   - 사이드바: "에러 로그" 메뉴 (super_admin/admin, ShieldAlert 아이콘)
-  - 환경변수: SLACK_ERROR_WEBHOOK_URL (optional, 없으면 Slack 알림 skip)
+  - Slack 알림: SLACK_ERROR_WEBHOOK_URL → SLACK_WEBHOOK_URL 순서 폴백 (둘 다 없으면 skip)
   - npm run build 성공
 
 ### 설계 원칙

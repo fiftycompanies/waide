@@ -1,6 +1,6 @@
 /**
  * Slack 에러 알림 모듈
- * SLACK_ERROR_WEBHOOK_URL 환경변수 필요 (없으면 graceful skip)
+ * SLACK_ERROR_WEBHOOK_URL → SLACK_WEBHOOK_URL 순서로 폴백 (없으면 graceful skip)
  */
 
 // 중복 발송 방지: 동일 에러 5분 이내 재발송 차단
@@ -41,10 +41,9 @@ export interface ErrorNotificationParams {
 export async function sendErrorSlackNotification(
   params: ErrorNotificationParams
 ): Promise<void> {
-  const webhookUrl = process.env.SLACK_ERROR_WEBHOOK_URL;
+  const webhookUrl = process.env.SLACK_ERROR_WEBHOOK_URL || process.env.SLACK_WEBHOOK_URL;
 
   if (!webhookUrl) {
-    console.warn("[slack-error] SLACK_ERROR_WEBHOOK_URL not set, skipping notification");
     return;
   }
 
