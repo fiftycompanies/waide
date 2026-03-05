@@ -40,6 +40,13 @@ interface RecentKeywordActivity {
   date: string;
 }
 
+interface ScoreArea {
+  score: number;
+  max?: number;
+  details?: string;
+  detail?: string;
+}
+
 interface DashboardData {
   kpi: KpiData;
   latestAnalysis: {
@@ -49,11 +56,13 @@ interface DashboardData {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     analysis_result?: any;
   } | null;
+  scoreBreakdown: Record<string, ScoreArea> | null;
   brandName: string;
   brandPersona: {
     one_liner?: string;
     positioning?: string;
     strengths?: string[];
+    weaknesses?: string[];
     tone?: string;
   } | null;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -183,6 +192,63 @@ export default function PortalDashboardPage() {
         </div>
       </div>
 
+      {/* Marketing Score Card */}
+      {data.latestAnalysis?.marketing_score != null && (
+        <div className="rounded-xl border bg-white p-6">
+          <div className="flex items-center gap-2 text-gray-900 mb-4">
+            <Trophy className="h-5 w-5 text-amber-500" />
+            <h2 className="text-lg font-semibold">마케팅 종합 점수</h2>
+            {data.latestAnalysis.analyzed_at && (
+              <span className="text-xs text-gray-400 ml-auto">
+                {new Date(data.latestAnalysis.analyzed_at).toLocaleDateString("ko-KR")} 분석
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-6 mb-4">
+            <div className="relative flex items-center justify-center h-20 w-20 shrink-0">
+              <svg className="h-20 w-20 -rotate-90" viewBox="0 0 36 36">
+                <circle cx="18" cy="18" r="15.9" fill="none" stroke="#e5e7eb" strokeWidth="3" />
+                <circle
+                  cx="18" cy="18" r="15.9" fill="none"
+                  stroke={data.latestAnalysis.marketing_score >= 70 ? "#10b981" : data.latestAnalysis.marketing_score >= 40 ? "#f59e0b" : "#ef4444"}
+                  strokeWidth="3" strokeLinecap="round"
+                  strokeDasharray={`${data.latestAnalysis.marketing_score} ${100 - data.latestAnalysis.marketing_score}`}
+                />
+              </svg>
+              <span className="absolute text-lg font-bold text-gray-900">{data.latestAnalysis.marketing_score}</span>
+            </div>
+            <div className="flex-1 space-y-1.5">
+              {(() => {
+                const areas = [
+                  { key: "review_reputation", label: "리뷰/평판", max: 20, color: "bg-emerald-500" },
+                  { key: "naver_keyword", label: "키워드 노출", max: 25, color: "bg-blue-500" },
+                  { key: "google_keyword", label: "구글 노출", max: 15, color: "bg-violet-500" },
+                  { key: "image_quality", label: "이미지", max: 10, color: "bg-pink-500" },
+                  { key: "online_channels", label: "채널 완성도", max: 15, color: "bg-amber-500" },
+                  { key: "seo_aeo_readiness", label: "SEO 준비도", max: 15, color: "bg-cyan-500" },
+                ];
+                const breakdown = data.scoreBreakdown || {};
+                return areas.map(({ key, label, max, color }) => {
+                  const area = breakdown[key];
+                  const score = area?.score ?? 0;
+                  const areaMax = area?.max ?? max;
+                  const pct = areaMax > 0 ? Math.min((score / areaMax) * 100, 100) : 0;
+                  return (
+                    <div key={key} className="flex items-center gap-2">
+                      <span className="text-[11px] text-gray-500 w-16 shrink-0">{label}</span>
+                      <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                        <div className={`h-full rounded-full ${color}`} style={{ width: `${pct}%` }} />
+                      </div>
+                      <span className="text-[11px] font-medium text-gray-600 w-10 text-right">{score}/{areaMax}</span>
+                    </div>
+                  );
+                });
+              })()}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Brand Persona One-liner */}
       {data.brandPersona?.one_liner ? (
         <div className="rounded-xl border bg-gradient-to-r from-emerald-50 to-white p-5">
@@ -204,6 +270,42 @@ export default function PortalDashboardPage() {
           <p className="text-xs text-gray-400 mt-1">브랜드 분석이 완료되면 맞춤 인사이트가 표시됩니다</p>
         </div>
       )}
+
+      {/* Strengths & Weaknesses */}
+      {(data.brandPersona?.strengths?.length || data.brandPersona?.weaknesses?.length) ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {data.brandPersona?.strengths && data.brandPersona.strengths.length > 0 && (
+            <div className="rounded-xl border bg-white p-5">
+              <div className="flex items-center gap-2 text-emerald-700 text-sm font-medium mb-3">
+                <TrendingUp className="h-4 w-4" />
+                브랜드 강점
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {data.brandPersona.strengths.map((s, i) => (
+                  <span key={i} className="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs border border-emerald-100">
+                    {s}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+          {data.brandPersona?.weaknesses && data.brandPersona.weaknesses.length > 0 && (
+            <div className="rounded-xl border bg-white p-5">
+              <div className="flex items-center gap-2 text-amber-700 text-sm font-medium mb-3">
+                <Target className="h-4 w-4" />
+                개선 영역
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {data.brandPersona.weaknesses.map((w, i) => (
+                  <span key={i} className="px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 text-xs border border-amber-100">
+                    {w}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      ) : null}
 
       {/* Improvement Suggestions (Top 3) */}
       {data.improvementPlan?.roadmap && (

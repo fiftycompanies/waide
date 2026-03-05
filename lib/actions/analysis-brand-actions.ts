@@ -289,7 +289,40 @@ export async function refreshBrandAnalysis(
   }
 }
 
-// ── 7. getBrandAnalysisKpi ────────────────────────────────────────────────────
+// ── 7. getAnalysisStatus ──────────────────────────────────────────────────────
+
+/** 분석 상태 폴링용 — analysisId로 현재 상태 조회 */
+export async function getAnalysisStatus(
+  analysisId: string
+): Promise<{ status: string; marketing_score: number | null; error?: string }> {
+  try {
+    const db = createAdminClient();
+    const { data, error } = await db
+      .from("brand_analyses")
+      .select("status, marketing_score, basic_info")
+      .eq("id", analysisId)
+      .single();
+
+    if (error || !data) return { status: "unknown", marketing_score: null, error: "분석을 찾을 수 없습니다" };
+
+    // 실패 시 에러 메시지 추출
+    let errMsg: string | undefined;
+    if (data.status === "failed") {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      errMsg = (data.basic_info as any)?.error || "분석 실패";
+    }
+
+    return {
+      status: data.status,
+      marketing_score: data.marketing_score,
+      error: errMsg,
+    };
+  } catch {
+    return { status: "unknown", marketing_score: null, error: "상태 조회 실패" };
+  }
+}
+
+// ── 8. getBrandAnalysisKpi ────────────────────────────────────────────────────
 
 /** 대시보드 KPI용 분석 요약 데이터 */
 export interface ScoreArea {

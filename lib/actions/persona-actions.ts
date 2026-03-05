@@ -157,8 +157,46 @@ export async function regeneratePersona(
     .limit(1)
     .maybeSingle();
 
+  // 분석 데이터가 없으면 클라이언트 기본 정보로 폴백 페르소나 생성
   if (!analysis) {
-    return { success: false, error: "분석 데이터가 없습니다. 먼저 분석을 실행해주세요." };
+    const { data: clientInfo } = await db
+      .from("clients")
+      .select("name, industry, website_url, company_name")
+      .eq("id", clientId)
+      .single();
+
+    if (!clientInfo) {
+      return { success: false, error: "클라이언트를 찾을 수 없습니다." };
+    }
+
+    // 분석 없이 기본 정보로 간소화된 페르소나 생성
+    const basicPersona: BrandPersona = {
+      one_liner: `${clientInfo.name} — 고객 맞춤형 마케팅 전략 준비 중`,
+      positioning: clientInfo.industry
+        ? `${clientInfo.industry} 분야에서 차별화된 서비스를 제공하는 브랜드`
+        : "분석 완료 후 포지셔닝이 업데이트됩니다",
+      target_audience: "분석 완료 후 자동 업데이트됩니다",
+      tone: "친근하고 전문적인 톤",
+      strengths: [],
+      weaknesses: [],
+      content_angles: [],
+      recommended_keywords: [],
+      generated_at: new Date().toISOString(),
+      generated_by: "BASIC_FALLBACK",
+      manually_edited: false,
+      manual_overrides: {},
+    };
+
+    const { error: updateErr } = await db
+      .from("clients")
+      .update({
+        brand_persona: basicPersona,
+        persona_updated_at: new Date().toISOString(),
+      })
+      .eq("id", clientId);
+
+    if (updateErr) return { success: false, error: updateErr.message };
+    return { success: true };
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

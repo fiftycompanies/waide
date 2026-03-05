@@ -9,6 +9,7 @@ import {
   BarChart2,
   Building2,
   Calendar,
+  CheckCircle2,
   CheckSquare,
   CreditCard,
   Download,
@@ -20,9 +21,11 @@ import {
   Loader2,
   Mail,
   Minus,
+  Play,
   Plus,
   RefreshCw,
   Save,
+  Search,
   Send,
   Sparkles,
   TrendingDown,
@@ -38,6 +41,10 @@ import {
   updateOnboardingChecklist,
   type ClientDetail,
 } from "@/lib/actions/client-portfolio-actions";
+import {
+  runBrandAnalysis,
+  getAnalysisStatus,
+} from "@/lib/actions/analysis-brand-actions";
 import {
   updatePersona,
   addManualStrength,
@@ -95,7 +102,48 @@ function TabButton({
 
 // ── Overview Tab ───────────────────────────────────────────────────────────
 
-function OverviewTab({ client }: { client: ClientDetail }) {
+function OverviewTab({ client, onRefresh }: { client: ClientDetail; onRefresh: () => void }) {
+  const [analysisUrl, setAnalysisUrl] = useState("");
+  const [analysisRunning, setAnalysisRunning] = useState(false);
+  const [analysisStatus, setAnalysisStatus] = useState<string | null>(null);
+  const [analysisId, setAnalysisId] = useState<string | null>(null);
+
+  // 분석 상태 폴링
+  useEffect(() => {
+    if (!analysisId || !analysisRunning) return;
+    const interval = setInterval(async () => {
+      const result = await getAnalysisStatus(analysisId);
+      setAnalysisStatus(result.status);
+      if (result.status === "completed") {
+        setAnalysisRunning(false);
+        toast.success(`분석 완료! 마케팅 점수: ${result.marketing_score ?? "-"}점`);
+        onRefresh();
+      } else if (result.status === "failed") {
+        setAnalysisRunning(false);
+        toast.error(result.error || "분석 실패");
+      }
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [analysisId, analysisRunning, onRefresh]);
+
+  const handleStartAnalysis = async () => {
+    if (!analysisUrl.trim()) {
+      toast.error("네이버 플레이스 URL을 입력해주세요");
+      return;
+    }
+    setAnalysisRunning(true);
+    setAnalysisStatus("pending");
+    const result = await runBrandAnalysis(client.id, analysisUrl.trim());
+    if (result.success && result.analysisId) {
+      setAnalysisId(result.analysisId);
+      toast.success("분석이 시작되었습니다. 완료까지 30초~1분 소요됩니다.");
+    } else {
+      setAnalysisRunning(false);
+      setAnalysisStatus(null);
+      toast.error(result.error || "분석 시작 실패");
+    }
+  };
+
   const scoreAreas = [
     { key: "review_reputation", label: "리뷰", max: 20 },
     { key: "naver_keyword", label: "키워드", max: 25 },
@@ -255,6 +303,54 @@ function OverviewTab({ client }: { client: ClientDetail }) {
           </a>
         </div>
       )}
+
+      {/* Analysis Execution */}
+      <div className="border rounded-lg p-4 space-y-3">
+        <div className="flex items-center gap-2">
+          <Search className="h-4 w-4 text-primary" />
+          <h3 className="font-semibold text-sm">마케팅 분석 실행</h3>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          네이버 플레이스 URL을 입력하면 마케팅 점수 분석 + AI 페르소나가 자동 생성됩니다.
+        </p>
+        <div className="flex gap-2">
+          <input
+            type="url"
+            value={analysisUrl}
+            onChange={(e) => setAnalysisUrl(e.target.value)}
+            placeholder="https://naver.me/... 또는 https://m.place.naver.com/..."
+            className="flex-1 px-3 py-2 border rounded-lg text-sm bg-background"
+            disabled={analysisRunning}
+          />
+          <button
+            onClick={handleStartAnalysis}
+            disabled={analysisRunning || !analysisUrl.trim()}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50 shrink-0"
+          >
+            {analysisRunning ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Play className="h-3.5 w-3.5" />
+            )}
+            {analysisRunning ? "분석 중..." : "분석 시작"}
+          </button>
+        </div>
+        {analysisRunning && analysisStatus && (
+          <div className="flex items-center gap-2 p-3 rounded-lg bg-blue-50 border border-blue-100">
+            <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+            <span className="text-sm text-blue-700">
+              {analysisStatus === "pending" && "분석 대기 중..."}
+              {analysisStatus === "analyzing" && "데이터 수집 및 분석 중..."}
+            </span>
+          </div>
+        )}
+        {!analysisRunning && analysisStatus === "completed" && (
+          <div className="flex items-center gap-2 p-3 rounded-lg bg-emerald-50 border border-emerald-100">
+            <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+            <span className="text-sm text-emerald-700">분석 완료! 페르소나 탭에서 AI 생성 결과를 확인하세요.</span>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -493,7 +589,8 @@ function PersonaTab({ client, onRefresh }: { client: ClientDetail; onRefresh: ()
       <div className="text-center py-12 text-muted-foreground">
         <Sparkles className="h-8 w-8 mx-auto mb-2 opacity-40" />
         <p className="text-sm mb-3">아직 페르소나가 생성되지 않았습니다</p>
-        <p className="text-xs mb-4">분석을 실행하면 AI가 자동으로 브랜드 페르소나를 생성합니다.</p>
+        <p className="text-xs mb-2">아래 버튼으로 기본 페르소나를 생성할 수 있습니다.</p>
+        <p className="text-xs mb-4 text-muted-foreground/60">개요 탭에서 분석을 먼저 실행하면 더 정확한 AI 페르소나가 자동 생성됩니다.</p>
         <button
           onClick={handleRegenerate}
           disabled={isRegenerating}
@@ -1345,7 +1442,7 @@ export default function ClientDetailPage() {
       </div>
 
       {/* Tab Content */}
-      {activeTab === "overview" && <OverviewTab client={client} />}
+      {activeTab === "overview" && <OverviewTab client={client} onRefresh={refreshClient} />}
       {activeTab === "keywords" && (
         <div className="text-center py-12 text-muted-foreground">
           <Key className="h-8 w-8 mx-auto mb-2 opacity-40" />

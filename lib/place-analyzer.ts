@@ -1508,6 +1508,18 @@ export async function runFullAnalysis(analysisId: string): Promise<void> {
       console.error("[place-analyzer] 에이전트 체인 실패 (기존 분석은 정상):", agentErr);
     }
 
+    // ── 분석 완료 시 clients.onboarding_status 업데이트 (non-blocking) ──
+    if (analysis.client_id) {
+      try {
+        await db
+          .from("clients")
+          .update({ onboarding_status: "analysis_done" })
+          .eq("id", analysis.client_id);
+      } catch (statusErr) {
+        console.error("[place-analyzer] onboarding_status 업데이트 실패 (non-blocking):", statusErr);
+      }
+    }
+
     // ── Slack 알림 + 영업사원 카운터 (non-blocking) ──
     try {
       const salesRef = analysis.sales_ref as string | null;

@@ -180,7 +180,7 @@ export async function getPortalDashboardV2(clientId: string) {
   ] = await Promise.all([
     // 최신 분석 결과
     db.from("brand_analyses")
-      .select("id, marketing_score, keyword_rankings, analyzed_at, analysis_result")
+      .select("id, marketing_score, keyword_rankings, analyzed_at, analysis_result, content_strategy, score_breakdown")
       .eq("client_id", clientId)
       .eq("status", "completed")
       .order("analyzed_at", { ascending: false })
@@ -250,6 +250,17 @@ export async function getPortalDashboardV2(clientId: string) {
   const improvementPlan = analysisResult?.improvement_plan || null;
   const seoComments = analysisResult?.seo_comments || null;
 
+  // score_breakdown: content_strategy.score_breakdown 또는 score_breakdown 컬럼에서 추출
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const contentStrategy = (analysisRes.data as any)?.content_strategy as Record<string, unknown> | undefined;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const rawScoreBreakdown = (analysisRes.data as any)?.score_breakdown
+    || contentStrategy?.score_breakdown
+    || null;
+
+  // brandPersona에 strengths/weaknesses 포함
+  const brandPersonaRaw = (clientRes.data?.brand_persona as Record<string, unknown>) || null;
+
   return {
     kpi: {
       activeKeywords: activeKeywordsRes.count || 0,
@@ -258,8 +269,9 @@ export async function getPortalDashboardV2(clientId: string) {
       avgQcScore,
     },
     latestAnalysis: analysisRes.data,
+    scoreBreakdown: rawScoreBreakdown,
     brandName: clientRes.data?.brand_name || "",
-    brandPersona: (clientRes.data?.brand_persona as Record<string, unknown>) || null,
+    brandPersona: brandPersonaRaw,
     improvementPlan,
     seoComments,
     recentContents: recentContents.map((c: {
