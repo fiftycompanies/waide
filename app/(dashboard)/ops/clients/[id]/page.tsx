@@ -1066,15 +1066,30 @@ function ReportTab({ clientId }: { clientId: string }) {
 function AccountTab({ clientId }: { clientId: string }) {
   const [account, setAccount] = useState<LinkedAccount | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [email, setEmail] = useState("");
   const [isPending, startTransition] = useTransition();
   const [inviteUrl, setInviteUrl] = useState<string | null>(null);
 
+  const loadAccount = () => {
+    setLoading(true);
+    setError(null);
+    getLinkedAccount(clientId)
+      .then((data) => {
+        setAccount(data);
+      })
+      .catch((err) => {
+        console.error("[AccountTab] load error:", err);
+        setError("계정 정보를 불러올 수 없습니다.");
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  };
+
   useEffect(() => {
-    getLinkedAccount(clientId).then((data) => {
-      setAccount(data);
-      setLoading(false);
-    });
+    loadAccount();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clientId]);
 
   const handleLink = () => {
@@ -1084,8 +1099,7 @@ function AccountTab({ clientId }: { clientId: string }) {
       if (result.success) {
         toast.success("계정이 연결되었습니다.");
         setEmail("");
-        const updated = await getLinkedAccount(clientId);
-        setAccount(updated);
+        loadAccount();
       } else {
         toast.error(result.error ?? "연결 실패");
       }
@@ -1123,6 +1137,21 @@ function AccountTab({ clientId }: { clientId: string }) {
     return (
       <div className="flex items-center justify-center py-12">
         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="text-center py-12 text-muted-foreground">
+        <AlertTriangle className="h-8 w-8 mx-auto mb-2 opacity-40 text-amber-500" />
+        <p className="text-sm">{error}</p>
+        <button
+          onClick={loadAccount}
+          className="mt-3 text-sm text-primary hover:underline"
+        >
+          다시 시도
+        </button>
       </div>
     );
   }

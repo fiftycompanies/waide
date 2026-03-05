@@ -20,24 +20,37 @@ export interface LinkedAccount {
 export async function getLinkedAccount(
   clientId: string
 ): Promise<LinkedAccount | null> {
-  await requireAdminSession();
-  const db = createAdminClient();
+  try {
+    await requireAdminSession();
+    const db = createAdminClient();
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = await (db as any)
-    .from("users")
-    .select("id, email, name, role, created_at, last_login_at")
-    .eq("client_id", clientId)
-    .eq("is_active", true)
-    .limit(1)
-    .maybeSingle();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (db as any)
+      .from("users")
+      .select("id, email, full_name, name, role, created_at, last_login_at, is_active")
+      .eq("client_id", clientId)
+      .limit(1)
+      .maybeSingle();
 
-  if (error) {
-    console.error("[client-account] getLinkedAccount:", error);
+    if (error) {
+      console.error("[client-account] getLinkedAccount:", error);
+      return null;
+    }
+
+    if (!data) return null;
+
+    return {
+      id: data.id,
+      email: data.email,
+      name: data.full_name || data.name || null,
+      role: data.role,
+      created_at: data.created_at,
+      last_login_at: data.last_login_at || null,
+    } as LinkedAccount;
+  } catch (err) {
+    console.error("[client-account] getLinkedAccount unexpected:", err);
     return null;
   }
-
-  return data as LinkedAccount | null;
 }
 
 // ── 계정 연결 ─────────────────────────────────────────────────────────────

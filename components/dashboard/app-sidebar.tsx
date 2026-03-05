@@ -28,6 +28,7 @@ import {
   Sparkles,
   Target,
   UserCheck,
+  UserCog,
   Users,
   Zap,
 } from "lucide-react";
@@ -91,9 +92,10 @@ const serviceNavItems: NavItem[] = [
 
 // ── 하단: 어드민/영업자만 보는 영역 ────────────────────────────────────
 const clientMgmtNavItems: NavItem[] = [
-  { title: "고객 포트폴리오", url: "/ops/clients",    icon: Building2, roles: ALL_ROLES },
-  { title: "브랜드 관리",     url: "/brands",          icon: Store,     roles: ALL_ROLES },
-  { title: "온보딩",          url: "/ops/onboarding",  icon: Rocket,    roles: ALL_ROLES },
+  { title: "고객 포트폴리오", url: "/ops/clients",              icon: Building2, roles: ALL_ROLES },
+  { title: "브랜드 관리",     url: "/brands",                    icon: Store,     roles: ALL_ROLES },
+  { title: "온보딩",          url: "/ops/onboarding",            icon: Rocket,    roles: ALL_ROLES },
+  { title: "계정 관리",       url: "/ops/accounts-management",   icon: UserCog,   roles: ["super_admin", "admin"] },
 ];
 
 const bizNavItems: NavItem[] = [
