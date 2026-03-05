@@ -22,6 +22,7 @@ import {
   Rocket,
   Search,
   Settings,
+  ShieldAlert,
   ShieldCheck,
   SlidersHorizontal,
   Store,
@@ -123,6 +124,7 @@ const settingsNavItems: NavItem[] = [
   { title: "SERP 스케줄러", url: "/ops/serp-settings",         icon: Search,           roles: ADMIN_ONLY },
   { title: "자동 스케줄러", url: "/ops/scheduler",             icon: CalendarClock,    roles: ADMIN_ONLY },
   { title: "에이전트 로그", url: "/ops",                       icon: Activity,         roles: ADMIN_ONLY },
+  { title: "에러 로그",     url: "/ops/error-logs",              icon: ShieldAlert,      roles: ["super_admin", "admin"] },
 ];
 
 // ── 역할 라벨 매핑 ────────────────────────────────────────────────────────

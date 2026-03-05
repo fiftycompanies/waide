@@ -11,6 +11,7 @@
 
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/service";
+import { logError } from "@/lib/actions/error-log-actions";
 
 export const maxDuration = 300; // 5분
 export const dynamic = "force-dynamic";
@@ -105,6 +106,14 @@ export async function POST(request: Request) {
       const errorMsg = err instanceof Error ? err.message : "Unknown error";
       results.push({ clientId: client.id, name: client.name, status: "error", error: errorMsg });
       console.error(`[cron/monthly-report] Error for client ${client.id}:`, err);
+      logError({
+        errorMessage: errorMsg,
+        errorStack: err instanceof Error ? err.stack : undefined,
+        errorType: "cron",
+        pageUrl: "/api/cron/monthly-report",
+        clientId: client.id,
+        metadata: { clientName: client.name, reportMonth: reportMonthDate },
+      }).catch(() => {});
     }
   }
 

@@ -5,6 +5,7 @@ import { AlertTriangle, RefreshCw, Home } from "lucide-react";
 import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { logError } from "@/lib/actions/error-log-actions";
 
 export default function PortalError({
   error,
@@ -15,6 +16,14 @@ export default function PortalError({
 }) {
   useEffect(() => {
     console.error("[portal] error:", error);
+    logError({
+      errorMessage: error.message,
+      errorStack: error.stack,
+      errorType: "client",
+      pageUrl: typeof window !== "undefined" ? window.location.href : undefined,
+      metadata: { digest: error.digest, area: "portal" },
+      browserInfo: typeof navigator !== "undefined" ? navigator.userAgent : undefined,
+    }).catch(() => {});
   }, [error]);
 
   return (

@@ -19,6 +19,7 @@ import {
 } from "@/lib/scheduler";
 import { getKeywordSearchVolume, type NaverAdCredentials } from "@/lib/naver-keyword-api";
 import { getKeywordTrendVolume } from "@/lib/naver-datalab-api";
+import { logError } from "@/lib/actions/error-log-actions";
 
 export const maxDuration = 300;
 export const dynamic = "force-dynamic";
@@ -122,8 +123,18 @@ export async function POST(request: Request) {
               }
             }
           }
-        } catch {
+        } catch (err) {
           failed += batch.length;
+          const errorMsg = err instanceof Error ? err.message : "Unknown batch error";
+          console.error(`[cron/search-volume] batch error for ${client.name}:`, err);
+          logError({
+            errorMessage: errorMsg,
+            errorStack: err instanceof Error ? err.stack : undefined,
+            errorType: "cron",
+            pageUrl: "/api/cron/search-volume",
+            clientId: client.id,
+            metadata: { clientName: client.name, source, batchIndex: i, batchSize: batch.length },
+          }).catch(() => {});
         }
 
         if (i + BATCH_SIZE < keywords.length) await sleep(BATCH_DELAY);

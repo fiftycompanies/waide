@@ -1,7 +1,7 @@
 # Waide (AI Hospitality Aide) — 서비스 IA
 
 > 최종 업데이트: 2026-03-05
-> 버전: Phase STRUCT-1 완료 (계정관리, 역할메뉴, 브랜드뷰, 온보딩 플로우)
+> 버전: Phase ERR-1 완료 (에러 모니터링 시스템 — Slack 알림 + 에러 로그)
 
 ---
 
@@ -161,6 +161,7 @@
 |------|---------|-----------|
 | `/ops/settings` | API키, 슬랙 연동, 기본값 | `settings` |
 | `/ops/scoring-settings` | 모든 가중치 수정 | `settings` (scoring_weights JSONB) |
+| `/ops/error-logs` | 에러 모니터링 (통계/필터/상세/상태관리) | `error_logs` |
 
 ---
 
@@ -288,6 +289,7 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 | `agent_execution_logs` | lib/agent-runner.ts | 에이전트 실행 로그 (비용/성과 추적) |
 | `report_deliveries` | /ops/clients/[id] (리포트 탭), /api/cron/monthly-report | 월간 리포트 발송 이력 |
 | `content_benchmarks` | lib/agent-chain.ts | 콘텐츠 벤치마크 캐시 (7일 TTL) |
+| `error_logs` | /ops/error-logs | 에러 모니터링 로그 (client/server/api/cron) |
 
 ### 5-2. API 라우트 맵
 
@@ -334,6 +336,7 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 | `product-actions.ts` | getProducts(), createProduct(), updateProduct(), deleteProduct(), createSubscription(), updateSubscription(), cancelSubscription(), getClientSubscription() | products, subscriptions, clients |
 | `persona-actions.ts` | updatePersona(), addManualStrength(), removeManualStrength(), regeneratePersona(), getPersona() | clients (brand_persona JSONB) |
 | `report-actions.ts` | getMonthlyReportData(), getReportSettings(), updateReportSettings(), getReportDeliveries(), generateAndSendReport(), resendReport() | clients (metadata JSONB), report_deliveries, keywords, contents, keyword_visibility |
+| `error-log-actions.ts` | logError(), getErrorLogs(), getErrorLogDetail(), updateErrorStatus(), getErrorStats() | error_logs |
 
 ### 5-4. AI 인프라 (lib/)
 
@@ -638,6 +641,17 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
   - 대시보드 레이아웃: adminRole 서버에서 조회하여 sidebar에 prop 전달 (SSR 역할 필터링)
   - 마이그레이션: 055_admin_sales_role.sql (admin_users CHECK 재생성)
   - npm run build 성공
+- Phase ERR-1: 에러 모니터링 시스템 (2026-03-05)
+  - scripts/migrations/056_error_logs.sql: error_logs 테이블 (error_type CHECK: client/server/api/cron, status CHECK: new/acknowledged/resolved/ignored)
+  - lib/actions/error-log-actions.ts: logError() (인증 불필요), getErrorLogs(), getErrorLogDetail(), updateErrorStatus(), getErrorStats()
+  - lib/slack/error-notification.ts: Slack Webhook 에러 알림 (5분 중복 제거, SLACK_ERROR_WEBHOOK_URL)
+  - lib/utils/error-handler.ts: withErrorLogging() 서버 액션 래퍼
+  - 클라이언트 에러 바운더리 연동: app/(public)/error.tsx, app/(dashboard)/error.tsx, app/(portal)/error.tsx — logError() 호출
+  - 크론 에러 연동: lib/scheduler.ts runScheduledTask() catch 블록, monthly-report/search-volume 개별 catch 블록
+  - /ops/error-logs: 에러 로그 관리 페이지 (통계카드 4종, 상태/유형/기간 필터, 목록 테이블, 상세 모달)
+  - 사이드바: "에러 로그" 메뉴 (super_admin/admin, ShieldAlert 아이콘)
+  - 환경변수: SLACK_ERROR_WEBHOOK_URL (optional, 없으면 Slack 알림 skip)
+  - npm run build 성공
 
 ### 설계 원칙
 
@@ -690,6 +704,7 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 | 7 | **UX-P0** | P0 크리티컬 이슈 수정 (error.tsx + not-found.tsx + 설정 정리 + 랜딩 정리) | ✅ 완료 |
 | 8 | **UX-P1** | P1 UX 개선 (loading.tsx + EmptyState + Breadcrumb + sidebar/timeout/XSS fix) | ✅ 완료 |
 | 9 | **STRUCT-1** | 서비스 구조 정리 — 계정관리, 역할메뉴, 브랜드뷰, 온보딩 플로우 | ✅ 완료 |
+| 10 | **ERR-1** | 에러 모니터링 시스템 — Slack 알림 + 에러 로그 관리 페이지 | ✅ 완료 |
 
 ### 미구현 (우선순위 순)
 
@@ -745,8 +760,10 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 | INT-1 | 045~052 통합 멱등 마이그레이션 (run_all_f1_f4.sql) | **SQL 생성 완료** |
 | 053 | keyword_visibility에 rank_google, visibility_score_google 컬럼 추가 | **SQL 생성 완료** |
 | 054 | clients.metadata JSONB + report_deliveries 테이블 (월간 리포트 발송 이력) | **SQL 생성 완료** |
+| 055 | admin_users CHECK 재생성 (sales 역할 추가) | **SQL 생성 완료** |
+| 056 | error_logs 테이블 (에러 모니터링, status/error_type CHECK, 3 인덱스) | **SQL 생성 완료** |
 
-> ⚠️ 045~054: scripts/migrations/ 디렉토리에 SQL 파일 생성. Supabase Dashboard에서 실행 필요.
+> ⚠️ 045~056: scripts/migrations/ 디렉토리에 SQL 파일 생성. Supabase Dashboard에서 실행 필요.
 
 ---
 

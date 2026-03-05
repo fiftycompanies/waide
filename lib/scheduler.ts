@@ -9,6 +9,7 @@
  */
 
 import { createAdminClient } from "@/lib/supabase/service";
+import { logError } from "@/lib/actions/error-log-actions";
 
 // ── 타입 ────────────────────────────────────────────────────
 export type TaskName = "serp_collection" | "search_volume" | "grading";
@@ -97,6 +98,15 @@ export async function runScheduledTask<T>(
         error: errMsg,
       })
       .eq("id", logId);
+
+    // 에러 로그 테이블에도 기록
+    logError({
+      errorMessage: errMsg,
+      errorStack: err instanceof Error ? err.stack : undefined,
+      errorType: "cron",
+      pageUrl: `/api/cron/${taskName}`,
+      metadata: { taskName, logId, durationMs },
+    }).catch(() => {});
 
     return { success: false, logId, error: errMsg };
   }

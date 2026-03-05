@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { AlertTriangle, RefreshCw, Home } from "lucide-react";
 import Link from "next/link";
+import { logError } from "@/lib/actions/error-log-actions";
 
 export default function PublicError({
   error,
@@ -13,6 +14,14 @@ export default function PublicError({
 }) {
   useEffect(() => {
     console.error("[public] error:", error);
+    logError({
+      errorMessage: error.message,
+      errorStack: error.stack,
+      errorType: "client",
+      pageUrl: typeof window !== "undefined" ? window.location.href : undefined,
+      metadata: { digest: error.digest, area: "public" },
+      browserInfo: typeof navigator !== "undefined" ? navigator.userAgent : undefined,
+    }).catch(() => {});
   }, [error]);
 
   return (
