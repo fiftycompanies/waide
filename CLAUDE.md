@@ -1,7 +1,7 @@
 # Waide (AI Hospitality Aide) — 서비스 IA
 
 > 최종 업데이트: 2026-03-05
-> 버전: Phase ERR-1 완료 (에러 모니터링 시스템 — Slack 알림 + 에러 로그)
+> 버전: Phase FIX-1 완료 (페르소나 버그 수정 + 분석→페르소나 자동생성 + 포털 분석결과 표시)
 
 ---
 
@@ -652,6 +652,15 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
   - 사이드바: "에러 로그" 메뉴 (super_admin/admin, ShieldAlert 아이콘)
   - Slack 알림: SLACK_ERROR_WEBHOOK_URL → SLACK_WEBHOOK_URL 순서 폴백 (둘 다 없으면 skip)
   - npm run build 성공
+- Phase FIX-1: 페르소나 버그 수정 + 분석→페르소나 자동생성 + 포털 분석결과 표시 (2026-03-05)
+  - persona-actions.ts: regeneratePersona 폴백 로직 (분석 없어도 클라이언트 기본 정보로 페르소나 생성)
+  - /ops/clients/[id] OverviewTab: 마케팅 분석 실행 UI (URL 입력 + 분석 시작 + 3초 폴링 + 완료 자동 새로고침)
+  - /ops/clients/[id] PersonaTab: 빈 상태 메시지 개선 (분석 실행 안내 문구)
+  - analysis-brand-actions.ts: getAnalysisStatus() 폴링 함수 추가
+  - place-analyzer.ts: runFullAnalysis 완료 시 clients.onboarding_status='analysis_done' 자동 업데이트
+  - /portal 대시보드: 마케팅 종합 점수 원형 차트 + 6영역 점수 바 + 브랜드 강점/약점 태그 섹션
+  - portal-actions.ts: getPortalDashboardV2에 scoreBreakdown/strengths/weaknesses 반환 추가
+  - npm run build 성공
 
 ### 설계 원칙
 
@@ -705,6 +714,7 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 | 8 | **UX-P1** | P1 UX 개선 (loading.tsx + EmptyState + Breadcrumb + sidebar/timeout/XSS fix) | ✅ 완료 |
 | 9 | **STRUCT-1** | 서비스 구조 정리 — 계정관리, 역할메뉴, 브랜드뷰, 온보딩 플로우 | ✅ 완료 |
 | 10 | **ERR-1** | 에러 모니터링 시스템 — Slack 알림 + 에러 로그 관리 페이지 | ✅ 완료 |
+| 11 | **FIX-1** | 페르소나 버그 수정 + 분석→페르소나 자동생성 + 포털 분석결과 표시 | ✅ 완료 |
 
 ### 미구현 (우선순위 순)
 

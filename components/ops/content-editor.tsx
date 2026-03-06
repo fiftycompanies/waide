@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import Link from "next/link";
-import { Save, Code, Link2, CheckCircle2, Copy, Check, Eye, Pencil, UserCircle2, ChevronDown, ChevronUp, AlertTriangle, RotateCcw } from "lucide-react";
+import { Save, Code, Link2, CheckCircle2, Copy, Check, Eye, Pencil, UserCircle2, ChevronDown, ChevronUp, AlertTriangle, RotateCcw, ExternalLink } from "lucide-react";
 
 // ── 상태 스텝 ─────────────────────────────────────────────────────────────────
 const STEPS = [
@@ -550,6 +550,13 @@ export function ContentEditor({ content, blogAccounts = [] }: ContentEditorProps
             </>
           )}
         </Button>
+        <Link
+          href={`/ops/contents/${content.id}/publish`}
+          className="inline-flex items-center gap-1.5 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-100 transition-colors"
+        >
+          <ExternalLink className="h-3 w-3" />
+          발행하기
+        </Link>
         <button
           onClick={() => setPreviewMode((prev) => !prev)}
           className="flex items-center gap-1.5 rounded-md border border-border/60 px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:border-border transition-colors"

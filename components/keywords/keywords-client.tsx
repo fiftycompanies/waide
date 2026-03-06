@@ -17,7 +17,8 @@ import {
 } from "@/components/ui/dialog";
 import type { Keyword } from "@/lib/actions/keyword-actions";
 import { createKeyword, archiveKeyword, updateKeywordStatus } from "@/lib/actions/keyword-actions";
-import { approveSuggestedKeyword, rejectSuggestedKeyword, bulkApproveSuggestedKeywords } from "@/lib/actions/keyword-expansion-actions";
+import { approveSuggestedKeyword, rejectSuggestedKeyword, bulkApproveSuggestedKeywords, expandNicheKeywords } from "@/lib/actions/keyword-expansion-actions";
+import { KeywordAddModal } from "@/components/keywords/keyword-add-modal";
 import { KeywordCsvDialog } from "@/components/keywords/keyword-csv-dialog";
 import { BrandBadge } from "@/components/ui/brand-badge";
 import { BrandFilter } from "@/components/ui/brand-filter";
@@ -334,6 +335,9 @@ export function KeywordsClient({ keywords, clientId }: KeywordsClientProps) {
   const [csvOpen, setCsvOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Keyword | null>(null);
   const [activeTab, setActiveTab] = useState<FilterTab>("active");
+  const [displayCount, setDisplayCount] = useState(20);
+  const [nicheLoading, setNicheLoading] = useState(false);
+  const [addModalOpen, setAddModalOpen] = useState(false);
 
   // ── 정렬 상태 (기본: 최신화일 내림차순) ───────────────────────────────────
   const [sortConfig, setSortConfig] = useState<SortConfig>({ col: "last_tracked_at", dir: "desc" });
@@ -363,6 +367,7 @@ export function KeywordsClient({ keywords, clientId }: KeywordsClientProps) {
 
   const tabFiltered = brandFiltered.filter((k) => k.status === activeTab);
   const sorted = sortKeywords(tabFiltered, sortConfig);
+  const displayed = sorted.slice(0, displayCount);
 
   function handleSort(col: SortCol) {
     setSortConfig((prev) =>
@@ -432,6 +437,33 @@ export function KeywordsClient({ keywords, clientId }: KeywordsClientProps) {
     });
   }
 
+  function handleNicheExpand() {
+    if (!clientId) return;
+    const mainKeywords = keywords
+      .filter((k) => k.status === "active")
+      .slice(0, 5)
+      .map((k) => k.keyword);
+    if (mainKeywords.length === 0) {
+      toast.error("활성 키워드가 없습니다. 먼저 키워드를 등록해주세요.");
+      return;
+    }
+    setNicheLoading(true);
+    startTransition(async () => {
+      const result = await expandNicheKeywords({
+        clientId,
+        mainKeywords,
+      });
+      setNicheLoading(false);
+      if (result.success) {
+        toast.success(`${result.inserted}개 니치 키워드가 발굴되었습니다.`);
+        setActiveTab("suggested");
+        router.refresh();
+      } else {
+        toast.error(result.error ?? "니치 키워드 발굴 실패");
+      }
+    });
+  }
+
   return (
     <>
       {/* 브랜드 필터 (전체 모드) */}
@@ -447,7 +479,7 @@ export function KeywordsClient({ keywords, clientId }: KeywordsClientProps) {
           {TABS.map(({ key: tab }) => (
             <button
               key={tab}
-              onClick={() => setActiveTab(tab)}
+              onClick={() => { setActiveTab(tab); setDisplayCount(20); }}
               className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
                 activeTab === tab
                   ? "bg-background text-foreground shadow-sm"
@@ -472,11 +504,15 @@ export function KeywordsClient({ keywords, clientId }: KeywordsClientProps) {
                 {isPending ? "처리 중..." : "선택 일괄 승인"}
               </Button>
             )}
+            <Button size="sm" variant="outline" onClick={handleNicheExpand} disabled={isPending || nicheLoading} className="gap-1.5 h-8 border-violet-200 text-violet-700 hover:bg-violet-50">
+              <Sparkles className="h-3.5 w-3.5" />
+              {nicheLoading ? "발굴 중..." : "니치 키워드 발굴"}
+            </Button>
             <Button size="sm" variant="outline" onClick={() => setCsvOpen(true)} className="gap-1.5 h-8">
               <Upload className="h-3.5 w-3.5" />
               CSV 대량 등록
             </Button>
-            <Button size="sm" onClick={() => setAddOpen(true)} className="gap-1.5 h-8 bg-violet-600 hover:bg-violet-700">
+            <Button size="sm" onClick={() => setAddModalOpen(true)} className="gap-1.5 h-8 bg-violet-600 hover:bg-violet-700">
               <Plus className="h-3.5 w-3.5" />
               키워드 추가
             </Button>
@@ -500,6 +536,7 @@ export function KeywordsClient({ keywords, clientId }: KeywordsClientProps) {
           )}
         </div>
       ) : (
+        <>
         <div className="rounded-lg border border-border/60 overflow-x-auto">
           <table className="w-full text-sm min-w-[900px]">
             <thead>
@@ -520,7 +557,7 @@ export function KeywordsClient({ keywords, clientId }: KeywordsClientProps) {
               </tr>
             </thead>
             <tbody className="divide-y divide-border/40">
-              {sorted.map((kw) => (
+              {displayed.map((kw) => (
                 <tr
                   key={kw.id}
                   className="hover:bg-muted/20 transition-colors cursor-pointer"
@@ -632,11 +669,26 @@ export function KeywordsClient({ keywords, clientId }: KeywordsClientProps) {
             </tbody>
           </table>
         </div>
+        {sorted.length > displayCount && (
+          <div className="flex items-center justify-between px-4 py-3 border-t border-border/40 bg-muted/20">
+            <span className="text-xs text-muted-foreground">
+              총 {sorted.length}개 중 {Math.min(displayCount, sorted.length)}개 표시
+            </span>
+            <button
+              onClick={() => setDisplayCount((c) => c + 20)}
+              className="text-xs font-medium text-violet-600 hover:text-violet-700 hover:underline"
+            >
+              더보기 (+20)
+            </button>
+          </div>
+        )}
+        </>
       )}
 
       {clientId && <AddKeywordDialog clientId={clientId} open={addOpen} onClose={() => setAddOpen(false)} />}
       <DeleteConfirmDialog keyword={deleteTarget} onClose={() => setDeleteTarget(null)} />
       {clientId && <KeywordCsvDialog clientId={clientId} open={csvOpen} onClose={() => setCsvOpen(false)} />}
+      {clientId && <KeywordAddModal clientId={clientId} open={addModalOpen} onClose={() => setAddModalOpen(false)} />}
     </>
   );
 }

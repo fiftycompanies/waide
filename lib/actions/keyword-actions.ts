@@ -714,3 +714,28 @@ export async function refreshBulkKeywordSearchVolume(
   revalidatePath("/keywords");
   return { success: true, total: keywords.length, updated, failed, source };
 }
+
+/** 키워드 검색량 조회 (네이버 광고 API) */
+export async function searchKeywordVolumes(
+  keywords: string[]
+): Promise<{ keyword: string; monthlyPc: number; monthlyMo: number; monthlyTotal: number }[]> {
+  try {
+    const { getKeywordSearchVolume } = await import("@/lib/naver-keyword-api");
+    const volumes = await getKeywordSearchVolume(keywords);
+    return volumes.map((v) => ({
+      keyword: v.keyword,
+      monthlyPc: v.monthlyPc,
+      monthlyMo: v.monthlyMo,
+      monthlyTotal: v.monthlyTotal,
+    }));
+  } catch (error) {
+    console.warn("[keyword-actions] searchKeywordVolumes failed:", error);
+    // API 키 없으면 빈 결과 반환 (graceful skip)
+    return keywords.map((kw) => ({
+      keyword: kw,
+      monthlyPc: 0,
+      monthlyMo: 0,
+      monthlyTotal: 0,
+    }));
+  }
+}

@@ -10,6 +10,7 @@ interface OnboardingCheckModalProps {
   clientName: string | null;
   onboardingStatus: string | null;
   hasBrandPersona: boolean;
+  hasBrandAnalysis: boolean;
 }
 
 export function OnboardingCheckModal({
@@ -17,6 +18,7 @@ export function OnboardingCheckModal({
   clientName,
   onboardingStatus,
   hasBrandPersona,
+  hasBrandAnalysis,
 }: OnboardingCheckModalProps) {
   const router = useRouter();
   const [show, setShow] = useState(false);
@@ -24,8 +26,9 @@ export function OnboardingCheckModal({
   useEffect(() => {
     if (!clientId) return;
 
-    // 온보딩 완료 체크: onboarding_status가 completed이거나 brand_persona가 있으면 완료
-    const isCompleted = onboardingStatus === "completed" || hasBrandPersona;
+    // 온보딩 완료 체크: onboarding_status가 완료 상태이거나 brand_persona/brand_analysis가 있으면 완료
+    const COMPLETED_STATUSES = ["completed", "analysis_done", "onboarded"];
+    const isCompleted = COMPLETED_STATUSES.includes(onboardingStatus ?? "") || hasBrandPersona || hasBrandAnalysis;
     if (isCompleted) return;
 
     // 세션당 1회만 표시
@@ -33,7 +36,7 @@ export function OnboardingCheckModal({
     if (sessionStorage.getItem(key)) return;
 
     setShow(true);
-  }, [clientId, onboardingStatus, hasBrandPersona]);
+  }, [clientId, onboardingStatus, hasBrandPersona, hasBrandAnalysis]);
 
   if (!show || !clientId) return null;
 

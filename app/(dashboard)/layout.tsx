@@ -10,16 +10,34 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const [brands, selectedClientId, adminSession] = await Promise.all([
-    getAiMarketBrands(),
-    getSelectedClientId(),
-    getAdminSession(),
-  ]);
+  // 각 데이터를 독립적으로 fetch — 하나가 실패해도 나머지는 정상 동작
+  const [brandsResult, selectedClientIdResult, adminSessionResult] =
+    await Promise.allSettled([
+      getAiMarketBrands(),
+      getSelectedClientId(),
+      getAdminSession(),
+    ]);
 
-  // 선택된 브랜드의 온보딩 상태 확인
-  const brandInfo = selectedClientId
-    ? await getSelectedBrandInfo(selectedClientId)
-    : null;
+  const brands =
+    brandsResult.status === "fulfilled" ? brandsResult.value : [];
+  const selectedClientId =
+    selectedClientIdResult.status === "fulfilled"
+      ? selectedClientIdResult.value
+      : null;
+  const adminSession =
+    adminSessionResult.status === "fulfilled"
+      ? adminSessionResult.value
+      : null;
+
+  // 선택된 브랜드의 온보딩 상태 확인 (실패 시 null)
+  let brandInfo: Awaited<ReturnType<typeof getSelectedBrandInfo>> = null;
+  if (selectedClientId) {
+    try {
+      brandInfo = await getSelectedBrandInfo(selectedClientId);
+    } catch {
+      brandInfo = null;
+    }
+  }
 
   return (
     <SidebarProvider>
@@ -42,6 +60,7 @@ export default async function DashboardLayout({
           clientName={brandInfo.name}
           onboardingStatus={brandInfo.onboarding_status}
           hasBrandPersona={brandInfo.has_brand_persona}
+          hasBrandAnalysis={brandInfo.has_brand_analysis}
         />
       )}
     </SidebarProvider>

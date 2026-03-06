@@ -82,12 +82,12 @@ interface NavItem {
 const ALL_ROLES: AdminRole[] = ["super_admin", "admin", "sales", "viewer"];
 const ADMIN_ONLY: AdminRole[] = ["super_admin", "admin", "viewer"];
 
-// ── 상단: 고객도 보는 영역 ──────────────────────────────────────────────
+// ── 상단: 서비스 ──────────────────────────────────────────────
 const serviceNavItems: NavItem[] = [
   { title: "대시보드",    url: "/dashboard",       icon: LayoutDashboard, roles: ALL_ROLES },
   { title: "키워드 관리", url: "/keywords",         icon: Key,            roles: ADMIN_ONLY },
   { title: "콘텐츠 관리", url: "/ops/contents",     icon: FileEdit,       roles: ALL_ROLES },
-  { title: "캠페인 기획", url: "/campaigns/plan",   icon: Zap,            roles: ADMIN_ONLY },
+  { title: "발행 추천",   url: "/analytics/recommendations", icon: Sparkles, roles: ADMIN_ONLY },
   { title: "성과 분석",   url: "/analytics",        icon: BarChart2,      roles: ALL_ROLES },
 ];
 
@@ -112,19 +112,14 @@ const crmNavItems: NavItem[] = [
 const resourceNavItems: NavItem[] = [
   { title: "블로그 계정",     url: "/blog-accounts", icon: Users,   roles: ADMIN_ONLY },
   { title: "소스 라이브러리", url: "/sources",        icon: Library, roles: ADMIN_ONLY },
-  { title: "캠페인",          url: "/campaigns",     icon: Target,  roles: ADMIN_ONLY },
 ];
 
 const settingsNavItems: NavItem[] = [
-  { title: "발행 추천",     url: "/analytics/recommendations", icon: Sparkles,         roles: ADMIN_ONLY },
-  { title: "작업 큐",       url: "/ops/jobs",                  icon: GitBranch,        roles: ADMIN_ONLY },
-  { title: "상품 관리",     url: "/ops/products",              icon: Package,          roles: ADMIN_ONLY },
-  { title: "에이전트 설정", url: "/ops/agent-settings",        icon: Bot,              roles: ADMIN_ONLY },
-  { title: "점수 설정",     url: "/ops/scoring-settings",      icon: SlidersHorizontal, roles: ADMIN_ONLY },
-  { title: "SERP 스케줄러", url: "/ops/serp-settings",         icon: Search,           roles: ADMIN_ONLY },
-  { title: "자동 스케줄러", url: "/ops/scheduler",             icon: CalendarClock,    roles: ADMIN_ONLY },
-  { title: "에이전트 로그", url: "/ops",                       icon: Activity,         roles: ADMIN_ONLY },
-  { title: "에러 로그",     url: "/ops/error-logs",              icon: ShieldAlert,      roles: ["super_admin", "admin"] },
+  { title: "에이전트 설정", url: "/ops/agent-settings",    icon: Bot,              roles: ADMIN_ONLY },
+  { title: "점수 가중치",   url: "/ops/scoring-settings",  icon: SlidersHorizontal, roles: ADMIN_ONLY },
+  { title: "SERP 설정",     url: "/ops/serp-settings",     icon: Search,           roles: ADMIN_ONLY },
+  { title: "API 설정",      url: "/settings",              icon: Settings,         roles: ADMIN_ONLY },
+  { title: "에러 로그",     url: "/ops/error-logs",        icon: ShieldAlert,      roles: ["super_admin", "admin"] },
 ];
 
 // ── 역할 라벨 매핑 ────────────────────────────────────────────────────────

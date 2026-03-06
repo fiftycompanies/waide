@@ -609,6 +609,7 @@ export interface SelectedBrandInfo {
   sales_agent_name: string | null;
   created_at: string;
   has_brand_persona: boolean;
+  has_brand_analysis: boolean;
 }
 
 export async function getSelectedBrandInfo(
@@ -638,13 +639,31 @@ export async function getSelectedBrandInfo(
       .limit(1)
       .maybeSingle();
 
-    // 영업사원 정보
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: sales } = await (db as any)
-      .from("sales_agents")
-      .select("name")
-      .eq("id", data.assigned_sales_agent_id ?? "___")
-      .maybeSingle();
+    // 영업사원 정보 (ID가 있을 때만 조회)
+    let sales: { name: string } | null = null;
+    if (data.assigned_sales_agent_id) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: salesData } = await (db as any)
+        .from("sales_agents")
+        .select("name")
+        .eq("id", data.assigned_sales_agent_id)
+        .maybeSingle();
+      sales = salesData;
+    }
+
+    // 브랜드 분석 존재 여부
+    let hasBrandAnalysis = false;
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: analysisData } = await (db as any)
+        .from("brand_analyses")
+        .select("id")
+        .eq("client_id", clientId)
+        .limit(1);
+      hasBrandAnalysis = (analysisData?.length ?? 0) > 0;
+    } catch {
+      // ignore
+    }
 
     return {
       id: data.id,
@@ -657,6 +676,7 @@ export async function getSelectedBrandInfo(
       sales_agent_name: sales?.name ?? null,
       created_at: data.created_at,
       has_brand_persona: !!data.brand_persona,
+      has_brand_analysis: hasBrandAnalysis,
     };
   } catch {
     return null;

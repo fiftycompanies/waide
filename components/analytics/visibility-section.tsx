@@ -31,8 +31,9 @@ function ScoreBar({ score }: { score: number }) {
 }
 
 export function VisibilitySection({ rows }: VisibilitySectionProps) {
-  const [sortKey, setSortKey] = useState<SortKey>("visibility_score_pc");
-  const [asc, setAsc] = useState(false);
+  const [displayCount, setDisplayCount] = useState(20);
+  const [sortKey, setSortKey] = useState<SortKey>("rank_pc");
+  const [asc, setAsc] = useState(true);
 
   function toggleSort(key: SortKey) {
     if (sortKey === key) setAsc((v) => !v);
@@ -90,7 +91,7 @@ export function VisibilitySection({ rows }: VisibilitySectionProps) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/30">
-                {sorted.map((row, i) => (
+                {sorted.slice(0, displayCount).map((row, i) => (
                   <tr key={i} className="hover:bg-muted/20 transition-colors">
                     <td className="px-3 py-2 font-medium">{row.keyword}</td>
                     <td className="px-3 py-2 text-center">
@@ -116,6 +117,19 @@ export function VisibilitySection({ rows }: VisibilitySectionProps) {
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+        {sorted.length > displayCount && (
+          <div className="flex items-center justify-between px-4 py-3 border-t border-border/40">
+            <span className="text-xs text-muted-foreground">
+              총 {sorted.length}개 중 {Math.min(displayCount, sorted.length)}개 표시
+            </span>
+            <button
+              onClick={() => setDisplayCount((c) => c + 20)}
+              className="text-xs font-medium text-violet-600 hover:text-violet-700 hover:underline"
+            >
+              더보기 (+20)
+            </button>
           </div>
         )}
       </CardContent>
