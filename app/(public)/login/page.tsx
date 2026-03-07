@@ -111,7 +111,7 @@ function LoginForm() {
 
           <p className="text-center text-sm text-[#666]">
             계정이 없으신가요?{" "}
-            <Link href="/signup" className="text-[#10b981] hover:underline">
+            <Link href={redirectTo ? `/signup?redirect=${encodeURIComponent(redirectTo)}` : "/signup"} className="text-[#10b981] hover:underline">
               회원가입
             </Link>
           </p>

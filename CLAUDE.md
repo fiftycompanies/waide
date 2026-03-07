@@ -84,6 +84,7 @@
 | `/login` | 통합 로그인 | 단일 폼 (아이디/이메일 자동 구분) | Supabase Auth / HMAC |
 | `/signup` | 고객 회원가입 | 이메일 가입 + 초대 토큰 | `users`, `invitations` |
 | `/invite/[token]` | 초대 수락 | 초대 검증 → 가입 리다이렉트 | `invitations` |
+| `/onboarding/refine` | 프로젝트 시작 | 분석 요약 + 보완 + [반영하기] | `brand_analyses`, `clients`, `keywords`, `users` |
 
 ### 3-2. 고객 포털 (Portal) — 라이트 테마
 
@@ -676,6 +677,21 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
   - 내부 링크 전면 업데이트: contents-page-header, content-editor, client-detail, ops-page
   - shadcn/ui Checkbox + Textarea 컴포넌트 추가, @radix-ui/react-checkbox 설치
   - tsc --noEmit 통과 (npm run build는 Google Fonts TLS 차단으로 샌드박스에서 실패 — 코드 이슈 아님)
+- Phase ONBOARD-1: 브랜드 분석 → 프로젝트 자동 생성 (2026-03-07)
+  - scripts/migrations/057_brand_analyses_refinement.sql: brand_analyses에 refined_keywords/strengths/appeal/target/refinement_count/last_refined_at 컬럼 추가
+  - 분석 결과 페이지: [보완하기] 버튼 + 슬라이드 패널 (키워드 태그 max5, 강점, 어필, 타겟) + [재분석하기] 버튼
+  - 분석 결과 페이지: [프로젝트 시작하기] CTA (localStorage analysis_id 캐시 → login redirect → /onboarding/refine)
+  - POST /api/analyze/[id]/refine: 보완 데이터 저장 + 재분석 트리거
+  - lib/actions/refinement-actions.ts: refineAnalysis(), applyAnalysisToProject(), linkAnalysisToExistingClient()
+  - /onboarding/refine: 프로젝트 시작 페이지 (분석 요약 + 4필드 편집 + [반영하기])
+  - [반영하기] 플로우: clients INSERT → brand_analyses.client_id UPDATE → brand_persona JSONB → keywords INSERT × N → users.client_id UPDATE
+  - 어드민 온보딩: [새 브랜드 분석] 버튼 + 모달 (URL 입력 + 기존 고객 연결 옵션)
+  - 어드민 클라이언트 상세: [브랜드 추가 분석] 버튼 + 모달 (client_id 프리셋)
+  - components/onboarding/: brand-analysis-modal, onboarding-actions, onboarding-refine-client
+  - 로그인→회원가입 redirect 파라미터 전파, localStorage 폴백
+  - 분석 로딩 페이지: 재분석 시 id 파라미터 지원 (새 분석 생략, 폴링만)
+  - 온보딩 팝업 검증: onboarding_status='completed' 설정으로 팝업 자동 비활성화
+  - tsc --noEmit 통과
 
 ### 설계 원칙
 
@@ -732,6 +748,7 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 | 11 | **FIX-1** | 페르소나 버그 수정 + 분석→페르소나 자동생성 + 포털 분석결과 표시 | ✅ 완료 |
 | 12 | **DEV-0** | AI 오케스트레이션 개발 시스템 셋업 (ai-team, tasks, prompts, docs) | ✅ 완료 |
 | 13 | **IA-1** | IA 구조 변경 — SEO & AEO 메뉴 통합 + 탭 구조 + URL 리디렉트 | ✅ 완료 |
+| 14 | **ONBOARD-1** | 브랜드 분석 → 프로젝트 자동 생성 (보완하기/재분석/프로젝트시작/반영하기) | ✅ 완료 |
 
 ### 미구현 (우선순위 순)
 
@@ -789,6 +806,7 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 | 054 | clients.metadata JSONB + report_deliveries 테이블 (월간 리포트 발송 이력) | **SQL 생성 완료** |
 | 055 | admin_users CHECK 재생성 (sales 역할 추가) | **SQL 생성 완료** |
 | 056 | error_logs 테이블 (에러 모니터링, status/error_type CHECK, 3 인덱스) | **SQL 생성 완료** |
+| 057 | brand_analyses 보완 컬럼 (refined_keywords/strengths/appeal/target, refinement_count, last_refined_at) | **SQL 생성 완료** |
 
 > ⚠️ 045~056: scripts/migrations/ 디렉토리에 SQL 파일 생성. Supabase Dashboard에서 실행 필요.
 
