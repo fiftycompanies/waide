@@ -582,6 +582,48 @@ export async function getPortalReportV2(clientId: string, year?: number, month?:
     agentTypeCounts[log.agent_type] = (agentTypeCounts[log.agent_type] || 0) + 1;
   }
 
+  // AEO 데이터 수집
+  let aeoData: { score: number | null; previousScore: number | null; byModel: { model: string; mentions: number }[]; topQuestions: { question: string; model: string; position: number | null }[] } | null = null;
+  try {
+    const [aeoScoreRes, aeoMentionsRes] = await Promise.all([
+      db.from("aeo_scores")
+        .select("score")
+        .eq("client_id", clientId)
+        .order("period_end", { ascending: false })
+        .limit(2),
+      db.from("mentions")
+        .select("brand, position, ai_model")
+        .eq("client_id", clientId)
+        .eq("is_target", true)
+        .gte("created_at", monthStart.toISOString())
+        .lt("created_at", monthEnd.toISOString())
+        .limit(100),
+    ]);
+
+    const scores = (aeoScoreRes.data || []) as { score: number }[];
+    const mentionRows = (aeoMentionsRes.data || []) as { brand: string; position: number | null; ai_model: string }[];
+
+    if (scores.length > 0 || mentionRows.length > 0) {
+      const modelMap = new Map<string, number>();
+      for (const m of mentionRows) {
+        modelMap.set(m.ai_model, (modelMap.get(m.ai_model) || 0) + 1);
+      }
+
+      aeoData = {
+        score: scores[0]?.score ?? null,
+        previousScore: scores[1]?.score ?? null,
+        byModel: Array.from(modelMap.entries()).map(([model, mentions]) => ({ model, mentions })),
+        topQuestions: mentionRows
+          .filter((m) => m.position != null)
+          .sort((a, b) => (a.position || 999) - (b.position || 999))
+          .slice(0, 5)
+          .map((m) => ({ question: m.brand, model: m.ai_model, position: m.position })),
+      };
+    }
+  } catch {
+    // AEO 테이블 미존재 시 무시
+  }
+
   return {
     selectedMonth: { year: targetYear, month: targetMonth },
     summary: {
@@ -594,6 +636,7 @@ export async function getPortalReportV2(clientId: string, year?: number, month?:
     serpRankings,
     agentTypeCounts,
     analyses: analysesRes.data || [],
+    aeo: aeoData,
   };
 }
 

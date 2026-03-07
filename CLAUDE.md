@@ -393,6 +393,9 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 | `aeo-tracking-actions.ts` | getAEOSettings(), updateAEOSettings(), runAEOTracking(), runAEOTrackingBatch(), calculateAEOScore(), getAEODashboardData(), getAEOAnalyticsData(), getAEOCompetitionData(), getAEOCitationData(), getPortalAEOData(), getAEOTrackingPreview() | llm_answers, mentions, aeo_scores, aeo_tracking_queue, aeo_tracking_settings, questions |
 | `entity-content-actions.ts` | generateEntityContent() | contents, clients |
 | `publish-actions.ts` | executePublish(), retryPublish(), checkAutoPublish(), getAutoPublishSettings(), updateAutoPublishSettings(), getPublications(), testBlogConnection(), createApiKeyAccount(), setDefaultAccount(), getClientBlogAccounts() | publications, auto_publish_settings, blog_accounts, contents |
+| `prompt-registry-actions.ts` | getPromptRegistryAction(), savePromptAction(), restoreDefaultAction() | agent_prompts (PROMPT_REGISTRY) |
+| `knowledge-actions.ts` | runKnowledgeLearning(), getKnowledgeStats() | evolving_knowledge, contents, aeo_scores, mentions, keyword_visibility |
+| `keyword-volume-actions.ts` | queryKeywordVolume(), registerKeywordsFromVolume(), updateKeywordVolumes(), checkNaverAdApiAvailable() | keywords |
 
 ### 5-4. AI 인프라 (lib/)
 
@@ -414,6 +417,7 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 | `pdf/monthly-report-template.tsx` | MonthlyReportDocument — 4페이지 PDF 템플릿 (KPI, 콘텐츠, 순위, 계획) | - |
 | `email/send-report.ts` | sendReportEmail() — Resend API로 리포트 이메일 발송 (PDF 첨부) | (외부 API) |
 | `email/monthly-report-email.tsx` | MonthlyReportEmail — React Email 리포트 이메일 템플릿 | - |
+| `prompt-loader.ts` | loadPromptTemplate(), fillPromptTemplate(), getPromptRegistry(), savePromptRegistry(), restorePromptDefault() — 프롬프트 동적 로딩 (agent_prompts DB 우선, DEFAULT_PROMPTS fallback) | agent_prompts |
 | `crawlers/index.ts` | crawlLLM() — LLM 크롤링 라우터 (모델별 분기, MODEL_WEIGHTS, MODEL_RATE_LIMITS) | - |
 | `crawlers/perplexity-crawler.ts` | crawlPerplexity() — Perplexity API 크롤링 (llama-3.1-sonar, citations 포함) | (외부 API) |
 | `crawlers/claude-crawler.ts` | crawlClaude() — Claude API 크롤링 (Haiku 4.5) | (외부 API) |
@@ -853,6 +857,30 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
   - 서비스 정책: 자동 발행=무료 (포인트 차감 없음), 기본 OFF, WordPress/Medium은 서버 env 불필요 (클라이언트 입력)
   - 환경변수: TISTORY_CLIENT_ID, TISTORY_CLIENT_SECRET, TISTORY_REDIRECT_URI (모두 optional)
   - tsc --noEmit 통과
+- Phase 7-10: 프롬프트 편집 + 진화지식 + 니치 키워드 + 검색량 + 리포트 AEO (2026-03-07)
+  - scripts/migrations/061_phase7_10.sql: evolving_knowledge 확장 (knowledge_type, title, description, evidence, confidence, is_active, learned_at) + keywords 확장 (monthly_search_volume, pc_volume, mobile_volume, competition, volume_updated_at)
+  - lib/prompt-loader.ts: 프롬프트 동적 로딩 시스템 (agent_prompts 테이블 PROMPT_REGISTRY 타입, 10개 기본 프롬프트, DB 우선 + fallback)
+    - loadPromptTemplate(agentKey): DB 조회 → 없으면 DEFAULT_PROMPTS fallback
+    - fillPromptTemplate(template, vars): {variable} + {{variable}} 양식 치환
+    - getPromptRegistry/savePromptRegistry/restorePromptDefault: 레지스트리 CRUD (버전 관리)
+  - lib/actions/prompt-registry-actions.ts: 서버 액션 래퍼 (getPromptRegistryAction, savePromptAction, restoreDefaultAction)
+  - components/ops/prompt-registry-client.tsx: 프롬프트 편집 UI (PromptCard 확장/축소, 변수 칩, 저장/복원, dirty state)
+  - app/(dashboard)/ops/agent-settings/page.tsx: "프롬프트 관리" 탭 추가 (4탭: 프롬프트/콘텐츠프롬프트/진화지식/프롬프트관리)
+  - lib/actions/knowledge-actions.ts: 진화지식 학습 (runKnowledgeLearning → Claude AI 패턴 분석 → evolving_knowledge INSERT)
+  - components/analytics/knowledge-learning-section.tsx: 학습 실행 버튼 + 통계 카드 (패턴수, 마지막 학습, 범위)
+  - lib/actions/keyword-volume-actions.ts: 네이버 검색량 API 래퍼 (queryKeywordVolume 5개 배치, registerKeywordsFromVolume, updateKeywordVolumes, checkNaverAdApiAvailable)
+  - components/keywords/keyword-volume-tab.tsx: 검색량 조회 탭 (입력→조회→결과테이블→체크박스 선택→키워드 등록)
+  - components/keywords/keywords-tabs-wrapper.tsx: "검색량 조회" 탭 추가
+  - app/(dashboard)/keywords/page.tsx: volume 탭 지원 추가
+  - components/keywords/niche-keyword-panel.tsx: 니치 키워드 AI 분석 패널 (난이도/기회/사유 + 체크박스 일괄 등록)
+  - app/api/ai/niche-keywords/route.ts: 니치 키워드 AI 분석 API 라우트
+  - lib/actions/report-actions.ts: AEOReportData 인터페이스 + getAEOReportData() 헬퍼 (aeo_scores, mentions, llm_answers 조회)
+  - lib/pdf/monthly-report-template.tsx: AEO 노출 현황 페이지 추가 (Page 4, Score + 모델별 언급 + 상위 질문 + 미노출 질문)
+  - app/(portal)/portal/reports/page.tsx: AEO 노출 현황 섹션 추가 (Score + 모델별 카드 + 상위 질문 리스트)
+  - portal-actions.ts: getPortalReportV2에 AEO 데이터 (aeo_scores, mentions) 반환 추가
+  - 프롬프트 DB 전환: question-actions.ts(3개), entity-content-actions.ts(1개), mention-detector.ts(1개), campaign-planning-actions.ts(1개) — 총 6개 하드코딩 프롬프트를 loadPromptTemplate+fillPromptTemplate으로 전환
+  - 프롬프트 레지스트리 10개: question_engine, seo_writer, aeo_qa_writer, aeo_list_writer, aeo_entity_writer, qc_agent, cmo_strategy, niche_keyword, mention_detection, aeo_type_judge
+  - tsc --noEmit 통과
 
 ### 설계 원칙
 
@@ -913,6 +941,7 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 | 15 | **Phase 3** | 질문 엔진 + 포인트 시스템 + AEO 콘텐츠 자동 생성 | ✅ 완료 |
 | 16 | **Phase 4+5** | LLM 크롤링 + Mention Detection + AEO Score + 추적 큐 + 엔티티 콘텐츠 | ✅ 완료 |
 | 17 | **Phase 6** | 자동 배포 엔진 — Tistory/WordPress/Medium + OAuth + 자동발행 | ✅ 완료 |
+| 18 | **Phase 7-10** | 프롬프트 편집 + 진화지식 + 니치 키워드 + 검색량 + 리포트 AEO | ✅ 완료 |
 
 ### 미구현 (우선순위 순)
 
@@ -972,6 +1001,7 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 | 058 | questions + client_points + point_transactions + point_settings 테이블 + contents 확장 (content_type, question_id) | **SQL 생성 완료** |
 | 059 | llm_answers + mentions + aeo_scores + aeo_tracking_queue + aeo_tracking_settings 테이블 + point_transactions 'refund' + contents 'aeo_entity' | **SQL 생성 완료** |
 | 060 | blog_accounts 확장 (auth_type/access_token/api_key/is_default 등) + publications + auto_publish_settings 테이블 | **SQL 생성 완료** |
+| 061 | evolving_knowledge 확장 (knowledge_type/title/description/evidence/confidence/is_active/learned_at) + keywords 확장 (monthly_search_volume/pc_volume/mobile_volume/competition/volume_updated_at) | **SQL 생성 완료** |
 
 > ⚠️ 045~060: scripts/migrations/ 디렉토리에 SQL 파일 생성. Supabase Dashboard에서 실행 필요.
 

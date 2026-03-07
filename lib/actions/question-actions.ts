@@ -16,6 +16,7 @@
 import { createAdminClient } from "@/lib/supabase/service";
 import { revalidatePath } from "next/cache";
 import { spendPoints, canGenerateContent } from "./point-actions";
+import { loadPromptTemplate, fillPromptTemplate } from "@/lib/prompt-loader";
 
 // ═══════════════════════════════════════════
 // Types
@@ -54,20 +55,12 @@ async function generateQuestionsFromLLM(
   if (!apiKey) return [];
 
   try {
-    const prompt = `다음 키워드에 대해 사람들이 AI 검색(ChatGPT, Perplexity 등)에서 실제로 물어볼 만한 자연어 질문을 20개 생성해.
-
-키워드: ${keyword}
-업종: ${category || "로컬 비즈니스"}
-지역: ${location || ""}
-
-규칙:
-- 한국어 구어체 (~해줘, ~있어?, ~추천 등)
-- 다양한 의도: 추천, 비교, 가격, 후기, 시기, 특징, 일반
-- 구체적이고 실용적인 질문
-- 중복 의도 제거
-
-JSON 배열로만 출력:
-[{"question": "...", "intent": "recommendation|comparison|price|review|timing|feature|general"}]`;
+    const template = await loadPromptTemplate("question_engine");
+    const prompt = fillPromptTemplate(template, {
+      keyword,
+      category: category || "로컬 비즈니스",
+      location: location || "",
+    });
 
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -781,14 +774,10 @@ async function determineContentType(
         max_tokens: 100,
         messages: [{
           role: "user",
-          content: `다음 질문에 가장 적합한 콘텐츠 유형을 판단해.
-질문: ${question}
-의도: ${intent}
-유형: aeo_qa(질문-답변) 또는 aeo_list(리스트/랭킹)
-판단 기준:
-- 추천/TOP/BEST/어디/뭐가좋아 → aeo_list
-- 얼마/가격/vs/방법/괜찮아/뭐야/어때 → aeo_qa
-JSON만: {"type": "aeo_qa"}`,
+          content: fillPromptTemplate(await loadPromptTemplate("aeo_type_judge"), {
+            question,
+            intent,
+          }),
         }],
       }),
     });
@@ -825,31 +814,15 @@ async function generateAEOContent(
   target: string,
   location: string
 ): Promise<string | null> {
-  const prompt = contentType === "aeo_qa"
-    ? `다음 질문에 대한 AEO 최적화 콘텐츠를 작성해.
-질문: ${question}
-브랜드: ${brandName}
-강점: ${strengths}
-타겟: ${target}
-구조:
-1. H1: 질문형 제목
-2. 요약: 2~3줄 핵심 답변 (AI가 그대로 인용할 수 있는 짧고 명확한 문장)
-3. 상세 답변: 500~800자, 브랜드 자연 언급 1~2회
-4. FAQ: 관련 질문 5~7개 (## FAQ 헤딩 아래 ### 질문 형식)
-규칙: 요약이 가장 중요, 광고 금지, 해요체, 마크다운`
-    : `다음 질문에 대한 AEO 최적화 리스트 콘텐츠를 작성해.
-질문: ${question}
-브랜드: ${brandName}
-강점: ${strengths}
-타겟: ${target}
-지역: ${location}
-구조:
-1. H1: 지역+키워드+추천 TOP 7
-2. 도입: 2~3줄 요약
-3. 리스트 7개: 번호+이름+한줄설명+특징 2~3개 (우리 브랜드를 2~3위에 자연 배치)
-4. 비교표: 마크다운 테이블
-5. FAQ: 3~5개 (## FAQ 헤딩 아래 ### 질문 형식)
-규칙: 1위에 넣지 말 것, 객관적 비교, 해요체, 마크다운`;
+  const templateKey = contentType === "aeo_qa" ? "aeo_qa_writer" : "aeo_list_writer";
+  const template = await loadPromptTemplate(templateKey);
+  const prompt = fillPromptTemplate(template, {
+    question,
+    brand_name: brandName,
+    strengths,
+    target,
+    location,
+  });
 
   try {
     const resp = await fetch("https://api.anthropic.com/v1/messages", {

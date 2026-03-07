@@ -4,6 +4,10 @@ import { getEvolvingKnowledge } from "@/lib/actions/analytics-actions";
 import { AgentSettingsClient } from "@/components/ops/agent-settings-client";
 import { ContentPromptSettings } from "@/components/ops/content-prompt-settings";
 import { EvolvingKnowledgeTable } from "@/components/analytics/evolving-knowledge-table";
+import { PromptRegistryClient } from "@/components/ops/prompt-registry-client";
+import { getPromptRegistryAction } from "@/lib/actions/prompt-registry-actions";
+import { getSelectedClientId } from "@/lib/actions/brand-actions";
+import { KnowledgeLearningSection } from "@/components/analytics/knowledge-learning-section";
 
 const AGENT_TYPES = ["CMO", "RND", "COPYWRITER", "OPS_QUALITY", "OPS_PUBLISHER"] as const;
 
@@ -16,28 +20,30 @@ export default async function AgentSettingsPage({
   const activeAgent = (AGENT_TYPES as readonly string[]).includes(agent ?? "")
     ? (agent as string)
     : AGENT_TYPES[0];
-  const activeTab = tab === "content" ? "content" : tab === "knowledge" ? "knowledge" : "agent";
+  const activeTab = tab === "content" ? "content" : tab === "knowledge" ? "knowledge" : tab === "registry" ? "registry" : "agent";
 
-  const [prompts, contentPrompts, ekRecords] = await Promise.all([
+  const [prompts, contentPrompts, ekRecords, registryItems, clientId] = await Promise.all([
     getAgentPrompts(activeAgent),
-    getContentPrompts(),
+    activeTab === "content" ? getContentPrompts() : Promise.resolve([]),
     activeTab === "knowledge" ? getEvolvingKnowledge(undefined, 50) : Promise.resolve([]),
+    activeTab === "registry" ? getPromptRegistryAction() : Promise.resolve([]),
+    activeTab === "knowledge" ? getSelectedClientId() : Promise.resolve(null),
   ]);
 
   return (
     <div className="p-6 md:p-8 space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">프롬프트 설정</h1>
+        <h1 className="text-2xl font-bold tracking-tight">에이전트 설정</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          에이전트 시스템 프롬프트 및 콘텐츠 타입별 집필 프롬프트를 관리합니다
+          에이전트 프롬프트, 콘텐츠 프롬프트, AI 학습 지식을 관리합니다
         </p>
       </div>
 
-      {/* 상위 탭: 에이전트 프롬프트 / 콘텐츠 프롬프트 */}
-      <div className="flex items-center gap-1 border-b border-border/60 pb-0">
+      {/* 상위 탭 */}
+      <div className="flex items-center gap-1 border-b border-border/60 pb-0 overflow-x-auto">
         <a
-          href={`/settings/agents?tab=agent&agent=${activeAgent}`}
-          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+          href={`/ops/agent-settings?tab=agent&agent=${activeAgent}`}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
             activeTab === "agent"
               ? "border-violet-600 text-violet-700"
               : "border-transparent text-muted-foreground hover:text-foreground"
@@ -46,18 +52,28 @@ export default async function AgentSettingsPage({
           에이전트 프롬프트
         </a>
         <a
-          href="/settings/agents?tab=content"
-          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+          href="/ops/agent-settings?tab=content"
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
             activeTab === "content"
               ? "border-violet-600 text-violet-700"
               : "border-transparent text-muted-foreground hover:text-foreground"
           }`}
         >
-          콘텐츠 타입 프롬프트
+          콘텐츠 프롬프트
         </a>
         <a
-          href="/settings/agents?tab=knowledge"
-          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+          href="/ops/agent-settings?tab=registry"
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+            activeTab === "registry"
+              ? "border-violet-600 text-violet-700"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          프롬프트 관리
+        </a>
+        <a
+          href="/ops/agent-settings?tab=knowledge"
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
             activeTab === "knowledge"
               ? "border-violet-600 text-violet-700"
               : "border-transparent text-muted-foreground hover:text-foreground"
@@ -67,32 +83,32 @@ export default async function AgentSettingsPage({
         </a>
       </div>
 
-      {activeTab === "agent" ? (
+      {activeTab === "agent" && (
         <AgentSettingsClient
           agentTypes={[...AGENT_TYPES]}
           activeAgent={activeAgent}
           prompts={prompts}
         />
-      ) : activeTab === "content" ? (
+      )}
+
+      {activeTab === "content" && (
         <ContentPromptSettings prompts={contentPrompts} />
-      ) : null}
+      )}
+
+      {activeTab === "registry" && (
+        <PromptRegistryClient items={registryItems} />
+      )}
 
       {activeTab === "knowledge" && (
-        <div className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="rounded-lg border p-4">
-              <p className="text-xs text-muted-foreground">총 패턴 수</p>
-              <p className="text-2xl font-bold mt-1">{ekRecords.length}개</p>
-            </div>
-            <div className="rounded-lg border p-4">
-              <p className="text-xs text-muted-foreground">최근 학습</p>
-              <p className="text-sm font-medium mt-1">
-                {ekRecords.length > 0
-                  ? new Date(ekRecords[0].created_at).toLocaleString("ko-KR")
-                  : "—"}
-              </p>
-            </div>
-          </div>
+        <div className="space-y-6">
+          {/* 학습 실행 + 통계 */}
+          <KnowledgeLearningSection
+            clientId={clientId ?? undefined}
+            recordCount={ekRecords.length}
+            lastLearned={ekRecords.length > 0 ? ekRecords[0].created_at : null}
+          />
+
+          {/* 패턴 목록 */}
           <EvolvingKnowledgeTable records={ekRecords} />
         </div>
       )}

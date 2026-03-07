@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { Key, MessageCircle } from "lucide-react";
+import { Key, MessageCircle, TrendingUp } from "lucide-react";
 
 interface KeywordsTabsWrapperProps {
   activeTab: string;
@@ -12,6 +12,7 @@ interface KeywordsTabsWrapperProps {
 const TABS = [
   { key: "keywords", label: "키워드", icon: Key },
   { key: "questions", label: "질문 확장", icon: MessageCircle },
+  { key: "volume", label: "검색량 조회", icon: TrendingUp },
 ];
 
 export function KeywordsTabsWrapper({ activeTab, questionCount, children }: KeywordsTabsWrapperProps) {

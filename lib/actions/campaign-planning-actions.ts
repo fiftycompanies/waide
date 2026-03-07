@@ -18,6 +18,7 @@
 import { createAdminClient } from "@/lib/supabase/service";
 import { revalidatePath } from "next/cache";
 import { canGenerateContent, spendPoints } from "./point-actions";
+import { loadPromptTemplate, fillPromptTemplate } from "@/lib/prompt-loader";
 
 // ═══════════════════════════════════════════
 // Types
@@ -97,33 +98,15 @@ export async function suggestKeywordsForClient(
       .map((k: any) => k.keyword)
       .join(", ");
 
-    const prompt = `당신은 SEO 키워드 전략가입니다. 아래 브랜드 정보를 기반으로 블로그 SEO 타겟 키워드 ${count}개를 추천해주세요.
-
-브랜드명: ${brandName}
-업종: ${businessType}
-지역: ${region}
-타겟 고객: ${targetAudience}
-강점: ${strengths}
-
-기존 키워드 (제외): ${existingList || "없음"}
-
-다음 JSON 형식으로만 답해주세요:
-{
-  "keywords": [
-    {
-      "keyword": "키워드명",
-      "reason": "추천 사유 한줄",
-      "estimated_volume": null
-    }
-  ]
-}
-
-규칙:
-- 롱테일 키워드 우선 (3~5단어)
-- 지역명 + 업종 조합 포함
-- 정보성/리뷰형 검색의도 키워드 포함
-- 기존 키워드와 중복 금지
-- estimated_volume은 추정 가능하면 숫자, 아니면 null`;
+    const template = await loadPromptTemplate("seo_writer");
+    const prompt = fillPromptTemplate(template, {
+      brand_name: brandName,
+      category: businessType,
+      location: region,
+      target: targetAudience,
+      strengths,
+      existing_keywords: existingList || "없음",
+    });
 
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",

@@ -19,6 +19,7 @@
 
 import { createAdminClient } from "@/lib/supabase/service";
 import { revalidatePath } from "next/cache";
+import { loadPromptTemplate, fillPromptTemplate } from "@/lib/prompt-loader";
 
 interface EntityContentResult {
   success: boolean;
@@ -76,29 +77,16 @@ export async function generateEntityContent(
     const appeal = persona.appeal_point || persona.differentiator || "정보 없음";
     const target = persona.target_customer || "일반 고객";
 
-    // 엔티티 프롬프트
-    const prompt = `다음 브랜드의 엔티티 정의 콘텐츠를 작성해.
-
-브랜드: ${brandName}
-업종: ${category}
-위치: ${location}
-강점: ${strengths}
-어필사항: ${appeal}
-타겟: ${target}
-
-구조:
-1. 엔티티 정의 문장 (위키 스타일, 2~3줄)
-   → '${brandName}은(는) ${location}에 위치한 ${category} 전문 업체입니다.'
-2. 상세 설명 (300~500자) — 특징, 시설, 서비스
-3. 핵심 정보표 (마크다운 테이블) — 위치/영업시간/가격대/특징/추천대상
-4. FAQ (5개) — 실용적 질문+답변
-
-규칙:
-- 백과사전+공식 소개 톤 (광고 아닌 정보 전달)
-- 사실 기반, 과장 금지
-- AI가 신뢰할 수 있는 객관적 톤
-- 마크다운 형식
-- 제목은 '${brandName} — ${category} 엔티티 정보' 형식`;
+    // 엔티티 프롬프트 (DB 로딩 + fallback)
+    const template = await loadPromptTemplate("aeo_entity_writer");
+    const prompt = fillPromptTemplate(template, {
+      brand_name: brandName,
+      category,
+      location,
+      strengths,
+      appeal,
+      target,
+    });
 
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",

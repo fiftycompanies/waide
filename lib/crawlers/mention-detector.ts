@@ -10,6 +10,8 @@
  * 5. 둘 다 실패 → 빈 배열 (미언급)
  */
 
+import { loadPromptTemplate, fillPromptTemplate } from "@/lib/prompt-loader";
+
 export interface DetectedMention {
   brand: string;
   is_target: boolean;
@@ -31,28 +33,12 @@ export async function detectMentionsLLM(
   if (!apiKey) return [];
 
   try {
-    const prompt = `다음 AI 답변에서 언급된 브랜드/가게/업체명을 모두 추출해.
-
-답변:
-${responseText.substring(0, 4000)}
-
-추적 브랜드: ${brandName}
-브랜드 별칭: ${brandAliases.join(", ") || "없음"}
-
-JSON 배열로만 출력 (다른 텍스트 없이):
-[{
-  "brand": "브랜드명",
-  "is_target": true 또는 false,
-  "position": 숫자(1부터 시작, 답변에서 언급 순서) 또는 null,
-  "context": "언급된 문장 (50자 이내)",
-  "sentiment": "positive" 또는 "neutral" 또는 "negative"
-}]
-
-규칙:
-- is_target: 추적 브랜드 또는 별칭과 일치하면 true
-- position: 답변에서 처음 언급되는 순서 (첫 번째=1, 두 번째=2...)
-- 언급되지 않은 경우 빈 배열 [] 반환
-- 일반 명사(호텔, 카페 등)는 제외, 고유명사만 추출`;
+    const template = await loadPromptTemplate("mention_detection");
+    const prompt = fillPromptTemplate(template, {
+      response_text: responseText.substring(0, 4000),
+      brand_name: brandName,
+      brand_aliases: brandAliases.join(", ") || "없음",
+    });
 
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",

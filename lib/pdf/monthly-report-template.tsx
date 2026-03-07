@@ -187,7 +187,7 @@ function BarChartSection({ data, maxVal }: { data: ContentTrendItem[]; maxVal: n
 // ── 메인 문서 ──────────────────────────────────────────────────────────
 
 export function MonthlyReportDocument({ data }: { data: MonthlyReportData }) {
-  const { kpi, contentsTrend, contents, rankings, brandName, reportMonth, generatedAt } = data;
+  const { kpi, contentsTrend, contents, rankings, brandName, reportMonth, generatedAt, aeo } = data;
   const maxTrend = Math.max(...contentsTrend.map((c) => c.count), 1);
 
   return (
@@ -319,7 +319,92 @@ export function MonthlyReportDocument({ data }: { data: MonthlyReportData }) {
         <Footer brandName={brandName} pageNum={3} />
       </Page>
 
-      {/* ── Page 4: 다음 달 계획 ── */}
+      {/* ── Page 4: AEO 노출 현황 ── */}
+      <Page size="A4" style={s.page}>
+        <Text style={s.sectionTitle}>AEO 노출 현황 (AI 검색 엔진)</Text>
+        {!aeo ? (
+          <View style={{ alignItems: "center", marginVertical: 40 }}>
+            <Text style={{ fontSize: 10, color: colors.textLight }}>
+              AEO 추적이 시작되면 데이터가 표시됩니다
+            </Text>
+          </View>
+        ) : (
+          <View>
+            {/* AEO Score */}
+            <View style={{ flexDirection: "row", gap: 12, marginBottom: 16 }}>
+              <View style={[s.planCard, { flex: 1 }]}>
+                <Text style={[s.planValue, { color: colors.purple }]}>{aeo.score != null ? `${aeo.score}점` : "-"}</Text>
+                <Text style={s.planLabel}>AEO Visibility Score</Text>
+                {aeo.previousScore != null && aeo.score != null && (
+                  <Text style={[s.kpiChange, { color: (aeo.score - aeo.previousScore) >= 0 ? colors.primary : colors.red, marginTop: 2 }]}>
+                    전월 대비 {(aeo.score - aeo.previousScore) >= 0 ? "+" : ""}{Math.round((aeo.score - aeo.previousScore) * 10) / 10}
+                  </Text>
+                )}
+              </View>
+            </View>
+
+            {/* Model mentions table */}
+            {aeo.byModel.length > 0 && (
+              <>
+                <Text style={[s.sectionTitle, { fontSize: 11, marginTop: 4 }]}>AI 엔진별 언급</Text>
+                <View style={s.table}>
+                  <View style={s.tableHeader}>
+                    <Text style={[s.th, { flex: 2 }]}>AI 모델</Text>
+                    <Text style={[s.th, { flex: 1, textAlign: "center" }]}>언급 횟수</Text>
+                    <Text style={[s.th, { flex: 1, textAlign: "center" }]}>평균 위치</Text>
+                  </View>
+                  {aeo.byModel.map((m, i) => (
+                    <View key={i} style={s.tableRow}>
+                      <Text style={[s.td, { flex: 2 }]}>{m.model}</Text>
+                      <Text style={[s.td, { flex: 1, textAlign: "center", fontWeight: 700, color: colors.purple }]}>{m.mentions}</Text>
+                      <Text style={[s.td, { flex: 1, textAlign: "center" }]}>{m.avgPosition != null ? `${m.avgPosition}위` : "-"}</Text>
+                    </View>
+                  ))}
+                </View>
+              </>
+            )}
+
+            {/* Top exposure questions */}
+            {aeo.topQuestions.length > 0 && (
+              <>
+                <Text style={[s.sectionTitle, { fontSize: 11 }]}>상위 노출 질문 TOP 5</Text>
+                <View style={s.table}>
+                  <View style={s.tableHeader}>
+                    <Text style={[s.th, { flex: 3 }]}>질문</Text>
+                    <Text style={[s.th, { flex: 1, textAlign: "center" }]}>모델</Text>
+                    <Text style={[s.th, { flex: 1, textAlign: "center" }]}>위치</Text>
+                  </View>
+                  {aeo.topQuestions.map((q, i) => (
+                    <View key={i} style={s.tableRow}>
+                      <Text style={[s.td, { flex: 3 }]}>{q.question}</Text>
+                      <Text style={[s.td, { flex: 1, textAlign: "center" }]}>{q.model}</Text>
+                      <Text style={[s.td, { flex: 1, textAlign: "center", fontWeight: 700, color: colors.primary }]}>
+                        {q.position != null ? `${q.position}위` : "-"}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              </>
+            )}
+
+            {/* Unmatched questions */}
+            {aeo.unmatchedQuestions.length > 0 && (
+              <>
+                <Text style={[s.sectionTitle, { fontSize: 11 }]}>미노출 질문 (콘텐츠 기회)</Text>
+                {aeo.unmatchedQuestions.map((q, i) => (
+                  <Text key={i} style={{ fontSize: 9, color: colors.textMuted, marginBottom: 3, paddingLeft: 8 }}>
+                    • {q}
+                  </Text>
+                ))}
+              </>
+            )}
+          </View>
+        )}
+
+        <Footer brandName={brandName} pageNum={4} />
+      </Page>
+
+      {/* ── Page 5: 다음 달 계획 ── */}
       <Page size="A4" style={s.page}>
         <Text style={s.sectionTitle}>다음 달 계획</Text>
 
@@ -349,7 +434,7 @@ export function MonthlyReportDocument({ data }: { data: MonthlyReportData }) {
           <Text style={{ fontSize: 8, color: colors.textLight, marginTop: 4 }}>AI Hospitality Aide</Text>
         </View>
 
-        <Footer brandName={brandName} pageNum={4} />
+        <Footer brandName={brandName} pageNum={5} />
       </Page>
     </Document>
   );

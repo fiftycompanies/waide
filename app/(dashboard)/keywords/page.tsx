@@ -2,10 +2,12 @@ import { getSelectedClientId, getAiMarketBrands } from "@/lib/actions/brand-acti
 import { getKeywords } from "@/lib/actions/keyword-actions";
 import { getKeywordStrategy } from "@/lib/actions/keyword-strategy-actions";
 import { getQuestions } from "@/lib/actions/question-actions";
+import { checkNaverAdApiAvailable } from "@/lib/actions/keyword-volume-actions";
 import { KeywordsClient } from "@/components/keywords/keywords-client";
 import { KeywordStrategySection } from "@/components/keywords/keyword-strategy-section";
 import { KeywordsTabsWrapper } from "@/components/keywords/keywords-tabs-wrapper";
 import { QuestionsTab } from "@/components/questions/questions-tab";
+import { KeywordVolumeTab } from "@/components/keywords/keyword-volume-tab";
 
 interface KeywordsPageProps {
   searchParams: Promise<{ tab?: string }>;
@@ -13,7 +15,7 @@ interface KeywordsPageProps {
 
 export default async function KeywordsPage({ searchParams }: KeywordsPageProps) {
   const params = await searchParams;
-  const tab = (params.tab ?? "keywords") as "keywords" | "questions";
+  const tab = (params.tab ?? "keywords") as "keywords" | "questions" | "volume";
 
   const [selectedClientId, brands] = await Promise.all([
     getSelectedClientId(),
@@ -29,6 +31,9 @@ export default async function KeywordsPage({ searchParams }: KeywordsPageProps) 
 
   // 질문 조회 (클라이언트 선택 시만)
   const questions = selectedClientId ? await getQuestions(selectedClientId) : [];
+
+  // 검색량 API 사용 가능 여부
+  const apiAvailable = tab === "volume" ? await checkNaverAdApiAvailable() : false;
 
   return (
     <div className="p-6 md:p-8 space-y-6">
@@ -78,6 +83,13 @@ export default async function KeywordsPage({ searchParams }: KeywordsPageProps) 
               사이드바에서 브랜드를 먼저 선택해주세요
             </p>
           </div>
+        )}
+
+        {tab === "volume" && (
+          <KeywordVolumeTab
+            clientId={selectedClientId}
+            apiAvailable={apiAvailable}
+          />
         )}
       </KeywordsTabsWrapper>
     </div>
