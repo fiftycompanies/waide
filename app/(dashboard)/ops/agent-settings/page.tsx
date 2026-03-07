@@ -36,7 +36,7 @@ export default async function AgentSettingsPage({
       {/* 상위 탭: 에이전트 프롬프트 / 콘텐츠 프롬프트 */}
       <div className="flex items-center gap-1 border-b border-border/60 pb-0">
         <a
-          href={`/ops/agent-settings?tab=agent&agent=${activeAgent}`}
+          href={`/settings/agents?tab=agent&agent=${activeAgent}`}
           className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
             activeTab === "agent"
               ? "border-violet-600 text-violet-700"
@@ -46,7 +46,7 @@ export default async function AgentSettingsPage({
           에이전트 프롬프트
         </a>
         <a
-          href="/ops/agent-settings?tab=content"
+          href="/settings/agents?tab=content"
           className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
             activeTab === "content"
               ? "border-violet-600 text-violet-700"
@@ -56,7 +56,7 @@ export default async function AgentSettingsPage({
           콘텐츠 타입 프롬프트
         </a>
         <a
-          href="/ops/agent-settings?tab=knowledge"
+          href="/settings/agents?tab=knowledge"
           className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
             activeTab === "knowledge"
               ? "border-violet-600 text-violet-700"

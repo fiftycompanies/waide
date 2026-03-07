@@ -159,7 +159,7 @@ function ClientCard({ client }: { client: ClientPortfolio }) {
           <span>가입: {monthsSinceJoin > 0 ? `${monthsSinceJoin}개월 전` : "최근"}</span>
         </div>
         <Link
-          href={`/ops/clients/${client.id}`}
+          href={`/clients/${client.id}`}
           className="text-primary font-medium hover:underline"
         >
           상세보기 →

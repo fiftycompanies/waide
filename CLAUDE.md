@@ -1,7 +1,7 @@
 # Waide (AI Hospitality Aide) — 서비스 IA
 
 > 최종 업데이트: 2026-03-07
-> 버전: Phase DEV-0 완료 (AI 오케스트레이션 개발 시스템 셋업)
+> 버전: Phase IA-1 완료 (IA 구조 변경 — SEO & AEO 메뉴 통합)
 
 ---
 
@@ -100,68 +100,71 @@
 
 ### 3-3. 어드민 (Admin) — 라이트 테마
 
-#### 비즈니스
+#### 서비스 (SEO & AEO)
 | 경로 | 페이지명 | 데이터 소스 |
 |------|---------|-----------|
 | `/dashboard` | B2B KPI (MRR, 고객수, 이탈률, 평균점수) + SEO 운영 현황 | `subscriptions`, `clients`, `brand_analyses`, `daily_visibility_summary`, `keywords`, `contents`, `jobs` |
-| `/ops/revenue` | 매출 관리 (MRR/ARR, 플랜 분포, 트렌드, 최근 변동) | `subscriptions`, `products`, `clients` |
-| `/ops/churn` | 이탈 관리 (At Risk 목록, 이탈률, 유지율) | `clients`, `subscriptions`, `brand_analyses` |
+| `/keywords` | 키워드 관리 (활성/AI추천/전략) | `keywords`, `keyword_difficulty`, `brand_analyses` |
+| `/contents` | 콘텐츠 관리 (3탭: 목록/새 생성/작업현황) | `contents`, `jobs`, `keywords` |
+| `/contents/[id]` | 콘텐츠 상세 (본문 편집 + QC 결과) | `contents`, `blog_accounts` |
+| `/contents/[id]/publish` | 발행 위저드 (3스텝: 확인→채널→URL) | `contents`, `blog_accounts` |
+| `/publish` | 발행 관리 (3탭: 대기/이력/자동설정) | `contents`, `publishing_recommendations`, `account_grades` |
+| `/analytics` | 성과 분석 (SERP 순위, 노출점유율, 스타일트랜스퍼) | `daily_visibility_summary`, `serp_results`, `keyword_visibility` |
 
 #### 고객 관리
 | 경로 | 페이지명 | 데이터 소스 |
 |------|---------|-----------|
-| `/ops/clients` | 고객 포트폴리오 (카드뷰, 상태필터, At Risk 감지) | `clients`, `subscriptions`, `brand_analyses`, `sales_agents` |
-| `/ops/clients/[id]` | 고객 상세 (9탭: 개요/키워드/콘텐츠/분석/순위/페르소나/구독/온보딩/리포트) | `clients`, `subscriptions`, `brand_analyses`, `keywords`, `contents`, `keyword_visibility`, `daily_visibility_summary`, `report_deliveries` |
+| `/clients` → `/ops/clients` | 고객 포트폴리오 (카드뷰, 상태필터, At Risk 감지) | `clients`, `subscriptions`, `brand_analyses`, `sales_agents` |
+| `/clients/[id]` → `/ops/clients/[id]` | 고객 상세 (10탭: 개요/키워드/콘텐츠/분석/순위/페르소나/구독/온보딩/계정/리포트) | `clients`, `subscriptions`, `brand_analyses`, `keywords`, `contents`, `keyword_visibility`, `daily_visibility_summary`, `report_deliveries` |
 | `/ops/onboarding` | 온보딩 관리 (체크리스트, 진행률) | `clients` (onboarding_checklist JSONB) |
-| `/ops/brands` | 분석된 브랜드 목록 | `brand_analyses` |
-| `/ops/brands/[id]` | 마케팅 점수 + 개선포인트 | `brand_analyses` |
+| `/brands` | 브랜드 관리 (분석 브랜드 목록) | `brand_analyses`, `clients` |
+| `/accounts` → `/ops/accounts-management` | 계정 관리 (사용자 계정 CRUD) | `users` |
 
-#### 키워드 관리
+#### 비즈니스
 | 경로 | 페이지명 | 데이터 소스 |
 |------|---------|-----------|
-| `/ops/keywords` | 전체 키워드 + 검색량 + 난이도 | `keywords`, `keyword_difficulty` |
-| `/ops/keywords/[id]` | 순위추이 + SERP + 관련 콘텐츠 | `keywords`, `serp_results`, `keyword_visibility` |
+| `/ops/revenue` | 매출 관리 (MRR/ARR, 플랜 분포, 트렌드, 최근 변동) | `subscriptions`, `products`, `clients` |
+| `/ops/churn` | 이탈 관리 (At Risk 목록, 이탈률, 유지율) | `clients`, `subscriptions`, `brand_analyses` |
+| `/ops/products` | 상품 관리 (패키지 CRUD) | `products`, `subscriptions` |
 
-#### 콘텐츠 관리
-| 경로 | 페이지명 | 데이터 소스 |
-|------|---------|-----------|
-| `/campaigns/plan` | 캠페인 기획 (키워드 추천/입력 + 스타일참조 + 콘텐츠 생성 지시) | `keywords`, `contents`, `jobs`, `clients` |
-| `/ops/contents` | 전체 콘텐츠 + QC 점수 + 상태 + 발행URL/추적 표시 | `contents` |
-| `/ops/contents/[id]` | 본문 보기/편집 + QC 결과 | `contents` |
-
-#### 분석/성과
-| 경로 | 페이지명 | 데이터 소스 |
-|------|---------|-----------|
-| `/ops/analytics` | 노출점유율, SERP 추이, 트렌드 | `daily_visibility_summary`, `serp_results`, `keyword_visibility` |
-
-#### 자동화 관리
-| 경로 | 페이지명 | 데이터 소스 |
-|------|---------|-----------|
-| `/ops/recommendations` | 키워드↔계정 매칭 + 수락/거절 | `publishing_recommendations`, `account_grades`, `keyword_difficulty` |
-| `/ops/jobs` | 콘텐츠 생성/발행 작업 상태 | `jobs` |
-
-#### 리소스
-| 경로 | 페이지명 | 데이터 소스 |
-|------|---------|-----------|
-| `/ops/accounts` | 블로그 계정 + 등급 | `blog_accounts`, `account_grades` |
-| `/ops/sources` | 소스 라이브러리 (크롤링/수동) | `content_sources` |
-| `/ops/campaigns` | 키워드 그룹 캠페인 | `campaigns`, `campaign_keywords` |
-| `/ops/prompts` | 콘텐츠 타입별 프롬프트 | `content_prompts` |
-
-#### 영업/CRM
+#### 영업 CRM
 | 경로 | 페이지명 | 데이터 소스 |
 |------|---------|-----------|
 | `/ops/analysis-logs` | 분석 로그 목록 (CRM 파이프라인 + 영업사원/계정 인라인 할당) | `brand_analyses`, `sales_agents`, `clients`, `consultation_requests` |
 | `/ops/analysis-logs/[id]` | 분석 상세 (4탭: 분석/SEO/키워드/활동기록) + 영업사원/계정 할당 | `brand_analyses`, `consultation_requests`, `sales_agents`, `clients` |
 | `/ops/sales-agents` | 영업사원 관리 + 배포URL 추적링크 + 성과 + 성과요약 테이블 | `sales_agents`, `brand_analyses`, `consultation_requests`, `subscriptions`, `clients` |
-| `/ops/products` | 상품/패키지 CRUD + 구독 수 | `products`, `subscriptions` |
 
-#### 설정/운영
+#### 리소스
 | 경로 | 페이지명 | 데이터 소스 |
 |------|---------|-----------|
-| `/ops/settings` | API키, 슬랙 연동, 기본값 | `settings` |
-| `/ops/scoring-settings` | 모든 가중치 수정 | `settings` (scoring_weights JSONB) |
+| `/ops/blog-accounts` → `/blog-accounts` | 블로그 계정 + 등급 | `blog_accounts`, `account_grades` |
+| `/ops/sources` → `/sources` | 소스 라이브러리 (크롤링/수동) | `content_sources` |
+| `/ops/scheduler` | 자동 스케줄러 (크론, SERP, 검색량) | `settings` |
+
+#### 설정
+| 경로 | 페이지명 | 데이터 소스 |
+|------|---------|-----------|
+| `/settings/agents` → `/ops/agent-settings` | 에이전트 설정 (3탭: 프롬프트/콘텐츠프롬프트/진화지식) | `agent_prompts`, `content_prompts` |
+| `/ops/scoring-settings` | 점수 가중치 설정 | `settings` (scoring_weights JSONB) |
+| `/ops/serp-settings` | SERP 설정 | `settings` |
+| `/ops/settings` | API 설정 (API키, 슬랙 연동, 기본값) | `settings` |
 | `/ops/error-logs` | 에러 모니터링 (통계/필터/상세/상태관리) | `error_logs` |
+| `/settings/admins` | 어드민 관리 (super_admin 전용) | `admin_users` |
+
+#### URL 리디렉트 매핑 (이전 라우트 호환)
+| 이전 경로 | 새 경로 | 비고 |
+|----------|---------|------|
+| `/ops/contents` | `/contents` | 탭 구조 통합 |
+| `/ops/contents/[id]` | `/contents/[id]` | 상세 페이지 이전 |
+| `/ops/contents/[id]/publish` | `/contents/[id]/publish` | 발행 위저드 이전 |
+| `/ops/jobs` | `/contents?tab=jobs` | 작업현황 탭으로 흡수 |
+| `/campaigns/plan` | `/contents?tab=create` | 캠페인 기획 흡수 |
+| `/clients` | `/ops/clients` | 라우트 별칭 |
+| `/clients/[id]` | `/ops/clients/[id]` | 라우트 별칭 |
+| `/accounts` | `/ops/accounts-management` | 라우트 별칭 |
+| `/settings/agents` | `/ops/agent-settings` | 라우트 별칭 |
+| `/ops/blog-accounts` | `/blog-accounts` | 라우트 별칭 |
+| `/ops/sources` | `/sources` | 라우트 별칭 |
 
 ---
 
@@ -661,6 +664,18 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
   - /portal 대시보드: 마케팅 종합 점수 원형 차트 + 6영역 점수 바 + 브랜드 강점/약점 태그 섹션
   - portal-actions.ts: getPortalDashboardV2에 scoreBreakdown/strengths/weaknesses 반환 추가
   - npm run build 성공
+- Phase IA-1: IA 구조 변경 — SEO & AEO 메뉴 통합 + 탭 구조 (2026-03-07)
+  - 사이드바 메뉴 6그룹 재편: 서비스(5)/고객관리(4)/비즈니스(3)/영업CRM(2)/리소스(3)/설정(6)
+  - 서비스 메뉴 URL 변경: /contents(3탭: 목록/생성/작업), /publish(3탭: 대기/이력/자동), /analytics, /keywords
+  - 발행 관리 신규 페이지: PublishTabsWrapper + 3탭 (대기/이력/자동발행설정)
+  - 콘텐츠 관리 통합: campaigns/plan → /contents?tab=create 흡수, /ops/jobs → /contents?tab=jobs 흡수
+  - 콘텐츠 상세 + 발행위저드: /contents/[id], /contents/[id]/publish
+  - URL 리디렉트: /ops/contents→/contents, /ops/jobs→/contents?tab=jobs, /campaigns/plan→/contents?tab=create
+  - 라우트 별칭: /clients→/ops/clients, /accounts→/ops/accounts-management, /settings/agents→/ops/agent-settings
+  - 리소스 메뉴 URL: /ops/blog-accounts→/blog-accounts, /ops/sources→/sources
+  - 내부 링크 전면 업데이트: contents-page-header, content-editor, client-detail, ops-page
+  - shadcn/ui Checkbox + Textarea 컴포넌트 추가, @radix-ui/react-checkbox 설치
+  - tsc --noEmit 통과 (npm run build는 Google Fonts TLS 차단으로 샌드박스에서 실패 — 코드 이슈 아님)
 
 ### 설계 원칙
 
@@ -716,6 +731,7 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 | 10 | **ERR-1** | 에러 모니터링 시스템 — Slack 알림 + 에러 로그 관리 페이지 | ✅ 완료 |
 | 11 | **FIX-1** | 페르소나 버그 수정 + 분석→페르소나 자동생성 + 포털 분석결과 표시 | ✅ 완료 |
 | 12 | **DEV-0** | AI 오케스트레이션 개발 시스템 셋업 (ai-team, tasks, prompts, docs) | ✅ 완료 |
+| 13 | **IA-1** | IA 구조 변경 — SEO & AEO 메뉴 통합 + 탭 구조 + URL 리디렉트 | ✅ 완료 |
 
 ### 미구현 (우선순위 순)
 

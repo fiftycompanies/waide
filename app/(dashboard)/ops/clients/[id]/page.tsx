@@ -1370,7 +1370,7 @@ export default function ClientDetailPage() {
       <div className="text-center py-20 text-muted-foreground">
         <Building2 className="h-10 w-10 mx-auto mb-3 opacity-40" />
         <p>고객을 찾을 수 없습니다</p>
-        <Link href="/ops/clients" className="text-primary hover:underline text-sm mt-2 inline-block">
+        <Link href="/clients" className="text-primary hover:underline text-sm mt-2 inline-block">
           목록으로 →
         </Link>
       </div>
@@ -1400,7 +1400,7 @@ export default function ClientDetailPage() {
     <div className="space-y-6">
       {/* Header */}
       <Breadcrumb items={[
-        { label: "고객 포트폴리오", href: "/ops/clients" },
+        { label: "고객 포트폴리오", href: "/clients" },
         { label: client.brand_name },
       ]} />
       <div className="flex items-center justify-between">

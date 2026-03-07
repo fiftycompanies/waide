@@ -551,7 +551,7 @@ export function ContentEditor({ content, blogAccounts = [] }: ContentEditorProps
           )}
         </Button>
         <Link
-          href={`/ops/contents/${content.id}/publish`}
+          href={`/contents/${content.id}/publish`}
           className="inline-flex items-center gap-1.5 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-100 transition-colors"
         >
           <ExternalLink className="h-3 w-3" />
