@@ -1,7 +1,7 @@
 # Waide (AI Hospitality Aide) — 서비스 IA
 
 > 최종 업데이트: 2026-03-07
-> 버전: Phase 4+5 완료 (LLM 크롤링 + Mention Detection + AEO Score + 추적 큐)
+> 버전: Phase 6 완료 (자동 배포 엔진 — Tistory/WordPress/Medium)
 
 ---
 
@@ -18,7 +18,10 @@
    - clients.client_type: 'company'/'sub_client'
    - keywords.status: 'active'/'paused'/'archived'/'queued'/'refresh'/'suggested' (051 확장)
    - keywords.priority: 'critical'/'high'/'medium'/'low'
-   - accounts.platform: 'naver'/'tistory'/'brunch' (소문자)
+   - accounts.platform: 'naver'/'tistory'/'wordpress'/'medium'/'brunch' (소문자)
+   - blog_accounts.auth_type: 'manual'/'oauth'/'api_key'
+   - publications.status: 'pending'/'publishing'/'published'/'failed'
+   - publications.publish_type: 'manual'/'auto'
    - report_deliveries.status: 'pending'/'generating'/'sent'/'failed'/'skipped'
    - point_transactions.type: 'grant'/'revoke'/'spend'/'signup_bonus'/'refund'
    - llm_answers.ai_model: 'perplexity'/'claude'/'chatgpt'/'gemini'
@@ -335,6 +338,8 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 | `aeo_scores` | /dashboard, /analytics?tab=aeo, /portal | AEO Visibility Score (주기별 가중 점수) |
 | `aeo_tracking_queue` | (내부) | AEO 추적 큐 (1000+ 고객 확장성, 우선순위 처리) |
 | `aeo_tracking_settings` | /ops/aeo-settings | AEO 추적 전역 설정 (모델/반복/크론/Playwright) |
+| `publications` | /publish, /contents/[id]/publish | 발행 이력 (플랫폼, 상태, 재시도 횟수) |
+| `auto_publish_settings` | /publish?tab=auto | 자동 발행 설정 (마스터 토글, 채널별 ON/OFF) |
 
 ### 5-2. API 라우트 맵
 
@@ -387,6 +392,7 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 | `error-log-actions.ts` | logError(), getErrorLogs(), getErrorLogDetail(), updateErrorStatus(), getErrorStats() | error_logs |
 | `aeo-tracking-actions.ts` | getAEOSettings(), updateAEOSettings(), runAEOTracking(), runAEOTrackingBatch(), calculateAEOScore(), getAEODashboardData(), getAEOAnalyticsData(), getAEOCompetitionData(), getAEOCitationData(), getPortalAEOData(), getAEOTrackingPreview() | llm_answers, mentions, aeo_scores, aeo_tracking_queue, aeo_tracking_settings, questions |
 | `entity-content-actions.ts` | generateEntityContent() | contents, clients |
+| `publish-actions.ts` | executePublish(), retryPublish(), checkAutoPublish(), getAutoPublishSettings(), updateAutoPublishSettings(), getPublications(), testBlogConnection(), createApiKeyAccount(), setDefaultAccount(), getClientBlogAccounts() | publications, auto_publish_settings, blog_accounts, contents |
 
 ### 5-4. AI 인프라 (lib/)
 
@@ -812,6 +818,41 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
   - Turbopack 번들링 방지: `Function("m", "return import(m)")("playwright")` 트릭
   - 서비스 정책: AEO 추적=무료, 콘텐츠 생성=1포인트, admin/super_admin=무제한, 실패 시 자동 환불
   - tsc --noEmit 통과
+- Phase 6: 자동 배포 엔진 — Tistory/WordPress/Medium (2026-03-07)
+  - scripts/migrations/060_auto_publish.sql: blog_accounts 확장 + publications + auto_publish_settings 3개 테이블
+  - blog_accounts 확장: auth_type, access_token, refresh_token, token_expires_at, api_key, api_secret, blog_id, platform_user_id, is_default, last_published_at, updated_at
+  - platform CHECK 확장: 'naver'/'tistory'/'wordpress'/'medium'/'brunch'
+  - auth_type CHECK: 'manual'/'oauth'/'api_key'
+  - publications 테이블: content_id/client_id/blog_account_id FK, platform, external_url, external_post_id, status, publish_type, error_message, retry_count
+  - auto_publish_settings 테이블: client_id UNIQUE, is_enabled, 플랫폼별 ON/OFF, publish_as_draft, add_canonical_url, add_schema_markup
+  - lib/publishers/: 플랫폼별 퍼블리셔 모듈
+    - index.ts: 공통 인터페이스 (PublishResult, BlogAccountForPublish, ContentForPublish, PublishOptions) + 라우터
+    - tistory-publisher.ts: Tistory Open API /post/write, OAuth 토큰 교환, 블로그 정보 조회, 카테고리 조회
+    - wordpress-publisher.ts: WordPress REST API /wp-json/wp/v2/posts, Basic Auth (Application Password)
+    - medium-publisher.ts: Medium API /v1/users/{authorId}/posts, Integration Token, 마크다운 네이티브 지원
+    - markdown-to-html.ts: marked 기반 MD→HTML 변환 + Schema.org 마크업 (FAQ/Article/LocalBusiness) + canonical 태그
+  - lib/actions/publish-actions.ts: 발행 핵심 로직
+    - executePublish(): 발행 실행 (계정 조회 → publications INSERT → publishContent() → 결과 저장 → contents UPDATE)
+    - retryPublish(): 재시도 (최대 3회)
+    - checkAutoPublish(): 자동 발행 트리거 (QC 통과 후, 활성 채널 순회, 기본 계정 선택)
+    - getAutoPublishSettings() / updateAutoPublishSettings(): 자동 발행 설정 UPSERT
+    - getPublications(): 발행 이력 조회 (joined content_title, account_name)
+    - testBlogConnection(): 통합 연동 테스트 (플랫폼별 분기)
+    - createApiKeyAccount(): API키/토큰 기반 계정 생성 (WordPress/Medium)
+    - setDefaultAccount(): 기본 계정 토글
+    - getClientBlogAccounts(): 플랫폼별 연결 계정 조회
+  - app/api/auth/tistory/callback/route.ts: Tistory OAuth 콜백 (code→access_token 교환 → 블로그 정보 → blog_accounts INSERT)
+  - components/blog-accounts/blog-accounts-client.tsx: API 연동 다이얼로그 (Tistory OAuth / WordPress API / Medium Token), 기본 계정 토글, 연동 테스트
+  - app/(dashboard)/ops/contents/[id]/publish/publish-wizard.tsx: 발행 위저드 업그레이드 (수동 발행 + 자동 발행 2옵션, 플랫폼 선택, 계정 드롭다운, 결과 표시)
+  - app/(dashboard)/publish/page.tsx: 발행 관리 3탭 업그레이드
+    - 대기 탭: 기존 유지
+    - 이력 탭: publications 테이블 연동 (플랫폼 아이콘, 수동/자동 유형, 상태 배지, 재시도 카운트)
+    - 자동 탭: AutoPublishSettingsClient (마스터 토글, 채널별 ON/OFF, 발행 옵션)
+  - components/publish/auto-publish-settings-client.tsx: 자동 발행 설정 UI (3카드: 토글/채널/옵션)
+  - content-generate-actions.ts: QC 통과 후 checkAutoPublish() 자동 트리거 (실패해도 파이프라인 블로킹 없음)
+  - 서비스 정책: 자동 발행=무료 (포인트 차감 없음), 기본 OFF, WordPress/Medium은 서버 env 불필요 (클라이언트 입력)
+  - 환경변수: TISTORY_CLIENT_ID, TISTORY_CLIENT_SECRET, TISTORY_REDIRECT_URI (모두 optional)
+  - tsc --noEmit 통과
 
 ### 설계 원칙
 
@@ -871,13 +912,13 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 | 14 | **ONBOARD-1** | 브랜드 분석 → 프로젝트 자동 생성 (보완하기/재분석/프로젝트시작/반영하기) | ✅ 완료 |
 | 15 | **Phase 3** | 질문 엔진 + 포인트 시스템 + AEO 콘텐츠 자동 생성 | ✅ 완료 |
 | 16 | **Phase 4+5** | LLM 크롤링 + Mention Detection + AEO Score + 추적 큐 + 엔티티 콘텐츠 | ✅ 완료 |
+| 17 | **Phase 6** | 자동 배포 엔진 — Tistory/WordPress/Medium + OAuth + 자동발행 | ✅ 완료 |
 
 ### 미구현 (우선순위 순)
 
 | # | 기능 | 우선순위 |
 |---|------|---------|
-| 1 | **Phase D: 자동 발행 관리** (슬랙 컨펌 → 블로그 발행) | 높음 (다음) |
-| 2 | **Vercel 도메인 연결** (커스텀 도메인 + SSL) | 높음 |
+| 1 | **Vercel 도메인 연결** (커스텀 도메인 + SSL) | 높음 |
 | 3 | **구글 상위노출** (마케팅점수 15점 자리 비어있음) | 중간 |
 | 4 | **홈페이지 SEO/AEO 분석** (크롤링 → meta/schema/heading) | 중간 |
 | 5 | **검색량 트렌드 차트** (DataLab 12개월) | 낮음 |
@@ -930,8 +971,9 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 | 057 | brand_analyses 보완 컬럼 (refined_keywords/strengths/appeal/target, refinement_count, last_refined_at) | **SQL 생성 완료** |
 | 058 | questions + client_points + point_transactions + point_settings 테이블 + contents 확장 (content_type, question_id) | **SQL 생성 완료** |
 | 059 | llm_answers + mentions + aeo_scores + aeo_tracking_queue + aeo_tracking_settings 테이블 + point_transactions 'refund' + contents 'aeo_entity' | **SQL 생성 완료** |
+| 060 | blog_accounts 확장 (auth_type/access_token/api_key/is_default 등) + publications + auto_publish_settings 테이블 | **SQL 생성 완료** |
 
-> ⚠️ 045~059: scripts/migrations/ 디렉토리에 SQL 파일 생성. Supabase Dashboard에서 실행 필요.
+> ⚠️ 045~060: scripts/migrations/ 디렉토리에 SQL 파일 생성. Supabase Dashboard에서 실행 필요.
 
 ---
 

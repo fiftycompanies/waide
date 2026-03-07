@@ -14,6 +14,15 @@ export interface BlogAccount {
   is_active: boolean;
   created_at: string;
   client_name?: string | null;  // 전체 보기 모드: 소속 브랜드명
+  // Phase 6 확장
+  auth_type?: string;
+  access_token?: string | null;
+  api_key?: string | null;
+  api_secret?: string | null;
+  blog_id?: string | null;
+  platform_user_id?: string | null;
+  is_default?: boolean;
+  last_published_at?: string | null;
 }
 
 // ── 조회 ──────────────────────────────────────────────────────────────────────
@@ -24,7 +33,7 @@ export async function getBlogAccounts(clientId: string | null): Promise<BlogAcco
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let query = (db as any)
     .from("blog_accounts")
-    .select("id, client_id, account_name, platform, blog_url, blog_score, fixed_ip, is_active, created_at, clients(name)")
+    .select("id, client_id, account_name, platform, blog_url, blog_score, fixed_ip, is_active, created_at, auth_type, blog_id, platform_user_id, is_default, last_published_at, clients(name)")
     .order("created_at", { ascending: false });
 
   if (clientId) {

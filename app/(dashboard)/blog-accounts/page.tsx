@@ -17,6 +17,13 @@ export default async function BlogAccountsPage() {
     getAccountGrades(selectedClientId),
   ]);
 
+  // Tistory OAuth 활성화 여부
+  const tistoryEnabled = !!(
+    process.env.TISTORY_CLIENT_ID &&
+    process.env.TISTORY_CLIENT_SECRET &&
+    process.env.TISTORY_REDIRECT_URI
+  );
+
   return (
     <div className="p-6 md:p-8 space-y-6">
       <div>
@@ -27,11 +34,16 @@ export default async function BlogAccountsPage() {
           ) : (
             <span className="font-medium text-foreground">{selectedBrand?.name}</span>
           )}
-          의 발행 계정 · C-Rank 관리용 블로그 계정을 등록합니다
+          의 발행 계정 · API 연동 (Tistory/WordPress/Medium) · C-Rank 관리
         </p>
       </div>
 
-      <BlogAccountsClient accounts={accounts} accountGrades={accountGrades} clientId={selectedClientId} />
+      <BlogAccountsClient
+        accounts={accounts}
+        accountGrades={accountGrades}
+        clientId={selectedClientId}
+        tistoryEnabled={tistoryEnabled}
+      />
     </div>
   );
 }
