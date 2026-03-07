@@ -36,7 +36,7 @@ export interface PointTransaction {
   client_id: string;
   client_name?: string;
   amount: number;
-  type: "grant" | "spend" | "revoke" | "signup_bonus";
+  type: "grant" | "spend" | "revoke" | "signup_bonus" | "refund";
   description: string | null;
   content_id: string | null;
   granted_by: string | null;
@@ -216,6 +216,53 @@ export async function spendPoints(
       amount: -costPerContent,
       type: "spend",
       description: "콘텐츠 생성",
+      content_id: contentId,
+      created_at: now,
+    });
+
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: String(e) };
+  }
+}
+
+// ═══════════════════════════════════════════
+// 2-3-1. 포인트 환불 (콘텐츠 생성 실패 시 자동)
+// ═══════════════════════════════════════════
+
+export async function refundPoints(
+  clientId: string,
+  contentId: string | null,
+  amount?: number
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const db = createAdminClient();
+    const costPerContent = amount ?? (await getCostPerContent());
+    const now = new Date().toISOString();
+
+    // 현재 잔액 조회
+    const balance = await checkPointBalance(clientId);
+
+    // client_points UPDATE (잔액 복구)
+    const { error: updateErr } = await db
+      .from("client_points")
+      .update({
+        balance: balance.balance + costPerContent,
+        total_spent: Math.max(0, balance.totalSpent - costPerContent),
+        updated_at: now,
+      })
+      .eq("client_id", clientId);
+
+    if (updateErr) {
+      return { success: false, error: updateErr.message };
+    }
+
+    // point_transactions INSERT (refund)
+    await db.from("point_transactions").insert({
+      client_id: clientId,
+      amount: costPerContent,
+      type: "refund",
+      description: "콘텐츠 생성 실패 — 포인트 자동 환불",
       content_id: contentId,
       created_at: now,
     });
@@ -535,7 +582,7 @@ export async function getPointTransactions(filters?: {
       id: string;
       client_id: string;
       amount: number;
-      type: "grant" | "spend" | "revoke" | "signup_bonus";
+      type: "grant" | "spend" | "revoke" | "signup_bonus" | "refund";
       description: string | null;
       content_id: string | null;
       granted_by: string | null;

@@ -21,6 +21,7 @@ import { createAdminClient } from "@/lib/supabase/service";
 import { createContentV2 } from "@/lib/content-pipeline-v2";
 import { runQcV2 } from "@/lib/content-qc-v2";
 import { runRewriteLoop } from "@/lib/content-rewrite-loop";
+import { refundPoints } from "@/lib/actions/point-actions";
 import { revalidatePath } from "next/cache";
 
 // ═══════════════════════════════════════════
@@ -229,6 +230,15 @@ export async function generateContentV2(params: {
     const errorMsg = error instanceof Error ? error.message : "알 수 없는 에러";
     console.error("[generate-content] 파이프라인 실패:", error);
     await updateJobFailed(db, params.jobId, errorMsg);
+
+    // 콘텐츠 생성 실패 시 포인트 자동 환불
+    try {
+      await refundPoints(params.clientId, null);
+      console.log(`[generate-content] 포인트 환불 완료: client=${params.clientId}`);
+    } catch (refundErr) {
+      console.error("[generate-content] 포인트 환불 실패:", refundErr);
+    }
+
     return { success: false, error: errorMsg };
   }
 }

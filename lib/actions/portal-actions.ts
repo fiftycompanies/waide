@@ -299,7 +299,61 @@ export async function getPortalDashboardV2(clientId: string) {
     salesAgent,
     subscription: null as { status: string; products: { name: string } | null } | null,
     pointBalance: await getPortalPointBalance(clientId),
+    aeoScore: await getPortalAEOScoreQuick(clientId),
   };
+}
+
+// ── AEO Score 간편 조회 (포털 대시보드용) ───────────────────────────────
+
+async function getPortalAEOScoreQuick(clientId: string): Promise<{
+  score: number | null;
+  trend: number;
+  byModel: Record<string, number>;
+} | null> {
+  try {
+    const db = createAdminClient();
+
+    // 최근 AEO 점수
+    const { data: latestScore } = await db
+      .from("aeo_scores")
+      .select("score")
+      .eq("client_id", clientId)
+      .is("keyword_id", null)
+      .is("ai_model", null)
+      .order("period_end", { ascending: false })
+      .limit(1);
+
+    const currentScore = (latestScore as Array<{ score: number }> | null)?.[0]?.score ?? null;
+    if (currentScore === null) return null;
+
+    // 이전 점수
+    const { data: prevScores } = await db
+      .from("aeo_scores")
+      .select("score")
+      .eq("client_id", clientId)
+      .is("keyword_id", null)
+      .is("ai_model", null)
+      .order("period_end", { ascending: false })
+      .range(1, 1);
+
+    const previousScore = (prevScores as Array<{ score: number }> | null)?.[0]?.score ?? 0;
+    const trend = Math.round((currentScore - previousScore) * 10) / 10;
+
+    // 모델별 추적 수
+    const { data: modelCounts } = await db
+      .from("llm_answers")
+      .select("ai_model")
+      .eq("client_id", clientId);
+
+    const byModel: Record<string, number> = {};
+    for (const row of (modelCounts ?? []) as Array<{ ai_model: string }>) {
+      byModel[row.ai_model] = (byModel[row.ai_model] || 0) + 1;
+    }
+
+    return { score: currentScore, trend, byModel };
+  } catch {
+    return null;
+  }
 }
 
 // ── 포인트 잔액 조회 (포털용) ─────────────────────────────────────────

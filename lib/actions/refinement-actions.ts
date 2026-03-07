@@ -264,6 +264,15 @@ export async function applyAnalysisToProject(
     // 6. 포인트 초기화 (가입 보너스)
     await initializeClientPoints(clientId);
 
+    // 7. 엔티티 콘텐츠 자동 생성 (1건, 무료 — 포인트 차감 없음)
+    import("@/lib/actions/entity-content-actions")
+      .then(({ generateEntityContent }) => {
+        generateEntityContent(clientId, true).catch((err) =>
+          console.error("[applyAnalysisToProject] 엔티티 자동 생성 실패:", err)
+        );
+      })
+      .catch(() => { /* entity-content-actions import 실패 무시 */ });
+
     revalidatePath("/portal");
     revalidatePath("/dashboard");
     revalidatePath("/ops/clients");

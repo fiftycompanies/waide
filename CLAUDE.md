@@ -1,7 +1,7 @@
 # Waide (AI Hospitality Aide) — 서비스 IA
 
 > 최종 업데이트: 2026-03-07
-> 버전: Phase 3 완료 (질문 엔진 + 포인트 시스템 + AEO 콘텐츠)
+> 버전: Phase 4+5 완료 (LLM 크롤링 + Mention Detection + AEO Score + 추적 큐)
 
 ---
 
@@ -14,11 +14,18 @@
    - jobs.priority: 'high'/'medium'/'low' (소문자)
    - jobs.trigger_type: 'USER'/'SCHEDULER'/'AGENT' (대문자)
    - contents.publish_status: 'draft'/'review'/'approved'/'published'/'rejected'
+   - contents.content_type: 'blog_list'/'blog_review'/'blog_info'/'aeo_qa'/'aeo_list'/'aeo_entity'
    - clients.client_type: 'company'/'sub_client'
    - keywords.status: 'active'/'paused'/'archived'/'queued'/'refresh'/'suggested' (051 확장)
    - keywords.priority: 'critical'/'high'/'medium'/'low'
    - accounts.platform: 'naver'/'tistory'/'brunch' (소문자)
    - report_deliveries.status: 'pending'/'generating'/'sent'/'failed'/'skipped'
+   - point_transactions.type: 'grant'/'revoke'/'spend'/'signup_bonus'/'refund'
+   - llm_answers.ai_model: 'perplexity'/'claude'/'chatgpt'/'gemini'
+   - llm_answers.crawl_method: 'api'/'playwright'
+   - mentions.detection_method: 'llm'/'string_match'/'hybrid'
+   - mentions.sentiment: 'positive'/'neutral'/'negative'
+   - aeo_tracking_queue.status: 'pending'/'processing'/'completed'/'failed'
 5. contents.account_id FK → blog_accounts(id) (accounts 아님!)
 6. PL/pgSQL 변수명: v_ 접두어
 7. HTML 테이블: Link 금지 → <tr onClick> 패턴
@@ -110,7 +117,7 @@
 | `/contents/[id]` | 콘텐츠 상세 (본문 편집 + QC 결과) | `contents`, `blog_accounts` |
 | `/contents/[id]/publish` | 발행 위저드 (3스텝: 확인→채널→URL) | `contents`, `blog_accounts` |
 | `/publish` | 발행 관리 (3탭: 대기/이력/자동설정) | `contents`, `publishing_recommendations`, `account_grades` |
-| `/analytics` | 성과 분석 (SERP 순위, 노출점유율, 스타일트랜스퍼) | `daily_visibility_summary`, `serp_results`, `keyword_visibility` |
+| `/analytics` | 성과 분석 (4탭: SEO 분석/AEO 노출/경쟁 분석/Citation 분석) | `daily_visibility_summary`, `serp_results`, `keyword_visibility`, `llm_answers`, `mentions`, `aeo_scores` |
 
 #### 고객 관리
 | 경로 | 페이지명 | 데이터 소스 |
@@ -146,6 +153,7 @@
 | 경로 | 페이지명 | 데이터 소스 |
 |------|---------|-----------|
 | `/settings/agents` → `/ops/agent-settings` | 에이전트 설정 (3탭: 프롬프트/콘텐츠프롬프트/진화지식) | `agent_prompts`, `content_prompts` |
+| `/ops/aeo-settings` | AEO 추적 설정 (모델/반복/크론/Playwright) | `aeo_tracking_settings` |
 | `/ops/scoring-settings` | 점수 가중치 설정 | `settings` (scoring_weights JSONB) |
 | `/ops/serp-settings` | SERP 설정 | `settings` |
 | `/ops/settings` | API 설정 (API키, 슬랙 연동, 기본값) | `settings` |
@@ -183,7 +191,31 @@
 [전화 상담] / [카카오톡] / [무료 상담 신청] → consultation_requests INSERT → 슬랙 알림
 ```
 
-### 4-2. 데이터 수집 플로우 (자동화)
+### 4-2. AEO 추적 플로우
+
+```
+[수동] /analytics?tab=aeo → [추적 시작] 버튼 → runAEOTracking(clientId)
+[자동] /api/cron/aeo (매일 04:00 KST, 기본 비활성) → runAEOTrackingBatch()
+  ↓
+[질문 선택] questions 테이블 → limitQuestionsByKeyword (round-robin)
+  ↓
+[LLM 크롤링] 질문 × 반복 × 모델
+  ├─ Perplexity API (crawl_method='api', 2초 딜레이)
+  ├─ Claude API (crawl_method='api', 1초 딜레이)
+  ├─ ChatGPT Playwright (기본 비활성, 10초 딜레이)
+  └─ Gemini Playwright (기본 비활성, 10초 딜레이)
+  ↓ llm_answers INSERT
+[언급 감지] detectMentions(응답텍스트, 브랜드명)
+  ├─ LLM 분석 (Claude → JSON 구조화, 위치/감성/신뢰도)
+  └─ 문자열 매칭 폴백 (confidence: 0.5)
+  ↓ mentions INSERT
+[점수 산출] calculateAEOScore()
+  └─ score = Σ(model_weight × position_weight) / total_queries × 100
+  ↓ aeo_scores UPSERT
+[대시보드] AEO Visibility Score 표시
+```
+
+### 4-3. 데이터 수집 플로우 (자동화)
 
 ```
 [Vercel Cron 매일] → /api/cron/daily-serp
@@ -196,7 +228,7 @@
   └─ DataLab 폴백
 ```
 
-### 4-3. 콘텐츠 생성 플로우
+### 4-4. 콘텐츠 생성 플로우
 
 ```
 [ANALYST] → account_grades + keyword_difficulty + publishing_recommendations
@@ -298,6 +330,11 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 | `point_transactions` | /ops/points | 포인트 거래 이력 (grant/revoke/spend/signup_bonus) |
 | `point_settings` | /ops/points | 포인트 설정 (가입보너스, 콘텐츠당 비용) |
 | `error_logs` | /ops/error-logs | 에러 모니터링 로그 (client/server/api/cron) |
+| `llm_answers` | /analytics?tab=aeo | LLM 응답 원문 (질문→AI모델→응답 텍스트, 소스 URL) |
+| `mentions` | /analytics?tab=aeo, /analytics?tab=competition | 브랜드 언급 감지 결과 (위치, 감성, 신뢰도) |
+| `aeo_scores` | /dashboard, /analytics?tab=aeo, /portal | AEO Visibility Score (주기별 가중 점수) |
+| `aeo_tracking_queue` | (내부) | AEO 추적 큐 (1000+ 고객 확장성, 우선순위 처리) |
+| `aeo_tracking_settings` | /ops/aeo-settings | AEO 추적 전역 설정 (모델/반복/크론/Playwright) |
 
 ### 5-2. API 라우트 맵
 
@@ -312,6 +349,7 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 | `/api/cron/search-volume` | GET | 검색량 수집 크론 |
 | `/api/cron/grading` | GET | 계정 등급/난이도 산출 크론 |
 | `/api/cron/monthly-report` | GET/POST | 월간 리포트 자동 발송 크론 (매월 1일) |
+| `/api/cron/aeo` | GET | AEO 추적 크론 (매일 04:00 KST, 기본 비활성) |
 | `/api/portal/report-pdf` | GET | PDF 리포트 다운로드 (어드민/포털) |
 
 ### 5-3. Server Actions 맵 (lib/actions/)
@@ -345,8 +383,10 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 | `persona-actions.ts` | updatePersona(), addManualStrength(), removeManualStrength(), regeneratePersona(), getPersona() | clients (brand_persona JSONB) |
 | `report-actions.ts` | getMonthlyReportData(), getReportSettings(), updateReportSettings(), getReportDeliveries(), generateAndSendReport(), resendReport() | clients (metadata JSONB), report_deliveries, keywords, contents, keyword_visibility |
 | `question-actions.ts` | generateQuestions(), getQuestions(), addManualQuestion(), updateQuestion(), deleteQuestion(), regenerateQuestions(), generateAEOContents(), getPortalQuestions() | questions, contents |
-| `point-actions.ts` | initializeClientPoints(), checkPointBalance(), spendPoints(), grantPoints(), revokePoints(), canGenerateContent(), getPointSettings(), updatePointSettings(), getClientPointsList(), getPointTransactions() | client_points, point_transactions, point_settings |
+| `point-actions.ts` | initializeClientPoints(), checkPointBalance(), spendPoints(), grantPoints(), revokePoints(), refundPoints(), canGenerateContent(), getPointSettings(), updatePointSettings(), getClientPointsList(), getPointTransactions() | client_points, point_transactions, point_settings |
 | `error-log-actions.ts` | logError(), getErrorLogs(), getErrorLogDetail(), updateErrorStatus(), getErrorStats() | error_logs |
+| `aeo-tracking-actions.ts` | getAEOSettings(), updateAEOSettings(), runAEOTracking(), runAEOTrackingBatch(), calculateAEOScore(), getAEODashboardData(), getAEOAnalyticsData(), getAEOCompetitionData(), getAEOCitationData(), getPortalAEOData(), getAEOTrackingPreview() | llm_answers, mentions, aeo_scores, aeo_tracking_queue, aeo_tracking_settings, questions |
+| `entity-content-actions.ts` | generateEntityContent() | contents, clients |
 
 ### 5-4. AI 인프라 (lib/)
 
@@ -368,6 +408,13 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 | `pdf/monthly-report-template.tsx` | MonthlyReportDocument — 4페이지 PDF 템플릿 (KPI, 콘텐츠, 순위, 계획) | - |
 | `email/send-report.ts` | sendReportEmail() — Resend API로 리포트 이메일 발송 (PDF 첨부) | (외부 API) |
 | `email/monthly-report-email.tsx` | MonthlyReportEmail — React Email 리포트 이메일 템플릿 | - |
+| `crawlers/index.ts` | crawlLLM() — LLM 크롤링 라우터 (모델별 분기, MODEL_WEIGHTS, MODEL_RATE_LIMITS) | - |
+| `crawlers/perplexity-crawler.ts` | crawlPerplexity() — Perplexity API 크롤링 (llama-3.1-sonar, citations 포함) | (외부 API) |
+| `crawlers/claude-crawler.ts` | crawlClaude() — Claude API 크롤링 (Haiku 4.5) | (외부 API) |
+| `crawlers/chatgpt-crawler.ts` | crawlChatGPT() — Playwright ChatGPT 크롤링 (기본 비활성) | (외부 API) |
+| `crawlers/gemini-crawler.ts` | crawlGemini() — Playwright Gemini 크롤링 (기본 비활성) | (외부 API) |
+| `crawlers/playwright-base.ts` | createStealthBrowser() — Playwright 공통 유틸 (UA 로테이션, 스텔스) | - |
+| `crawlers/mention-detector.ts` | detectMentions() — 브랜드 언급 감지 (LLM 분석 + 문자열 매칭 폴백) | - |
 
 ---
 
@@ -408,6 +455,16 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 - 글자수(20) + 해요체(15) + 키워드밀도(15) + H2구조(10) + 이미지(10) + 금지표현(10) + 비교표(10) + CTA(5) + 해시태그(5)
 - FAIL: 70점 미만 또는 해요체 60% 미만
 
+### 6-6. AEO Visibility Score (100점) — aeo_scores
+
+- 공식: `score = Σ(mention_weight × position_weight) / total_queries × 100`
+- Position weights: 1위=1.0, 2위=0.7, 3위=0.4, 본문 언급=0.2
+- Model weights: ChatGPT=1.0, Perplexity=0.8, Gemini=0.7, Claude=0.5
+- Rate limits: Perplexity=2초, Claude=1초, Playwright=10초
+- 추적 무료: AEO 추적은 포인트 차감 없음 (콘텐츠 생성만 포인트 차감)
+- Round-robin: 키워드별 공평한 질문 선택 (limitQuestionsByKeyword)
+- 우선순위 큐: 유료 고객(포인트 잔액 > 0) 먼저 처리
+
 ### 핵심 알고리즘 공식
 
 - 노출 점유율: max(0, (21-rank)/20×100), 가중 = Σ(점수×검색량)/Σ(100×검색량)×100%
@@ -430,6 +487,7 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 | Serper API (`google.serper.dev/search`) | 구글 검색 순위 조회 | 월 2,500건 무료 |
 | Slack API (Webhook) | 알림 발송 | 무료 |
 | Resend API | 리포트 이메일 발송 (PDF 첨부) | 월 100건 무료 |
+| Perplexity API (`api.perplexity.ai`) | LLM 응답 크롤링 (AEO 추적) | 종량제 |
 
 ---
 
@@ -726,6 +784,34 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
   - questions.source CHECK: 'llm'/'paa'/'naver'/'manual'
   - point_transactions.type CHECK: 'grant'/'revoke'/'spend'/'signup_bonus'
   - tsc --noEmit 통과
+- Phase 4+5: LLM 크롤링 + Mention Detection + AEO Score + 추적 큐 (2026-03-07)
+  - scripts/migrations/059_aeo_tracking.sql: llm_answers, mentions, aeo_scores, aeo_tracking_queue, aeo_tracking_settings 5개 테이블
+  - lib/crawlers/: LLM 크롤링 모듈 (perplexity-crawler, claude-crawler, chatgpt-crawler, gemini-crawler, playwright-base, mention-detector, index)
+  - lib/actions/aeo-tracking-actions.ts: AEO 추적 핵심 로직 (~700줄)
+    - runAEOTracking(clientId): 단일 고객 수동 추적 (질문→LLM 크롤링→언급 감지→점수 산출)
+    - runAEOTrackingBatch(): 크론 배치 (유료 우선, 전체 고객 순회)
+    - calculateAEOScore(): 가중 점수 공식 (모델×위치 가중치)
+    - getAEODashboardData/AnalyticsData/CompetitionData/CitationData: 대시보드/분석 데이터
+    - limitQuestionsByKeyword(): Round-robin 질문 선택 (키워드별 공평 분배)
+  - lib/actions/entity-content-actions.ts: 엔티티 정의 콘텐츠 생성 (aeo_entity 타입, 온보딩 시 무료)
+  - lib/actions/point-actions.ts: refundPoints() 추가 (콘텐츠 생성 실패 시 자동 환불)
+  - lib/actions/content-generate-actions.ts: 파이프라인 실패 시 자동 포인트 환불 로직
+  - lib/actions/refinement-actions.ts: 프로젝트 생성 시 엔티티 콘텐츠 자동 생성 트리거
+  - app/api/cron/aeo/route.ts: AEO 추적 크론 (매일 04:00 KST, 기본 비활성)
+  - vercel.json: AEO 크론 추가 (0 4 * * *)
+  - components/analytics/: aeo-tracking-section, aeo-competition-section, aeo-citation-section, analytics-tabs-wrapper
+  - app/(dashboard)/analytics/page.tsx: 4탭 구조 (SEO 분석/AEO 노출/경쟁 분석/Citation 분석)
+  - components/dashboard/aeo-dashboard-section.tsx: 대시보드 AEO 카드 (Score, 트렌드, 모델별 바, 최근 언급, 미노출 질문)
+  - app/(dashboard)/dashboard/page.tsx: AEO 섹션 통합 (브랜드 모드 2열 그리드)
+  - app/(dashboard)/ops/aeo-settings/page.tsx + components/settings/aeo-settings-client.tsx: AEO 설정 (4카드: 모델/추적/크론/Playwright)
+  - components/ui/switch.tsx: Switch 컴포넌트 신규 생성
+  - app/(portal)/portal/page.tsx: 포털 AEO Score 카드 (스코어, 트렌드, 모델별 카운트)
+  - portal-actions.ts: getPortalDashboardV2에 aeoScore 필드 추가
+  - 사이드바: 설정 그룹에 "AEO 설정" 메뉴 (super_admin/admin, Radio 아이콘)
+  - Playwright: 코드 구현 완료 (chatgpt/gemini), 기본 비활성 (설정에서 활성화)
+  - Turbopack 번들링 방지: `Function("m", "return import(m)")("playwright")` 트릭
+  - 서비스 정책: AEO 추적=무료, 콘텐츠 생성=1포인트, admin/super_admin=무제한, 실패 시 자동 환불
+  - tsc --noEmit 통과
 
 ### 설계 원칙
 
@@ -784,19 +870,19 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 | 13 | **IA-1** | IA 구조 변경 — SEO & AEO 메뉴 통합 + 탭 구조 + URL 리디렉트 | ✅ 완료 |
 | 14 | **ONBOARD-1** | 브랜드 분석 → 프로젝트 자동 생성 (보완하기/재분석/프로젝트시작/반영하기) | ✅ 완료 |
 | 15 | **Phase 3** | 질문 엔진 + 포인트 시스템 + AEO 콘텐츠 자동 생성 | ✅ 완료 |
+| 16 | **Phase 4+5** | LLM 크롤링 + Mention Detection + AEO Score + 추적 큐 + 엔티티 콘텐츠 | ✅ 완료 |
 
 ### 미구현 (우선순위 순)
 
 | # | 기능 | 우선순위 |
 |---|------|---------|
 | 1 | **Phase D: 자동 발행 관리** (슬랙 컨펌 → 블로그 발행) | 높음 (다음) |
-| 3 | **Vercel 도메인 연결** (커스텀 도메인 + SSL) | 높음 |
-| 4 | **AEO 기능** (AI 인용률 — ChatGPT/Gemini 브랜드 언급 체크) | 중간 |
-| 5 | **구글 상위노출** (마케팅점수 15점 자리 비어있음) | 중간 |
-| 6 | **홈페이지 SEO/AEO 분석** (크롤링 → meta/schema/heading) | 중간 |
-| 7 | **검색량 트렌드 차트** (DataLab 12개월) | 낮음 |
-| 8 | **소셜 로그인** (카카오/구글/네이버 OAuth) | 낮음 |
-| 9 | **소스 매칭 AI** (규칙 기반 → AI 업그레이드) | 나중 |
+| 2 | **Vercel 도메인 연결** (커스텀 도메인 + SSL) | 높음 |
+| 3 | **구글 상위노출** (마케팅점수 15점 자리 비어있음) | 중간 |
+| 4 | **홈페이지 SEO/AEO 분석** (크롤링 → meta/schema/heading) | 중간 |
+| 5 | **검색량 트렌드 차트** (DataLab 12개월) | 낮음 |
+| 6 | **소셜 로그인** (카카오/구글/네이버 OAuth) | 낮음 |
+| 7 | **소스 매칭 AI** (규칙 기반 → AI 업그레이드) | 나중 |
 
 ---
 
@@ -808,7 +894,7 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 - **Vercel 배포 URL**: https://web-five-gold-12.vercel.app (프로덕션)
 - **Vercel 프로젝트**: fiftycompanies-projects/web, 리전: icn1 (서울)
 - agents/.env: NSERP_EC2_URL, NSERP_EC2_SECRET, SUPABASE_URL/KEY, ANTHROPIC_API_KEY, SLACK_BOT_TOKEN, TAVILY_API_KEY
-- apps/web/.env.local: SUPABASE URLs, NAVER_AD_API_KEY/SECRET_KEY/CUSTOMER_ID, ANTHROPIC_API_KEY, SERPER_API_KEY, RESEND_API_KEY, CRON_SECRET, REPORT_FROM_EMAIL
+- apps/web/.env.local: SUPABASE URLs, NAVER_AD_API_KEY/SECRET_KEY/CUSTOMER_ID, ANTHROPIC_API_KEY, SERPER_API_KEY, RESEND_API_KEY, CRON_SECRET, REPORT_FROM_EMAIL, PERPLEXITY_API_KEY, OPENAI_SESSION_COOKIE, GOOGLE_SESSION_COOKIE, PROXY_URL
 - 배포 가이드: `apps/web/DEPLOY.md` (환경변수 전체 목록 + 배포 절차)
 - 현재 실데이터: 키워드 174개, 콘텐츠 174건, 블로그 계정 4개, SERP 레코드 417건
 
@@ -843,8 +929,9 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 | 056 | error_logs 테이블 (에러 모니터링, status/error_type CHECK, 3 인덱스) | **SQL 생성 완료** |
 | 057 | brand_analyses 보완 컬럼 (refined_keywords/strengths/appeal/target, refinement_count, last_refined_at) | **SQL 생성 완료** |
 | 058 | questions + client_points + point_transactions + point_settings 테이블 + contents 확장 (content_type, question_id) | **SQL 생성 완료** |
+| 059 | llm_answers + mentions + aeo_scores + aeo_tracking_queue + aeo_tracking_settings 테이블 + point_transactions 'refund' + contents 'aeo_entity' | **SQL 생성 완료** |
 
-> ⚠️ 045~056: scripts/migrations/ 디렉토리에 SQL 파일 생성. Supabase Dashboard에서 실행 필요.
+> ⚠️ 045~059: scripts/migrations/ 디렉토리에 SQL 파일 생성. Supabase Dashboard에서 실행 필요.
 
 ---
 
@@ -876,6 +963,9 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 - middleware에서 error 파라미터 있으면 Supabase 세션 리디렉트 건너뜀 (루프 방지)
 - CREATE TABLE IF NOT EXISTS 함정: 테이블이 이미 존재하면 새 컬럼 무시됨 → ALTER TABLE ADD COLUMN IF NOT EXISTS로 수동 추가
 - serp_results 테이블에는 client_id 컬럼 없음! content_id FK만 있음. 클라이언트별 순위 데이터는 keyword_visibility 테이블(client_id 보유) 사용 필수
+- Playwright optional dependency: `import("playwright")` 하면 Turbopack이 번들링 시도 → `Function("m", "return import(m)")("playwright")` 사용 필수
+- Supabase query builder에는 `.catch()` 없음 → `.then(({ error }) => { if (error) ... })` 패턴 사용
+- AEO 추적 포인트 정책: 추적 자체는 무료, 콘텐츠 생성만 1포인트, 실패 시 refundPoints() 자동 환불
 
 ---
 
