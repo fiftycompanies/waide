@@ -1,10 +1,20 @@
 import { getSelectedClientId, getAiMarketBrands } from "@/lib/actions/brand-actions";
 import { getKeywords } from "@/lib/actions/keyword-actions";
 import { getKeywordStrategy } from "@/lib/actions/keyword-strategy-actions";
+import { getQuestions } from "@/lib/actions/question-actions";
 import { KeywordsClient } from "@/components/keywords/keywords-client";
 import { KeywordStrategySection } from "@/components/keywords/keyword-strategy-section";
+import { KeywordsTabsWrapper } from "@/components/keywords/keywords-tabs-wrapper";
+import { QuestionsTab } from "@/components/questions/questions-tab";
 
-export default async function KeywordsPage() {
+interface KeywordsPageProps {
+  searchParams: Promise<{ tab?: string }>;
+}
+
+export default async function KeywordsPage({ searchParams }: KeywordsPageProps) {
+  const params = await searchParams;
+  const tab = (params.tab ?? "keywords") as "keywords" | "questions";
+
   const [selectedClientId, brands] = await Promise.all([
     getSelectedClientId(),
     getAiMarketBrands(),
@@ -16,6 +26,9 @@ export default async function KeywordsPage() {
 
   // 키워드 전략 조회 (클라이언트 선택 시만)
   const strategy = selectedClientId ? await getKeywordStrategy(selectedClientId) : null;
+
+  // 질문 조회 (클라이언트 선택 시만)
+  const questions = selectedClientId ? await getQuestions(selectedClientId) : [];
 
   return (
     <div className="p-6 md:p-8 space-y-6">
@@ -34,16 +47,39 @@ export default async function KeywordsPage() {
         </div>
       </div>
 
-      {/* AI 키워드 전략 섹션 (클라이언트 선택 시만) */}
-      {selectedClientId && (
-        <KeywordStrategySection
-          clientId={selectedClientId}
-          initialStrategy={strategy}
-        />
-      )}
+      {/* 탭 네비게이션 */}
+      <KeywordsTabsWrapper activeTab={tab} questionCount={questions.length}>
+        {tab === "keywords" && (
+          <>
+            {/* AI 키워드 전략 섹션 (클라이언트 선택 시만) */}
+            {selectedClientId && (
+              <KeywordStrategySection
+                clientId={selectedClientId}
+                initialStrategy={strategy}
+              />
+            )}
 
-      {/* 클라이언트 컴포넌트 (테이블 + 다이얼로그) */}
-      <KeywordsClient keywords={keywords} clientId={selectedClientId} />
+            {/* 클라이언트 컴포넌트 (테이블 + 다이얼로그) */}
+            <KeywordsClient keywords={keywords} clientId={selectedClientId} />
+          </>
+        )}
+
+        {tab === "questions" && selectedClientId && (
+          <QuestionsTab
+            clientId={selectedClientId}
+            questions={questions}
+            keywords={keywords}
+          />
+        )}
+
+        {tab === "questions" && !selectedClientId && (
+          <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border/60 py-16 text-center">
+            <p className="text-sm font-medium text-muted-foreground">
+              사이드바에서 브랜드를 먼저 선택해주세요
+            </p>
+          </div>
+        )}
+      </KeywordsTabsWrapper>
     </div>
   );
 }

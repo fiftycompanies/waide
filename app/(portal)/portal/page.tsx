@@ -73,6 +73,7 @@ interface DashboardData {
   recentKeywordActivity: RecentKeywordActivity[];
   salesAgent: { name: string; phone: string; email: string } | null;
   subscription: { status: string; products: { name: string } | null } | null;
+  pointBalance: number;
 }
 
 const statusLabels: Record<string, { text: string; color: string }> = {
@@ -190,6 +191,15 @@ export default function PortalDashboardPage() {
             {kpi.avgQcScore !== null ? `${kpi.avgQcScore}점` : "-"}
           </p>
         </div>
+      </div>
+
+      {/* Point Balance Banner */}
+      <div className="flex items-center gap-3 px-5 py-3 rounded-xl border bg-gradient-to-r from-amber-50 to-orange-50 border-amber-200/60">
+        <span className="text-lg">🪙</span>
+        <span className="text-sm text-gray-700">
+          잔여 포인트: <span className="font-bold text-amber-700">{data.pointBalance ?? 0}건</span>
+        </span>
+        <span className="text-xs text-gray-400 ml-auto">충전 문의: 담당자에게 연락하세요</span>
       </div>
 
       {/* Marketing Score Card */}

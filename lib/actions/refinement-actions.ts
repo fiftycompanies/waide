@@ -2,6 +2,7 @@
 
 import { createAdminClient } from "@/lib/supabase/service";
 import { revalidatePath } from "next/cache";
+import { initializeClientPoints } from "./point-actions";
 
 /**
  * 분석 결과 보완 데이터 저장 + 재분석 트리거
@@ -231,7 +232,21 @@ export async function applyAnalysisToProject(
     }
 
     if (keywordsToInsert.length > 0) {
-      await db.from("keywords").insert(keywordsToInsert);
+      const { data: insertedKws } = await db
+        .from("keywords")
+        .insert(keywordsToInsert)
+        .select("id");
+
+      // 질문 자동 생성 트리거 (비동기, 실패해도 프로젝트 생성은 유지)
+      if (insertedKws && insertedKws.length > 0) {
+        import("./question-actions").then(({ generateQuestions }) => {
+          for (const kw of insertedKws as Array<{ id: string }>) {
+            generateQuestions(kw.id, clientId).catch((err: unknown) => {
+              console.warn("[applyAnalysisToProject] 질문 생성 실패:", err);
+            });
+          }
+        });
+      }
     }
 
     // 5. users UPDATE (client_id 연결)
@@ -245,6 +260,9 @@ export async function applyAnalysisToProject(
         })
         .eq("id", userId);
     }
+
+    // 6. 포인트 초기화 (가입 보너스)
+    await initializeClientPoints(clientId);
 
     revalidatePath("/portal");
     revalidatePath("/dashboard");

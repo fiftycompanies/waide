@@ -7,6 +7,7 @@ import {
   Bot,
   Building2,
   ClipboardList,
+  Coins,
   DollarSign,
   FileEdit,
   Key,
@@ -100,6 +101,7 @@ const bizNavItems: NavItem[] = [
   { title: "매출 관리", url: "/ops/revenue",  icon: DollarSign,    roles: ADMIN_ONLY },
   { title: "이탈 관리", url: "/ops/churn",    icon: AlertTriangle, roles: ADMIN_ONLY },
   { title: "상품 관리", url: "/ops/products", icon: Package,       roles: ADMIN_ONLY },
+  { title: "포인트 관리", url: "/ops/points", icon: Coins,         roles: ["super_admin", "admin"] },
 ];
 
 // ═══ 영업 CRM ═══

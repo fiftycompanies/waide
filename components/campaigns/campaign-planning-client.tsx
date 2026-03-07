@@ -229,6 +229,11 @@ export function CampaignPlanningClient({
         setSelectedRefIds(new Set());
         setAdditionalNotes("");
         router.refresh();
+      } else if (result.pointError) {
+        toast.error("포인트가 부족합니다", {
+          description: "관리자에게 포인트 충전을 요청하세요.",
+          duration: 5000,
+        });
       } else {
         toast.error(result.error || "생성 실패");
       }

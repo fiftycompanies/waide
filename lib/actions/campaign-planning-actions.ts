@@ -17,6 +17,7 @@
 
 import { createAdminClient } from "@/lib/supabase/service";
 import { revalidatePath } from "next/cache";
+import { canGenerateContent, spendPoints } from "./point-actions";
 
 // ═══════════════════════════════════════════
 // Types
@@ -258,6 +259,15 @@ export async function addManualKeyword(
     return { success: false, error: error.message };
   }
 
+  // 질문 자동 생성 트리거 (비동기, 실패해도 키워드 등록은 유지)
+  if (data?.id) {
+    import("./question-actions").then(({ generateQuestions }) => {
+      generateQuestions(data.id, clientId).catch((err: unknown) => {
+        console.warn("[addManualKeyword] 질문 생성 실패:", err);
+      });
+    });
+  }
+
   revalidatePath("/campaigns");
   revalidatePath("/keywords");
   return { success: true, id: data.id };
@@ -351,9 +361,24 @@ export async function triggerContentGeneration(params: {
   referenceContentIds?: string[];
   additionalNotes?: string;
   contentType?: string;
-}): Promise<{ success: boolean; jobId?: string; error?: string }> {
+  role?: string;
+}): Promise<{ success: boolean; jobId?: string; error?: string; pointError?: boolean }> {
   const db = createAdminClient();
   const now = new Date().toISOString();
+
+  // 0. 역할별 포인트 체크
+  const role = params.role || "admin";
+  if (role !== "super_admin" && role !== "admin") {
+    const pointCheck = await canGenerateContent(role, params.clientId);
+    if (!pointCheck.allowed) {
+      return { success: false, error: pointCheck.error, pointError: true };
+    }
+    // 포인트 차감
+    const spendResult = await spendPoints(params.clientId, null);
+    if (!spendResult.success) {
+      return { success: false, error: spendResult.error, pointError: true };
+    }
+  }
 
   // 1. 키워드 검증 (해당 client의 활성 키워드인지)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

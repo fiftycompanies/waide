@@ -23,6 +23,7 @@
 
 import { createAdminClient } from "@/lib/supabase/service";
 import { collectNaverSuggestions, extractPlaceFeatureKeywords } from "@/lib/naver-suggest-collector";
+import { generateQuestions } from "./question-actions";
 
 // ═══════════════════════════════════════════
 // Types
@@ -196,6 +197,13 @@ export async function approveSuggestedKeyword(
 ): Promise<{ success: boolean; error?: string }> {
   const db = createAdminClient();
 
+  // 승인 전에 client_id 조회
+  const { data: kw } = await db
+    .from("keywords")
+    .select("client_id")
+    .eq("id", keywordId)
+    .single();
+
   const { error } = await db
     .from("keywords")
     .update({
@@ -207,6 +215,14 @@ export async function approveSuggestedKeyword(
     .eq("status", "suggested");
 
   if (error) return { success: false, error: error.message };
+
+  // 질문 자동 생성 트리거 (비동기, 실패해도 승인은 유지)
+  if (kw?.client_id) {
+    generateQuestions(keywordId, kw.client_id).catch((err) => {
+      console.warn("[approveSuggestedKeyword] 질문 생성 실패:", err);
+    });
+  }
+
   return { success: true };
 }
 

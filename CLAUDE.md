@@ -1,7 +1,7 @@
 # Waide (AI Hospitality Aide) — 서비스 IA
 
 > 최종 업데이트: 2026-03-07
-> 버전: Phase IA-1 완료 (IA 구조 변경 — SEO & AEO 메뉴 통합)
+> 버전: Phase 3 완료 (질문 엔진 + 포인트 시스템 + AEO 콘텐츠)
 
 ---
 
@@ -293,6 +293,10 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 | `agent_execution_logs` | lib/agent-runner.ts | 에이전트 실행 로그 (비용/성과 추적) |
 | `report_deliveries` | /ops/clients/[id] (리포트 탭), /api/cron/monthly-report | 월간 리포트 발송 이력 |
 | `content_benchmarks` | lib/agent-chain.ts | 콘텐츠 벤치마크 캐시 (7일 TTL) |
+| `questions` | /keywords?tab=questions, /portal/keywords | 질문 엔진 (키워드→질문 자동 생성, 3소스: LLM/PAA/네이버) |
+| `client_points` | /ops/points | 고객별 포인트 잔액 |
+| `point_transactions` | /ops/points | 포인트 거래 이력 (grant/revoke/spend/signup_bonus) |
+| `point_settings` | /ops/points | 포인트 설정 (가입보너스, 콘텐츠당 비용) |
 | `error_logs` | /ops/error-logs | 에러 모니터링 로그 (client/server/api/cron) |
 
 ### 5-2. API 라우트 맵
@@ -340,6 +344,8 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 | `product-actions.ts` | getProducts(), createProduct(), updateProduct(), deleteProduct(), createSubscription(), updateSubscription(), cancelSubscription(), getClientSubscription() | products, subscriptions, clients |
 | `persona-actions.ts` | updatePersona(), addManualStrength(), removeManualStrength(), regeneratePersona(), getPersona() | clients (brand_persona JSONB) |
 | `report-actions.ts` | getMonthlyReportData(), getReportSettings(), updateReportSettings(), getReportDeliveries(), generateAndSendReport(), resendReport() | clients (metadata JSONB), report_deliveries, keywords, contents, keyword_visibility |
+| `question-actions.ts` | generateQuestions(), getQuestions(), addManualQuestion(), updateQuestion(), deleteQuestion(), regenerateQuestions(), generateAEOContents(), getPortalQuestions() | questions, contents |
+| `point-actions.ts` | initializeClientPoints(), checkPointBalance(), spendPoints(), grantPoints(), revokePoints(), canGenerateContent(), getPointSettings(), updatePointSettings(), getClientPointsList(), getPointTransactions() | client_points, point_transactions, point_settings |
 | `error-log-actions.ts` | logError(), getErrorLogs(), getErrorLogDetail(), updateErrorStatus(), getErrorStats() | error_logs |
 
 ### 5-4. AI 인프라 (lib/)
@@ -692,6 +698,34 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
   - 분석 로딩 페이지: 재분석 시 id 파라미터 지원 (새 분석 생략, 폴링만)
   - 온보딩 팝업 검증: onboarding_status='completed' 설정으로 팝업 자동 비활성화
   - tsc --noEmit 통과
+- Phase 3: 질문 엔진 + 포인트 시스템 + AEO 콘텐츠 자동 생성 (2026-03-07)
+  - scripts/migrations/058_question_engine_points.sql: questions, client_points, point_transactions, point_settings 테이블 + contents 확장 (content_type, question_id)
+  - lib/actions/question-actions.ts: 질문 엔진 (3소스 병렬: Claude LLM 15~20개, Google PAA via Serper, 네이버 자동완성)
+    - generateQuestions(), getQuestions(), addManualQuestion(), updateQuestion(), deleteQuestion(), regenerateQuestions()
+    - generateAEOContents(): 선별 질문 → AI 유형 판단 (aeo_qa/aeo_list) → AEO 콘텐츠 마크다운 생성
+    - 중복 제거: 정규화 + 포함 관계 체크
+  - lib/actions/point-actions.ts: 포인트 시스템 (역할 기반 접근 제어)
+    - initializeClientPoints(): 가입 시 보너스 포인트 지급
+    - canGenerateContent(): admin/super_admin=무제한, sales/client_owner=포인트 차감
+    - spendPoints(), grantPoints(), revokePoints(): 포인트 거래
+    - getPointSettings(), updatePointSettings(): 전역 설정 (signup_bonus, cost_per_content)
+  - components/questions/questions-tab.tsx: 질문 관리 UI (키워드 필터, 소스 필터, 체크박스 선택 max5, 인라인 편집, AEO 생성)
+  - components/points/points-page-client.tsx: 포인트 관리 어드민 UI (3탭: 잔액/거래이력/설정)
+  - app/(dashboard)/ops/points/page.tsx: 포인트 관리 페이지
+  - app/(dashboard)/keywords/page.tsx: 질문 확장 탭 추가 (?tab=questions)
+  - components/keywords/keywords-tabs-wrapper.tsx: 키워드/질문 탭 래퍼
+  - app/(portal)/portal/keywords/page.tsx: 포털 질문 현황 탭 (읽기 전용)
+  - app/(portal)/portal/page.tsx: 포털 대시보드 포인트 잔액 배너
+  - campaign-planning-actions.ts: triggerContentGeneration에 포인트 체크 연동
+  - campaign-planning-client.tsx: 포인트 부족 시 toast 에러 표시
+  - keyword-expansion-actions.ts: approveSuggestedKeyword에 질문 자동 생성 트리거
+  - refinement-actions.ts: applyAnalysisToProject에 포인트 초기화 + 질문 자동 생성 트리거
+  - portal-actions.ts: getPortalDashboardV2에 pointBalance, getPortalPointBalance 추가
+  - 사이드바: 비즈니스 그룹에 "포인트 관리" 메뉴 (super_admin/admin)
+  - contents 테이블 확장: content_type CHECK ('blog_list'/'blog_review'/'blog_info'/'aeo_qa'/'aeo_list'), question_id FK
+  - questions.source CHECK: 'llm'/'paa'/'naver'/'manual'
+  - point_transactions.type CHECK: 'grant'/'revoke'/'spend'/'signup_bonus'
+  - tsc --noEmit 통과
 
 ### 설계 원칙
 
@@ -749,6 +783,7 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 | 12 | **DEV-0** | AI 오케스트레이션 개발 시스템 셋업 (ai-team, tasks, prompts, docs) | ✅ 완료 |
 | 13 | **IA-1** | IA 구조 변경 — SEO & AEO 메뉴 통합 + 탭 구조 + URL 리디렉트 | ✅ 완료 |
 | 14 | **ONBOARD-1** | 브랜드 분석 → 프로젝트 자동 생성 (보완하기/재분석/프로젝트시작/반영하기) | ✅ 완료 |
+| 15 | **Phase 3** | 질문 엔진 + 포인트 시스템 + AEO 콘텐츠 자동 생성 | ✅ 완료 |
 
 ### 미구현 (우선순위 순)
 
@@ -807,6 +842,7 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 | 055 | admin_users CHECK 재생성 (sales 역할 추가) | **SQL 생성 완료** |
 | 056 | error_logs 테이블 (에러 모니터링, status/error_type CHECK, 3 인덱스) | **SQL 생성 완료** |
 | 057 | brand_analyses 보완 컬럼 (refined_keywords/strengths/appeal/target, refinement_count, last_refined_at) | **SQL 생성 완료** |
+| 058 | questions + client_points + point_transactions + point_settings 테이블 + contents 확장 (content_type, question_id) | **SQL 생성 완료** |
 
 > ⚠️ 045~056: scripts/migrations/ 디렉토리에 SQL 파일 생성. Supabase Dashboard에서 실행 필요.
 

@@ -298,7 +298,20 @@ export async function getPortalDashboardV2(clientId: string) {
     })),
     salesAgent,
     subscription: null as { status: string; products: { name: string } | null } | null,
+    pointBalance: await getPortalPointBalance(clientId),
   };
+}
+
+// ── 포인트 잔액 조회 (포털용) ─────────────────────────────────────────
+
+async function getPortalPointBalance(clientId: string): Promise<number> {
+  const db = createAdminClient();
+  const { data } = await db
+    .from("client_points")
+    .select("balance")
+    .eq("client_id", clientId)
+    .maybeSingle();
+  return data?.balance ?? 0;
 }
 
 // ── 포털 키워드 V2 데이터 (Phase P-1) ─────────────────────────────────
