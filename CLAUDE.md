@@ -1,7 +1,7 @@
 # Waide (AI Hospitality Aide) — 서비스 IA
 
-> 최종 업데이트: 2026-03-05
-> 버전: Phase FIX-1 완료 (페르소나 버그 수정 + 분석→페르소나 자동생성 + 포털 분석결과 표시)
+> 최종 업데이트: 2026-03-07
+> 버전: Phase DEV-0 완료 (AI 오케스트레이션 개발 시스템 셋업)
 
 ---
 
@@ -715,6 +715,7 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 | 9 | **STRUCT-1** | 서비스 구조 정리 — 계정관리, 역할메뉴, 브랜드뷰, 온보딩 플로우 | ✅ 완료 |
 | 10 | **ERR-1** | 에러 모니터링 시스템 — Slack 알림 + 에러 로그 관리 페이지 | ✅ 완료 |
 | 11 | **FIX-1** | 페르소나 버그 수정 + 분석→페르소나 자동생성 + 포털 분석결과 표시 | ✅ 완료 |
+| 12 | **DEV-0** | AI 오케스트레이션 개발 시스템 셋업 (ai-team, tasks, prompts, docs) | ✅ 완료 |
 
 ### 미구현 (우선순위 순)
 
@@ -805,3 +806,36 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 - middleware에서 error 파라미터 있으면 Supabase 세션 리디렉트 건너뜀 (루프 방지)
 - CREATE TABLE IF NOT EXISTS 함정: 테이블이 이미 존재하면 새 컬럼 무시됨 → ALTER TABLE ADD COLUMN IF NOT EXISTS로 수동 추가
 - serp_results 테이블에는 client_id 컬럼 없음! content_id FK만 있음. 클라이언트별 순위 데이터는 keyword_visibility 테이블(client_id 보유) 사용 필수
+
+---
+
+## 12. AI 오케스트레이션 개발 시스템 (Phase DEV-0)
+
+### 전체 로드맵
+
+- MASTER_ROADMAP.md 참조 (프로젝트 루트)
+- Phase 0~10, SEO+AEO 통합 재설계
+
+### 에이전트 역할 정의
+
+- ai-team/ 폴더의 각 .md 파일 참조
+- CTO Agent: 전체 오케스트레이션 (ai-team/cto.md)
+- Analysis Dev: 키워드/질문/경쟁사/Gap (ai-team/analysis-dev.md)
+- Content Dev: SEO/AEO 콘텐츠/QC/배포 (ai-team/content-dev.md)
+- Tracking Dev: SERP/LLM/언급/스코어 (ai-team/tracking-dev.md)
+- Infra Dev: DB/배포/크론/모니터링 (ai-team/infra-dev.md)
+
+### Task 기반 워크플로우
+
+- tasks/ 폴더에 task 파일 생성 (tasks/README.md 참조)
+- 상태: pending → in_progress → done
+- 네이밍: task_NNN_제목.md
+- PM이 기획 → task 파일 작성 → Claude Code에 "pending task 실행해" 지시
+
+### 프로젝트 추가 디렉토리
+
+- ai-team/: 에이전트 역할 정의
+- tasks/: 작업 큐 (파일 기반)
+- prompts/: 에이전트용 프롬프트 저장
+- docs/: 설계 문서 (architecture.md 등)
+- MASTER_ROADMAP.md: 전체 Phase 로드맵
