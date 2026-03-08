@@ -10,25 +10,30 @@
 1. 모든 데이터는 client_id FK로 연결. clients가 최상위 부모.
 2. 브랜드 생성: clients INSERT → brand_personas INSERT (트랜잭션)
 3. shadcn/UI 작업: 반드시 cd apps/web 후 실행
-4. DB CHECK 제약 먼저 확인:
-   - jobs.priority: 'high'/'medium'/'low' (소문자)
+4. DB CHECK 제약 먼저 확인 (2026-03-08 DB 스냅샷 기준, 상세: `scripts/schema/check_constraints.sql`):
+   - jobs.priority: 'critical'/'high'/'medium'/'low' (소문자)
    - jobs.trigger_type: 'USER'/'SCHEDULER'/'AGENT' (대문자)
-   - contents.publish_status: 'draft'/'review'/'approved'/'published'/'rejected'
-   - contents.content_type: 'blog_list'/'blog_review'/'blog_info'/'aeo_qa'/'aeo_list'/'aeo_entity'
-   - clients.client_type: 'company'/'sub_client'
-   - keywords.status: 'active'/'paused'/'archived'/'queued'/'refresh'/'suggested' (051 확장)
+   - contents.publish_status: 'draft'/'review'/'approved'/'published'/'rejected'/'archived'
+   - contents.content_type: 'blog_list'/'blog_review'/'blog_info'/'aeo_qa'/'aeo_list'/'aeo_entity'/'single'/'list'/'review'/'info' (⚠️ DEFAULT='blog_post' 미포함 — 수정 필요)
+   - clients.client_type: 'company'/'sub_client'/'platform'/'brand'/'shop'
+   - clients.onboarding_status: 'pending'/'in_progress'/'completed'
+   - clients.status: 'active'/'inactive'/'churned'
+   - keywords.status: 'active'/'paused'/'archived'/'queued'/'refresh'/'suggested'
    - keywords.priority: 'critical'/'high'/'medium'/'low'
-   - accounts.platform: 'naver'/'tistory'/'wordpress'/'medium'/'brunch' (소문자)
+   - accounts.platform: 'naver'/'tistory'/'brunch'/'google'/'wordpress'/'youtube' (⚠️ medium 없음!)
+   - blog_accounts.platform: 'naver'/'tistory'/'wordpress'/'medium'/'brunch'
    - blog_accounts.auth_type: 'manual'/'oauth'/'api_key'
    - publications.status: 'pending'/'publishing'/'published'/'failed'
    - publications.publish_type: 'manual'/'auto'
-   - report_deliveries.status: 'pending'/'generating'/'sent'/'failed'/'skipped'
-   - point_transactions.type: 'grant'/'revoke'/'spend'/'signup_bonus'/'refund'
+   - point_transactions.type: 'grant'/'spend'/'revoke'/'signup_bonus'/'refund'
+   - subscriptions.status: 'trial'/'active'/'past_due'/'cancelled'/'paused' (⚠️ expired 없음!)
+   - subscriptions.plan_name: 'trial'/'basic'/'pro'/'enterprise'
    - llm_answers.ai_model: 'perplexity'/'claude'/'chatgpt'/'gemini'
    - llm_answers.crawl_method: 'api'/'playwright'
-   - mentions.detection_method: 'llm'/'string_match'/'hybrid'
-   - mentions.sentiment: 'positive'/'neutral'/'negative'
+   - mentions.sentiment: 'positive'/'neutral'/'negative' (detection_method CHECK 없음)
    - aeo_tracking_queue.status: 'pending'/'processing'/'completed'/'failed'
+   - brand_analyses.status: 'pending'/'analyzing'/'completed'/'failed'/'converted'
+   - questions.source: 'llm'/'paa'/'naver'/'manual'
 5. contents.account_id FK → blog_accounts(id) (accounts 아님!)
 6. PL/pgSQL 변수명: v_ 접두어
 7. HTML 테이블: Link 금지 → <tr onClick> 패턴
@@ -38,10 +43,10 @@
 11. 매 작업 완료 시 이 CLAUDE.md도 함께 업데이트할 것.
 12. 인증 이중 구조: 어드민=HMAC-SHA256 (admins 테이블), 고객=Supabase Auth (users 테이블). 절대 혼용 금지.
 13. users.role CHECK: 'super_admin'/'admin'/'sales'/'client_owner'/'client_member'
-14. subscriptions.status CHECK: 'trial'/'active'/'past_due'/'cancelled'/'expired'
+14. subscriptions.status CHECK: 'trial'/'active'/'past_due'/'cancelled'/'paused'
 15. admin_users.role CHECK: 'super_admin'/'admin'/'sales'/'viewer' — 사이드바 메뉴 자동 필터링
 16. 고객 계정 연결: users.client_id FK → clients.id (client_users 별도 테이블 없음, 1:N 직접 연결)
-17. DB 마이그레이션 작성 전 반드시 기존 스키마 확인: `scripts/schema/current_schema.sql` 파일로 현재 DB 스키마를 파악한 뒤 설계. CHECK 제약/컬럼 타입/기존 데이터 값을 모르고 마이그레이션 작성 금지.
+17. DB 마이그레이션 작성 전 반드시 기존 스키마 확인: `scripts/schema/check_constraints.sql` + `scripts/schema/columns.sql` 파일로 현재 DB 스키마를 파악한 뒤 설계. CHECK 제약/컬럼 타입/기존 데이터 값/DEFAULT를 모르고 마이그레이션 작성 금지.
 
 ---
 
