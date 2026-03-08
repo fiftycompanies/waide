@@ -592,7 +592,7 @@ export async function getPortalReportV2(clientId: string, year?: number, month?:
         .order("period_end", { ascending: false })
         .limit(2),
       db.from("mentions")
-        .select("brand, position, ai_model")
+        .select("brand_name, position, ai_model")
         .eq("client_id", clientId)
         .eq("is_target", true)
         .gte("created_at", monthStart.toISOString())
@@ -601,7 +601,7 @@ export async function getPortalReportV2(clientId: string, year?: number, month?:
     ]);
 
     const scores = (aeoScoreRes.data || []) as { score: number }[];
-    const mentionRows = (aeoMentionsRes.data || []) as { brand: string; position: number | null; ai_model: string }[];
+    const mentionRows = (aeoMentionsRes.data || []) as { brand_name: string; position: number | null; ai_model: string }[];
 
     if (scores.length > 0 || mentionRows.length > 0) {
       const modelMap = new Map<string, number>();
@@ -617,7 +617,7 @@ export async function getPortalReportV2(clientId: string, year?: number, month?:
           .filter((m) => m.position != null)
           .sort((a, b) => (a.position || 999) - (b.position || 999))
           .slice(0, 5)
-          .map((m) => ({ question: m.brand, model: m.ai_model, position: m.position })),
+          .map((m) => ({ question: m.brand_name, model: m.ai_model, position: m.position })),
       };
     }
   } catch {

@@ -50,7 +50,7 @@ export async function runKnowledgeLearning(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let aeoQuery = (db as any)
       .from("aeo_scores")
-      .select("client_id, score, model_scores, period_start, period_end")
+      .select("client_id, score, details, period_start, period_end")
       .order("period_end", { ascending: false })
       .limit(20);
 
@@ -64,7 +64,7 @@ export async function runKnowledgeLearning(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let mentionsQuery = (db as any)
       .from("mentions")
-      .select("brand, is_target, position, sentiment, ai_model, created_at")
+      .select("brand_name, is_target, position, sentiment, ai_model, created_at")
       .eq("is_target", true)
       .order("created_at", { ascending: false })
       .limit(100);

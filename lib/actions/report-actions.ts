@@ -304,7 +304,7 @@ async function getAEOReportData(db: any, clientId: string, monthStart: Date, mon
     // 멘션 데이터 (이번 달)
     const { data: mentions } = await db
       .from("mentions")
-      .select("brand, is_target, position, sentiment, ai_model, created_at")
+      .select("brand_name, is_target, position, sentiment, ai_model, created_at")
       .eq("client_id", clientId)
       .eq("is_target", true)
       .gte("created_at", monthStart.toISOString())
@@ -315,7 +315,7 @@ async function getAEOReportData(db: any, clientId: string, monthStart: Date, mon
     // 질문별 최근 응답 (LLM answers)
     const { data: llmAnswers } = await db
       .from("llm_answers")
-      .select("question_text, ai_model, created_at")
+      .select("question_id, ai_model, created_at, questions(question)")
       .eq("client_id", clientId)
       .gte("created_at", monthStart.toISOString())
       .lt("created_at", monthEnd.toISOString())
@@ -352,16 +352,16 @@ async function getAEOReportData(db: any, clientId: string, monthStart: Date, mon
       .sort((a, b) => (a.position || 999) - (b.position || 999))
       .slice(0, 5)
       .map((m) => ({
-        question: m.brand || "",
+        question: m.brand_name || "",
         model: m.ai_model || "",
         position: m.position,
       }));
 
     // LLM 응답이 있지만 멘션이 없는 질문 (미노출)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const answeredQuestions = new Set((llmAnswers || []).map((a: any) => a.question_text));
+    const answeredQuestions = new Set((llmAnswers || []).map((a: any) => a.questions?.question || a.question_id));
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const mentionedQuestions = new Set(mentionArr.map((m: any) => m.brand));
+    const mentionedQuestions = new Set(mentionArr.map((m: any) => m.brand_name));
     const unmatchedQuestions = Array.from(answeredQuestions)
       .filter((q) => !mentionedQuestions.has(q))
       .slice(0, 5) as string[];

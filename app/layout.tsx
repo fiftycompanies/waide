@@ -1,18 +1,6 @@
 import type { Metadata } from "next";
-import { DM_Sans, JetBrains_Mono } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
-
-const dmSans = DM_Sans({
-  variable: "--font-dm-sans",
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700", "800"],
-});
-
-const jetbrainsMono = JetBrains_Mono({
-  variable: "--font-jetbrains-mono",
-  subsets: ["latin"],
-});
 
 export const metadata: Metadata = {
   title: "Waide - AI 매장 마케팅 분석",
@@ -41,7 +29,7 @@ export default function RootLayout({
         />
       </head>
       <body
-        className={`${dmSans.variable} ${jetbrainsMono.variable} font-sans antialiased`}
+        className="font-sans antialiased"
       >
         {children}
         <Toaster richColors position="top-right" />
