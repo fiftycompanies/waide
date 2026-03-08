@@ -117,6 +117,29 @@ function LoadingContent() {
   }
 
   if (error) {
+    const handleRetry = () => {
+      if (analysisId) {
+        // 기존 분석 ID로 재시도: status를 리셋하고 다시 폴링
+        fetch(`/api/analyze/${analysisId}/retry`, { method: "POST" })
+          .then((resp) => {
+            if (resp.ok) {
+              setError(null);
+              setProgress(0);
+              setCurrentStep(0);
+              // analysisId가 이미 설정되어 있으므로 useEffect가 재실행됨
+              setAnalysisId(null);
+              setTimeout(() => setAnalysisId(analysisId), 100);
+            } else {
+              // retry API 없으면 홈으로 폴백
+              router.push("/");
+            }
+          })
+          .catch(() => router.push("/"));
+      } else {
+        router.push("/");
+      }
+    };
+
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] text-center px-6">
         <div className="w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center mb-6">
@@ -124,12 +147,20 @@ function LoadingContent() {
         </div>
         <h2 className="text-2xl font-bold text-white mb-4">분석 실패</h2>
         <p className="text-[#a0a0a0] max-w-md mb-8">{error}</p>
-        <button
-          onClick={() => router.push("/")}
-          className="px-6 py-3 bg-[#10b981] hover:bg-[#34d399] text-white font-semibold rounded-xl transition-colors"
-        >
-          다시 시도하기
-        </button>
+        <div className="flex gap-3">
+          <button
+            onClick={handleRetry}
+            className="px-6 py-3 bg-[#10b981] hover:bg-[#34d399] text-white font-semibold rounded-xl transition-colors"
+          >
+            다시 시도하기
+          </button>
+          <button
+            onClick={() => router.push("/")}
+            className="px-6 py-3 bg-[#2a2a2a] hover:bg-[#3a3a3a] text-[#a0a0a0] font-semibold rounded-xl transition-colors"
+          >
+            홈으로
+          </button>
+        </div>
       </div>
     );
   }

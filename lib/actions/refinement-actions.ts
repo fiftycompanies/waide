@@ -45,23 +45,29 @@ export async function refineAnalysis(
       })
       .eq("id", analysisId);
 
-    // 재분석 실행 (비동기)
+    // 재분석 실행 (비동기) — 보완 데이터를 runFullAnalysis에 전달
+    const refinedPayload = {
+      keywords: refinement.keywords,
+      strengths: refinement.strengths || undefined,
+      appeal: refinement.appeal || undefined,
+      target: refinement.target || undefined,
+    };
     try {
       const { runFullAnalysis } = await import("@/lib/place-analyzer");
       // runFullAnalysis를 비동기로 실행하되, 이 요청에서는 즉시 응답
-      runFullAnalysis(analysisId).catch((err) => {
+      runFullAnalysis(analysisId, refinedPayload).catch((err) => {
         console.error("[refineAnalysis] 재분석 실패:", err);
-        // 실패 시 status를 completed로 롤백
+        // 실패 시 status를 failed로 변경 (completed 롤백 금지 — 불완전 데이터 방지)
         db.from("brand_analyses")
-          .update({ status: "completed" })
+          .update({ status: "failed", basic_info: { error: String(err) } })
           .eq("id", analysisId);
       });
     } catch (err) {
       console.error("[refineAnalysis] 재분석 모듈 로드 실패:", err);
-      // 재분석 실패해도 보완 데이터는 저장됨
+      // 재분석 실패해도 보완 데이터는 저장됨 — status를 failed로
       await db
         .from("brand_analyses")
-        .update({ status: "completed" })
+        .update({ status: "failed", basic_info: { error: String(err) } })
         .eq("id", analysisId);
     }
 

@@ -1337,7 +1337,15 @@ JSON으로만 응답하세요.`;
 // Main orchestrator
 // ═══════════════════════════════════════════
 
-export async function runFullAnalysis(analysisId: string): Promise<void> {
+export async function runFullAnalysis(
+  analysisId: string,
+  refinedData?: {
+    keywords?: string[];
+    strengths?: string;
+    appeal?: string;
+    target?: string;
+  }
+): Promise<void> {
   const db = createAdminClient();
 
   // 분석 레코드 가져오기
@@ -1348,6 +1356,9 @@ export async function runFullAnalysis(analysisId: string): Promise<void> {
     .single();
 
   if (error || !analysis) throw new Error("Analysis not found");
+
+  // 재분석 시 client_id 존재 여부 기록 (프로젝트 생성 후 재분석인지 판단)
+  const hasExistingProject = !!(analysis.client_id);
 
   // status → analyzing
   await db
@@ -1389,6 +1400,18 @@ export async function runFullAnalysis(analysisId: string): Promise<void> {
 
     // Step 3: 키워드 후보 대량 생성
     const candidates = generateKeywordCandidates(collected);
+
+    // 보완 키워드가 있으면 후보 목록 최상단에 삽입
+    const userRefinedKws = refinedData?.keywords ?? (analysis.refined_keywords as string[] | null) ?? [];
+    if (userRefinedKws.length > 0) {
+      const existingSet = new Set(candidates.map(c => c.keyword.toLowerCase()));
+      for (const rkw of userRefinedKws) {
+        if (rkw.trim() && !existingSet.has(rkw.trim().toLowerCase())) {
+          candidates.unshift({ keyword: rkw.trim(), source: "사용자보완" });
+          existingSet.add(rkw.trim().toLowerCase());
+        }
+      }
+    }
 
     // Step 4: 검색량 조회 + 필터링
     const keywords = await analyzeKeywordsV2(candidates, collected.name);
@@ -1624,7 +1647,8 @@ export async function runFullAnalysis(analysisId: string): Promise<void> {
     }
 
     // ── 분석 완료 시 clients.onboarding_status 업데이트 (non-blocking) ──
-    if (analysis.client_id) {
+    // 이미 프로젝트가 존재하는 상태에서 재분석하면 onboarding_status 갱신 스킵
+    if (analysis.client_id && !hasExistingProject) {
       try {
         await db
           .from("clients")
