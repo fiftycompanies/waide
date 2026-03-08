@@ -41,6 +41,7 @@
 14. subscriptions.status CHECK: 'trial'/'active'/'past_due'/'cancelled'/'expired'
 15. admin_users.role CHECK: 'super_admin'/'admin'/'sales'/'viewer' — 사이드바 메뉴 자동 필터링
 16. 고객 계정 연결: users.client_id FK → clients.id (client_users 별도 테이블 없음, 1:N 직접 연결)
+17. DB 마이그레이션 작성 전 반드시 기존 스키마 확인: `scripts/schema/current_schema.sql` 파일로 현재 DB 스키마를 파악한 뒤 설계. CHECK 제약/컬럼 타입/기존 데이터 값을 모르고 마이그레이션 작성 금지.
 
 ---
 
