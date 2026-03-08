@@ -95,10 +95,10 @@ ALTER TABLE point_transactions DROP CONSTRAINT IF EXISTS point_transactions_type
 ALTER TABLE point_transactions ADD CONSTRAINT point_transactions_type_check
   CHECK (type IN ('grant', 'spend', 'revoke', 'signup_bonus', 'refund'));
 
--- ── 7. contents: content_type에 'aeo_entity' 확인 + 추가 ──────────────────
--- Phase 3에서 이미 CHECK가 있지만 aeo_entity 포함 재확인
+-- ── 7. contents: content_type CHECK 재설정 ──────────────────────────────────
+-- 허용 값: blog_list/blog_review/blog_info (CLAUDE.md) + single/list/review/info (레거시) + aeo_*
 ALTER TABLE contents DROP CONSTRAINT IF EXISTS contents_content_type_check;
 ALTER TABLE contents ADD CONSTRAINT contents_content_type_check
-  CHECK (content_type IN ('seo_blog', 'aeo_qa', 'aeo_list', 'aeo_entity'));
+  CHECK (content_type IN ('blog_list', 'blog_review', 'blog_info', 'aeo_qa', 'aeo_list', 'aeo_entity', 'single', 'list', 'review', 'info'));
 
 COMMIT;

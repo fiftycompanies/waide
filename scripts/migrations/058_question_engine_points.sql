@@ -66,10 +66,11 @@ VALUES
 ON CONFLICT (setting_key) DO NOTHING;
 
 -- 5. contents 테이블 확장
-ALTER TABLE contents ADD COLUMN IF NOT EXISTS content_type text DEFAULT 'seo_blog';
+ALTER TABLE contents ADD COLUMN IF NOT EXISTS content_type text;
 ALTER TABLE contents ADD COLUMN IF NOT EXISTS question_id uuid REFERENCES questions(id);
 
 -- content_type CHECK 제약 추가 (기존 제약 없으면)
+-- 허용 값: blog_list/blog_review/blog_info (CLAUDE.md) + single/list/review/info (레거시) + aeo_*
 DO $$
 BEGIN
   IF NOT EXISTS (
@@ -77,7 +78,7 @@ BEGIN
     WHERE conname = 'contents_content_type_check'
   ) THEN
     ALTER TABLE contents ADD CONSTRAINT contents_content_type_check
-      CHECK (content_type IN ('seo_blog', 'aeo_qa', 'aeo_list', 'aeo_entity'));
+      CHECK (content_type IN ('blog_list', 'blog_review', 'blog_info', 'aeo_qa', 'aeo_list', 'aeo_entity', 'single', 'list', 'review', 'info'));
   END IF;
 END $$;
 
