@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useTransition, useMemo } from "react";
+import { useState, useTransition, useMemo, useEffect } from "react";
 import { toast } from "sonner";
-import { Plus, Trash2, ToggleLeft, ToggleRight, Pencil } from "lucide-react";
+import { Plus, Trash2, ToggleLeft, ToggleRight, Pencil, Star, Loader2, CheckCircle2, XCircle, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -20,16 +20,29 @@ import {
   updateBlogAccount,
   deleteBlogAccount,
 } from "@/lib/actions/blog-account-actions";
+import {
+  testBlogConnection,
+  createApiKeyAccount,
+  setDefaultAccount,
+} from "@/lib/actions/publish-actions";
 import type { AccountGrade } from "@/lib/actions/recommendation-actions";
 import { BrandBadge } from "@/components/ui/brand-badge";
 import { BrandFilter } from "@/components/ui/brand-filter";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 // ── 상수 ──────────────────────────────────────────────────────────────────────
 const PLATFORM_LABELS: Record<string, string> = {
   naver:     "네이버 블로그",
   tistory:   "티스토리",
   wordpress: "워드프레스",
+  medium:    "미디엄",
+};
+
+const PLATFORM_ICONS: Record<string, string> = {
+  naver:     "🟢",
+  tistory:   "🟠",
+  wordpress: "🔵",
+  medium:    "⚫",
 };
 
 const SCORE_COLORS: Record<string, string> = {
@@ -39,10 +52,16 @@ const SCORE_COLORS: Record<string, string> = {
   미확인: "bg-gray-100 text-gray-500 border-gray-200",
 };
 
+const AUTH_LABELS: Record<string, string> = {
+  manual: "수동",
+  oauth:  "OAuth",
+  api_key: "API키",
+};
+
 const selectCls =
   "flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring";
 
-// ── 계정 추가/수정 다이얼로그 ─────────────────────────────────────────────────
+// ── 기존 계정 추가/수정 다이얼로그 (네이버 등 수동 등록용) ──────────────────
 interface AccountDialogProps {
   clientId: string;
   account?: BlogAccount | null;
@@ -100,7 +119,7 @@ function AccountDialog({ clientId, account, open, onClose }: AccountDialogProps)
     <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>{isEdit ? "계정 수정" : "블로그 계정 추가"}</DialogTitle>
+          <DialogTitle>{isEdit ? "계정 수정" : "수동 계정 추가 (네이버 등)"}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4 py-2">
           <div className="space-y-1.5">
@@ -124,6 +143,7 @@ function AccountDialog({ clientId, account, open, onClose }: AccountDialogProps)
               <option value="naver">네이버 블로그</option>
               <option value="tistory">티스토리</option>
               <option value="wordpress">워드프레스</option>
+              <option value="brunch">브런치</option>
             </select>
           </div>
 
@@ -174,6 +194,293 @@ function AccountDialog({ clientId, account, open, onClose }: AccountDialogProps)
   );
 }
 
+// ── API 계정 연동 다이얼로그 (Tistory OAuth / WordPress API / Medium Token) ──
+interface ApiAccountDialogProps {
+  clientId: string;
+  open: boolean;
+  onClose: () => void;
+  tistoryEnabled: boolean;
+}
+
+function ApiAccountDialog({ clientId, open, onClose, tistoryEnabled }: ApiAccountDialogProps) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+  const [platform, setPlatform] = useState<"tistory" | "wordpress" | "medium">("tistory");
+  const [testResult, setTestResult] = useState<{ success: boolean; info?: string; error?: string } | null>(null);
+
+  // WordPress fields
+  const [wpUrl, setWpUrl] = useState("");
+  const [wpUsername, setWpUsername] = useState("");
+  const [wpPassword, setWpPassword] = useState("");
+  const [wpName, setWpName] = useState("");
+
+  // Medium fields
+  const [mediumToken, setMediumToken] = useState("");
+  const [mediumName, setMediumName] = useState("");
+
+  function resetFields() {
+    setTestResult(null);
+    setWpUrl(""); setWpUsername(""); setWpPassword(""); setWpName("");
+    setMediumToken(""); setMediumName("");
+  }
+
+  function handleTistoryOAuth() {
+    const tistoryClientId = process.env.NEXT_PUBLIC_TISTORY_CLIENT_ID;
+    const tistoryRedirectUri = process.env.NEXT_PUBLIC_TISTORY_REDIRECT_URI;
+
+    if (!tistoryClientId || !tistoryRedirectUri) {
+      toast.error("Tistory API 키 설정이 필요합니다.");
+      return;
+    }
+
+    const oauthUrl = `https://www.tistory.com/oauth/authorize?client_id=${tistoryClientId}&redirect_uri=${encodeURIComponent(tistoryRedirectUri)}&response_type=code&state=${clientId}`;
+    window.location.href = oauthUrl;
+  }
+
+  function handleTest() {
+    startTransition(async () => {
+      setTestResult(null);
+      let result;
+
+      if (platform === "wordpress") {
+        result = await testBlogConnection({
+          platform: "wordpress",
+          blogUrl: wpUrl,
+          apiKey: wpUsername,
+          apiSecret: wpPassword,
+        });
+      } else if (platform === "medium") {
+        result = await testBlogConnection({
+          platform: "medium",
+          apiKey: mediumToken,
+        });
+      } else {
+        toast.error("Tistory는 OAuth 연동을 사용해주세요.");
+        return;
+      }
+
+      setTestResult(result);
+      if (result.success) {
+        toast.success(result.info || "연동 성공!");
+      } else {
+        toast.error(result.error || "연동 실패");
+      }
+    });
+  }
+
+  function handleSave() {
+    startTransition(async () => {
+      let result;
+
+      if (platform === "wordpress") {
+        if (!wpUrl || !wpUsername || !wpPassword) {
+          toast.error("모든 필드를 입력해주세요.");
+          return;
+        }
+        result = await createApiKeyAccount({
+          clientId,
+          platform: "wordpress",
+          accountName: wpName || wpUrl.replace(/https?:\/\//, "").replace(/\/$/, ""),
+          blogUrl: wpUrl,
+          apiKey: wpUsername,
+          apiSecret: wpPassword,
+        });
+      } else if (platform === "medium") {
+        if (!mediumToken) {
+          toast.error("Integration Token을 입력해주세요.");
+          return;
+        }
+        // Medium user ID 조회
+        const meResult = await testBlogConnection({ platform: "medium", apiKey: mediumToken });
+        result = await createApiKeyAccount({
+          clientId,
+          platform: "medium",
+          accountName: mediumName || "Medium",
+          apiKey: mediumToken,
+        });
+      } else {
+        toast.error("Tistory는 OAuth 연동을 사용해주세요.");
+        return;
+      }
+
+      if (result?.success) {
+        toast.success("계정이 연동되었습니다.");
+        onClose();
+        resetFields();
+        router.refresh();
+      } else {
+        toast.error(result?.error ?? "연동 실패");
+      }
+    });
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (!v) { onClose(); resetFields(); } }}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>블로그 계정 연동</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          {/* 플랫폼 선택 */}
+          <div className="space-y-1.5">
+            <Label>플랫폼 선택</Label>
+            <div className="grid grid-cols-3 gap-2">
+              {(["tistory", "wordpress", "medium"] as const).map((p) => (
+                <button
+                  key={p}
+                  onClick={() => { setPlatform(p); setTestResult(null); }}
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
+                    platform === p
+                      ? "border-violet-400 bg-violet-50 text-violet-700"
+                      : "border-border hover:border-violet-200 text-muted-foreground"
+                  }`}
+                >
+                  <span>{PLATFORM_ICONS[p]}</span>
+                  {PLATFORM_LABELS[p]}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Tistory OAuth */}
+          {platform === "tistory" && (
+            <div className="space-y-3">
+              {tistoryEnabled ? (
+                <Button
+                  onClick={handleTistoryOAuth}
+                  className="w-full bg-orange-500 hover:bg-orange-600"
+                >
+                  <ExternalLink className="h-4 w-4 mr-1.5" />
+                  Tistory 계정 연동하기
+                </Button>
+              ) : (
+                <div className="text-sm text-muted-foreground bg-muted/50 rounded-lg p-4">
+                  <p className="font-medium">Tistory API 키 설정이 필요합니다</p>
+                  <p className="text-xs mt-1">
+                    환경변수 TISTORY_CLIENT_ID, TISTORY_CLIENT_SECRET, TISTORY_REDIRECT_URI를 설정해주세요.
+                  </p>
+                </div>
+              )}
+              <p className="text-xs text-muted-foreground">
+                Tistory OAuth 인증 페이지로 이동하여 계정을 연동합니다.
+              </p>
+            </div>
+          )}
+
+          {/* WordPress API Key */}
+          {platform === "wordpress" && (
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+                <Label>계정 이름 (표시용)</Label>
+                <Input
+                  placeholder="예: 회사 블로그"
+                  value={wpName}
+                  onChange={(e) => setWpName(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>사이트 URL *</Label>
+                <Input
+                  placeholder="https://myblog.com"
+                  value={wpUrl}
+                  onChange={(e) => setWpUrl(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>사용자명 *</Label>
+                <Input
+                  placeholder="admin"
+                  value={wpUsername}
+                  onChange={(e) => setWpUsername(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>앱 비밀번호 *</Label>
+                <Input
+                  type="password"
+                  placeholder="xxxx xxxx xxxx xxxx"
+                  value={wpPassword}
+                  onChange={(e) => setWpPassword(e.target.value)}
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  WordPress 관리자 &gt; 사용자 &gt; 프로필 &gt; 앱 비밀번호에서 생성
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Medium Token */}
+          {platform === "medium" && (
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+                <Label>계정 이름 (표시용)</Label>
+                <Input
+                  placeholder="예: Medium"
+                  value={mediumName}
+                  onChange={(e) => setMediumName(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Integration Token *</Label>
+                <Input
+                  type="password"
+                  placeholder="토큰을 입력하세요"
+                  value={mediumToken}
+                  onChange={(e) => setMediumToken(e.target.value)}
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  Medium &gt; Settings &gt; Security and apps &gt; Integration tokens에서 발급
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* 연동 테스트 결과 */}
+          {testResult && (
+            <div className={`flex items-center gap-2 p-3 rounded-lg text-sm ${
+              testResult.success
+                ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                : "bg-red-50 text-red-700 border border-red-200"
+            }`}>
+              {testResult.success ? (
+                <CheckCircle2 className="h-4 w-4 shrink-0" />
+              ) : (
+                <XCircle className="h-4 w-4 shrink-0" />
+              )}
+              <span>{testResult.success ? testResult.info : testResult.error}</span>
+            </div>
+          )}
+        </div>
+
+        <DialogFooter className="gap-2 sm:gap-0">
+          <Button variant="outline" onClick={() => { onClose(); resetFields(); }} disabled={isPending}>
+            취소
+          </Button>
+          {platform !== "tistory" && (
+            <>
+              <Button
+                variant="outline"
+                onClick={handleTest}
+                disabled={isPending}
+              >
+                {isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
+                연동 테스트
+              </Button>
+              <Button
+                onClick={handleSave}
+                disabled={isPending}
+                className="bg-violet-600 hover:bg-violet-700"
+              >
+                {isPending ? "처리 중..." : "저장"}
+              </Button>
+            </>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 const GRADE_COLORS: Record<string, string> = {
   S: "bg-violet-100 text-violet-700 border-violet-300",
   A: "bg-blue-100 text-blue-700 border-blue-200",
@@ -186,15 +493,38 @@ interface BlogAccountsClientProps {
   accounts: BlogAccount[];
   accountGrades?: AccountGrade[];
   clientId: string | null;
+  tistoryEnabled?: boolean;
 }
 
-export function BlogAccountsClient({ accounts, accountGrades = [], clientId }: BlogAccountsClientProps) {
+export function BlogAccountsClient({ accounts, accountGrades = [], clientId, tistoryEnabled = false }: BlogAccountsClientProps) {
   const isAllMode = !clientId;
   const gradeMap = new Map(accountGrades.map((g) => [g.account_id, g]));
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
   const [addOpen, setAddOpen] = useState(false);
+  const [apiAddOpen, setApiAddOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<BlogAccount | null>(null);
+
+  // URL 파라미터로 연동 결과 표시
+  useEffect(() => {
+    const success = searchParams.get("success");
+    const error = searchParams.get("error");
+    if (success === "tistory_connected") {
+      toast.success("Tistory 계정이 연동되었습니다!");
+    } else if (error) {
+      const errorMessages: Record<string, string> = {
+        tistory_no_code: "Tistory 인증 코드를 받지 못했습니다.",
+        tistory_no_client: "클라이언트 정보가 없습니다. 다시 시도해주세요.",
+        tistory_not_configured: "Tistory API 키가 설정되지 않았습니다.",
+        tistory_token_failed: "Tistory 토큰 발급에 실패했습니다.",
+        tistory_blog_info_failed: "Tistory 블로그 정보 조회에 실패했습니다.",
+        tistory_save_failed: "Tistory 계정 저장에 실패했습니다.",
+        tistory_callback_error: "Tistory 연동 중 오류가 발생했습니다.",
+      };
+      toast.error(errorMessages[error] || `연동 오류: ${error}`);
+    }
+  }, [searchParams]);
 
   // 브랜드 필터 (전체 모드)
   const [selectedBrands, setSelectedBrands] = useState<string[]>([]);
@@ -236,6 +566,19 @@ export function BlogAccountsClient({ accounts, accountGrades = [], clientId }: B
     });
   }
 
+  function handleSetDefault(acc: BlogAccount) {
+    if (!clientId) return;
+    startTransition(async () => {
+      const result = await setDefaultAccount(acc.id, clientId);
+      if (result.success) {
+        toast.success(`${acc.account_name}을(를) 기본 계정으로 설정했습니다.`);
+        router.refresh();
+      } else {
+        toast.error(result.error ?? "설정 실패");
+      }
+    });
+  }
+
   return (
     <>
       {/* 브랜드 필터 */}
@@ -249,14 +592,25 @@ export function BlogAccountsClient({ accounts, accountGrades = [], clientId }: B
       <div className="flex items-center justify-between">
         <p className="text-xs text-muted-foreground">총 {displayedAccounts.length}개 계정</p>
         {!isAllMode && (
-          <Button
-            size="sm"
-            onClick={() => setAddOpen(true)}
-            className="gap-1.5 h-8 bg-violet-600 hover:bg-violet-700"
-          >
-            <Plus className="h-3.5 w-3.5" />
-            계정 추가
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setAddOpen(true)}
+              className="gap-1.5 h-8"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              수동 등록
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => setApiAddOpen(true)}
+              className="gap-1.5 h-8 bg-violet-600 hover:bg-violet-700"
+            >
+              <ExternalLink className="h-3.5 w-3.5" />
+              API 연동
+            </Button>
+          </div>
         )}
       </div>
 
@@ -265,7 +619,7 @@ export function BlogAccountsClient({ accounts, accountGrades = [], clientId }: B
         <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border/60 py-16 text-center">
           <p className="text-sm font-medium text-muted-foreground">등록된 블로그 계정이 없습니다</p>
           <p className="text-xs text-muted-foreground/70 mt-1">
-            [+ 계정 추가] 버튼으로 발행 계정을 등록하세요.
+            [API 연동] 으로 Tistory/WordPress/Medium을 연결하거나, [수동 등록]으로 계정을 추가하세요.
           </p>
         </div>
       ) : (
@@ -275,12 +629,12 @@ export function BlogAccountsClient({ accounts, accountGrades = [], clientId }: B
               <tr className="border-b border-border/60 bg-muted/40 text-xs font-medium text-muted-foreground">
                 {isAllMode && <th className="px-4 py-3 text-left">브랜드</th>}
                 <th className="px-4 py-3 text-left">계정명</th>
+                <th className="px-4 py-3 text-center">플랫폼</th>
                 <th className="px-4 py-3 text-center">등급</th>
                 <th className="px-4 py-3 text-center">점수</th>
-                <th className="px-4 py-3 text-center">플랫폼</th>
                 <th className="px-4 py-3 text-left">블로그URL</th>
-                <th className="px-4 py-3 text-center">블로그지수</th>
-                <th className="px-4 py-3 text-center">고정IP</th>
+                <th className="px-4 py-3 text-center">인증</th>
+                <th className="px-4 py-3 text-center">기본</th>
                 <th className="px-4 py-3 text-center">상태</th>
                 <th className="px-4 py-3 text-center">액션</th>
               </tr>
@@ -307,22 +661,17 @@ export function BlogAccountsClient({ accounts, accountGrades = [], clientId }: B
                       )}
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-center text-xs text-muted-foreground">
-                    {PLATFORM_LABELS[acc.platform] ?? acc.platform}
+                  <td className="px-4 py-3 text-center text-xs">
+                    <span className="whitespace-nowrap">
+                      {PLATFORM_ICONS[acc.platform] ?? ""} {PLATFORM_LABELS[acc.platform] ?? acc.platform}
+                    </span>
                   </td>
                   {/* 등급 배지 */}
                   <td className="px-4 py-3 text-center">
                     {grade ? (
-                      <div className="flex flex-col items-center gap-0.5">
-                        <span className={`inline-flex items-center rounded border px-1.5 py-0.5 text-[11px] font-bold ${GRADE_COLORS[grade.grade] ?? ""}`}>
-                          {grade.grade}
-                          {grade.previous_grade && grade.previous_grade !== grade.grade && (
-                            <span className="ml-0.5 text-[9px]">
-                              {["S","A","B","C"].indexOf(grade.grade) < ["S","A","B","C"].indexOf(grade.previous_grade) ? "↑" : "↓"}
-                            </span>
-                          )}
-                        </span>
-                      </div>
+                      <span className={`inline-flex items-center rounded border px-1.5 py-0.5 text-[11px] font-bold ${GRADE_COLORS[grade.grade] ?? ""}`}>
+                        {grade.grade}
+                      </span>
                     ) : (
                       <span className="text-muted-foreground/40 text-xs">—</span>
                     )}
@@ -346,19 +695,23 @@ export function BlogAccountsClient({ accounts, accountGrades = [], clientId }: B
                     )}
                   </td>
                   <td className="px-4 py-3 text-center">
-                    {acc.blog_score ? (
-                      <Badge
-                        variant="outline"
-                        className={`text-[10px] px-1.5 ${SCORE_COLORS[acc.blog_score] ?? ""}`}
-                      >
-                        {acc.blog_score}
-                      </Badge>
-                    ) : (
-                      <span className="text-muted-foreground/40 text-xs">—</span>
-                    )}
+                    <Badge variant="outline" className="text-[10px] px-1.5">
+                      {AUTH_LABELS[acc.auth_type ?? "manual"] ?? acc.auth_type}
+                    </Badge>
                   </td>
-                  <td className="px-4 py-3 text-center text-xs text-muted-foreground font-mono">
-                    {acc.fixed_ip ?? <span className="text-muted-foreground/40">—</span>}
+                  <td className="px-4 py-3 text-center">
+                    {acc.is_default ? (
+                      <Star className="h-4 w-4 text-amber-500 mx-auto fill-amber-500" />
+                    ) : (
+                      <button
+                        onClick={() => handleSetDefault(acc)}
+                        disabled={isPending || isAllMode}
+                        className="text-muted-foreground/40 hover:text-amber-500 transition-colors disabled:opacity-30"
+                        title="기본 계정으로 설정"
+                      >
+                        <Star className="h-4 w-4 mx-auto" />
+                      </button>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-center">
                     <Badge
@@ -412,11 +765,10 @@ export function BlogAccountsClient({ accounts, accountGrades = [], clientId }: B
 
       {/* 다이얼로그 */}
       {clientId && (
-        <AccountDialog
-          clientId={clientId}
-          open={addOpen}
-          onClose={() => setAddOpen(false)}
-        />
+        <>
+          <AccountDialog clientId={clientId} open={addOpen} onClose={() => setAddOpen(false)} />
+          <ApiAccountDialog clientId={clientId} open={apiAddOpen} onClose={() => setApiAddOpen(false)} tistoryEnabled={tistoryEnabled} />
+        </>
       )}
       {editTarget && clientId && (
         <AccountDialog

@@ -2,36 +2,33 @@
 
 import { useEffect, useState, useTransition } from "react";
 import {
-  Activity,
   AlertTriangle,
   BarChart2,
   Bot,
   Building2,
-  CalendarClock,
   ClipboardList,
-  CreditCard,
+  Coins,
   DollarSign,
   FileEdit,
-  GitBranch,
   Key,
   LayoutDashboard,
   Library,
   Loader2,
   LogOut,
   Package,
+  Radio,
   Rocket,
   Search,
+  Send,
   Settings,
   ShieldAlert,
   ShieldCheck,
   SlidersHorizontal,
+  Smartphone,
   Store,
-  Sparkles,
-  Target,
+  Timer,
   UserCheck,
   UserCog,
-  Users,
-  Zap,
 } from "lucide-react";
 import { Logo } from "@/components/logo";
 import Link from "next/link";
@@ -81,45 +78,55 @@ interface NavItem {
 
 const ALL_ROLES: AdminRole[] = ["super_admin", "admin", "sales", "viewer"];
 const ADMIN_ONLY: AdminRole[] = ["super_admin", "admin", "viewer"];
+const SUPER_ADMIN_ONLY: AdminRole[] = ["super_admin"];
 
-// ── 상단: 서비스 ──────────────────────────────────────────────
+// ═══ 서비스 (SEO & AEO) ═══
 const serviceNavItems: NavItem[] = [
-  { title: "대시보드",    url: "/dashboard",       icon: LayoutDashboard, roles: ALL_ROLES },
-  { title: "키워드 관리", url: "/keywords",         icon: Key,            roles: ADMIN_ONLY },
-  { title: "콘텐츠 관리", url: "/ops/contents",     icon: FileEdit,       roles: ALL_ROLES },
-  { title: "발행 추천",   url: "/analytics/recommendations", icon: Sparkles, roles: ADMIN_ONLY },
-  { title: "성과 분석",   url: "/analytics",        icon: BarChart2,      roles: ALL_ROLES },
+  { title: "대시보드",    url: "/dashboard",  icon: LayoutDashboard, roles: ALL_ROLES },
+  { title: "키워드 관리", url: "/keywords",   icon: Key,             roles: ALL_ROLES },
+  { title: "콘텐츠 관리", url: "/contents",   icon: FileEdit,        roles: ALL_ROLES },
+  { title: "발행 관리",   url: "/publish",    icon: Send,            roles: ADMIN_ONLY },
+  { title: "성과 분석",   url: "/analytics",  icon: BarChart2,       roles: ALL_ROLES },
 ];
 
-// ── 하단: 어드민/영업자만 보는 영역 ────────────────────────────────────
+// ═══ 고객 관리 ═══
 const clientMgmtNavItems: NavItem[] = [
-  { title: "고객 포트폴리오", url: "/ops/clients",              icon: Building2, roles: ALL_ROLES },
-  { title: "브랜드 관리",     url: "/brands",                    icon: Store,     roles: ALL_ROLES },
-  { title: "온보딩",          url: "/ops/onboarding",            icon: Rocket,    roles: ALL_ROLES },
-  { title: "계정 관리",       url: "/ops/accounts-management",   icon: UserCog,   roles: ["super_admin", "admin"] },
+  { title: "고객 포트폴리오", url: "/clients",    icon: Building2, roles: ALL_ROLES },
+  { title: "브랜드 관리",     url: "/brands",     icon: Store,     roles: ALL_ROLES },
+  { title: "온보딩",          url: "/ops/onboarding", icon: Rocket,    roles: ALL_ROLES },
+  { title: "계정 관리",       url: "/accounts",   icon: UserCog,   roles: ["super_admin", "admin"] },
 ];
 
+// ═══ 비즈니스 ═══
 const bizNavItems: NavItem[] = [
-  { title: "매출 관리", url: "/ops/revenue", icon: DollarSign,    roles: ADMIN_ONLY },
-  { title: "이탈 관리", url: "/ops/churn",   icon: AlertTriangle, roles: ADMIN_ONLY },
+  { title: "매출 관리", url: "/ops/revenue",  icon: DollarSign,    roles: ADMIN_ONLY },
+  { title: "이탈 관리", url: "/ops/churn",    icon: AlertTriangle, roles: ADMIN_ONLY },
+  { title: "상품 관리", url: "/ops/products", icon: Package,       roles: ADMIN_ONLY },
+  { title: "포인트 관리", url: "/ops/points", icon: Coins,         roles: ["super_admin", "admin"] },
 ];
 
+// ═══ 영업 CRM ═══
 const crmNavItems: NavItem[] = [
   { title: "분석 로그", url: "/ops/analysis-logs", icon: ClipboardList, roles: ALL_ROLES },
   { title: "영업사원",  url: "/ops/sales-agents",  icon: UserCheck,     roles: ADMIN_ONLY },
 ];
 
+// ═══ 리소스 ═══
 const resourceNavItems: NavItem[] = [
-  { title: "블로그 계정",     url: "/blog-accounts", icon: Users,   roles: ADMIN_ONLY },
-  { title: "소스 라이브러리", url: "/sources",        icon: Library, roles: ADMIN_ONLY },
+  { title: "블로그 계정",     url: "/ops/blog-accounts", icon: Smartphone, roles: ADMIN_ONLY },
+  { title: "소스 라이브러리", url: "/ops/sources",       icon: Library,    roles: ADMIN_ONLY },
+  { title: "자동 스케줄러",   url: "/ops/scheduler",     icon: Timer,      roles: ADMIN_ONLY },
 ];
 
+// ═══ 설정 ═══
 const settingsNavItems: NavItem[] = [
-  { title: "에이전트 설정", url: "/ops/agent-settings",    icon: Bot,              roles: ADMIN_ONLY },
-  { title: "점수 가중치",   url: "/ops/scoring-settings",  icon: SlidersHorizontal, roles: ADMIN_ONLY },
-  { title: "SERP 설정",     url: "/ops/serp-settings",     icon: Search,           roles: ADMIN_ONLY },
-  { title: "API 설정",      url: "/settings",              icon: Settings,         roles: ADMIN_ONLY },
-  { title: "에러 로그",     url: "/ops/error-logs",        icon: ShieldAlert,      roles: ["super_admin", "admin"] },
+  { title: "에이전트 설정", url: "/settings/agents",      icon: Bot,               roles: ADMIN_ONLY },
+  { title: "점수 가중치",   url: "/ops/scoring-settings", icon: SlidersHorizontal, roles: ADMIN_ONLY },
+  { title: "SERP 설정",     url: "/ops/serp-settings",    icon: Search,            roles: ADMIN_ONLY },
+  { title: "AEO 설정",      url: "/ops/aeo-settings",     icon: Radio,             roles: ["super_admin", "admin"] },
+  { title: "API 설정",      url: "/ops/settings",         icon: Settings,          roles: ADMIN_ONLY },
+  { title: "에러 로그",     url: "/ops/error-logs",       icon: ShieldAlert,       roles: ["super_admin", "admin"] },
+  { title: "어드민 관리",   url: "/settings/admins",      icon: ShieldCheck,       roles: SUPER_ADMIN_ONLY },
 ];
 
 // ── 역할 라벨 매핑 ────────────────────────────────────────────────────────
@@ -169,18 +176,13 @@ export function AppSidebar({ brands = [], selectedClientId = null, adminRole = n
   const filterByRole = (items: NavItem[]) =>
     items.filter((item) => item.roles.includes(currentRole));
 
-  // 상단: 고객도 보는 서비스 메뉴
-  const topNavGroups = [
-    { label: "서비스", items: filterByRole(serviceNavItems) },
-  ].filter((g) => g.items.length > 0);
-
-  // 하단: 내부 관리 메뉴
-  const bottomNavGroups = [
-    { label: "고객 관리", items: filterByRole(clientMgmtNavItems) },
-    { label: "비즈니스", items: filterByRole(bizNavItems) },
-    { label: "영업 CRM", items: filterByRole(crmNavItems) },
-    { label: "리소스", items: filterByRole(resourceNavItems) },
-    { label: "설정", items: filterByRole(settingsNavItems) },
+  const navGroups = [
+    { label: "서비스", items: filterByRole(serviceNavItems), separator: false },
+    { label: "고객 관리", items: filterByRole(clientMgmtNavItems), separator: true },
+    { label: "비즈니스", items: filterByRole(bizNavItems), separator: false },
+    { label: "영업 CRM", items: filterByRole(crmNavItems), separator: false },
+    { label: "리소스", items: filterByRole(resourceNavItems), separator: false },
+    { label: "설정", items: filterByRole(settingsNavItems), separator: false },
   ].filter((g) => g.items.length > 0);
 
   return (
@@ -198,63 +200,35 @@ export function AppSidebar({ brands = [], selectedClientId = null, adminRole = n
       </div>
 
       <SidebarContent className="px-2">
-        {/* 상단: 고객도 보는 서비스 메뉴 */}
-        {topNavGroups.map((group) => (
-          <SidebarGroup key={group.label}>
-            <SidebarGroupLabel className="text-xs font-medium text-muted-foreground px-2">
-              {group.label}
-            </SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {group.items.map((item) => (
-                  <SidebarMenuItem key={item.url}>
-                    <SidebarMenuButton
-                      asChild
-                      isActive={isActive(item.url)}
-                      className="transition-colors"
-                    >
-                      <Link href={item.url}>
-                        <item.icon className="h-4 w-4" />
-                        <span>{item.title}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        ))}
-
-        {/* 구분선 */}
-        {bottomNavGroups.length > 0 && (
-          <div className="mx-3 border-t border-border/40" />
-        )}
-
-        {/* 하단: 내부 관리 메뉴 */}
-        {bottomNavGroups.map((group) => (
-          <SidebarGroup key={group.label}>
-            <SidebarGroupLabel className="text-xs font-medium text-muted-foreground px-2">
-              {group.label}
-            </SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {group.items.map((item) => (
-                  <SidebarMenuItem key={item.url}>
-                    <SidebarMenuButton
-                      asChild
-                      isActive={isActive(item.url)}
-                      className="transition-colors"
-                    >
-                      <Link href={item.url}>
-                        <item.icon className="h-4 w-4" />
-                        <span>{item.title}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
+        {navGroups.map((group) => (
+          <div key={group.label}>
+            {group.separator && (
+              <div className="mx-3 border-t border-border/40" />
+            )}
+            <SidebarGroup>
+              <SidebarGroupLabel className="text-xs font-medium text-muted-foreground px-2">
+                {group.label}
+              </SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {group.items.map((item) => (
+                    <SidebarMenuItem key={item.url}>
+                      <SidebarMenuButton
+                        asChild
+                        isActive={isActive(item.url)}
+                        className="transition-colors"
+                      >
+                        <Link href={item.url}>
+                          <item.icon className="h-4 w-4" />
+                          <span>{item.title}</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          </div>
         ))}
       </SidebarContent>
 
@@ -285,14 +259,6 @@ export function AppSidebar({ brands = [], selectedClientId = null, adminRole = n
                 계정 설정
               </Link>
             </DropdownMenuItem>
-            {currentRole === "super_admin" && (
-              <DropdownMenuItem asChild>
-                <Link href="/settings/admins">
-                  <ShieldCheck className="h-4 w-4 mr-2" />
-                  어드민 관리
-                </Link>
-              </DropdownMenuItem>
-            )}
             <DropdownMenuSeparator />
             <DropdownMenuItem
               onClick={handleSignOut}

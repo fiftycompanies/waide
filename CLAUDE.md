@@ -1,7 +1,7 @@
 # Waide (AI Hospitality Aide) — 서비스 IA
 
-> 최종 업데이트: 2026-03-05
-> 버전: Phase FIX-1 완료 (페르소나 버그 수정 + 분석→페르소나 자동생성 + 포털 분석결과 표시)
+> 최종 업데이트: 2026-03-07
+> 버전: Phase 6 완료 (자동 배포 엔진 — Tistory/WordPress/Medium)
 
 ---
 
@@ -10,15 +10,30 @@
 1. 모든 데이터는 client_id FK로 연결. clients가 최상위 부모.
 2. 브랜드 생성: clients INSERT → brand_personas INSERT (트랜잭션)
 3. shadcn/UI 작업: 반드시 cd apps/web 후 실행
-4. DB CHECK 제약 먼저 확인:
-   - jobs.priority: 'high'/'medium'/'low' (소문자)
+4. DB CHECK 제약 먼저 확인 (2026-03-08 DB 스냅샷 기준, 상세: `scripts/schema/check_constraints.sql`):
+   - jobs.priority: 'critical'/'high'/'medium'/'low' (소문자)
    - jobs.trigger_type: 'USER'/'SCHEDULER'/'AGENT' (대문자)
-   - contents.publish_status: 'draft'/'review'/'approved'/'published'/'rejected'
-   - clients.client_type: 'company'/'sub_client'
-   - keywords.status: 'active'/'paused'/'archived'/'queued'/'refresh'/'suggested' (051 확장)
+   - contents.publish_status: 'draft'/'review'/'approved'/'published'/'rejected'/'archived'
+   - contents.content_type: 'blog_list'/'blog_review'/'blog_info'/'aeo_qa'/'aeo_list'/'aeo_entity'/'single'/'list'/'review'/'info' (⚠️ DEFAULT='blog_post' 미포함 — 수정 필요)
+   - clients.client_type: 'company'/'sub_client'/'platform'/'brand'/'shop'
+   - clients.onboarding_status: 'pending'/'in_progress'/'completed'
+   - clients.status: 'active'/'inactive'/'churned'
+   - keywords.status: 'active'/'paused'/'archived'/'queued'/'refresh'/'suggested'
    - keywords.priority: 'critical'/'high'/'medium'/'low'
-   - accounts.platform: 'naver'/'tistory'/'brunch' (소문자)
-   - report_deliveries.status: 'pending'/'generating'/'sent'/'failed'/'skipped'
+   - accounts.platform: 'naver'/'tistory'/'brunch'/'google'/'wordpress'/'youtube' (⚠️ medium 없음!)
+   - blog_accounts.platform: 'naver'/'tistory'/'wordpress'/'medium'/'brunch'
+   - blog_accounts.auth_type: 'manual'/'oauth'/'api_key'
+   - publications.status: 'pending'/'publishing'/'published'/'failed'
+   - publications.publish_type: 'manual'/'auto'
+   - point_transactions.type: 'grant'/'spend'/'revoke'/'signup_bonus'/'refund'
+   - subscriptions.status: 'trial'/'active'/'past_due'/'cancelled'/'paused' (⚠️ expired 없음!)
+   - subscriptions.plan_name: 'trial'/'basic'/'pro'/'enterprise'
+   - llm_answers.ai_model: 'perplexity'/'claude'/'chatgpt'/'gemini'
+   - llm_answers.crawl_method: 'api'/'playwright'
+   - mentions.sentiment: 'positive'/'neutral'/'negative' (detection_method CHECK 없음)
+   - aeo_tracking_queue.status: 'pending'/'processing'/'completed'/'failed'
+   - brand_analyses.status: 'pending'/'analyzing'/'completed'/'failed'/'converted'
+   - questions.source: 'llm'/'paa'/'naver'/'manual'
 5. contents.account_id FK → blog_accounts(id) (accounts 아님!)
 6. PL/pgSQL 변수명: v_ 접두어
 7. HTML 테이블: Link 금지 → <tr onClick> 패턴
@@ -28,9 +43,10 @@
 11. 매 작업 완료 시 이 CLAUDE.md도 함께 업데이트할 것.
 12. 인증 이중 구조: 어드민=HMAC-SHA256 (admins 테이블), 고객=Supabase Auth (users 테이블). 절대 혼용 금지.
 13. users.role CHECK: 'super_admin'/'admin'/'sales'/'client_owner'/'client_member'
-14. subscriptions.status CHECK: 'trial'/'active'/'past_due'/'cancelled'/'expired'
+14. subscriptions.status CHECK: 'trial'/'active'/'past_due'/'cancelled'/'paused'
 15. admin_users.role CHECK: 'super_admin'/'admin'/'sales'/'viewer' — 사이드바 메뉴 자동 필터링
 16. 고객 계정 연결: users.client_id FK → clients.id (client_users 별도 테이블 없음, 1:N 직접 연결)
+17. DB 마이그레이션 작성 전 반드시 기존 스키마 확인: `scripts/schema/check_constraints.sql` + `scripts/schema/columns.sql` 파일로 현재 DB 스키마를 파악한 뒤 설계. CHECK 제약/컬럼 타입/기존 데이터 값/DEFAULT를 모르고 마이그레이션 작성 금지.
 
 ---
 
@@ -84,6 +100,7 @@
 | `/login` | 통합 로그인 | 단일 폼 (아이디/이메일 자동 구분) | Supabase Auth / HMAC |
 | `/signup` | 고객 회원가입 | 이메일 가입 + 초대 토큰 | `users`, `invitations` |
 | `/invite/[token]` | 초대 수락 | 초대 검증 → 가입 리다이렉트 | `invitations` |
+| `/onboarding/refine` | 프로젝트 시작 | 분석 요약 + 보완 + [반영하기] | `brand_analyses`, `clients`, `keywords`, `users` |
 
 ### 3-2. 고객 포털 (Portal) — 라이트 테마
 
@@ -100,68 +117,72 @@
 
 ### 3-3. 어드민 (Admin) — 라이트 테마
 
-#### 비즈니스
+#### 서비스 (SEO & AEO)
 | 경로 | 페이지명 | 데이터 소스 |
 |------|---------|-----------|
 | `/dashboard` | B2B KPI (MRR, 고객수, 이탈률, 평균점수) + SEO 운영 현황 | `subscriptions`, `clients`, `brand_analyses`, `daily_visibility_summary`, `keywords`, `contents`, `jobs` |
-| `/ops/revenue` | 매출 관리 (MRR/ARR, 플랜 분포, 트렌드, 최근 변동) | `subscriptions`, `products`, `clients` |
-| `/ops/churn` | 이탈 관리 (At Risk 목록, 이탈률, 유지율) | `clients`, `subscriptions`, `brand_analyses` |
+| `/keywords` | 키워드 관리 (활성/AI추천/전략) | `keywords`, `keyword_difficulty`, `brand_analyses` |
+| `/contents` | 콘텐츠 관리 (3탭: 목록/새 생성/작업현황) | `contents`, `jobs`, `keywords` |
+| `/contents/[id]` | 콘텐츠 상세 (본문 편집 + QC 결과) | `contents`, `blog_accounts` |
+| `/contents/[id]/publish` | 발행 위저드 (3스텝: 확인→채널→URL) | `contents`, `blog_accounts` |
+| `/publish` | 발행 관리 (3탭: 대기/이력/자동설정) | `contents`, `publishing_recommendations`, `account_grades` |
+| `/analytics` | 성과 분석 (4탭: SEO 분석/AEO 노출/경쟁 분석/Citation 분석) | `daily_visibility_summary`, `serp_results`, `keyword_visibility`, `llm_answers`, `mentions`, `aeo_scores` |
 
 #### 고객 관리
 | 경로 | 페이지명 | 데이터 소스 |
 |------|---------|-----------|
-| `/ops/clients` | 고객 포트폴리오 (카드뷰, 상태필터, At Risk 감지) | `clients`, `subscriptions`, `brand_analyses`, `sales_agents` |
-| `/ops/clients/[id]` | 고객 상세 (9탭: 개요/키워드/콘텐츠/분석/순위/페르소나/구독/온보딩/리포트) | `clients`, `subscriptions`, `brand_analyses`, `keywords`, `contents`, `keyword_visibility`, `daily_visibility_summary`, `report_deliveries` |
+| `/clients` → `/ops/clients` | 고객 포트폴리오 (카드뷰, 상태필터, At Risk 감지) | `clients`, `subscriptions`, `brand_analyses`, `sales_agents` |
+| `/clients/[id]` → `/ops/clients/[id]` | 고객 상세 (10탭: 개요/키워드/콘텐츠/분석/순위/페르소나/구독/온보딩/계정/리포트) | `clients`, `subscriptions`, `brand_analyses`, `keywords`, `contents`, `keyword_visibility`, `daily_visibility_summary`, `report_deliveries` |
 | `/ops/onboarding` | 온보딩 관리 (체크리스트, 진행률) | `clients` (onboarding_checklist JSONB) |
-| `/ops/brands` | 분석된 브랜드 목록 | `brand_analyses` |
-| `/ops/brands/[id]` | 마케팅 점수 + 개선포인트 | `brand_analyses` |
+| `/brands` | 브랜드 관리 (분석 브랜드 목록) | `brand_analyses`, `clients` |
+| `/accounts` → `/ops/accounts-management` | 계정 관리 (사용자 계정 CRUD) | `users` |
 
-#### 키워드 관리
+#### 비즈니스
 | 경로 | 페이지명 | 데이터 소스 |
 |------|---------|-----------|
-| `/ops/keywords` | 전체 키워드 + 검색량 + 난이도 | `keywords`, `keyword_difficulty` |
-| `/ops/keywords/[id]` | 순위추이 + SERP + 관련 콘텐츠 | `keywords`, `serp_results`, `keyword_visibility` |
+| `/ops/revenue` | 매출 관리 (MRR/ARR, 플랜 분포, 트렌드, 최근 변동) | `subscriptions`, `products`, `clients` |
+| `/ops/churn` | 이탈 관리 (At Risk 목록, 이탈률, 유지율) | `clients`, `subscriptions`, `brand_analyses` |
+| `/ops/products` | 상품 관리 (패키지 CRUD) | `products`, `subscriptions` |
 
-#### 콘텐츠 관리
-| 경로 | 페이지명 | 데이터 소스 |
-|------|---------|-----------|
-| `/campaigns/plan` | 캠페인 기획 (키워드 추천/입력 + 스타일참조 + 콘텐츠 생성 지시) | `keywords`, `contents`, `jobs`, `clients` |
-| `/ops/contents` | 전체 콘텐츠 + QC 점수 + 상태 + 발행URL/추적 표시 | `contents` |
-| `/ops/contents/[id]` | 본문 보기/편집 + QC 결과 | `contents` |
-
-#### 분석/성과
-| 경로 | 페이지명 | 데이터 소스 |
-|------|---------|-----------|
-| `/ops/analytics` | 노출점유율, SERP 추이, 트렌드 | `daily_visibility_summary`, `serp_results`, `keyword_visibility` |
-
-#### 자동화 관리
-| 경로 | 페이지명 | 데이터 소스 |
-|------|---------|-----------|
-| `/ops/recommendations` | 키워드↔계정 매칭 + 수락/거절 | `publishing_recommendations`, `account_grades`, `keyword_difficulty` |
-| `/ops/jobs` | 콘텐츠 생성/발행 작업 상태 | `jobs` |
-
-#### 리소스
-| 경로 | 페이지명 | 데이터 소스 |
-|------|---------|-----------|
-| `/ops/accounts` | 블로그 계정 + 등급 | `blog_accounts`, `account_grades` |
-| `/ops/sources` | 소스 라이브러리 (크롤링/수동) | `content_sources` |
-| `/ops/campaigns` | 키워드 그룹 캠페인 | `campaigns`, `campaign_keywords` |
-| `/ops/prompts` | 콘텐츠 타입별 프롬프트 | `content_prompts` |
-
-#### 영업/CRM
+#### 영업 CRM
 | 경로 | 페이지명 | 데이터 소스 |
 |------|---------|-----------|
 | `/ops/analysis-logs` | 분석 로그 목록 (CRM 파이프라인 + 영업사원/계정 인라인 할당) | `brand_analyses`, `sales_agents`, `clients`, `consultation_requests` |
 | `/ops/analysis-logs/[id]` | 분석 상세 (4탭: 분석/SEO/키워드/활동기록) + 영업사원/계정 할당 | `brand_analyses`, `consultation_requests`, `sales_agents`, `clients` |
 | `/ops/sales-agents` | 영업사원 관리 + 배포URL 추적링크 + 성과 + 성과요약 테이블 | `sales_agents`, `brand_analyses`, `consultation_requests`, `subscriptions`, `clients` |
-| `/ops/products` | 상품/패키지 CRUD + 구독 수 | `products`, `subscriptions` |
 
-#### 설정/운영
+#### 리소스
 | 경로 | 페이지명 | 데이터 소스 |
 |------|---------|-----------|
-| `/ops/settings` | API키, 슬랙 연동, 기본값 | `settings` |
-| `/ops/scoring-settings` | 모든 가중치 수정 | `settings` (scoring_weights JSONB) |
+| `/ops/blog-accounts` → `/blog-accounts` | 블로그 계정 + 등급 | `blog_accounts`, `account_grades` |
+| `/ops/sources` → `/sources` | 소스 라이브러리 (크롤링/수동) | `content_sources` |
+| `/ops/scheduler` | 자동 스케줄러 (크론, SERP, 검색량) | `settings` |
+
+#### 설정
+| 경로 | 페이지명 | 데이터 소스 |
+|------|---------|-----------|
+| `/settings/agents` → `/ops/agent-settings` | 에이전트 설정 (3탭: 프롬프트/콘텐츠프롬프트/진화지식) | `agent_prompts`, `content_prompts` |
+| `/ops/aeo-settings` | AEO 추적 설정 (모델/반복/크론/Playwright) | `aeo_tracking_settings` |
+| `/ops/scoring-settings` | 점수 가중치 설정 | `settings` (scoring_weights JSONB) |
+| `/ops/serp-settings` | SERP 설정 | `settings` |
+| `/ops/settings` | API 설정 (API키, 슬랙 연동, 기본값) | `settings` |
 | `/ops/error-logs` | 에러 모니터링 (통계/필터/상세/상태관리) | `error_logs` |
+| `/settings/admins` | 어드민 관리 (super_admin 전용) | `admin_users` |
+
+#### URL 리디렉트 매핑 (이전 라우트 호환)
+| 이전 경로 | 새 경로 | 비고 |
+|----------|---------|------|
+| `/ops/contents` | `/contents` | 탭 구조 통합 |
+| `/ops/contents/[id]` | `/contents/[id]` | 상세 페이지 이전 |
+| `/ops/contents/[id]/publish` | `/contents/[id]/publish` | 발행 위저드 이전 |
+| `/ops/jobs` | `/contents?tab=jobs` | 작업현황 탭으로 흡수 |
+| `/campaigns/plan` | `/contents?tab=create` | 캠페인 기획 흡수 |
+| `/clients` | `/ops/clients` | 라우트 별칭 |
+| `/clients/[id]` | `/ops/clients/[id]` | 라우트 별칭 |
+| `/accounts` | `/ops/accounts-management` | 라우트 별칭 |
+| `/settings/agents` | `/ops/agent-settings` | 라우트 별칭 |
+| `/ops/blog-accounts` | `/blog-accounts` | 라우트 별칭 |
+| `/ops/sources` | `/sources` | 라우트 별칭 |
 
 ---
 
@@ -179,7 +200,31 @@
 [전화 상담] / [카카오톡] / [무료 상담 신청] → consultation_requests INSERT → 슬랙 알림
 ```
 
-### 4-2. 데이터 수집 플로우 (자동화)
+### 4-2. AEO 추적 플로우
+
+```
+[수동] /analytics?tab=aeo → [추적 시작] 버튼 → runAEOTracking(clientId)
+[자동] /api/cron/aeo (매일 04:00 KST, 기본 비활성) → runAEOTrackingBatch()
+  ↓
+[질문 선택] questions 테이블 → limitQuestionsByKeyword (round-robin)
+  ↓
+[LLM 크롤링] 질문 × 반복 × 모델
+  ├─ Perplexity API (crawl_method='api', 2초 딜레이)
+  ├─ Claude API (crawl_method='api', 1초 딜레이)
+  ├─ ChatGPT Playwright (기본 비활성, 10초 딜레이)
+  └─ Gemini Playwright (기본 비활성, 10초 딜레이)
+  ↓ llm_answers INSERT
+[언급 감지] detectMentions(응답텍스트, 브랜드명)
+  ├─ LLM 분석 (Claude → JSON 구조화, 위치/감성/신뢰도)
+  └─ 문자열 매칭 폴백 (confidence: 0.5)
+  ↓ mentions INSERT
+[점수 산출] calculateAEOScore()
+  └─ score = Σ(model_weight × position_weight) / total_queries × 100
+  ↓ aeo_scores UPSERT
+[대시보드] AEO Visibility Score 표시
+```
+
+### 4-3. 데이터 수집 플로우 (자동화)
 
 ```
 [Vercel Cron 매일] → /api/cron/daily-serp
@@ -192,7 +237,7 @@
   └─ DataLab 폴백
 ```
 
-### 4-3. 콘텐츠 생성 플로우
+### 4-4. 콘텐츠 생성 플로우
 
 ```
 [ANALYST] → account_grades + keyword_difficulty + publishing_recommendations
@@ -289,7 +334,18 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 | `agent_execution_logs` | lib/agent-runner.ts | 에이전트 실행 로그 (비용/성과 추적) |
 | `report_deliveries` | /ops/clients/[id] (리포트 탭), /api/cron/monthly-report | 월간 리포트 발송 이력 |
 | `content_benchmarks` | lib/agent-chain.ts | 콘텐츠 벤치마크 캐시 (7일 TTL) |
+| `questions` | /keywords?tab=questions, /portal/keywords | 질문 엔진 (키워드→질문 자동 생성, 3소스: LLM/PAA/네이버) |
+| `client_points` | /ops/points | 고객별 포인트 잔액 |
+| `point_transactions` | /ops/points | 포인트 거래 이력 (grant/revoke/spend/signup_bonus) |
+| `point_settings` | /ops/points | 포인트 설정 (가입보너스, 콘텐츠당 비용) |
 | `error_logs` | /ops/error-logs | 에러 모니터링 로그 (client/server/api/cron) |
+| `llm_answers` | /analytics?tab=aeo | LLM 응답 원문 (질문→AI모델→응답 텍스트, 소스 URL) |
+| `mentions` | /analytics?tab=aeo, /analytics?tab=competition | 브랜드 언급 감지 결과 (위치, 감성, 신뢰도) |
+| `aeo_scores` | /dashboard, /analytics?tab=aeo, /portal | AEO Visibility Score (주기별 가중 점수) |
+| `aeo_tracking_queue` | (내부) | AEO 추적 큐 (1000+ 고객 확장성, 우선순위 처리) |
+| `aeo_tracking_settings` | /ops/aeo-settings | AEO 추적 전역 설정 (모델/반복/크론/Playwright) |
+| `publications` | /publish, /contents/[id]/publish | 발행 이력 (플랫폼, 상태, 재시도 횟수) |
+| `auto_publish_settings` | /publish?tab=auto | 자동 발행 설정 (마스터 토글, 채널별 ON/OFF) |
 
 ### 5-2. API 라우트 맵
 
@@ -304,6 +360,7 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 | `/api/cron/search-volume` | GET | 검색량 수집 크론 |
 | `/api/cron/grading` | GET | 계정 등급/난이도 산출 크론 |
 | `/api/cron/monthly-report` | GET/POST | 월간 리포트 자동 발송 크론 (매월 1일) |
+| `/api/cron/aeo` | GET | AEO 추적 크론 (매일 04:00 KST, 기본 비활성) |
 | `/api/portal/report-pdf` | GET | PDF 리포트 다운로드 (어드민/포털) |
 
 ### 5-3. Server Actions 맵 (lib/actions/)
@@ -336,7 +393,15 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 | `product-actions.ts` | getProducts(), createProduct(), updateProduct(), deleteProduct(), createSubscription(), updateSubscription(), cancelSubscription(), getClientSubscription() | products, subscriptions, clients |
 | `persona-actions.ts` | updatePersona(), addManualStrength(), removeManualStrength(), regeneratePersona(), getPersona() | clients (brand_persona JSONB) |
 | `report-actions.ts` | getMonthlyReportData(), getReportSettings(), updateReportSettings(), getReportDeliveries(), generateAndSendReport(), resendReport() | clients (metadata JSONB), report_deliveries, keywords, contents, keyword_visibility |
+| `question-actions.ts` | generateQuestions(), getQuestions(), addManualQuestion(), updateQuestion(), deleteQuestion(), regenerateQuestions(), generateAEOContents(), getPortalQuestions() | questions, contents |
+| `point-actions.ts` | initializeClientPoints(), checkPointBalance(), spendPoints(), grantPoints(), revokePoints(), refundPoints(), canGenerateContent(), getPointSettings(), updatePointSettings(), getClientPointsList(), getPointTransactions() | client_points, point_transactions, point_settings |
 | `error-log-actions.ts` | logError(), getErrorLogs(), getErrorLogDetail(), updateErrorStatus(), getErrorStats() | error_logs |
+| `aeo-tracking-actions.ts` | getAEOSettings(), updateAEOSettings(), runAEOTracking(), runAEOTrackingBatch(), calculateAEOScore(), getAEODashboardData(), getAEOAnalyticsData(), getAEOCompetitionData(), getAEOCitationData(), getPortalAEOData(), getAEOTrackingPreview() | llm_answers, mentions, aeo_scores, aeo_tracking_queue, aeo_tracking_settings, questions |
+| `entity-content-actions.ts` | generateEntityContent() | contents, clients |
+| `publish-actions.ts` | executePublish(), retryPublish(), checkAutoPublish(), getAutoPublishSettings(), updateAutoPublishSettings(), getPublications(), testBlogConnection(), createApiKeyAccount(), setDefaultAccount(), getClientBlogAccounts() | publications, auto_publish_settings, blog_accounts, contents |
+| `prompt-registry-actions.ts` | getPromptRegistryAction(), savePromptAction(), restoreDefaultAction() | agent_prompts (PROMPT_REGISTRY) |
+| `knowledge-actions.ts` | runKnowledgeLearning(), getKnowledgeStats() | evolving_knowledge, contents, aeo_scores, mentions, keyword_visibility |
+| `keyword-volume-actions.ts` | queryKeywordVolume(), registerKeywordsFromVolume(), updateKeywordVolumes(), checkNaverAdApiAvailable() | keywords |
 
 ### 5-4. AI 인프라 (lib/)
 
@@ -358,6 +423,14 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 | `pdf/monthly-report-template.tsx` | MonthlyReportDocument — 4페이지 PDF 템플릿 (KPI, 콘텐츠, 순위, 계획) | - |
 | `email/send-report.ts` | sendReportEmail() — Resend API로 리포트 이메일 발송 (PDF 첨부) | (외부 API) |
 | `email/monthly-report-email.tsx` | MonthlyReportEmail — React Email 리포트 이메일 템플릿 | - |
+| `prompt-loader.ts` | loadPromptTemplate(), fillPromptTemplate(), getPromptRegistry(), savePromptRegistry(), restorePromptDefault() — 프롬프트 동적 로딩 (agent_prompts DB 우선, DEFAULT_PROMPTS fallback) | agent_prompts |
+| `crawlers/index.ts` | crawlLLM() — LLM 크롤링 라우터 (모델별 분기, MODEL_WEIGHTS, MODEL_RATE_LIMITS) | - |
+| `crawlers/perplexity-crawler.ts` | crawlPerplexity() — Perplexity API 크롤링 (llama-3.1-sonar, citations 포함) | (외부 API) |
+| `crawlers/claude-crawler.ts` | crawlClaude() — Claude API 크롤링 (Haiku 4.5) | (외부 API) |
+| `crawlers/chatgpt-crawler.ts` | crawlChatGPT() — Playwright ChatGPT 크롤링 (기본 비활성) | (외부 API) |
+| `crawlers/gemini-crawler.ts` | crawlGemini() — Playwright Gemini 크롤링 (기본 비활성) | (외부 API) |
+| `crawlers/playwright-base.ts` | createStealthBrowser() — Playwright 공통 유틸 (UA 로테이션, 스텔스) | - |
+| `crawlers/mention-detector.ts` | detectMentions() — 브랜드 언급 감지 (LLM 분석 + 문자열 매칭 폴백) | - |
 
 ---
 
@@ -398,6 +471,16 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 - 글자수(20) + 해요체(15) + 키워드밀도(15) + H2구조(10) + 이미지(10) + 금지표현(10) + 비교표(10) + CTA(5) + 해시태그(5)
 - FAIL: 70점 미만 또는 해요체 60% 미만
 
+### 6-6. AEO Visibility Score (100점) — aeo_scores
+
+- 공식: `score = Σ(mention_weight × position_weight) / total_queries × 100`
+- Position weights: 1위=1.0, 2위=0.7, 3위=0.4, 본문 언급=0.2
+- Model weights: ChatGPT=1.0, Perplexity=0.8, Gemini=0.7, Claude=0.5
+- Rate limits: Perplexity=2초, Claude=1초, Playwright=10초
+- 추적 무료: AEO 추적은 포인트 차감 없음 (콘텐츠 생성만 포인트 차감)
+- Round-robin: 키워드별 공평한 질문 선택 (limitQuestionsByKeyword)
+- 우선순위 큐: 유료 고객(포인트 잔액 > 0) 먼저 처리
+
 ### 핵심 알고리즘 공식
 
 - 노출 점유율: max(0, (21-rank)/20×100), 가중 = Σ(점수×검색량)/Σ(100×검색량)×100%
@@ -420,6 +503,7 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 | Serper API (`google.serper.dev/search`) | 구글 검색 순위 조회 | 월 2,500건 무료 |
 | Slack API (Webhook) | 알림 발송 | 무료 |
 | Resend API | 리포트 이메일 발송 (PDF 첨부) | 월 100건 무료 |
+| Perplexity API (`api.perplexity.ai`) | LLM 응답 크롤링 (AEO 추적) | 종량제 |
 
 ---
 
@@ -661,6 +745,148 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
   - /portal 대시보드: 마케팅 종합 점수 원형 차트 + 6영역 점수 바 + 브랜드 강점/약점 태그 섹션
   - portal-actions.ts: getPortalDashboardV2에 scoreBreakdown/strengths/weaknesses 반환 추가
   - npm run build 성공
+- Phase IA-1: IA 구조 변경 — SEO & AEO 메뉴 통합 + 탭 구조 (2026-03-07)
+  - 사이드바 메뉴 6그룹 재편: 서비스(5)/고객관리(4)/비즈니스(3)/영업CRM(2)/리소스(3)/설정(6)
+  - 서비스 메뉴 URL 변경: /contents(3탭: 목록/생성/작업), /publish(3탭: 대기/이력/자동), /analytics, /keywords
+  - 발행 관리 신규 페이지: PublishTabsWrapper + 3탭 (대기/이력/자동발행설정)
+  - 콘텐츠 관리 통합: campaigns/plan → /contents?tab=create 흡수, /ops/jobs → /contents?tab=jobs 흡수
+  - 콘텐츠 상세 + 발행위저드: /contents/[id], /contents/[id]/publish
+  - URL 리디렉트: /ops/contents→/contents, /ops/jobs→/contents?tab=jobs, /campaigns/plan→/contents?tab=create
+  - 라우트 별칭: /clients→/ops/clients, /accounts→/ops/accounts-management, /settings/agents→/ops/agent-settings
+  - 리소스 메뉴 URL: /ops/blog-accounts→/blog-accounts, /ops/sources→/sources
+  - 내부 링크 전면 업데이트: contents-page-header, content-editor, client-detail, ops-page
+  - shadcn/ui Checkbox + Textarea 컴포넌트 추가, @radix-ui/react-checkbox 설치
+  - tsc --noEmit 통과 (npm run build는 Google Fonts TLS 차단으로 샌드박스에서 실패 — 코드 이슈 아님)
+- Phase ONBOARD-1: 브랜드 분석 → 프로젝트 자동 생성 (2026-03-07)
+  - scripts/migrations/057_brand_analyses_refinement.sql: brand_analyses에 refined_keywords/strengths/appeal/target/refinement_count/last_refined_at 컬럼 추가
+  - 분석 결과 페이지: [보완하기] 버튼 + 슬라이드 패널 (키워드 태그 max5, 강점, 어필, 타겟) + [재분석하기] 버튼
+  - 분석 결과 페이지: [프로젝트 시작하기] CTA (localStorage analysis_id 캐시 → login redirect → /onboarding/refine)
+  - POST /api/analyze/[id]/refine: 보완 데이터 저장 + 재분석 트리거
+  - lib/actions/refinement-actions.ts: refineAnalysis(), applyAnalysisToProject(), linkAnalysisToExistingClient()
+  - /onboarding/refine: 프로젝트 시작 페이지 (분석 요약 + 4필드 편집 + [반영하기])
+  - [반영하기] 플로우: clients INSERT → brand_analyses.client_id UPDATE → brand_persona JSONB → keywords INSERT × N → users.client_id UPDATE
+  - 어드민 온보딩: [새 브랜드 분석] 버튼 + 모달 (URL 입력 + 기존 고객 연결 옵션)
+  - 어드민 클라이언트 상세: [브랜드 추가 분석] 버튼 + 모달 (client_id 프리셋)
+  - components/onboarding/: brand-analysis-modal, onboarding-actions, onboarding-refine-client
+  - 로그인→회원가입 redirect 파라미터 전파, localStorage 폴백
+  - 분석 로딩 페이지: 재분석 시 id 파라미터 지원 (새 분석 생략, 폴링만)
+  - 온보딩 팝업 검증: onboarding_status='completed' 설정으로 팝업 자동 비활성화
+  - tsc --noEmit 통과
+- Phase 3: 질문 엔진 + 포인트 시스템 + AEO 콘텐츠 자동 생성 (2026-03-07)
+  - scripts/migrations/058_question_engine_points.sql: questions, client_points, point_transactions, point_settings 테이블 + contents 확장 (content_type, question_id)
+  - lib/actions/question-actions.ts: 질문 엔진 (3소스 병렬: Claude LLM 15~20개, Google PAA via Serper, 네이버 자동완성)
+    - generateQuestions(), getQuestions(), addManualQuestion(), updateQuestion(), deleteQuestion(), regenerateQuestions()
+    - generateAEOContents(): 선별 질문 → AI 유형 판단 (aeo_qa/aeo_list) → AEO 콘텐츠 마크다운 생성
+    - 중복 제거: 정규화 + 포함 관계 체크
+  - lib/actions/point-actions.ts: 포인트 시스템 (역할 기반 접근 제어)
+    - initializeClientPoints(): 가입 시 보너스 포인트 지급
+    - canGenerateContent(): admin/super_admin=무제한, sales/client_owner=포인트 차감
+    - spendPoints(), grantPoints(), revokePoints(): 포인트 거래
+    - getPointSettings(), updatePointSettings(): 전역 설정 (signup_bonus, cost_per_content)
+  - components/questions/questions-tab.tsx: 질문 관리 UI (키워드 필터, 소스 필터, 체크박스 선택 max5, 인라인 편집, AEO 생성)
+  - components/points/points-page-client.tsx: 포인트 관리 어드민 UI (3탭: 잔액/거래이력/설정)
+  - app/(dashboard)/ops/points/page.tsx: 포인트 관리 페이지
+  - app/(dashboard)/keywords/page.tsx: 질문 확장 탭 추가 (?tab=questions)
+  - components/keywords/keywords-tabs-wrapper.tsx: 키워드/질문 탭 래퍼
+  - app/(portal)/portal/keywords/page.tsx: 포털 질문 현황 탭 (읽기 전용)
+  - app/(portal)/portal/page.tsx: 포털 대시보드 포인트 잔액 배너
+  - campaign-planning-actions.ts: triggerContentGeneration에 포인트 체크 연동
+  - campaign-planning-client.tsx: 포인트 부족 시 toast 에러 표시
+  - keyword-expansion-actions.ts: approveSuggestedKeyword에 질문 자동 생성 트리거
+  - refinement-actions.ts: applyAnalysisToProject에 포인트 초기화 + 질문 자동 생성 트리거
+  - portal-actions.ts: getPortalDashboardV2에 pointBalance, getPortalPointBalance 추가
+  - 사이드바: 비즈니스 그룹에 "포인트 관리" 메뉴 (super_admin/admin)
+  - contents 테이블 확장: content_type CHECK ('blog_list'/'blog_review'/'blog_info'/'aeo_qa'/'aeo_list'), question_id FK
+  - questions.source CHECK: 'llm'/'paa'/'naver'/'manual'
+  - point_transactions.type CHECK: 'grant'/'revoke'/'spend'/'signup_bonus'
+  - tsc --noEmit 통과
+- Phase 4+5: LLM 크롤링 + Mention Detection + AEO Score + 추적 큐 (2026-03-07)
+  - scripts/migrations/059_aeo_tracking.sql: llm_answers, mentions, aeo_scores, aeo_tracking_queue, aeo_tracking_settings 5개 테이블
+  - lib/crawlers/: LLM 크롤링 모듈 (perplexity-crawler, claude-crawler, chatgpt-crawler, gemini-crawler, playwright-base, mention-detector, index)
+  - lib/actions/aeo-tracking-actions.ts: AEO 추적 핵심 로직 (~700줄)
+    - runAEOTracking(clientId): 단일 고객 수동 추적 (질문→LLM 크롤링→언급 감지→점수 산출)
+    - runAEOTrackingBatch(): 크론 배치 (유료 우선, 전체 고객 순회)
+    - calculateAEOScore(): 가중 점수 공식 (모델×위치 가중치)
+    - getAEODashboardData/AnalyticsData/CompetitionData/CitationData: 대시보드/분석 데이터
+    - limitQuestionsByKeyword(): Round-robin 질문 선택 (키워드별 공평 분배)
+  - lib/actions/entity-content-actions.ts: 엔티티 정의 콘텐츠 생성 (aeo_entity 타입, 온보딩 시 무료)
+  - lib/actions/point-actions.ts: refundPoints() 추가 (콘텐츠 생성 실패 시 자동 환불)
+  - lib/actions/content-generate-actions.ts: 파이프라인 실패 시 자동 포인트 환불 로직
+  - lib/actions/refinement-actions.ts: 프로젝트 생성 시 엔티티 콘텐츠 자동 생성 트리거
+  - app/api/cron/aeo/route.ts: AEO 추적 크론 (매일 04:00 KST, 기본 비활성)
+  - vercel.json: AEO 크론 추가 (0 4 * * *)
+  - components/analytics/: aeo-tracking-section, aeo-competition-section, aeo-citation-section, analytics-tabs-wrapper
+  - app/(dashboard)/analytics/page.tsx: 4탭 구조 (SEO 분석/AEO 노출/경쟁 분석/Citation 분석)
+  - components/dashboard/aeo-dashboard-section.tsx: 대시보드 AEO 카드 (Score, 트렌드, 모델별 바, 최근 언급, 미노출 질문)
+  - app/(dashboard)/dashboard/page.tsx: AEO 섹션 통합 (브랜드 모드 2열 그리드)
+  - app/(dashboard)/ops/aeo-settings/page.tsx + components/settings/aeo-settings-client.tsx: AEO 설정 (4카드: 모델/추적/크론/Playwright)
+  - components/ui/switch.tsx: Switch 컴포넌트 신규 생성
+  - app/(portal)/portal/page.tsx: 포털 AEO Score 카드 (스코어, 트렌드, 모델별 카운트)
+  - portal-actions.ts: getPortalDashboardV2에 aeoScore 필드 추가
+  - 사이드바: 설정 그룹에 "AEO 설정" 메뉴 (super_admin/admin, Radio 아이콘)
+  - Playwright: 코드 구현 완료 (chatgpt/gemini), 기본 비활성 (설정에서 활성화)
+  - Turbopack 번들링 방지: `Function("m", "return import(m)")("playwright")` 트릭
+  - 서비스 정책: AEO 추적=무료, 콘텐츠 생성=1포인트, admin/super_admin=무제한, 실패 시 자동 환불
+  - tsc --noEmit 통과
+- Phase 6: 자동 배포 엔진 — Tistory/WordPress/Medium (2026-03-07)
+  - scripts/migrations/060_auto_publish.sql: blog_accounts 확장 + publications + auto_publish_settings 3개 테이블
+  - blog_accounts 확장: auth_type, access_token, refresh_token, token_expires_at, api_key, api_secret, blog_id, platform_user_id, is_default, last_published_at, updated_at
+  - platform CHECK 확장: 'naver'/'tistory'/'wordpress'/'medium'/'brunch'
+  - auth_type CHECK: 'manual'/'oauth'/'api_key'
+  - publications 테이블: content_id/client_id/blog_account_id FK, platform, external_url, external_post_id, status, publish_type, error_message, retry_count
+  - auto_publish_settings 테이블: client_id UNIQUE, is_enabled, 플랫폼별 ON/OFF, publish_as_draft, add_canonical_url, add_schema_markup
+  - lib/publishers/: 플랫폼별 퍼블리셔 모듈
+    - index.ts: 공통 인터페이스 (PublishResult, BlogAccountForPublish, ContentForPublish, PublishOptions) + 라우터
+    - tistory-publisher.ts: Tistory Open API /post/write, OAuth 토큰 교환, 블로그 정보 조회, 카테고리 조회
+    - wordpress-publisher.ts: WordPress REST API /wp-json/wp/v2/posts, Basic Auth (Application Password)
+    - medium-publisher.ts: Medium API /v1/users/{authorId}/posts, Integration Token, 마크다운 네이티브 지원
+    - markdown-to-html.ts: marked 기반 MD→HTML 변환 + Schema.org 마크업 (FAQ/Article/LocalBusiness) + canonical 태그
+  - lib/actions/publish-actions.ts: 발행 핵심 로직
+    - executePublish(): 발행 실행 (계정 조회 → publications INSERT → publishContent() → 결과 저장 → contents UPDATE)
+    - retryPublish(): 재시도 (최대 3회)
+    - checkAutoPublish(): 자동 발행 트리거 (QC 통과 후, 활성 채널 순회, 기본 계정 선택)
+    - getAutoPublishSettings() / updateAutoPublishSettings(): 자동 발행 설정 UPSERT
+    - getPublications(): 발행 이력 조회 (joined content_title, account_name)
+    - testBlogConnection(): 통합 연동 테스트 (플랫폼별 분기)
+    - createApiKeyAccount(): API키/토큰 기반 계정 생성 (WordPress/Medium)
+    - setDefaultAccount(): 기본 계정 토글
+    - getClientBlogAccounts(): 플랫폼별 연결 계정 조회
+  - app/api/auth/tistory/callback/route.ts: Tistory OAuth 콜백 (code→access_token 교환 → 블로그 정보 → blog_accounts INSERT)
+  - components/blog-accounts/blog-accounts-client.tsx: API 연동 다이얼로그 (Tistory OAuth / WordPress API / Medium Token), 기본 계정 토글, 연동 테스트
+  - app/(dashboard)/ops/contents/[id]/publish/publish-wizard.tsx: 발행 위저드 업그레이드 (수동 발행 + 자동 발행 2옵션, 플랫폼 선택, 계정 드롭다운, 결과 표시)
+  - app/(dashboard)/publish/page.tsx: 발행 관리 3탭 업그레이드
+    - 대기 탭: 기존 유지
+    - 이력 탭: publications 테이블 연동 (플랫폼 아이콘, 수동/자동 유형, 상태 배지, 재시도 카운트)
+    - 자동 탭: AutoPublishSettingsClient (마스터 토글, 채널별 ON/OFF, 발행 옵션)
+  - components/publish/auto-publish-settings-client.tsx: 자동 발행 설정 UI (3카드: 토글/채널/옵션)
+  - content-generate-actions.ts: QC 통과 후 checkAutoPublish() 자동 트리거 (실패해도 파이프라인 블로킹 없음)
+  - 서비스 정책: 자동 발행=무료 (포인트 차감 없음), 기본 OFF, WordPress/Medium은 서버 env 불필요 (클라이언트 입력)
+  - 환경변수: TISTORY_CLIENT_ID, TISTORY_CLIENT_SECRET, TISTORY_REDIRECT_URI (모두 optional)
+  - tsc --noEmit 통과
+- Phase 7-10: 프롬프트 편집 + 진화지식 + 니치 키워드 + 검색량 + 리포트 AEO (2026-03-07)
+  - scripts/migrations/061_phase7_10.sql: evolving_knowledge 확장 (knowledge_type, title, description, evidence, confidence, is_active, learned_at) + keywords 확장 (monthly_search_volume, pc_volume, mobile_volume, competition, volume_updated_at)
+  - lib/prompt-loader.ts: 프롬프트 동적 로딩 시스템 (agent_prompts 테이블 PROMPT_REGISTRY 타입, 10개 기본 프롬프트, DB 우선 + fallback)
+    - loadPromptTemplate(agentKey): DB 조회 → 없으면 DEFAULT_PROMPTS fallback
+    - fillPromptTemplate(template, vars): {variable} + {{variable}} 양식 치환
+    - getPromptRegistry/savePromptRegistry/restorePromptDefault: 레지스트리 CRUD (버전 관리)
+  - lib/actions/prompt-registry-actions.ts: 서버 액션 래퍼 (getPromptRegistryAction, savePromptAction, restoreDefaultAction)
+  - components/ops/prompt-registry-client.tsx: 프롬프트 편집 UI (PromptCard 확장/축소, 변수 칩, 저장/복원, dirty state)
+  - app/(dashboard)/ops/agent-settings/page.tsx: "프롬프트 관리" 탭 추가 (4탭: 프롬프트/콘텐츠프롬프트/진화지식/프롬프트관리)
+  - lib/actions/knowledge-actions.ts: 진화지식 학습 (runKnowledgeLearning → Claude AI 패턴 분석 → evolving_knowledge INSERT)
+  - components/analytics/knowledge-learning-section.tsx: 학습 실행 버튼 + 통계 카드 (패턴수, 마지막 학습, 범위)
+  - lib/actions/keyword-volume-actions.ts: 네이버 검색량 API 래퍼 (queryKeywordVolume 5개 배치, registerKeywordsFromVolume, updateKeywordVolumes, checkNaverAdApiAvailable)
+  - components/keywords/keyword-volume-tab.tsx: 검색량 조회 탭 (입력→조회→결과테이블→체크박스 선택→키워드 등록)
+  - components/keywords/keywords-tabs-wrapper.tsx: "검색량 조회" 탭 추가
+  - app/(dashboard)/keywords/page.tsx: volume 탭 지원 추가
+  - components/keywords/niche-keyword-panel.tsx: 니치 키워드 AI 분석 패널 (난이도/기회/사유 + 체크박스 일괄 등록)
+  - app/api/ai/niche-keywords/route.ts: 니치 키워드 AI 분석 API 라우트
+  - lib/actions/report-actions.ts: AEOReportData 인터페이스 + getAEOReportData() 헬퍼 (aeo_scores, mentions, llm_answers 조회)
+  - lib/pdf/monthly-report-template.tsx: AEO 노출 현황 페이지 추가 (Page 4, Score + 모델별 언급 + 상위 질문 + 미노출 질문)
+  - app/(portal)/portal/reports/page.tsx: AEO 노출 현황 섹션 추가 (Score + 모델별 카드 + 상위 질문 리스트)
+  - portal-actions.ts: getPortalReportV2에 AEO 데이터 (aeo_scores, mentions) 반환 추가
+  - 프롬프트 DB 전환: question-actions.ts(3개), entity-content-actions.ts(1개), mention-detector.ts(1개), campaign-planning-actions.ts(1개) — 총 6개 하드코딩 프롬프트를 loadPromptTemplate+fillPromptTemplate으로 전환
+  - 프롬프트 레지스트리 10개: question_engine, seo_writer, aeo_qa_writer, aeo_list_writer, aeo_entity_writer, qc_agent, cmo_strategy, niche_keyword, mention_detection, aeo_type_judge
+  - tsc --noEmit 통과
 
 ### 설계 원칙
 
@@ -715,19 +941,24 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 | 9 | **STRUCT-1** | 서비스 구조 정리 — 계정관리, 역할메뉴, 브랜드뷰, 온보딩 플로우 | ✅ 완료 |
 | 10 | **ERR-1** | 에러 모니터링 시스템 — Slack 알림 + 에러 로그 관리 페이지 | ✅ 완료 |
 | 11 | **FIX-1** | 페르소나 버그 수정 + 분석→페르소나 자동생성 + 포털 분석결과 표시 | ✅ 완료 |
+| 12 | **DEV-0** | AI 오케스트레이션 개발 시스템 셋업 (ai-team, tasks, prompts, docs) | ✅ 완료 |
+| 13 | **IA-1** | IA 구조 변경 — SEO & AEO 메뉴 통합 + 탭 구조 + URL 리디렉트 | ✅ 완료 |
+| 14 | **ONBOARD-1** | 브랜드 분석 → 프로젝트 자동 생성 (보완하기/재분석/프로젝트시작/반영하기) | ✅ 완료 |
+| 15 | **Phase 3** | 질문 엔진 + 포인트 시스템 + AEO 콘텐츠 자동 생성 | ✅ 완료 |
+| 16 | **Phase 4+5** | LLM 크롤링 + Mention Detection + AEO Score + 추적 큐 + 엔티티 콘텐츠 | ✅ 완료 |
+| 17 | **Phase 6** | 자동 배포 엔진 — Tistory/WordPress/Medium + OAuth + 자동발행 | ✅ 완료 |
+| 18 | **Phase 7-10** | 프롬프트 편집 + 진화지식 + 니치 키워드 + 검색량 + 리포트 AEO | ✅ 완료 |
 
 ### 미구현 (우선순위 순)
 
 | # | 기능 | 우선순위 |
 |---|------|---------|
-| 1 | **Phase D: 자동 발행 관리** (슬랙 컨펌 → 블로그 발행) | 높음 (다음) |
-| 3 | **Vercel 도메인 연결** (커스텀 도메인 + SSL) | 높음 |
-| 4 | **AEO 기능** (AI 인용률 — ChatGPT/Gemini 브랜드 언급 체크) | 중간 |
-| 5 | **구글 상위노출** (마케팅점수 15점 자리 비어있음) | 중간 |
-| 6 | **홈페이지 SEO/AEO 분석** (크롤링 → meta/schema/heading) | 중간 |
-| 7 | **검색량 트렌드 차트** (DataLab 12개월) | 낮음 |
-| 8 | **소셜 로그인** (카카오/구글/네이버 OAuth) | 낮음 |
-| 9 | **소스 매칭 AI** (규칙 기반 → AI 업그레이드) | 나중 |
+| 1 | **Vercel 도메인 연결** (커스텀 도메인 + SSL) | 높음 |
+| 3 | **구글 상위노출** (마케팅점수 15점 자리 비어있음) | 중간 |
+| 4 | **홈페이지 SEO/AEO 분석** (크롤링 → meta/schema/heading) | 중간 |
+| 5 | **검색량 트렌드 차트** (DataLab 12개월) | 낮음 |
+| 6 | **소셜 로그인** (카카오/구글/네이버 OAuth) | 낮음 |
+| 7 | **소스 매칭 AI** (규칙 기반 → AI 업그레이드) | 나중 |
 
 ---
 
@@ -739,7 +970,7 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 - **Vercel 배포 URL**: https://web-five-gold-12.vercel.app (프로덕션)
 - **Vercel 프로젝트**: fiftycompanies-projects/web, 리전: icn1 (서울)
 - agents/.env: NSERP_EC2_URL, NSERP_EC2_SECRET, SUPABASE_URL/KEY, ANTHROPIC_API_KEY, SLACK_BOT_TOKEN, TAVILY_API_KEY
-- apps/web/.env.local: SUPABASE URLs, NAVER_AD_API_KEY/SECRET_KEY/CUSTOMER_ID, ANTHROPIC_API_KEY, SERPER_API_KEY, RESEND_API_KEY, CRON_SECRET, REPORT_FROM_EMAIL
+- apps/web/.env.local: SUPABASE URLs, NAVER_AD_API_KEY/SECRET_KEY/CUSTOMER_ID, ANTHROPIC_API_KEY, SERPER_API_KEY, RESEND_API_KEY, CRON_SECRET, REPORT_FROM_EMAIL, PERPLEXITY_API_KEY, OPENAI_SESSION_COOKIE, GOOGLE_SESSION_COOKIE, PROXY_URL
 - 배포 가이드: `apps/web/DEPLOY.md` (환경변수 전체 목록 + 배포 절차)
 - 현재 실데이터: 키워드 174개, 콘텐츠 174건, 블로그 계정 4개, SERP 레코드 417건
 
@@ -772,8 +1003,13 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 | 054 | clients.metadata JSONB + report_deliveries 테이블 (월간 리포트 발송 이력) | **SQL 생성 완료** |
 | 055 | admin_users CHECK 재생성 (sales 역할 추가) | **SQL 생성 완료** |
 | 056 | error_logs 테이블 (에러 모니터링, status/error_type CHECK, 3 인덱스) | **SQL 생성 완료** |
+| 057 | brand_analyses 보완 컬럼 (refined_keywords/strengths/appeal/target, refinement_count, last_refined_at) | **SQL 생성 완료** |
+| 058 | questions + client_points + point_transactions + point_settings 테이블 + contents 확장 (content_type, question_id) | **SQL 생성 완료** |
+| 059 | llm_answers + mentions + aeo_scores + aeo_tracking_queue + aeo_tracking_settings 테이블 + point_transactions 'refund' + contents 'aeo_entity' | **SQL 생성 완료** |
+| 060 | blog_accounts 확장 (auth_type/access_token/api_key/is_default 등) + publications + auto_publish_settings 테이블 | **SQL 생성 완료** |
+| 061 | evolving_knowledge 확장 (knowledge_type/title/description/evidence/confidence/is_active/learned_at) + keywords 확장 (monthly_search_volume/pc_volume/mobile_volume/competition/volume_updated_at) | **SQL 생성 완료** |
 
-> ⚠️ 045~056: scripts/migrations/ 디렉토리에 SQL 파일 생성. Supabase Dashboard에서 실행 필요.
+> ⚠️ 045~060: scripts/migrations/ 디렉토리에 SQL 파일 생성. Supabase Dashboard에서 실행 필요.
 
 ---
 
@@ -805,3 +1041,39 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 - middleware에서 error 파라미터 있으면 Supabase 세션 리디렉트 건너뜀 (루프 방지)
 - CREATE TABLE IF NOT EXISTS 함정: 테이블이 이미 존재하면 새 컬럼 무시됨 → ALTER TABLE ADD COLUMN IF NOT EXISTS로 수동 추가
 - serp_results 테이블에는 client_id 컬럼 없음! content_id FK만 있음. 클라이언트별 순위 데이터는 keyword_visibility 테이블(client_id 보유) 사용 필수
+- Playwright optional dependency: `import("playwright")` 하면 Turbopack이 번들링 시도 → `Function("m", "return import(m)")("playwright")` 사용 필수
+- Supabase query builder에는 `.catch()` 없음 → `.then(({ error }) => { if (error) ... })` 패턴 사용
+- AEO 추적 포인트 정책: 추적 자체는 무료, 콘텐츠 생성만 1포인트, 실패 시 refundPoints() 자동 환불
+
+---
+
+## 12. AI 오케스트레이션 개발 시스템 (Phase DEV-0)
+
+### 전체 로드맵
+
+- MASTER_ROADMAP.md 참조 (프로젝트 루트)
+- Phase 0~10, SEO+AEO 통합 재설계
+
+### 에이전트 역할 정의
+
+- ai-team/ 폴더의 각 .md 파일 참조
+- CTO Agent: 전체 오케스트레이션 (ai-team/cto.md)
+- Analysis Dev: 키워드/질문/경쟁사/Gap (ai-team/analysis-dev.md)
+- Content Dev: SEO/AEO 콘텐츠/QC/배포 (ai-team/content-dev.md)
+- Tracking Dev: SERP/LLM/언급/스코어 (ai-team/tracking-dev.md)
+- Infra Dev: DB/배포/크론/모니터링 (ai-team/infra-dev.md)
+
+### Task 기반 워크플로우
+
+- tasks/ 폴더에 task 파일 생성 (tasks/README.md 참조)
+- 상태: pending → in_progress → done
+- 네이밍: task_NNN_제목.md
+- PM이 기획 → task 파일 작성 → Claude Code에 "pending task 실행해" 지시
+
+### 프로젝트 추가 디렉토리
+
+- ai-team/: 에이전트 역할 정의
+- tasks/: 작업 큐 (파일 기반)
+- prompts/: 에이전트용 프롬프트 저장
+- docs/: 설계 문서 (architecture.md 등)
+- MASTER_ROADMAP.md: 전체 Phase 로드맵

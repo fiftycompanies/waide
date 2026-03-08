@@ -1,5 +1,6 @@
 // ─── 리서치 & 분석 페이지 (Server Component) ──────────────────────────────────
-// SERP 순위 추이 · AI SOM 인용율 · Style Transfer 학습 레퍼런스
+// SEO: SERP 순위 추이 · 노출 점유율 · Style Transfer
+// AEO: AI 노출 추적 · 경쟁 분석 · Citation 분석
 // ─────────────────────────────────────────────────────────────────────────────
 import { Suspense } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -16,9 +17,16 @@ import {
 } from "@/lib/actions/analytics-actions";
 import { getSelectedClientId } from "@/lib/actions/brand-actions";
 import { VisibilitySection } from "@/components/analytics/visibility-section";
+import { AnalyticsTabsWrapper } from "@/components/analytics/analytics-tabs-wrapper";
+import {
+  getAEOAnalyticsData,
+  getAEOCompetitionData,
+  getAEOCitationData,
+} from "@/lib/actions/aeo-tracking-actions";
 
 async function AnalyticsSection() {
   const clientId = await getSelectedClientId();
+
   const [kpiData, serpData, bestContents, ekRecords, visibilityRows] = await Promise.all([
     getOpsKpiCards(clientId ?? undefined),
     getOpsSerp(clientId ?? undefined, 30),
@@ -27,7 +35,27 @@ async function AnalyticsSection() {
     getKeywordVisibilityTable(clientId ?? undefined, 50),
   ]);
 
-  return (
+  // AEO 데이터 (clientId 필수)
+  let aeoData: Awaited<ReturnType<typeof getAEOAnalyticsData>> = {
+    scoreTrend: [], questionTable: [], totalTracked: 0, totalMentioned: 0,
+  };
+  let competitionData: Awaited<ReturnType<typeof getAEOCompetitionData>> = {
+    competitors: [], shareOfVoice: [], ourMentionCount: 0,
+  };
+  let citationData: Awaited<ReturnType<typeof getAEOCitationData>> = {
+    topSources: [], ourContentCited: [],
+  };
+
+  if (clientId) {
+    [aeoData, competitionData, citationData] = await Promise.all([
+      getAEOAnalyticsData(clientId, 30),
+      getAEOCompetitionData(clientId),
+      getAEOCitationData(clientId),
+    ]);
+  }
+
+  // SEO 탭 콘텐츠
+  const seoContent = (
     <div className="space-y-6">
       <KpiHeaderCards data={kpiData} />
       <div className="grid gap-5 lg:grid-cols-2">
@@ -35,10 +63,9 @@ async function AnalyticsSection() {
         <StyleTransferWidget contents={bestContents} />
       </div>
 
-      {/* 노출 점유율 상세 */}
       <div>
         <div className="mb-3">
-          <h2 className="text-lg font-semibold">📊 노출 점유율 상세</h2>
+          <h2 className="text-lg font-semibold">노출 점유율 상세</h2>
           <p className="text-sm text-muted-foreground mt-0.5">
             키워드별 당일 노출 점수 및 순위 현황
           </p>
@@ -46,10 +73,9 @@ async function AnalyticsSection() {
         <VisibilitySection rows={visibilityRows} />
       </div>
 
-      {/* 진화 지식 섹션 */}
       <div>
         <div className="mb-3">
-          <h2 className="text-lg font-semibold">🧬 진화 지식 현황</h2>
+          <h2 className="text-lg font-semibold">진화 지식 현황</h2>
           <p className="text-sm text-muted-foreground mt-0.5">
             SERP 성과를 기반으로 에이전트가 자동 축적한 집필 패턴 · 전략 규칙
           </p>
@@ -57,6 +83,16 @@ async function AnalyticsSection() {
         <EvolvingKnowledgeTable records={ekRecords} />
       </div>
     </div>
+  );
+
+  return (
+    <AnalyticsTabsWrapper
+      clientId={clientId || ""}
+      aeoData={aeoData}
+      competitionData={competitionData}
+      citationData={citationData}
+      seoContent={seoContent}
+    />
   );
 }
 
@@ -79,9 +115,9 @@ export default function AnalyticsPage() {
   return (
     <div className="p-6 md:p-8 space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">리서치 & 분석</h1>
+        <h1 className="text-2xl font-bold tracking-tight">성과 분석</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          SERP 순위 추이 · AI SOM 인용율 · Style Transfer 학습 레퍼런스
+          SEO 순위 추이 · AEO 노출 추적 · 경쟁 분석 · Citation 분석
         </p>
       </div>
 

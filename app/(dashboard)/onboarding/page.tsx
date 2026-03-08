@@ -1,16 +1,34 @@
 import { BrandAnalyzer } from "@/components/onboarding";
+import { OnboardingActions } from "@/components/onboarding/onboarding-actions";
+import { createAdminClient } from "@/lib/supabase/service";
 
-export default function OnboardingPage() {
+export default async function OnboardingPage() {
+  // 고객 목록 조회 (분석 연결용)
+  const db = createAdminClient();
+  const { data: clients } = await db
+    .from("clients")
+    .select("id, name")
+    .eq("is_active", true)
+    .order("name");
+
   return (
     <div className="container max-w-4xl py-8 px-4 md:px-6">
       {/* Page Header */}
-      <div className="space-y-2 mb-8">
-        <h1 className="text-3xl font-bold tracking-tight">
-          브랜드 온보딩
-        </h1>
-        <p className="text-muted-foreground text-lg">
-          웹사이트 URL을 입력하여 AI가 브랜드의 페르소나를 자동으로 분석합니다.
-        </p>
+      <div className="flex items-center justify-between mb-8">
+        <div className="space-y-2">
+          <h1 className="text-3xl font-bold tracking-tight">
+            브랜드 온보딩
+          </h1>
+          <p className="text-muted-foreground text-lg">
+            웹사이트 URL을 입력하여 AI가 브랜드의 페르소나를 자동으로 분석합니다.
+          </p>
+        </div>
+        <OnboardingActions
+          clients={(clients ?? []).map((c: { id: string; name: string }) => ({
+            id: c.id,
+            name: c.name,
+          }))}
+        />
       </div>
 
       {/* Steps Indicator */}

@@ -92,7 +92,7 @@ export default async function OpsPage() {
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-base">최근 Jobs</CardTitle>
           <Link
-            href="/ops/jobs"
+            href="/contents?tab=jobs"
             className="text-xs text-muted-foreground hover:text-foreground transition-colors"
           >
             전체 보기 →

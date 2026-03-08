@@ -8,6 +8,7 @@ import {
   FileText,
   Key,
   Loader2,
+  Radio,
   Sparkles,
   TrendingUp,
 } from "lucide-react";
@@ -65,6 +66,12 @@ interface ReportData {
     analyzed_at: string;
     content_strategy: { improvements?: string[] } | null;
   }>;
+  aeo?: {
+    score: number | null;
+    previousScore: number | null;
+    byModel: { model: string; mentions: number }[];
+    topQuestions: { question: string; model: string; position: number | null }[];
+  } | null;
 }
 
 function formatMonth(monthStr: string): string {
@@ -330,7 +337,67 @@ export default function PortalReportsPage() {
         )}
       </div>
 
-      {/* Section 5: AI Activity Log Summary */}
+      {/* Section 5: AEO Visibility */}
+      {data.aeo && (
+        <div className="rounded-xl border bg-white p-6">
+          <div className="flex items-center gap-2 text-gray-900 mb-4">
+            <Radio className="h-5 w-5 text-purple-500" />
+            <h2 className="text-lg font-semibold">AEO 노출 현황</h2>
+          </div>
+
+          {/* Score */}
+          <div className="flex items-center gap-6 mb-6">
+            <div>
+              <p className="text-sm text-gray-500">AEO Score</p>
+              <p className="text-4xl font-bold text-purple-600">
+                {data.aeo.score != null ? data.aeo.score : "-"}
+              </p>
+            </div>
+            {data.aeo.previousScore != null && data.aeo.score != null && (() => {
+              const diff = data.aeo.score - data.aeo.previousScore;
+              if (diff === 0) return null;
+              return (
+                <div className={`flex items-center gap-1 text-sm font-medium ${diff > 0 ? "text-emerald-600" : "text-red-500"}`}>
+                  <TrendingUp className={`h-4 w-4 ${diff < 0 ? "rotate-180" : ""}`} />
+                  {diff > 0 ? "+" : ""}{Math.round(diff * 10) / 10}
+                </div>
+              );
+            })()}
+          </div>
+
+          {/* Model mentions */}
+          {data.aeo.byModel.length > 0 && (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+              {data.aeo.byModel.map((m) => (
+                <div key={m.model} className="rounded-lg bg-purple-50 p-3 text-center">
+                  <p className="text-xs text-gray-500">{m.model}</p>
+                  <p className="text-xl font-bold text-purple-700 mt-1">{m.mentions}회</p>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Top questions */}
+          {data.aeo.topQuestions.length > 0 && (
+            <div className="mt-4">
+              <p className="text-sm font-medium text-gray-700 mb-2">상위 노출 질문</p>
+              <div className="space-y-2">
+                {data.aeo.topQuestions.map((q, i) => (
+                  <div key={i} className="flex items-center justify-between text-sm bg-gray-50 rounded-lg px-3 py-2">
+                    <span className="text-gray-700 truncate flex-1">{q.question}</span>
+                    <div className="flex items-center gap-2 ml-2 shrink-0">
+                      <span className="text-xs text-gray-400">{q.model}</span>
+                      <span className="text-xs font-bold text-emerald-600">{q.position}위</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Section 6: AI Activity Log Summary */}
       {totalAgentRuns > 0 && (
         <div className="rounded-xl border bg-white p-6">
           <div className="flex items-center gap-2 text-gray-900 mb-4">

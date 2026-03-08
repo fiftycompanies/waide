@@ -73,6 +73,12 @@ interface DashboardData {
   recentKeywordActivity: RecentKeywordActivity[];
   salesAgent: { name: string; phone: string; email: string } | null;
   subscription: { status: string; products: { name: string } | null } | null;
+  pointBalance: number;
+  aeoScore: {
+    score: number | null;
+    trend: number;
+    byModel: Record<string, number>;
+  } | null;
 }
 
 const statusLabels: Record<string, { text: string; color: string }> = {
@@ -191,6 +197,43 @@ export default function PortalDashboardPage() {
           </p>
         </div>
       </div>
+
+      {/* Point Balance Banner */}
+      <div className="flex items-center gap-3 px-5 py-3 rounded-xl border bg-gradient-to-r from-amber-50 to-orange-50 border-amber-200/60">
+        <span className="text-lg">🪙</span>
+        <span className="text-sm text-gray-700">
+          잔여 포인트: <span className="font-bold text-amber-700">{data.pointBalance ?? 0}건</span>
+        </span>
+        <span className="text-xs text-gray-400 ml-auto">충전 문의: 담당자에게 연락하세요</span>
+      </div>
+
+      {/* AEO Score Card */}
+      {data.aeoScore && data.aeoScore.score !== null && (
+        <div className="rounded-xl border bg-gradient-to-r from-violet-50 to-blue-50 border-violet-200/60 p-5">
+          <div className="flex items-center gap-2 text-gray-700 mb-2">
+            <Target className="h-4 w-4 text-violet-500" />
+            <span className="text-sm font-medium">AEO Visibility Score</span>
+          </div>
+          <div className="flex items-end gap-2">
+            <span className="text-3xl font-bold text-gray-900">{data.aeoScore.score.toFixed(1)}</span>
+            {data.aeoScore.trend !== 0 && (
+              <span className={`text-sm font-medium ${data.aeoScore.trend > 0 ? "text-emerald-600" : "text-red-500"}`}>
+                {data.aeoScore.trend > 0 ? "+" : ""}{data.aeoScore.trend.toFixed(1)}
+              </span>
+            )}
+          </div>
+          <p className="text-xs text-gray-500 mt-1">AI 엔진에서 브랜드가 언급되는 비율</p>
+          {Object.keys(data.aeoScore.byModel).length > 0 && (
+            <div className="flex gap-3 mt-3">
+              {Object.entries(data.aeoScore.byModel).map(([model, count]) => (
+                <span key={model} className="text-xs text-gray-500">
+                  {model === "perplexity" ? "Perplexity" : model === "claude" ? "Claude" : model === "chatgpt" ? "ChatGPT" : "Gemini"}: {count}회
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Marketing Score Card */}
       {data.latestAnalysis?.marketing_score != null && (

@@ -73,6 +73,7 @@ import {
   inviteClientUser,
   type LinkedAccount,
 } from "@/lib/actions/client-account-actions";
+import { BrandAnalysisModal } from "@/components/onboarding/brand-analysis-modal";
 
 // ── Tab button ─────────────────────────────────────────────────────────────
 
@@ -1349,6 +1350,7 @@ export default function ClientDetailPage() {
   const [client, setClient] = useState<ClientDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<TabKey>("overview");
+  const [showAnalysisModal, setShowAnalysisModal] = useState(false);
 
   useEffect(() => {
     getClientDetail(clientId).then((data) => {
@@ -1370,7 +1372,7 @@ export default function ClientDetailPage() {
       <div className="text-center py-20 text-muted-foreground">
         <Building2 className="h-10 w-10 mx-auto mb-3 opacity-40" />
         <p>고객을 찾을 수 없습니다</p>
-        <Link href="/ops/clients" className="text-primary hover:underline text-sm mt-2 inline-block">
+        <Link href="/clients" className="text-primary hover:underline text-sm mt-2 inline-block">
           목록으로 →
         </Link>
       </div>
@@ -1400,7 +1402,7 @@ export default function ClientDetailPage() {
     <div className="space-y-6">
       {/* Header */}
       <Breadcrumb items={[
-        { label: "고객 포트폴리오", href: "/ops/clients" },
+        { label: "고객 포트폴리오", href: "/clients" },
         { label: client.brand_name },
       ]} />
       <div className="flex items-center justify-between">
@@ -1426,6 +1428,13 @@ export default function ClientDetailPage() {
             )}
           </div>
         </div>
+        <button
+          onClick={() => setShowAnalysisModal(true)}
+          className="inline-flex items-center gap-1.5 rounded-md bg-violet-600 px-3 py-2 text-sm font-medium text-white hover:bg-violet-700 transition-colors"
+        >
+          <Plus className="h-4 w-4" />
+          브랜드 추가 분석
+        </button>
       </div>
 
       {/* Tabs */}
@@ -1476,6 +1485,12 @@ export default function ClientDetailPage() {
       {activeTab === "onboarding" && <OnboardingTab client={client} />}
       {activeTab === "account" && <AccountTab clientId={client.id} />}
       {activeTab === "reports" && <ReportTab clientId={client.id} />}
+
+      <BrandAnalysisModal
+        open={showAnalysisModal}
+        onClose={() => setShowAnalysisModal(false)}
+        presetClientId={client.id}
+      />
     </div>
   );
 }

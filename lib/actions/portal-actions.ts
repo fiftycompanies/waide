@@ -298,7 +298,74 @@ export async function getPortalDashboardV2(clientId: string) {
     })),
     salesAgent,
     subscription: null as { status: string; products: { name: string } | null } | null,
+    pointBalance: await getPortalPointBalance(clientId),
+    aeoScore: await getPortalAEOScoreQuick(clientId),
   };
+}
+
+// ── AEO Score 간편 조회 (포털 대시보드용) ───────────────────────────────
+
+async function getPortalAEOScoreQuick(clientId: string): Promise<{
+  score: number | null;
+  trend: number;
+  byModel: Record<string, number>;
+} | null> {
+  try {
+    const db = createAdminClient();
+
+    // 최근 AEO 점수
+    const { data: latestScore } = await db
+      .from("aeo_scores")
+      .select("score")
+      .eq("client_id", clientId)
+      .is("keyword_id", null)
+      .is("ai_model", null)
+      .order("period_end", { ascending: false })
+      .limit(1);
+
+    const currentScore = (latestScore as Array<{ score: number }> | null)?.[0]?.score ?? null;
+    if (currentScore === null) return null;
+
+    // 이전 점수
+    const { data: prevScores } = await db
+      .from("aeo_scores")
+      .select("score")
+      .eq("client_id", clientId)
+      .is("keyword_id", null)
+      .is("ai_model", null)
+      .order("period_end", { ascending: false })
+      .range(1, 1);
+
+    const previousScore = (prevScores as Array<{ score: number }> | null)?.[0]?.score ?? 0;
+    const trend = Math.round((currentScore - previousScore) * 10) / 10;
+
+    // 모델별 추적 수
+    const { data: modelCounts } = await db
+      .from("llm_answers")
+      .select("ai_model")
+      .eq("client_id", clientId);
+
+    const byModel: Record<string, number> = {};
+    for (const row of (modelCounts ?? []) as Array<{ ai_model: string }>) {
+      byModel[row.ai_model] = (byModel[row.ai_model] || 0) + 1;
+    }
+
+    return { score: currentScore, trend, byModel };
+  } catch {
+    return null;
+  }
+}
+
+// ── 포인트 잔액 조회 (포털용) ─────────────────────────────────────────
+
+async function getPortalPointBalance(clientId: string): Promise<number> {
+  const db = createAdminClient();
+  const { data } = await db
+    .from("client_points")
+    .select("balance")
+    .eq("client_id", clientId)
+    .maybeSingle();
+  return data?.balance ?? 0;
 }
 
 // ── 포털 키워드 V2 데이터 (Phase P-1) ─────────────────────────────────
@@ -515,6 +582,48 @@ export async function getPortalReportV2(clientId: string, year?: number, month?:
     agentTypeCounts[log.agent_type] = (agentTypeCounts[log.agent_type] || 0) + 1;
   }
 
+  // AEO 데이터 수집
+  let aeoData: { score: number | null; previousScore: number | null; byModel: { model: string; mentions: number }[]; topQuestions: { question: string; model: string; position: number | null }[] } | null = null;
+  try {
+    const [aeoScoreRes, aeoMentionsRes] = await Promise.all([
+      db.from("aeo_scores")
+        .select("score")
+        .eq("client_id", clientId)
+        .order("period_end", { ascending: false })
+        .limit(2),
+      db.from("mentions")
+        .select("brand_name, position, ai_model")
+        .eq("client_id", clientId)
+        .eq("is_target", true)
+        .gte("created_at", monthStart.toISOString())
+        .lt("created_at", monthEnd.toISOString())
+        .limit(100),
+    ]);
+
+    const scores = (aeoScoreRes.data || []) as { score: number }[];
+    const mentionRows = (aeoMentionsRes.data || []) as { brand_name: string; position: number | null; ai_model: string }[];
+
+    if (scores.length > 0 || mentionRows.length > 0) {
+      const modelMap = new Map<string, number>();
+      for (const m of mentionRows) {
+        modelMap.set(m.ai_model, (modelMap.get(m.ai_model) || 0) + 1);
+      }
+
+      aeoData = {
+        score: scores[0]?.score ?? null,
+        previousScore: scores[1]?.score ?? null,
+        byModel: Array.from(modelMap.entries()).map(([model, mentions]) => ({ model, mentions })),
+        topQuestions: mentionRows
+          .filter((m) => m.position != null)
+          .sort((a, b) => (a.position || 999) - (b.position || 999))
+          .slice(0, 5)
+          .map((m) => ({ question: m.brand_name, model: m.ai_model, position: m.position })),
+      };
+    }
+  } catch {
+    // AEO 테이블 미존재 시 무시
+  }
+
   return {
     selectedMonth: { year: targetYear, month: targetMonth },
     summary: {
@@ -527,6 +636,7 @@ export async function getPortalReportV2(clientId: string, year?: number, month?:
     serpRankings,
     agentTypeCounts,
     analyses: analysesRes.data || [],
+    aeo: aeoData,
   };
 }
 

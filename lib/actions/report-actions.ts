@@ -37,6 +37,14 @@ export interface ContentTrendItem {
   count: number;
 }
 
+export interface AEOReportData {
+  score: number | null;
+  previousScore: number | null;
+  byModel: { model: string; mentions: number; avgPosition: number | null }[];
+  topQuestions: { question: string; model: string; position: number | null }[];
+  unmatchedQuestions: string[];
+}
+
 export interface MonthlyReportData {
   brandName: string;
   reportMonth: string; // "2026년 2월"
@@ -47,6 +55,7 @@ export interface MonthlyReportData {
   rankings: ReportRanking[];
   suggestedKeywordsCount: number;
   pendingContentsCount: number;
+  aeo?: AEOReportData;
 }
 
 export interface ReportDelivery {
@@ -265,7 +274,109 @@ export async function getMonthlyReportData(
     })),
     suggestedKeywordsCount: suggestedRes.count ?? 0,
     pendingContentsCount: pendingRes.count ?? 0,
+    aeo: await getAEOReportData(db, clientId, monthStart, monthEnd),
   };
+}
+
+// ── AEO 리포트 데이터 수집 ──────────────────────────────────────
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function getAEOReportData(db: any, clientId: string, monthStart: Date, monthEnd: Date): Promise<AEOReportData | undefined> {
+  try {
+    // 현재 AEO Score
+    const { data: currentScore } = await db
+      .from("aeo_scores")
+      .select("score")
+      .eq("client_id", clientId)
+      .order("period_end", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    // 이전 AEO Score
+    const { data: prevScore } = await db
+      .from("aeo_scores")
+      .select("score")
+      .eq("client_id", clientId)
+      .order("period_end", { ascending: false })
+      .range(1, 1)
+      .maybeSingle();
+
+    // 멘션 데이터 (이번 달)
+    const { data: mentions } = await db
+      .from("mentions")
+      .select("brand_name, is_target, position, sentiment, ai_model, created_at")
+      .eq("client_id", clientId)
+      .eq("is_target", true)
+      .gte("created_at", monthStart.toISOString())
+      .lt("created_at", monthEnd.toISOString())
+      .order("created_at", { ascending: false })
+      .limit(100);
+
+    // 질문별 최근 응답 (LLM answers)
+    const { data: llmAnswers } = await db
+      .from("llm_answers")
+      .select("question_id, ai_model, created_at, questions(question)")
+      .eq("client_id", clientId)
+      .gte("created_at", monthStart.toISOString())
+      .lt("created_at", monthEnd.toISOString())
+      .order("created_at", { ascending: false })
+      .limit(50);
+
+    if (!currentScore && (!mentions || mentions.length === 0)) {
+      return undefined; // AEO 데이터 없음
+    }
+
+    // 모델별 집계
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const mentionArr = (mentions || []) as any[];
+    const modelMap = new Map<string, { mentions: number; positions: number[] }>();
+    for (const m of mentionArr) {
+      const model = m.ai_model || "unknown";
+      const entry = modelMap.get(model) || { mentions: 0, positions: [] };
+      entry.mentions++;
+      if (m.position != null) entry.positions.push(m.position);
+      modelMap.set(model, entry);
+    }
+
+    const byModel = Array.from(modelMap.entries()).map(([model, data]) => ({
+      model,
+      mentions: data.mentions,
+      avgPosition: data.positions.length > 0
+        ? Math.round(data.positions.reduce((a, b) => a + b, 0) / data.positions.length * 10) / 10
+        : null,
+    }));
+
+    // 상위 노출 질문 TOP 5
+    const topQuestions = mentionArr
+      .filter((m) => m.position != null)
+      .sort((a, b) => (a.position || 999) - (b.position || 999))
+      .slice(0, 5)
+      .map((m) => ({
+        question: m.brand_name || "",
+        model: m.ai_model || "",
+        position: m.position,
+      }));
+
+    // LLM 응답이 있지만 멘션이 없는 질문 (미노출)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const answeredQuestions = new Set((llmAnswers || []).map((a: any) => a.questions?.question || a.question_id));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const mentionedQuestions = new Set(mentionArr.map((m: any) => m.brand_name));
+    const unmatchedQuestions = Array.from(answeredQuestions)
+      .filter((q) => !mentionedQuestions.has(q))
+      .slice(0, 5) as string[];
+
+    return {
+      score: currentScore?.score ?? null,
+      previousScore: prevScore?.score ?? null,
+      byModel,
+      topQuestions,
+      unmatchedQuestions,
+    };
+  } catch (err) {
+    console.error("[report-actions] getAEOReportData error:", err);
+    return undefined;
+  }
 }
 
 // ── 리포트 설정 CRUD ────────────────────────────────────────────────────

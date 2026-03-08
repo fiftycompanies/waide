@@ -21,6 +21,8 @@ import { createAdminClient } from "@/lib/supabase/service";
 import { createContentV2 } from "@/lib/content-pipeline-v2";
 import { runQcV2 } from "@/lib/content-qc-v2";
 import { runRewriteLoop } from "@/lib/content-rewrite-loop";
+import { refundPoints } from "@/lib/actions/point-actions";
+import { checkAutoPublish } from "@/lib/actions/publish-actions";
 import { revalidatePath } from "next/cache";
 
 // ═══════════════════════════════════════════
@@ -183,7 +185,17 @@ export async function generateContentV2(params: {
           loopResult.finalQc.score
         );
 
+        // 재작성 후 QC PASS → 자동 발행 트리거
+        if (loopResult.finalQc.pass) {
+          try {
+            await checkAutoPublish(contentId, params.clientId);
+          } catch (autoErr) {
+            console.error("[generate-content] 재작성 후 자동 발행 트리거 실패 (무시):", autoErr);
+          }
+        }
+
         revalidatePath("/ops/contents");
+        revalidatePath("/publish");
         return {
           success: true,
           contentId,
@@ -198,7 +210,7 @@ export async function generateContentV2(params: {
       }
     }
 
-    // QC PASS → approved 상태로 업데이트
+    // QC PASS → approved 상태로 업데이트 + 자동 발행 트리거
     if (qcResult.pass) {
       try {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -212,11 +224,19 @@ export async function generateContentV2(params: {
       } catch {
         // 상태 업데이트 실패해도 계속
       }
+
+      // 자동 발행 트리거 (설정 ON인 경우만 실행, 실패해도 파이프라인 블로킹 없음)
+      try {
+        await checkAutoPublish(contentId, params.clientId);
+      } catch (autoErr) {
+        console.error("[generate-content] 자동 발행 트리거 실패 (무시):", autoErr);
+      }
     }
 
     await updateJobDone(db, params.jobId, contentId, qcResult, 0, qcResult.score);
 
     revalidatePath("/ops/contents");
+    revalidatePath("/publish");
     return {
       success: true,
       contentId,
@@ -229,6 +249,15 @@ export async function generateContentV2(params: {
     const errorMsg = error instanceof Error ? error.message : "알 수 없는 에러";
     console.error("[generate-content] 파이프라인 실패:", error);
     await updateJobFailed(db, params.jobId, errorMsg);
+
+    // 콘텐츠 생성 실패 시 포인트 자동 환불
+    try {
+      await refundPoints(params.clientId, null);
+      console.log(`[generate-content] 포인트 환불 완료: client=${params.clientId}`);
+    } catch (refundErr) {
+      console.error("[generate-content] 포인트 환불 실패:", refundErr);
+    }
+
     return { success: false, error: errorMsg };
   }
 }

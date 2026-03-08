@@ -23,14 +23,16 @@ function LoadingContent() {
     : "";
   const ref = paramRef || cookieRef;
 
+  const existingId = searchParams.get("id") ?? "";
   const [progress, setProgress] = useState(0);
   const [currentStep, setCurrentStep] = useState(0);
-  const [analysisId, setAnalysisId] = useState<string | null>(null);
+  const [analysisId, setAnalysisId] = useState<string | null>(existingId || null);
   const [error, setError] = useState<string | null>(null);
   const startedRef = useRef(false);
 
   useEffect(() => {
-    if (!url || startedRef.current) return;
+    // 재분석의 경우 id가 이미 있으므로 새 분석 시작 불필요
+    if (existingId || !url || startedRef.current) return;
     startedRef.current = true;
 
     const startAnalysis = async () => {
@@ -49,7 +51,7 @@ function LoadingContent() {
       }
     };
     startAnalysis();
-  }, [url, ref, router]);
+  }, [url, ref, router, existingId]);
 
   useEffect(() => {
     if (!analysisId) return;
@@ -106,7 +108,7 @@ function LoadingContent() {
     };
   }, [analysisId, router]);
 
-  if (!url) {
+  if (!url && !existingId) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
         <p className="text-[#666666]">URL이 필요합니다.</p>

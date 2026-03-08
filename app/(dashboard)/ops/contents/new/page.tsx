@@ -12,7 +12,7 @@ interface PageProps {
 
 export default async function NewContentPage({ searchParams }: PageProps) {
   const clientId = await getSelectedClientId();
-  if (!clientId) redirect("/ops/contents");
+  if (!clientId) redirect("/contents");
 
   const params = await searchParams;
   const preselectedKeywordId = params.keyword_id ?? null;
@@ -26,7 +26,7 @@ export default async function NewContentPage({ searchParams }: PageProps) {
     <div className="p-6 space-y-6">
       <div>
         <Link
-          href="/ops/contents"
+          href="/contents"
           className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors mb-4"
         >
           <ChevronLeft className="h-3.5 w-3.5" />

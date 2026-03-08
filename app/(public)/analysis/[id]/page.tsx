@@ -260,6 +260,15 @@ export default function AnalysisResultPage({
     additionalKeywords: "",
   });
   const [savingEdits, setSavingEdits] = useState(false);
+  const [showRefinePanel, setShowRefinePanel] = useState(false);
+  const [refineData, setRefineData] = useState({
+    keywords: [] as string[],
+    strengths: "",
+    appeal: "",
+    target: "",
+  });
+  const [newKeyword, setNewKeyword] = useState("");
+  const [refining, setRefining] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -274,6 +283,17 @@ export default function AnalysisResultPage({
         if (result.status === "failed") { router.replace("/"); return; }
         setData(result);
         if (result.customer_edits) setEdits(result.customer_edits);
+        // 보완 패널 프리필
+        const rka = result.keyword_analysis ?? {};
+        const rra = result.review_analysis ?? {};
+        const existingRefined = result.refined_keywords as string[] | null;
+        const mainKws = [rka.main_keyword, rka.secondary_keyword, rka.tertiary_keyword].filter(Boolean);
+        setRefineData({
+          keywords: existingRefined?.length ? existingRefined : mainKws.slice(0, 5),
+          strengths: (result.refined_strengths as string) || (rra.selling_points ?? []).join(", "),
+          appeal: (result.refined_appeal as string) || "",
+          target: (result.refined_target as string) || "",
+        });
       } catch { router.replace("/"); } finally { setLoading(false); }
     };
     fetchData();
@@ -289,6 +309,48 @@ export default function AnalysisResultPage({
       });
       setEditMode(false);
     } catch { alert("저장 실패. 다시 시도해주세요."); } finally { setSavingEdits(false); }
+  };
+
+  const handleRefine = async () => {
+    if (refineData.keywords.length === 0) {
+      alert("키워드를 1개 이상 입력해주세요.");
+      return;
+    }
+    setRefining(true);
+    try {
+      const resp = await fetch(`/api/analyze/${id}/refine`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(refineData),
+      });
+      if (!resp.ok) throw new Error("refine failed");
+      // 재분석 시작됨 → 로딩 페이지로 이동
+      router.push(`/analysis/loading?url=${encodeURIComponent(data?.input_url || "")}&id=${id}`);
+    } catch {
+      alert("재분석 요청 실패. 다시 시도해주세요.");
+    } finally {
+      setRefining(false);
+    }
+  };
+
+  const addKeyword = () => {
+    const kw = newKeyword.trim();
+    if (!kw || refineData.keywords.length >= 5) return;
+    if (refineData.keywords.includes(kw)) { setNewKeyword(""); return; }
+    setRefineData({ ...refineData, keywords: [...refineData.keywords, kw] });
+    setNewKeyword("");
+  };
+
+  const removeKeyword = (kw: string) => {
+    setRefineData({ ...refineData, keywords: refineData.keywords.filter((k) => k !== kw) });
+  };
+
+  const handleStartProject = () => {
+    // localStorage에 analysis_id 저장 (로그인/가입 플로우 생존)
+    if (typeof window !== "undefined") {
+      localStorage.setItem("waide_analysis_id", id);
+    }
+    router.push(`/login?redirect=${encodeURIComponent(`/onboarding/refine?analysis_id=${id}`)}`);
   };
 
   if (loading) {
@@ -1237,6 +1299,123 @@ export default function AnalysisResultPage({
             )}
           </div>
         )}
+
+        {/* ════════════════════════════════════════════════════════
+            보완하기 + 프로젝트 시작하기
+           ════════════════════════════════════════════════════════ */}
+        <div className="mb-8 rounded-2xl border border-[#10b981]/20 bg-gradient-to-b from-[#10b981]/5 to-[#1a1a1a] p-8 text-center">
+          <div className="text-3xl mb-3">🎯</div>
+          <h3 className="text-xl md:text-2xl font-bold text-white mb-2">
+            분석이 완료되었습니다
+          </h3>
+          <p className="text-[#a0a0a0] mb-6 text-sm">
+            분석 결과를 보완하거나, 바로 프로젝트를 시작할 수 있습니다
+          </p>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+            <button
+              onClick={() => setShowRefinePanel(!showRefinePanel)}
+              className="flex items-center gap-2 px-6 py-3 rounded-xl border border-[#2a2a2a] bg-[#1a1a1a] text-white hover:border-[#10b981]/30 transition-colors w-full sm:w-auto justify-center"
+            >
+              <Pencil className="h-4 w-4 text-[#10b981]" />
+              <span className="text-sm font-medium">{showRefinePanel ? "보완 닫기" : "보완하기"}</span>
+            </button>
+            <button
+              onClick={handleStartProject}
+              className="flex items-center gap-2 px-6 py-3 rounded-xl bg-[#10b981] hover:bg-[#34d399] text-white font-medium transition-colors w-full sm:w-auto justify-center"
+            >
+              <Sparkles className="h-4 w-4" />
+              <span className="text-sm">프로젝트 시작하기</span>
+              <ArrowRight className="h-4 w-4" />
+            </button>
+          </div>
+
+          {/* 보완 패널 */}
+          {showRefinePanel && (
+            <div className="mt-6 text-left rounded-xl border border-[#2a2a2a] bg-[#111111] p-6 space-y-5">
+              <p className="text-sm text-[#a0a0a0]">
+                AI 분석을 보완할 정보를 입력하면 더 정확한 결과를 얻을 수 있습니다
+              </p>
+
+              {/* 키워드 태그 */}
+              <div>
+                <label className="text-sm text-[#a0a0a0] mb-2 block font-medium">
+                  공략 키워드 <span className="text-[#666666]">(최대 5개)</span>
+                </label>
+                <div className="flex flex-wrap gap-2 mb-2">
+                  {refineData.keywords.map((kw) => (
+                    <span
+                      key={kw}
+                      className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs bg-[#10b981]/10 text-[#10b981] border border-[#10b981]/30"
+                    >
+                      {kw}
+                      <button onClick={() => removeKeyword(kw)} className="hover:text-red-400 transition-colors">
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+                {refineData.keywords.length < 5 && (
+                  <div className="flex gap-2">
+                    <input
+                      value={newKeyword}
+                      onChange={(e) => setNewKeyword(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addKeyword())}
+                      placeholder="키워드 입력 후 Enter"
+                      className="flex-1 h-9 px-3 rounded-lg bg-[#1a1a1a] border border-[#2a2a2a] text-white text-sm focus:outline-none focus:border-[#10b981] transition-colors"
+                    />
+                    <button
+                      onClick={addKeyword}
+                      className="px-3 h-9 rounded-lg bg-[#2a2a2a] text-[#a0a0a0] hover:text-white text-sm transition-colors"
+                    >
+                      추가
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* 강점 */}
+              <div>
+                <label className="text-sm text-[#a0a0a0] mb-2 block font-medium">우리 매장의 강점</label>
+                <textarea
+                  value={refineData.strengths}
+                  onChange={(e) => setRefineData({ ...refineData, strengths: e.target.value })}
+                  placeholder="예: 직접 로스팅한 스페셜티 원두, 매일 만드는 수제 디저트"
+                  className="w-full px-3 py-2 rounded-lg bg-[#1a1a1a] border border-[#2a2a2a] text-white text-sm min-h-[60px] focus:outline-none focus:border-[#10b981] transition-colors resize-none"
+                />
+              </div>
+
+              {/* 어필 포인트 */}
+              <div>
+                <label className="text-sm text-[#a0a0a0] mb-2 block font-medium">어필 포인트</label>
+                <textarea
+                  value={refineData.appeal}
+                  onChange={(e) => setRefineData({ ...refineData, appeal: e.target.value })}
+                  placeholder="예: 인스타 감성 인테리어, 넓은 주차장, 반려동물 동반 가능"
+                  className="w-full px-3 py-2 rounded-lg bg-[#1a1a1a] border border-[#2a2a2a] text-white text-sm min-h-[60px] focus:outline-none focus:border-[#10b981] transition-colors resize-none"
+                />
+              </div>
+
+              {/* 타겟 고객 */}
+              <div>
+                <label className="text-sm text-[#a0a0a0] mb-2 block font-medium">타겟 고객</label>
+                <textarea
+                  value={refineData.target}
+                  onChange={(e) => setRefineData({ ...refineData, target: e.target.value })}
+                  placeholder="예: 20~30대 직장인, 데이트 커플, 반려견 동반 가족"
+                  className="w-full px-3 py-2 rounded-lg bg-[#1a1a1a] border border-[#2a2a2a] text-white text-sm min-h-[60px] focus:outline-none focus:border-[#10b981] transition-colors resize-none"
+                />
+              </div>
+
+              <button
+                onClick={handleRefine}
+                disabled={refining}
+                className="w-full h-11 rounded-xl bg-[#10b981] hover:bg-[#34d399] text-white font-semibold transition-colors disabled:opacity-50"
+              >
+                {refining ? "재분석 중..." : "재분석하기"}
+              </button>
+            </div>
+          )}
+        </div>
 
         {/* ════════════════════════════════════════════════════════
             CTA Section A: 3-Step Process

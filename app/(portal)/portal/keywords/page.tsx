@@ -6,17 +6,23 @@ import {
   Key,
   Lightbulb,
   Loader2,
+  MessageCircle,
   Sparkles,
   Target,
   TrendingUp,
   X,
   Archive,
+  Bot,
+  Search as SearchIcon,
+  Globe,
+  Pencil,
 } from "lucide-react";
 import { getPortalKeywordsV2 } from "@/lib/actions/portal-actions";
 import {
   approveSuggestedKeyword,
   rejectSuggestedKeyword,
 } from "@/lib/actions/keyword-expansion-actions";
+import { getPortalQuestions, type Question } from "@/lib/actions/question-actions";
 
 interface KeywordItem {
   id: string;
@@ -33,7 +39,7 @@ interface KeywordItem {
   } | null;
 }
 
-type TabType = "active" | "suggested" | "archived";
+type TabType = "active" | "suggested" | "archived" | "questions";
 
 const sourceLabels: Record<string, string> = {
   manual: "수동 등록",
@@ -45,6 +51,7 @@ export default function PortalKeywordsPage() {
   const [activeKeywords, setActiveKeywords] = useState<KeywordItem[]>([]);
   const [suggestedKeywords, setSuggestedKeywords] = useState<KeywordItem[]>([]);
   const [archivedKeywords, setArchivedKeywords] = useState<KeywordItem[]>([]);
+  const [questions, setQuestions] = useState<Question[]>([]);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [keywordStrategy, setKeywordStrategy] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -55,11 +62,15 @@ export default function PortalKeywordsPage() {
     const el = document.querySelector("meta[name='portal-client-id']");
     const clientId = el?.getAttribute("content") || "";
     if (clientId) {
-      getPortalKeywordsV2(clientId).then((d) => {
+      Promise.all([
+        getPortalKeywordsV2(clientId),
+        getPortalQuestions(clientId),
+      ]).then(([d, q]) => {
         setActiveKeywords(d.activeKeywords as KeywordItem[]);
         setSuggestedKeywords(d.suggestedKeywords as KeywordItem[]);
         setArchivedKeywords(d.archivedKeywords as KeywordItem[]);
         setKeywordStrategy(d.keywordStrategy || null);
+        setQuestions(q);
         setLoading(false);
       });
     } else {
@@ -108,6 +119,7 @@ export default function PortalKeywordsPage() {
   const tabs: { key: TabType; label: string; count: number; icon: typeof Key }[] = [
     { key: "active", label: "활성 키워드", count: activeKeywords.length, icon: Key },
     { key: "suggested", label: "AI 추천", count: suggestedKeywords.length, icon: Sparkles },
+    { key: "questions", label: "질문 현황", count: questions.length, icon: MessageCircle },
     { key: "archived", label: "보관", count: archivedKeywords.length, icon: Archive },
   ];
 
@@ -297,6 +309,63 @@ export default function PortalKeywordsPage() {
                   ))}
                 </tbody>
               </table>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Questions Tab Content */}
+      {activeTab === "questions" && (
+        <>
+          {questions.length === 0 ? (
+            <div className="rounded-xl border bg-white p-12 text-center">
+              <MessageCircle className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+              <p className="text-gray-500">생성된 질문이 없습니다</p>
+              <p className="text-sm text-gray-400 mt-1">키워드가 활성화되면 AI가 자동으로 질문을 생성합니다</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {questions.map((q) => (
+                <div
+                  key={q.id}
+                  className="rounded-xl border bg-white p-4 hover:shadow-sm transition-shadow"
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900">{q.question}</p>
+                      <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                        {q.keyword_text && (
+                          <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-600 font-medium">
+                            <Key className="h-2.5 w-2.5" />
+                            {q.keyword_text}
+                          </span>
+                        )}
+                        <span className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
+                          q.source === "llm" ? "bg-violet-50 text-violet-600" :
+                          q.source === "paa" ? "bg-amber-50 text-amber-600" :
+                          q.source === "naver" ? "bg-green-50 text-green-600" :
+                          "bg-gray-100 text-gray-500"
+                        }`}>
+                          {q.source === "llm" && <><Bot className="h-2.5 w-2.5" />AI</>}
+                          {q.source === "paa" && <><SearchIcon className="h-2.5 w-2.5" />PAA</>}
+                          {q.source === "naver" && <><Globe className="h-2.5 w-2.5" />네이버</>}
+                          {q.source === "manual" && <><Pencil className="h-2.5 w-2.5" />직접</>}
+                        </span>
+                        {q.intent && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500">
+                            {q.intent}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    {q.content_id && (
+                      <span className="shrink-0 text-[10px] px-2 py-1 rounded-full bg-emerald-50 text-emerald-600 font-medium">
+                        {q.content_status === "published" ? "발행됨" : q.content_status === "approved" ? "승인됨" : "콘텐츠 생성됨"}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </>

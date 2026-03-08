@@ -33,6 +33,8 @@ import {
   type BusinessDashboardData,
 } from "@/lib/actions/dashboard-actions";
 import Link from "next/link";
+import { AEODashboardSection } from "@/components/dashboard/aeo-dashboard-section";
+import { getAEODashboardData } from "@/lib/actions/aeo-tracking-actions";
 
 // ── 델타 배지 ────────────────────────────────────────────────────────────────
 function DeltaBadge({ value, inverse = false, unit = "%" }: { value: number; inverse?: boolean; unit?: string }) {
@@ -449,14 +451,17 @@ async function DashboardSection() {
   // AI 학습 현황 (브랜드 선택 모드에서만)
   let aiLearningCount = 0;
   let bestContentsCount = 0;
+  let aeoDashboardData: Awaited<ReturnType<typeof getAEODashboardData>> | null = null;
   if (clientId) {
     try {
-      const [ekData, bcData] = await Promise.all([
+      const [ekData, bcData, aeoData] = await Promise.all([
         getEvolvingKnowledge(clientId, 100),
         getBestContents(clientId, 100),
+        getAEODashboardData(clientId),
       ]);
       aiLearningCount = ekData.length;
       bestContentsCount = bcData.length;
+      aeoDashboardData = aeoData;
     } catch {
       // ignore
     }
@@ -672,35 +677,40 @@ async function DashboardSection() {
         </Card>
       )}
 
-      {/* ── AI 학습 현황 (브랜드 선택 모드) ── */}
+      {/* ── AI 학습 + AEO 성과 (브랜드 선택 모드) ── */}
       {!isAllMode && (
-        <Card className="border-border/40">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-semibold">AI 학습 현황</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {aiLearningCount > 0 || bestContentsCount > 0 ? (
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="rounded-lg bg-gradient-to-br from-violet-50 to-purple-50 border border-violet-100 p-4">
-                  <p className="text-xs text-muted-foreground">학습된 패턴</p>
-                  <p className="text-2xl font-bold mt-1 text-violet-700">{aiLearningCount}개</p>
-                  <p className="text-xs text-muted-foreground mt-1">SERP 성과 기반 자동 축적</p>
+        <div className="grid gap-5 lg:grid-cols-2">
+          <Card className="border-border/40">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-semibold">AI 학습 현황</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {aiLearningCount > 0 || bestContentsCount > 0 ? (
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="rounded-lg bg-gradient-to-br from-violet-50 to-purple-50 border border-violet-100 p-4">
+                    <p className="text-xs text-muted-foreground">학습된 패턴</p>
+                    <p className="text-2xl font-bold mt-1 text-violet-700">{aiLearningCount}개</p>
+                    <p className="text-xs text-muted-foreground mt-1">SERP 성과 기반 자동 축적</p>
+                  </div>
+                  <div className="rounded-lg bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-100 p-4">
+                    <p className="text-xs text-muted-foreground">베스트 콘텐츠</p>
+                    <p className="text-2xl font-bold mt-1 text-emerald-700">{bestContentsCount}개</p>
+                    <p className="text-xs text-muted-foreground mt-1">상위 노출 레퍼런스</p>
+                  </div>
                 </div>
-                <div className="rounded-lg bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-100 p-4">
-                  <p className="text-xs text-muted-foreground">베스트 콘텐츠</p>
-                  <p className="text-2xl font-bold mt-1 text-emerald-700">{bestContentsCount}개</p>
-                  <p className="text-xs text-muted-foreground mt-1">상위 노출 레퍼런스</p>
+              ) : (
+                <div className="text-center py-6">
+                  <p className="text-sm text-muted-foreground">
+                    콘텐츠를 발행하고 순위가 추적되면 AI가 자동으로 학습합니다
+                  </p>
                 </div>
-              </div>
-            ) : (
-              <div className="text-center py-6">
-                <p className="text-sm text-muted-foreground">
-                  콘텐츠를 발행하고 순위가 추적되면 AI가 자동으로 학습합니다
-                </p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* AEO 성과 섹션 */}
+          {aeoDashboardData && <AEODashboardSection data={aeoDashboardData} />}
+        </div>
       )}
     </div>
   );

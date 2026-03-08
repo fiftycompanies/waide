@@ -1,0 +1,293 @@
+-- ══════════════════════════════════════════════════════════════════════════════
+-- 현재 DB 컬럼 스키마 스냅샷
+-- 생성일: 2026-03-08
+-- 조회 쿼리:
+--   SELECT table_name, column_name, data_type, column_default, is_nullable
+--   FROM information_schema.columns
+--   WHERE table_schema = 'public'
+--   ORDER BY table_name, ordinal_position
+-- ══════════════════════════════════════════════════════════════════════════════
+
+-- ┌─────────────────────────────────────────────────────────────────────────────
+-- │ account_grades
+-- └─────────────────────────────────────────────────────────────────────────────
+-- id              uuid                      gen_random_uuid()           NOT NULL
+-- client_id       uuid                                                  NOT NULL
+-- account_id      uuid                                                  NOT NULL
+-- total_published integer                   0                           NOT NULL
+-- exposed_keywords integer                  0                           NOT NULL
+-- exposure_rate   numeric                   0                           NOT NULL
+-- avg_rank        numeric                                               NULL
+-- top3_count      integer                   0                           NOT NULL
+-- top10_count     integer                   0                           NOT NULL
+-- top3_ratio      numeric                   0                           NOT NULL
+-- top10_ratio     numeric                   0                           NOT NULL
+-- consistency_rate numeric                  0                           NOT NULL
+-- account_score   numeric                   0                           NOT NULL
+-- grade           character                 'C'                         NOT NULL
+-- previous_grade  character                                             NULL
+-- grade_change_reason text                                              NULL
+-- measured_at     date                      CURRENT_DATE                NOT NULL
+-- created_at      timestamptz               now()                       NULL
+
+-- ┌─────────────────────────────────────────────────────────────────────────────
+-- │ accounts
+-- └─────────────────────────────────────────────────────────────────────────────
+-- id              uuid                      uuid_generate_v4()          NOT NULL
+-- name            text                                                  NOT NULL
+-- platform        text                      'naver'                     NOT NULL
+-- url             text                                                  NULL
+-- blog_score      integer                   0                           NULL
+-- daily_publish_limit integer               2                           NULL
+-- client_id       uuid                                                  NULL
+-- fixed_ip        text                                                  NULL
+-- vpn_profile     text                                                  NULL
+-- proxy_config    jsonb                     '{}'                        NULL
+-- daily_published integer                   0                           NULL
+-- count_reset_date date                     CURRENT_DATE                NULL
+-- status          text                      'active'                    NULL
+-- ban_reason      text                                                  NULL
+-- created_at      timestamptz               now()                       NULL
+-- updated_at      timestamptz               now()                       NULL
+
+-- ┌─────────────────────────────────────────────────────────────────────────────
+-- │ admin_users
+-- └─────────────────────────────────────────────────────────────────────────────
+-- id              uuid                      gen_random_uuid()           NOT NULL
+-- username        text                                                  NOT NULL
+-- password_hash   text                                                  NOT NULL
+-- display_name    text                                                  NULL
+-- role            text                      'admin'                     NULL
+-- is_active       boolean                   true                        NULL
+-- last_login_at   timestamptz                                           NULL
+-- created_at      timestamptz               now()                       NULL
+-- updated_at      timestamptz               now()                       NULL
+
+-- ┌─────────────────────────────────────────────────────────────────────────────
+-- │ agent_prompts
+-- └─────────────────────────────────────────────────────────────────────────────
+-- id              uuid                      gen_random_uuid()           NOT NULL
+-- agent_type      text                                                  NOT NULL
+-- prompt_section  text                                                  NOT NULL
+-- prompt_text     text                                                  NULL
+-- description     text                                                  NULL
+-- is_active       boolean                   true                        NULL
+-- version         integer                   1                           NULL
+-- updated_by      text                      'system'                    NULL
+-- created_at      timestamptz               now()                       NULL
+-- updated_at      timestamptz               now()                       NULL
+-- title           text                                                  NULL
+-- content         text                                                  NULL
+-- task            text                                                  NULL
+-- system_prompt   text                                                  NULL
+-- output_schema   jsonb                                                 NULL
+-- model           text                      'claude-haiku-4-5'          NULL
+-- temperature     numeric                   0.3                         NULL
+-- max_tokens      integer                   2000                        NULL
+-- metadata        jsonb                                                 NULL
+
+-- ┌─────────────────────────────────────────────────────────────────────────────
+-- │ blog_accounts
+-- └─────────────────────────────────────────────────────────────────────────────
+-- id              uuid                      gen_random_uuid()           NOT NULL
+-- client_id       uuid                                                  NOT NULL
+-- account_name    text                                                  NOT NULL
+-- platform        text                      'naver'                     NULL
+-- blog_url        text                                                  NULL
+-- blog_score      text                                                  NULL
+-- fixed_ip        text                                                  NULL
+-- is_active       boolean                   true                        NULL
+-- created_at      timestamptz               now()                       NULL
+-- auth_type       text                      'manual'                    NULL
+-- access_token    text                                                  NULL
+-- refresh_token   text                                                  NULL
+-- token_expires_at timestamptz                                          NULL
+-- api_key         text                                                  NULL
+-- api_secret      text                                                  NULL
+-- blog_id         text                                                  NULL
+-- platform_user_id text                                                 NULL
+-- is_default      boolean                   false                       NULL
+-- last_published_at timestamptz                                         NULL
+-- updated_at      timestamptz               now()                       NULL
+
+-- ┌─────────────────────────────────────────────────────────────────────────────
+-- │ brand_analyses
+-- └─────────────────────────────────────────────────────────────────────────────
+-- id              uuid                      gen_random_uuid()           NOT NULL
+-- place_id        text                                                  NULL
+-- input_url       text                                                  NOT NULL
+-- url_type        text                      'naver_place'               NULL
+-- status          text                      'pending'                   NULL
+-- basic_info      jsonb                                                 NULL
+-- menu_analysis   jsonb                                                 NULL
+-- review_analysis jsonb                                                 NULL
+-- keyword_analysis jsonb                                                NULL
+-- content_strategy jsonb                                                NULL
+-- marketing_score integer                                               NULL
+-- customer_edits  jsonb                                                 NULL
+-- sales_ref       text                                                  NULL
+-- visitor_token   text                                                  NULL
+-- user_id         uuid                                                  NULL
+-- client_id       uuid                                                  NULL
+-- view_count      integer                   0                           NULL
+-- analyzed_at     timestamptz                                           NULL
+-- created_at      timestamptz               now()                       NULL
+-- image_analysis  jsonb                                                 NULL
+-- seo_audit       jsonb                                                 NULL
+-- keyword_rankings jsonb                                                NULL
+-- lead_status     text                      'new'                       NULL
+-- notes           jsonb                     '[]'                        NULL
+-- contact_name    text                                                  NULL
+-- contact_phone   text                                                  NULL
+-- contact_email   text                                                  NULL
+-- last_activity_at timestamptz              now()                       NULL
+-- refined_keywords jsonb                    '[]'                        NULL
+-- refined_strengths text                                                NULL
+-- refined_appeal  text                                                  NULL
+-- refined_target  text                                                  NULL
+-- refinement_count integer                  0                           NULL
+-- last_refined_at timestamptz                                           NULL
+
+-- ┌─────────────────────────────────────────────────────────────────────────────
+-- │ clients
+-- └─────────────────────────────────────────────────────────────────────────────
+-- id              uuid                      uuid_generate_v4()          NOT NULL
+-- workspace_id    uuid                                                  NOT NULL
+-- name            text                                                  NOT NULL
+-- company_name    text                                                  NOT NULL
+-- contact_email   text                                                  NULL
+-- contact_phone   text                                                  NULL
+-- contract_type   text                      'monthly'                   NULL
+-- contract_start  date                                                  NULL
+-- contract_end    date                                                  NULL
+-- monthly_budget  numeric                                               NULL
+-- status          text                      'active'                    NULL
+-- notes           text                                                  NULL
+-- created_at      timestamptz               now()                       NULL
+-- updated_at      timestamptz               now()                       NULL
+-- source_type     USER-DEFINED                                          NULL
+-- source_config   jsonb                     '{}'                        NULL
+-- brand_guidelines text                                                 NULL
+-- target_platforms text[]                   '{}'                        NULL
+-- kpi_goals       jsonb                     '{}'                        NULL
+-- is_active       boolean                   true                        NULL
+-- industry        text                                                  NULL
+-- website_url     text                                                  NULL
+-- blog_url        text                                                  NULL
+-- parent_id       uuid                                                  NULL
+-- client_type     text                      'company'                   NULL
+-- naver_ad_api_key text                                                 NULL
+-- naver_ad_secret_key text                                              NULL
+-- naver_ad_customer_id text                                             NULL
+-- subscription_id uuid                                                  NULL
+-- onboarding_status text                    'pending'                   NULL
+-- health_score    integer                   0                           NULL
+-- last_portal_login timestamptz                                         NULL
+-- assigned_sales_agent_id uuid                                          NULL
+-- gsc_property_url text                                                 NULL
+-- gsc_verified    boolean                   false                       NULL
+-- gsc_connected_at timestamptz                                          NULL
+-- website_seo_data jsonb                                                NULL
+-- website_aeo_data jsonb                                                NULL
+-- onboarding_checklist jsonb                '[]'                        NULL
+-- contact_name    text                                                  NULL
+-- brand_persona   jsonb                                                 NULL
+-- persona_updated_at timestamptz                                        NULL
+
+-- ┌─────────────────────────────────────────────────────────────────────────────
+-- │ contents
+-- └─────────────────────────────────────────────────────────────────────────────
+-- id              uuid                      uuid_generate_v4()          NOT NULL
+-- keyword_id      uuid                                                  NOT NULL
+-- account_id      uuid                                                  NULL
+-- url             text                                                  NULL
+-- title           text                                                  NULL
+-- published_date  date                                                  NULL
+-- is_active       boolean                   true                        NULL
+-- camfit_link     boolean                   false                       NULL
+-- source_file     text                                                  NULL
+-- job_id          uuid                                                  NULL
+-- client_id       uuid                                                  NULL
+-- content_type    text                      'blog_post'                 NULL  ← ⚠️ DEFAULT 'blog_post' (CHECK 미포함!)
+-- body            text                                                  NULL
+-- meta_description text                                                 NULL
+-- tags            text[]                                                NULL
+-- image_urls      text[]                                                NULL
+-- seo_score       numeric                                               NULL
+-- similarity_score numeric                                              NULL
+-- quality_score   numeric                                               NULL
+-- word_count      integer                                               NULL
+-- publish_status  text                      'draft'                     NULL
+-- rejection_reason text                                                 NULL
+-- generated_by    text                      'human'                     NULL
+-- created_at      timestamptz               now()                       NULL
+-- updated_at      timestamptz               now()                       NULL
+-- peak_rank       integer                                               NULL
+-- peak_rank_at    date                                                  NULL
+-- image_count     integer                   0                           NULL
+-- heading_structure jsonb                   '{}'                        NULL
+-- published_url   text                                                  NULL
+-- published_at    timestamptz                                           NULL
+-- actual_title    text                                                  NULL
+-- actual_word_count integer                                             NULL
+-- actual_image_count integer                                            NULL
+-- actual_h2_count integer                                               NULL
+-- actual_h3_count integer                                               NULL
+-- peak_rank_naver integer                                               NULL
+-- peak_rank_google integer                                              NULL
+-- is_tracking     boolean                   false                       NULL
+-- seo_checklist   jsonb                                                 NULL
+-- blog_account_id uuid                                                  NULL
+-- md_filename     text                                                  NULL
+-- initial_rank_pc integer                                               NULL
+-- initial_rank_mo integer                                               NULL
+-- peak_rank_naver_pc integer                                            NULL
+-- peak_rank_naver_mo integer                                            NULL
+-- refreshed_at    timestamptz                                           NULL
+-- refresh_count   integer                   0                           NULL
+-- original_content_id uuid                                              NULL
+-- metadata        jsonb                                                 NULL
+-- question_id     uuid                                                  NULL
+
+-- ┌─────────────────────────────────────────────────────────────────────────────
+-- │ keywords
+-- └─────────────────────────────────────────────────────────────────────────────
+-- id              uuid                      uuid_generate_v4()          NOT NULL
+-- keyword         text                                                  NOT NULL
+-- sub_keyword     text                                                  NULL
+-- monthly_search_pc integer                 0                           NULL
+-- monthly_search_mo integer                 0                           NULL
+-- monthly_search_total integer              0                           NULL
+-- competition     text                      '알 수 없음'                  NULL
+-- mobile_ratio    double precision          0                           NULL
+-- difficulty_score double precision          50                         NULL
+-- opportunity_score double precision         50                         NULL
+-- client_id       uuid                                                  NULL
+-- is_tracking     boolean                   true                        NULL
+-- priority        text                      'medium'                    NULL
+-- last_checked_at timestamptz                                           NULL
+-- created_at      timestamptz               now()                       NULL
+-- updated_at      timestamptz               now()                       NULL
+-- platform        text                      'both'                      NULL
+-- competition_level text                    'medium'                    NULL
+-- priority_score  numeric                   0                           NULL
+-- status          text                      'active'                    NULL
+-- current_rank_naver integer                                            NULL
+-- current_rank_google integer                                           NULL
+-- competition_index numeric                                             NULL
+-- current_rank_naver_pc integer                                         NULL
+-- current_rank_naver_mo integer                                         NULL
+-- rank_change_pc  integer                                               NULL
+-- rank_change_mo  integer                                               NULL
+-- exposure_rate   numeric                                               NULL
+-- last_tracked_at timestamptz                                           NULL
+-- search_volume_source text                                             NULL
+-- metadata        jsonb                                                 NULL
+-- source          text                      'manual'                    NULL
+-- monthly_search_volume integer                                         NULL
+-- pc_volume       integer                                               NULL
+-- mobile_volume   integer                                               NULL
+-- volume_updated_at timestamptz                                         NULL
+
+-- (나머지 테이블은 check_constraints.sql 참조)
+-- 주요 테이블만 상세 기록, 전체 스냅샷은 Supabase Dashboard에서 확인

@@ -11,6 +11,7 @@ function SignupContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const inviteToken = searchParams.get("invite") || "";
+  const redirectTo = searchParams.get("redirect") || "";
 
   const [form, setForm] = useState({
     name: "",
@@ -73,9 +74,13 @@ function SignupContent() {
         }
 
         // 초대 토큰이 있으면 (client_id 있음) → 포털로
+        // 분석 리다이렉트가 있으면 → 온보딩 페이지로
         // 없으면 (client_id 없음) → 대기 메시지
         if (inviteToken) {
           router.push("/portal");
+          router.refresh();
+        } else if (redirectTo.startsWith("/")) {
+          router.push(redirectTo);
           router.refresh();
         } else {
           setSuccess(
