@@ -47,6 +47,7 @@ interface CollectedData {
   reservationUrl: string;
   reviewKeywords: Array<{ keyword: string; count: number }>;
   nearbyCompetitors: number;
+  hashtags: string[];
 }
 
 interface KeywordItem {
@@ -208,6 +209,7 @@ async function collectPlaceData(placeId: string): Promise<CollectedData> {
     reservationUrl: "",
     reviewKeywords: [],
     nearbyCompetitors: 0,
+    hashtags: [],
   };
 
   // GraphQL API 호출 (pcmap-api.place.naver.com)
@@ -218,6 +220,7 @@ async function collectPlaceData(placeId: string): Promise<CollectedData> {
         visitorReviewsTotal visitorReviewsScore
         microReviews conveniences
         coordinate { x y }
+        tags { uid tag }
       }
       description
       newBusinessHours {
@@ -272,6 +275,14 @@ async function collectPlaceData(placeId: string): Promise<CollectedData> {
         // 편의시설 (conveniences 배열)
         if (base.conveniences && Array.isArray(base.conveniences)) {
           result.facilities = base.conveniences.filter(Boolean);
+        }
+
+        // 해시태그 (tags 배열)
+        if (base.tags && Array.isArray(base.tags)) {
+          result.hashtags = base.tags
+            .map((t: { tag?: string }) => t.tag ?? "")
+            .filter((tag: string) => tag.length > 0);
+          console.log(`[place-analyzer] 해시태그: ${result.hashtags.length}개 수집 → ${result.hashtags.slice(0, 5).join(", ")}`);
         }
 
         console.log(`[place-analyzer] GraphQL base: name=${result.name}, reviews=${result.visitorReviewCount}, facilities=${result.facilities.length}`);
@@ -653,6 +664,20 @@ function generateKeywordCandidates(
     candidates.push({ keyword: clean, source });
   };
 
+  // ── 1순위: 해시태그 기반 키워드 (플레이스 해시태그가 있으면 최우선) ──
+  if (collected.hashtags.length > 0) {
+    for (const tag of collected.hashtags.slice(0, 10)) {
+      // 해시태그 자체를 메인 키워드로 사용
+      add(tag, "해시태그");
+      // 해시태그 + 업종 서브키워드 조합
+      for (const sub of subKws.slice(0, 2)) {
+        if (!tag.includes(sub)) {
+          add(`${tag} ${sub}`, "해시태그");
+        }
+      }
+    }
+  }
+
   // ── 지역 변형 생성 ──
   // 규칙: 동/읍/면은 접미사 유지 (방이동 맛집 O, 방이 맛집 X)
   //       시/군/구는 접미사 제거 (송파 맛집 O, 송파구 맛집 X)
@@ -701,7 +726,91 @@ function generateKeywordCandidates(
   // 브랜드 키워드
   add(collected.name, "브랜드");
 
+  // ── 2순위 보완: 해시태그 없을 때 관광지 기반 키워드 추가 ──
+  if (collected.hashtags.length === 0) {
+    const tourismKeywords = generateTourismKeywords(
+      collected.roadAddress || collected.address,
+      collected.name,
+      collected.category,
+      subKws[0] || "맛집",
+    );
+    for (const tk of tourismKeywords) {
+      add(tk.keyword, tk.source);
+    }
+  }
+
   return candidates;
+}
+
+// ═══════════════════════════════════════════
+// 관광지 기반 키워드 생성 (해시태그 없을 때 폴백)
+// ═══════════════════════════════════════════
+
+const REGION_LANDMARKS: Record<string, string[]> = {
+  // 강원
+  "춘천": ["남이섬", "소양강", "닭갈비골목"],
+  "속초": ["설악산", "속초해수욕장", "영금정"],
+  "강릉": ["경포대", "안목해변", "주문진"],
+  "평창": ["알펜시아", "대관령", "월정사"],
+  "양양": ["서피비치", "낙산사", "양양해변"],
+  "홍천": ["비발디파크", "홍천강"],
+  "횡성": ["웰리힐리파크", "횡성한우"],
+  "원주": ["소금산", "뮤지엄산"],
+  "인제": ["백담사", "내린천"],
+  "정선": ["하이원리조트", "아리힐스"],
+  // 경기
+  "가평": ["남이섬", "쁘띠프랑스", "자라섬", "아침고요수목원"],
+  "양평": ["두물머리", "용문사", "양평레일바이크"],
+  "포천": ["허브아일랜드", "산정호수", "아트밸리"],
+  "파주": ["헤이리", "프로방스마을", "임진각"],
+  "여주": ["여주프리미엄아울렛", "신륵사"],
+  "이천": ["이천도자기마을", "미란다호텔"],
+  // 충청
+  "단양": ["도담삼봉", "만천하스카이워크", "수양개"],
+  "보은": ["속리산", "법주사"],
+  "태안": ["태안해수욕장", "꽃지해변", "안면도"],
+  "서천": ["국립생태원", "서천해수욕장"],
+  // 전라
+  "순천": ["순천만", "순천만정원", "낙안읍성"],
+  "여수": ["여수밤바다", "향일암", "오동도"],
+  "담양": ["메타세쿼이아길", "죽녹원", "소쇄원"],
+  "전주": ["한옥마을", "전주비빔밥"],
+  // 경상
+  "경주": ["불국사", "첨성대", "동궁과월지"],
+  "통영": ["미륵산", "동피랑", "한려수도"],
+  "거제": ["외도", "바람의언덕", "해금강"],
+  "안동": ["하회마을", "도산서원"],
+  // 제주
+  "제주": ["한라산", "성산일출봉", "협재해변", "우도"],
+  "서귀포": ["중문관광단지", "천지연폭포", "올레길"],
+};
+
+function generateTourismKeywords(
+  address: string,
+  name: string,
+  category: string,
+  mainSubKw: string,
+): Array<{ keyword: string; source: string }> {
+  const results: Array<{ keyword: string; source: string }> = [];
+  const industry = detectIndustry(category, name);
+  const industrySubKws = INDUSTRY_SUB_KEYWORDS[industry] ?? ["맛집"];
+
+  // 주소에서 시/군 추출하여 관광지 매핑
+  for (const [region, landmarks] of Object.entries(REGION_LANDMARKS)) {
+    if (address.includes(region)) {
+      for (const landmark of landmarks.slice(0, 3)) {
+        // "남이섬 근처 펜션", "설악산 근처 맛집" 패턴
+        results.push({ keyword: `${landmark} 근처 ${mainSubKw}`, source: "관광지" });
+        // 업종별 서브키워드 추가 조합 (1개만)
+        if (industrySubKws[1] && industrySubKws[1] !== mainSubKw) {
+          results.push({ keyword: `${landmark} 근처 ${industrySubKws[1]}`, source: "관광지" });
+        }
+      }
+      break; // 첫 매칭 지역만
+    }
+  }
+
+  return results;
 }
 
 // ═══════════════════════════════════════════
@@ -741,7 +850,9 @@ async function analyzeKeywordsV2(
     const vol = volumeMap.get(cleanKw) ?? 0;
 
     // 검색량 데이터가 있을 때만 0인 키워드 필터링 (API 실패 시 전부 유지)
-    if (hasVolumeData && vol === 0 && c.source !== "브랜드") continue;
+    // 해시태그/관광지/브랜드 키워드는 검색량 0이어도 유지
+    const preserveSources = ["브랜드", "해시태그", "관광지"];
+    if (hasVolumeData && vol === 0 && !preserveSources.includes(c.source)) continue;
 
     let priority: "high" | "medium" | "low" = "medium";
     if (hasVolumeData) {
@@ -749,11 +860,11 @@ async function analyzeKeywordsV2(
       else if (vol < 500) priority = "low";
     } else {
       // 검색량 없을 때 소스 기반 우선순위
-      if (c.source.includes("동") || c.source === "브랜드") priority = "high";
-      else if (c.source.includes("구")) priority = "medium";
+      if (c.source.includes("동") || c.source === "브랜드" || c.source === "해시태그") priority = "high";
+      else if (c.source.includes("구") || c.source === "관광지") priority = "medium";
       else priority = "low";
     }
-    if (c.source === "브랜드") priority = "high";
+    if (c.source === "브랜드" || c.source === "해시태그") priority = "high";
 
     let intent = "정보성 검색";
     if (c.keyword.includes("추천") || c.keyword.includes("가성비"))
@@ -762,6 +873,10 @@ async function analyzeKeywordsV2(
       intent = "상황별 검색";
     else if (c.source === "브랜드")
       intent = "브랜드 직접 검색";
+    else if (c.source === "해시태그")
+      intent = "매장 특성 검색";
+    else if (c.source === "관광지")
+      intent = "관광지/여행 검색";
     else if (c.source.startsWith("생활권"))
       intent = "근교/여행 검색";
     else

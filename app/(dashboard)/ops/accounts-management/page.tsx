@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
   KeyRound,
@@ -48,6 +49,7 @@ const FILTER_ROLES = [
 ];
 
 export default function AccountsManagementPage() {
+  const router = useRouter();
   const [users, setUsers] = useState<ManagedUser[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -205,7 +207,11 @@ export default function AccountsManagementPage() {
               </thead>
               <tbody>
                 {users.map((user) => (
-                  <tr key={user.id} className="border-b last:border-0 hover:bg-muted/30">
+                  <tr
+                    key={user.id}
+                    onClick={() => router.push(`/ops/accounts-management/${user.id}`)}
+                    className="border-b last:border-0 hover:bg-muted/30 cursor-pointer"
+                  >
                     <td className="py-2.5 px-3">
                       <span className="font-medium">{user.email}</span>
                     </td>

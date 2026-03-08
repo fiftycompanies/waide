@@ -74,6 +74,7 @@ const SOURCE_COLORS: Record<string, string> = {
   "생활권":   "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
   "근교":     "bg-orange-500/20 text-orange-300 border-orange-500/30",
   "관광지":   "bg-purple-500/20 text-purple-300 border-purple-500/30",
+  "해시태그": "bg-pink-500/20 text-pink-300 border-pink-500/30",
   "브랜드":   "bg-red-500/20 text-red-300 border-red-500/30",
 };
 
@@ -1301,31 +1302,26 @@ export default function AnalysisResultPage({
         )}
 
         {/* ════════════════════════════════════════════════════════
-            보완하기 + 프로젝트 시작하기
+            후킹 메시지 + 보완하기
            ════════════════════════════════════════════════════════ */}
-        <div className="mb-8 rounded-2xl border border-[#10b981]/20 bg-gradient-to-b from-[#10b981]/5 to-[#1a1a1a] p-8 text-center">
-          <div className="text-3xl mb-3">🎯</div>
-          <h3 className="text-xl md:text-2xl font-bold text-white mb-2">
-            분석이 완료되었습니다
+        <div className="mb-8 rounded-2xl border border-[#10b981]/20 bg-gradient-to-b from-[#10b981]/10 to-[#1a1a1a] p-8 md:p-10 text-center">
+          <h3 className="text-2xl md:text-3xl font-extrabold text-white mb-3 leading-tight">
+            지금 시작하지 않으면,<br className="md:hidden" /> 고객은 경쟁 매장으로 갑니다
           </h3>
-          <p className="text-[#a0a0a0] mb-6 text-sm">
-            분석 결과를 보완하거나, 바로 프로젝트를 시작할 수 있습니다
+          <p className="text-[#a0a0a0] mb-2 text-base md:text-lg">
+            AI가 발견한 <span className="text-[#10b981] font-semibold">{keywords.length}개 키워드</span>로
+            매주 자동 블로그 발행 — 상위노출까지
           </p>
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+          <p className="text-[#666666] text-sm mb-6">
+            분석 결과를 보완하면 더 정확한 전략을 수립합니다
+          </p>
+          <div className="flex items-center justify-center">
             <button
               onClick={() => setShowRefinePanel(!showRefinePanel)}
-              className="flex items-center gap-2 px-6 py-3 rounded-xl border border-[#2a2a2a] bg-[#1a1a1a] text-white hover:border-[#10b981]/30 transition-colors w-full sm:w-auto justify-center"
+              className="flex items-center gap-2 px-6 py-3 rounded-xl border border-[#2a2a2a] bg-[#1a1a1a] text-white hover:border-[#10b981]/30 transition-colors"
             >
               <Pencil className="h-4 w-4 text-[#10b981]" />
               <span className="text-sm font-medium">{showRefinePanel ? "보완 닫기" : "보완하기"}</span>
-            </button>
-            <button
-              onClick={handleStartProject}
-              className="flex items-center gap-2 px-6 py-3 rounded-xl bg-[#10b981] hover:bg-[#34d399] text-white font-medium transition-colors w-full sm:w-auto justify-center"
-            >
-              <Sparkles className="h-4 w-4" />
-              <span className="text-sm">프로젝트 시작하기</span>
-              <ArrowRight className="h-4 w-4" />
             </button>
           </div>
 
@@ -1549,6 +1545,18 @@ export default function AnalysisResultPage({
           onClose={() => setShowConsultation(false)}
         />
       )}
+
+      {/* Floating CTA Button */}
+      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40">
+        <button
+          onClick={handleStartProject}
+          className="flex items-center gap-2 px-8 py-4 rounded-full bg-[#10b981] hover:bg-[#34d399] text-white font-bold shadow-lg shadow-[#10b981]/30 transition-all hover:scale-105 text-base"
+        >
+          <Sparkles className="h-5 w-5" />
+          마케팅 지금 시작하기
+          <ArrowRight className="h-5 w-5" />
+        </button>
+      </div>
     </>
   );
 }
