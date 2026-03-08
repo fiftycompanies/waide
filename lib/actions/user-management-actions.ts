@@ -204,3 +204,140 @@ export async function updateUserStatus(
     return { success: false, error: "상태 변경 실패" };
   }
 }
+
+// ── 개별 유저 상세 조회 ──────────────────────────────────────────────────
+
+export interface UserDetail extends ManagedUser {
+  phone: string | null;
+}
+
+export async function getUserById(
+  userId: string
+): Promise<{ user: UserDetail | null; error?: string }> {
+  const session = await requireAdminSession();
+  if (!["super_admin", "admin"].includes(session.role)) {
+    return { user: null, error: "권한이 없습니다." };
+  }
+
+  const db = createAdminClient();
+
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (db as any)
+      .from("users")
+      .select("id, auth_id, email, name, full_name, role, is_active, created_at, last_login_at, client_id, phone")
+      .eq("id", userId)
+      .maybeSingle();
+
+    if (error || !data) {
+      return { user: null, error: error?.message || "사용자를 찾을 수 없습니다." };
+    }
+
+    let clientName: string | null = null;
+    if (data.client_id) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: client } = await (db as any)
+        .from("clients")
+        .select("name")
+        .eq("id", data.client_id)
+        .maybeSingle();
+      clientName = client?.name || null;
+    }
+
+    return {
+      user: {
+        id: data.id,
+        auth_id: data.auth_id || null,
+        email: data.email,
+        name: data.name || null,
+        full_name: data.full_name || null,
+        role: data.role,
+        is_active: data.is_active !== false,
+        created_at: data.created_at,
+        last_login_at: data.last_login_at || null,
+        client_id: data.client_id || null,
+        client_name: clientName,
+        phone: data.phone || null,
+      },
+    };
+  } catch (err) {
+    console.error("[user-management] getUserById unexpected:", err);
+    return { user: null, error: "사용자 조회 실패" };
+  }
+}
+
+// ── 유저 정보 수정 (이름, 역할, 고객사 연결) ───────────────────────────
+
+export async function updateUser(
+  userId: string,
+  updates: {
+    full_name?: string;
+    role?: string;
+    client_id?: string | null;
+  }
+): Promise<{ success: boolean; error?: string }> {
+  const session = await requireAdminSession();
+  if (!["super_admin", "admin"].includes(session.role)) {
+    return { success: false, error: "권한이 없습니다." };
+  }
+
+  const db = createAdminClient();
+
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const updateData: Record<string, any> = {
+      updated_at: new Date().toISOString(),
+    };
+
+    if (updates.full_name !== undefined) updateData.full_name = updates.full_name;
+    if (updates.role !== undefined) updateData.role = updates.role;
+    if (updates.client_id !== undefined) updateData.client_id = updates.client_id || null;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (db as any)
+      .from("users")
+      .update(updateData)
+      .eq("id", userId);
+
+    if (error) {
+      console.error("[user-management] updateUser:", error);
+      return { success: false, error: error.message };
+    }
+
+    revalidatePath("/ops/accounts-management");
+    revalidatePath(`/ops/accounts-management/${userId}`);
+    return { success: true };
+  } catch (err) {
+    console.error("[user-management] updateUser unexpected:", err);
+    return { success: false, error: "사용자 정보 수정 실패" };
+  }
+}
+
+// ── 고객사 목록 조회 (연결용) ────────────────────────────────────────────
+
+export async function getClientsForLinking(): Promise<
+  Array<{ id: string; name: string }>
+> {
+  const session = await requireAdminSession();
+  if (!["super_admin", "admin"].includes(session.role)) {
+    return [];
+  }
+
+  const db = createAdminClient();
+
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data } = await (db as any)
+      .from("clients")
+      .select("id, name")
+      .eq("status", "active")
+      .order("name");
+
+    return (data || []).map((c: { id: string; name: string }) => ({
+      id: c.id,
+      name: c.name,
+    }));
+  } catch {
+    return [];
+  }
+}
