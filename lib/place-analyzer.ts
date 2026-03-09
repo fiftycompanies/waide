@@ -767,36 +767,16 @@ function generateKeywordCandidates(
     candidates.push({ keyword: clean, source });
   };
 
-  // ── 0순위: 대표 키워드 (플레이스 대표 키워드가 있으면 최최우선) ──
-  if (collected.placeKeywords.length > 0) {
-    for (const kw of collected.placeKeywords.slice(0, 10)) {
-      add(kw, "대표키워드");
-      // 대표 키워드 + 업종 서브키워드 조합
-      for (const sub of subKws.slice(0, 2)) {
-        if (!kw.includes(sub)) {
-          add(`${kw} ${sub}`, "대표키워드");
-        }
-      }
-    }
-  }
+  // ══════════════════════════════════════════════════════════
+  // 키워드 후보 우선순위:
+  //   1순위: placeKeywords (대표 키워드 섹션 — 가장 신뢰도 높음)
+  //   2순위: 지역명 + 업종 조합 (검색 행동 기반)
+  //   3순위: description 텍스트 명사 추출 (소개글 기반)
+  //   4순위: hashtags (사용자 태그)
+  //   5순위: 관광지/근교 패턴 (폴백)
+  // ══════════════════════════════════════════════════════════
 
-  // ── 1순위: 해시태그 기반 키워드 (플레이스 해시태그가 있으면 최우선) ──
-  if (collected.hashtags.length > 0) {
-    for (const tag of collected.hashtags.slice(0, 10)) {
-      // 해시태그 자체를 메인 키워드로 사용
-      add(tag, "해시태그");
-      // 해시태그 + 업종 서브키워드 조합
-      for (const sub of subKws.slice(0, 2)) {
-        if (!tag.includes(sub)) {
-          add(`${tag} ${sub}`, "해시태그");
-        }
-      }
-    }
-  }
-
-  // ── 지역 변형 생성 ──
-  // 규칙: 동/읍/면은 접미사 유지 (방이동 맛집 O, 방이 맛집 X)
-  //       시/군/구는 접미사 제거 (송파 맛집 O, 송파구 맛집 X)
+  // ── 지역 변형 생성 (2순위에서 사용) ──
   const regions: Array<{ name: string; source: string }> = [];
 
   // 1단계: 동/면/읍 — 접미사 유지
@@ -817,19 +797,32 @@ function generateKeywordCandidates(
     regions.push({ name: `${addr.nearCity} 근교`, source: "생활권/근교" });
   }
 
-  // ── 지역 × 업종 조합 ──
+  const primaryRegion = addr.dong
+    ? addr.dong
+    : addr.sigungu?.replace(/(구|군|시)$/, "") ?? "";
+
+  // ── 1순위: 대표 키워드 (플레이스 정보탭 "대표 키워드" 섹션) ──
+  if (collected.placeKeywords.length > 0) {
+    for (const kw of collected.placeKeywords.slice(0, 10)) {
+      // 대표 키워드 단독
+      add(kw, "대표키워드");
+      // 대표 키워드 + 지역명 조합 (핵심: "홍대피부과" → "홍대 피부과"는 이미 포함, "마포 피부과" 등 추가)
+      for (const region of regions.slice(0, 3)) {
+        if (!kw.includes(region.name)) {
+          add(`${region.name} ${kw}`, "대표키워드+지역");
+        }
+      }
+    }
+  }
+
+  // ── 2순위: 지역 × 업종 조합 (검색 행동 기반) ──
   for (const region of regions) {
     for (const sub of subKws) {
       add(`${region.name} ${sub}`, region.source);
     }
   }
 
-  // ── 추가 패턴 ──
-  // 동은 접미사 유지 (방이동), 구는 제거 (송파)
-  const primaryRegion = addr.dong
-    ? addr.dong
-    : addr.sigungu?.replace(/(구|군|시)$/, "") ?? "";
-
+  // 추가 패턴
   if (primaryRegion) {
     add(`${primaryRegion} ${subKws[0]} 추천`, "추천패턴");
     add(`${primaryRegion} ${subKws[0]} 가성비`, "가성비패턴");
@@ -842,8 +835,37 @@ function generateKeywordCandidates(
   // 브랜드 키워드
   add(collected.name, "브랜드");
 
-  // ── 2순위 보완: 해시태그 없을 때 관광지 기반 키워드 추가 ──
-  if (collected.hashtags.length === 0) {
+  // ── 3순위: description 텍스트 키워드 추출 (대표 키워드가 없을 때 핵심 폴백) ──
+  if (collected.placeKeywords.length === 0 && collected.description) {
+    const descKeywords = extractDescriptionKeywords(
+      collected.description,
+      collected.category,
+      collected.name,
+    );
+    for (const dkw of descKeywords) {
+      add(dkw, "소개글");
+      // description 키워드 + 지역 조합
+      if (primaryRegion && !dkw.includes(primaryRegion)) {
+        add(`${primaryRegion} ${dkw}`, "소개글+지역");
+      }
+    }
+  }
+
+  // ── 4순위: 해시태그 (사용자 태그) ──
+  if (collected.hashtags.length > 0) {
+    for (const tag of collected.hashtags.slice(0, 10)) {
+      add(tag, "해시태그");
+      // 해시태그 + 업종 서브키워드 조합
+      for (const sub of subKws.slice(0, 2)) {
+        if (!tag.includes(sub)) {
+          add(`${tag} ${sub}`, "해시태그");
+        }
+      }
+    }
+  }
+
+  // ── 5순위: 관광지/근교 패턴 (최종 폴백) ──
+  if (collected.placeKeywords.length === 0 && collected.hashtags.length === 0) {
     const tourismKeywords = generateTourismKeywords(
       collected.roadAddress || collected.address,
       collected.name,
@@ -856,6 +878,80 @@ function generateKeywordCandidates(
   }
 
   return candidates;
+}
+
+// ═══════════════════════════════════════════
+// Description 텍스트에서 키워드 추출 (3순위 폴백)
+// ═══════════════════════════════════════════
+
+/** 불용어 — 키워드로 쓸 수 없는 일반 단어 */
+const DESCRIPTION_STOPWORDS = new Set([
+  "있는", "하는", "되는", "입니다", "합니다", "습니다", "에서", "으로", "에게",
+  "대한", "위한", "통한", "같은", "가지", "정도", "이상", "이하", "이번",
+  "매장", "가게", "곳", "것", "이곳", "저희", "우리", "모든", "각종",
+  "진행", "운영", "제공", "가능", "문의", "예약", "방문", "안내", "확인",
+  "다양한", "특별한", "전문", "최고", "최신", "인기", "추천", "좋은", "편한",
+  "있습니다", "드립니다", "하고", "있어", "이며", "또한", "그리고",
+]);
+
+/**
+ * description 텍스트에서 의미 있는 키워드를 추출합니다.
+ * 2~6글자 한글 명사/복합명사를 추출하여 업종과 관련된 것만 반환합니다.
+ */
+function extractDescriptionKeywords(
+  description: string,
+  category: string,
+  name: string,
+): string[] {
+  if (!description || description.length < 10) return [];
+
+  const keywords: string[] = [];
+  const seen = new Set<string>();
+
+  // 1) 한글 명사/복합명사 패턴 추출 (2~6글자)
+  const nounPatterns = description.match(/[가-힣]{2,6}/g) ?? [];
+  for (const word of nounPatterns) {
+    if (DESCRIPTION_STOPWORDS.has(word)) continue;
+    if (word === name) continue; // 매장명 자체 제외
+    // 조사/어미로 끝나는 단어 제외
+    if (/[을를은는이가의에서도로와과만]$/.test(word) && word.length <= 3) continue;
+    // 동사/형용사 어간 제외
+    if (/[하되다]$/.test(word) && word.length <= 2) continue;
+
+    if (!seen.has(word)) {
+      seen.add(word);
+      keywords.push(word);
+    }
+  }
+
+  // 2) 영문 키워드 (브랜드명, 시술명 등)
+  const engPatterns = description.match(/[A-Za-z]{3,15}/g) ?? [];
+  for (const word of engPatterns) {
+    const lower = word.toLowerCase();
+    if (!seen.has(lower) && lower !== name.toLowerCase()) {
+      seen.add(lower);
+      keywords.push(word);
+    }
+  }
+
+  // 3) 업종 관련성 필터링 — 카테고리/매장명과 연관된 키워드 우선
+  const categoryWords = `${category} ${name}`.toLowerCase();
+  const relevant = keywords.filter(kw => {
+    const kwLower = kw.toLowerCase();
+    // 카테고리와 공통 글자 2개 이상 → 관련성 높음
+    if (categoryWords.includes(kwLower)) return true;
+    // 서비스/시술/메뉴 관련 단어
+    if (/피부|보톡스|리프팅|필러|레이저|제모|시술|치료|교정|임플란트|스케일링|미백|탈모|주사|관리|케어|마사지|에스테틱/.test(kw)) return true;
+    if (/맛집|메뉴|요리|코스|세트|런치|디너|브런치|뷔페|배달|포장/.test(kw)) return true;
+    if (/숙소|객실|풀빌라|스위트|조식|체크인|수영장|온천|사우나/.test(kw)) return true;
+    if (/수업|레슨|클래스|커리큘럼|강사|프로그램/.test(kw)) return true;
+    // 2글자 이하는 노이즈 가능성 높아 필터
+    if (kw.length <= 2) return false;
+    return true;
+  });
+
+  console.log(`[place-analyzer] description 키워드 추출: ${relevant.length}개 → ${relevant.slice(0, 8).join(", ")}`);
+  return relevant.slice(0, 15); // 최대 15개
 }
 
 // ═══════════════════════════════════════════
