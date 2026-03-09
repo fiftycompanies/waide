@@ -187,7 +187,81 @@ async function searchNaverPlaceId(query: string): Promise<string | null> {
 // Step 2. 데이터 수집
 // ═══════════════════════════════════════════
 
+/**
+ * EC2 프록시를 통해 매장 데이터를 수집합니다.
+ * Vercel(AWS) IP에서 네이버 GraphQL이 차단되는 문제를 우회합니다.
+ * 실패 시 null을 반환하여 기존 직접 호출 로직으로 fallback합니다.
+ */
+async function collectPlaceDataViaEC2(placeId: string): Promise<CollectedData | null> {
+  const ec2Url = process.env.NSERP_EC2_URL;
+  const ec2Secret = process.env.NSERP_EC2_SECRET;
+  if (!ec2Url) return null;
+
+  try {
+    const resp = await fetch(`${ec2Url}/api/place-info`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(ec2Secret ? { "X-API-Secret": ec2Secret } : {}),
+      },
+      body: JSON.stringify({ placeId }),
+      signal: AbortSignal.timeout(30_000), // 30초 타임아웃
+    });
+
+    if (!resp.ok) {
+      console.log(`[place-analyzer] EC2 프록시 응답 실패: ${resp.status}`);
+      return null;
+    }
+
+    const data = await resp.json();
+
+    // EC2 응답을 CollectedData 형식으로 매핑
+    if (!data || !data.name) {
+      console.log(`[place-analyzer] EC2 프록시 응답에 name 없음`);
+      return null;
+    }
+
+    console.log(`[place-analyzer] EC2 프록시 성공: name=${data.name}, reviews=${data.visitorReviewCount ?? 0}`);
+
+    return {
+      name: data.name ?? "",
+      category: data.category ?? "",
+      businessType: data.businessType ?? "",
+      roadAddress: data.roadAddress ?? "",
+      address: data.address ?? "",
+      phone: data.phone ?? "",
+      businessHours: data.businessHours ?? "",
+      visitorReviewCount: data.visitorReviewCount ?? 0,
+      blogReviewCount: data.blogReviewCount ?? 0,
+      serviceLabels: data.serviceLabels ?? [],
+      imageCount: data.imageCount ?? 0,
+      imageUrls: data.imageUrls ?? [],
+      homepageUrl: data.homepageUrl ?? "",
+      snsUrl: data.snsUrl ?? "",
+      description: data.description ?? "",
+      latitude: data.latitude,
+      longitude: data.longitude,
+      facilities: data.facilities ?? [],
+      paymentMethods: data.paymentMethods ?? [],
+      reservationUrl: data.reservationUrl ?? "",
+      reviewKeywords: data.reviewKeywords ?? [],
+      nearbyCompetitors: data.nearbyCompetitors ?? 0,
+      hashtags: data.hashtags ?? [],
+    };
+  } catch (e) {
+    console.log(`[place-analyzer] EC2 프록시 호출 실패:`, e);
+    return null;
+  }
+}
+
 async function collectPlaceData(placeId: string): Promise<CollectedData> {
+  // EC2 프록시 우선 시도 (Vercel에서 네이버 GraphQL 차단 우회)
+  const ec2Result = await collectPlaceDataViaEC2(placeId);
+  if (ec2Result) {
+    return ec2Result;
+  }
+  console.log(`[place-analyzer] EC2 프록시 사용 불가 — 직접 호출로 fallback`);
+
   const result: CollectedData = {
     name: "",
     category: "",
