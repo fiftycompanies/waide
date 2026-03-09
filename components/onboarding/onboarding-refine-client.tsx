@@ -39,6 +39,7 @@ export function OnboardingRefineClient({
   const router = useRouter();
   const [formData, setFormData] = useState(prefill);
   const [newKeyword, setNewKeyword] = useState("");
+  const [isComposing, setIsComposing] = useState(false);
   const [applying, setApplying] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
@@ -201,8 +202,10 @@ export function OnboardingRefineClient({
                 <input
                   value={newKeyword}
                   onChange={(e) => setNewKeyword(e.target.value)}
+                  onCompositionStart={() => setIsComposing(true)}
+                  onCompositionEnd={() => setIsComposing(false)}
                   onKeyDown={(e) =>
-                    e.key === "Enter" && (e.preventDefault(), addKeyword())
+                    e.key === "Enter" && !isComposing && (e.preventDefault(), addKeyword())
                   }
                   placeholder="키워드 입력 후 Enter"
                   className="flex-1 h-9 px-3 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"

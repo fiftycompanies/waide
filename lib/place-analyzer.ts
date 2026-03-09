@@ -48,6 +48,7 @@ interface CollectedData {
   reviewKeywords: Array<{ keyword: string; count: number }>;
   nearbyCompetitors: number;
   hashtags: string[];
+  placeKeywords: string[];
 }
 
 interface KeywordItem {
@@ -247,6 +248,7 @@ async function collectPlaceDataViaEC2(placeId: string): Promise<CollectedData | 
       reviewKeywords: data.reviewKeywords ?? [],
       nearbyCompetitors: data.nearbyCompetitors ?? 0,
       hashtags: data.hashtags ?? [],
+      placeKeywords: data.placeKeywords ?? data.keywords ?? [],
     };
   } catch (e) {
     console.log(`[place-analyzer] EC2 프록시 호출 실패:`, e);
@@ -284,6 +286,7 @@ async function collectPlaceData(placeId: string): Promise<CollectedData> {
     reviewKeywords: [],
     nearbyCompetitors: 0,
     hashtags: [],
+    placeKeywords: [],
   };
 
   // GraphQL API 호출 (pcmap-api.place.naver.com)
@@ -305,6 +308,8 @@ async function collectPlaceData(placeId: string): Promise<CollectedData> {
       homepages { repr { url type } }
       images { images { origin url } }
       fsasReviews { total }
+      keywords
+      reviewKeywordList { name count }
     }
   }`;
 
@@ -370,6 +375,30 @@ async function collectPlaceData(placeId: string): Promise<CollectedData> {
       // 블로그 리뷰 수
       if (detail.fsasReviews?.total) {
         result.blogReviewCount = detail.fsasReviews.total;
+      }
+
+      // 대표 키워드 (keywords 필드 — 플레이스 대표 키워드)
+      if (detail.keywords && Array.isArray(detail.keywords)) {
+        result.placeKeywords = detail.keywords.filter((k: unknown) => typeof k === "string" && k.length > 0);
+        console.log(`[place-analyzer] 대표키워드(keywords): ${result.placeKeywords.length}개 수집 → ${result.placeKeywords.slice(0, 5).join(", ")}`);
+      }
+
+      // 리뷰 키워드 (reviewKeywordList — 리뷰에서 추출된 키워드)
+      if (detail.reviewKeywordList && Array.isArray(detail.reviewKeywordList)) {
+        const reviewKws = detail.reviewKeywordList
+          .filter((rk: { name?: string }) => rk.name && rk.name.length > 0)
+          .map((rk: { name: string; count?: number }) => rk.name);
+        if (reviewKws.length > 0 && result.placeKeywords.length === 0) {
+          result.placeKeywords = reviewKws;
+          console.log(`[place-analyzer] 대표키워드(reviewKeywordList 폴백): ${result.placeKeywords.length}개 수집 → ${result.placeKeywords.slice(0, 5).join(", ")}`);
+        } else if (reviewKws.length > 0) {
+          // placeKeywords에 없는 리뷰 키워드만 추가
+          for (const rk of reviewKws) {
+            if (!result.placeKeywords.includes(rk)) {
+              result.placeKeywords.push(rk);
+            }
+          }
+        }
       }
 
       // 영업시간 — newBusinessHours 배열
@@ -737,6 +766,19 @@ function generateKeywordCandidates(
     seen.add(clean);
     candidates.push({ keyword: clean, source });
   };
+
+  // ── 0순위: 대표 키워드 (플레이스 대표 키워드가 있으면 최최우선) ──
+  if (collected.placeKeywords.length > 0) {
+    for (const kw of collected.placeKeywords.slice(0, 10)) {
+      add(kw, "대표키워드");
+      // 대표 키워드 + 업종 서브키워드 조합
+      for (const sub of subKws.slice(0, 2)) {
+        if (!kw.includes(sub)) {
+          add(`${kw} ${sub}`, "대표키워드");
+        }
+      }
+    }
+  }
 
   // ── 1순위: 해시태그 기반 키워드 (플레이스 해시태그가 있으면 최우선) ──
   if (collected.hashtags.length > 0) {
