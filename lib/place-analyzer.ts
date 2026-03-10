@@ -1062,8 +1062,8 @@ async function analyzeKeywordsV2(
     const vol = volumeMap.get(cleanKw) ?? 0;
 
     // 검색량 데이터가 있을 때만 0인 키워드 필터링 (API 실패 시 전부 유지)
-    // 해시태그/관광지/브랜드 키워드는 검색량 0이어도 유지
-    const preserveSources = ["브랜드", "해시태그", "관광지"];
+    // 대표키워드/해시태그/관광지/브랜드/사용자보완 키워드는 검색량 0이어도 유지
+    const preserveSources = ["브랜드", "해시태그", "관광지", "대표키워드", "대표키워드+지역", "사용자보완"];
     if (hasVolumeData && vol === 0 && !preserveSources.includes(c.source)) continue;
 
     let priority: "high" | "medium" | "low" = "medium";
@@ -1076,7 +1076,7 @@ async function analyzeKeywordsV2(
       else if (c.source.includes("구") || c.source === "관광지") priority = "medium";
       else priority = "low";
     }
-    if (c.source === "브랜드" || c.source === "해시태그") priority = "high";
+    if (c.source === "브랜드" || c.source === "해시태그" || c.source === "대표키워드" || c.source === "대표키워드+지역" || c.source === "사용자보완") priority = "high";
 
     let intent = "정보성 검색";
     if (c.keyword.includes("추천") || c.keyword.includes("가성비"))
@@ -1085,8 +1085,12 @@ async function analyzeKeywordsV2(
       intent = "상황별 검색";
     else if (c.source === "브랜드")
       intent = "브랜드 직접 검색";
+    else if (c.source === "대표키워드" || c.source === "대표키워드+지역")
+      intent = "대표 키워드";
     else if (c.source === "해시태그")
       intent = "매장 특성 검색";
+    else if (c.source === "사용자보완")
+      intent = "사용자 지정";
     else if (c.source === "관광지")
       intent = "관광지/여행 검색";
     else if (c.source.startsWith("생활권"))
@@ -1679,12 +1683,16 @@ export async function runFullAnalysis(
     }
 
     // Step 6.6: 키워드 순위 체크 (non-blocking)
-    // 지역 키워드 우선 (브랜드명 제외), 검색량 순
+    // 대표키워드 우선 → 지역키워드 → 브랜드명 순서
     let keywordRankingsResult: KeywordRanking[] = [];
     try {
+      const representativeKws = keywords.filter(k => k.source === "대표키워드" || k.source === "사용자보완");
+      const regionKws = keywords.filter(k => k.source !== "브랜드" && k.source !== "대표키워드" && k.source !== "대표키워드+지역" && k.source !== "사용자보완");
+      const brandKws = keywords.filter(k => k.source === "브랜드");
       const rankTargets = [
-        ...keywords.filter(k => k.source !== "브랜드"),
-        ...keywords.filter(k => k.source === "브랜드"),
+        ...representativeKws,
+        ...regionKws,
+        ...brandKws,
       ].slice(0, 3).map(k => ({ keyword: k.keyword, monthlySearch: k.monthlySearch }));
       keywordRankingsResult = await checkKeywordRankings(
         rankTargets,
