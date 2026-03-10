@@ -9,6 +9,7 @@ import {
   Home,
   Key,
   LogOut,
+  PenLine,
   Rss,
   Settings,
   User,
@@ -18,10 +19,11 @@ import { portalSignOut } from "@/lib/actions/auth-actions";
 
 const navItems = [
   { title: "대시보드", url: "/portal", icon: Home },
-  { title: "키워드 관리", url: "/portal/keywords", icon: Key },
+  { title: "블로그 작성", url: "/portal/write", icon: PenLine },
   { title: "콘텐츠 현황", url: "/portal/contents", icon: FileText },
-  { title: "월간 리포트", url: "/portal/reports", icon: BarChart2 },
+  { title: "키워드 관리", url: "/portal/keywords", icon: Key },
   { title: "블로그 관리", url: "/portal/blog", icon: Rss },
+  { title: "월간 리포트", url: "/portal/reports", icon: BarChart2 },
   { title: "설정", url: "/portal/settings", icon: Settings },
 ];
 

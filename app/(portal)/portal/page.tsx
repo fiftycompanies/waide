@@ -91,6 +91,11 @@ interface DashboardData {
     trend: number;
     byModel: Record<string, number>;
   } | null;
+  keywordOccupancy: {
+    total: number;
+    exposed: number;
+    keywords: { keyword_id: string; rank_pc: number | null; rank_mo: number | null; is_exposed: boolean }[];
+  };
 }
 
 const statusLabels: Record<string, { text: string; color: string }> = {

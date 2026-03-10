@@ -221,12 +221,20 @@ export async function getPortalDashboardV2(clientId: string) {
     checkBlogAccounts,
     checkContents,
     checkPublications,
+    exposedKeywordsRes,
   ] = await Promise.all([
     db.from("brand_analyses").select("id", { count: "exact", head: true }).eq("client_id", clientId).eq("status", "completed"),
     db.from("keywords").select("id", { count: "exact", head: true }).eq("client_id", clientId),
     db.from("blog_accounts").select("id", { count: "exact", head: true }).eq("client_id", clientId).eq("is_active", true),
     db.from("contents").select("id", { count: "exact", head: true }).eq("client_id", clientId),
     db.from("publications").select("id", { count: "exact", head: true }).eq("client_id", clientId).eq("status", "published"),
+    // keyword_visibility에서 노출 키워드 집계
+    db.from("keyword_visibility")
+      .select("keyword_id, rank_pc, rank_mo, is_exposed")
+      .eq("client_id", clientId)
+      .eq("is_exposed", true)
+      .order("measured_at", { ascending: false })
+      .limit(20),
   ]);
 
   const onboardingChecklist = {
@@ -236,6 +244,7 @@ export async function getPortalDashboardV2(clientId: string) {
     firstContent: (checkContents.count ?? 0) > 0,
     firstPublish: (checkPublications.count ?? 0) > 0,
   };
+  const exposedKeywords = exposedKeywordsRes.data;
 
   // 최근 콘텐츠 QC 평균
   const recentContents = recentContentsRes.data || [];
@@ -325,6 +334,11 @@ export async function getPortalDashboardV2(clientId: string) {
     subscription: null as { status: string; products: { name: string } | null } | null,
     pointBalance: await getPortalPointBalance(clientId),
     aeoScore: await getPortalAEOScoreQuick(clientId),
+    keywordOccupancy: {
+      total: activeKeywordsRes.count || 0,
+      exposed: exposedKeywords?.length || 0,
+      keywords: (exposedKeywords || []) as { keyword_id: string; rank_pc: number | null; rank_mo: number | null; is_exposed: boolean }[],
+    },
   };
 }
 
@@ -399,15 +413,15 @@ export async function getPortalKeywordsV2(clientId: string) {
   const db = createAdminClient();
 
   const [activeRes, suggestedRes, archivedRes, analysisRes] = await Promise.all([
-    // 활성 키워드
+    // 활성 키워드 (확장 필드 포함)
     db.from("keywords")
-      .select("id, keyword, status, source, created_at, metadata")
+      .select("id, keyword, status, source, created_at, metadata, monthly_search_volume, current_rank_naver_pc, current_rank_naver_mo")
       .eq("client_id", clientId)
       .eq("status", "active")
       .order("created_at", { ascending: false }),
     // AI 추천 키워드
     db.from("keywords")
-      .select("id, keyword, status, source, created_at, metadata")
+      .select("id, keyword, status, source, created_at, metadata, monthly_search_volume")
       .eq("client_id", clientId)
       .eq("status", "suggested")
       .order("created_at", { ascending: false }),
@@ -663,6 +677,19 @@ export async function getPortalReportV2(clientId: string, year?: number, month?:
     analyses: analysesRes.data || [],
     aeo: aeoData,
   };
+}
+
+// ── 포털 진행중 Job 목록 (Phase 4) ──────────────────────────────────────
+
+export async function getPortalActiveJobs(clientId: string) {
+  const db = createAdminClient();
+  const { data } = await db
+    .from("jobs")
+    .select("id, title, status, input_payload, created_at, updated_at")
+    .eq("client_id", clientId)
+    .in("status", ["PENDING", "IN_PROGRESS"])
+    .order("created_at", { ascending: false });
+  return data || [];
 }
 
 // ── 포털 사용자 설정 데이터 ──────────────────────────────────────────────

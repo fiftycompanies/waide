@@ -2,16 +2,17 @@
 
 import { useEffect, useState, useCallback } from "react";
 import {
+  Archive,
   Check,
   Key,
   Lightbulb,
   Loader2,
   MessageCircle,
+  RotateCcw,
   Sparkles,
   Target,
   TrendingUp,
   X,
-  Archive,
   Bot,
   Search as SearchIcon,
   Globe,
@@ -23,6 +24,8 @@ import {
   rejectSuggestedKeyword,
 } from "@/lib/actions/keyword-expansion-actions";
 import { getPortalQuestions, type Question } from "@/lib/actions/question-actions";
+import { updateKeywordStatus } from "@/lib/actions/keyword-actions";
+import KeywordDetailModal from "@/components/portal/keyword-detail-modal";
 
 interface KeywordItem {
   id: string;
@@ -30,22 +33,20 @@ interface KeywordItem {
   status: string;
   source: string | null;
   created_at: string;
+  monthly_search_volume?: number | null;
+  current_rank_naver_pc?: number | null;
+  current_rank_naver_mo?: number | null;
   metadata: {
     content_angle?: string;
     search_intent?: string;
     relevance?: string;
     competition_estimate?: string;
     reason?: string;
+    description?: string;
   } | null;
 }
 
 type TabType = "active" | "suggested" | "archived" | "questions";
-
-const sourceLabels: Record<string, string> = {
-  manual: "수동 등록",
-  niche_expansion: "AI 발굴",
-  gsc_discovery: "GSC 발견",
-};
 
 export default function PortalKeywordsPage() {
   const [activeKeywords, setActiveKeywords] = useState<KeywordItem[]>([]);
@@ -57,6 +58,7 @@ export default function PortalKeywordsPage() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<TabType>("active");
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [selectedKeyword, setSelectedKeyword] = useState<KeywordItem | null>(null);
 
   const loadData = useCallback(() => {
     const el = document.querySelector("meta[name='portal-client-id']");
@@ -108,6 +110,32 @@ export default function PortalKeywordsPage() {
     setActionLoading(null);
   };
 
+  const handleArchive = async (keywordId: string) => {
+    setActionLoading(keywordId);
+    const result = await updateKeywordStatus(keywordId, "archived");
+    if (result.success) {
+      const archived = activeKeywords.find((k) => k.id === keywordId);
+      if (archived) {
+        setActiveKeywords((prev) => prev.filter((k) => k.id !== keywordId));
+        setArchivedKeywords((prev) => [{ ...archived, status: "archived" }, ...prev]);
+      }
+    }
+    setActionLoading(null);
+  };
+
+  const handleRestore = async (keywordId: string) => {
+    setActionLoading(keywordId);
+    const result = await updateKeywordStatus(keywordId, "active");
+    if (result.success) {
+      const restored = archivedKeywords.find((k) => k.id === keywordId);
+      if (restored) {
+        setArchivedKeywords((prev) => prev.filter((k) => k.id !== keywordId));
+        setActiveKeywords((prev) => [{ ...restored, status: "active" }, ...prev]);
+      }
+    }
+    setActionLoading(null);
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -122,13 +150,6 @@ export default function PortalKeywordsPage() {
     { key: "questions", label: "질문 현황", count: questions.length, icon: MessageCircle },
     { key: "archived", label: "보관", count: archivedKeywords.length, icon: Archive },
   ];
-
-  const currentKeywords =
-    activeTab === "active"
-      ? activeKeywords
-      : activeTab === "suggested"
-        ? suggestedKeywords
-        : archivedKeywords;
 
   return (
     <div className="space-y-6">
@@ -177,32 +198,72 @@ export default function PortalKeywordsPage() {
             </div>
           ) : (
             <div className="rounded-xl border bg-white overflow-hidden">
-              <table className="w-full text-sm">
-                <thead className="bg-gray-50 border-b">
-                  <tr>
-                    <th className="text-left py-3 px-4 font-medium text-gray-600">키워드</th>
-                    <th className="text-center py-3 px-4 font-medium text-gray-600 hidden sm:table-cell">소스</th>
-                    <th className="text-center py-3 px-4 font-medium text-gray-600">등록일</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {activeKeywords.map((kw) => (
-                    <tr key={kw.id} className="border-b last:border-0 hover:bg-gray-50 transition-colors">
-                      <td className="py-3 px-4">
-                        <span className="font-medium text-gray-900">{kw.keyword}</span>
-                      </td>
-                      <td className="py-3 px-4 text-center hidden sm:table-cell">
-                        <span className="text-xs text-gray-500">
-                          {sourceLabels[kw.source || ""] || kw.source || "-"}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 text-center text-xs text-gray-500">
-                        {new Date(kw.created_at).toLocaleDateString("ko-KR")}
-                      </td>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 border-b">
+                    <tr>
+                      <th className="text-left py-3 px-4 font-medium text-gray-600">키워드</th>
+                      <th className="text-center py-3 px-4 font-medium text-gray-600 hidden md:table-cell">월 검색량</th>
+                      <th className="text-center py-3 px-4 font-medium text-gray-600 hidden sm:table-cell">순위(PC)</th>
+                      <th className="text-center py-3 px-4 font-medium text-gray-600 hidden sm:table-cell">순위(MO)</th>
+                      <th className="text-center py-3 px-4 font-medium text-gray-600 hidden lg:table-cell">1페이지</th>
+                      <th className="text-center py-3 px-4 font-medium text-gray-600">액션</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {activeKeywords.map((kw) => {
+                      const isExposed = kw.current_rank_naver_pc != null && kw.current_rank_naver_pc <= 10;
+                      return (
+                        <tr
+                          key={kw.id}
+                          className="border-b last:border-0 hover:bg-gray-50 transition-colors cursor-pointer"
+                          onClick={() => setSelectedKeyword(kw)}
+                        >
+                          <td className="py-3 px-4">
+                            <span className="font-medium text-gray-900">{kw.keyword}</span>
+                          </td>
+                          <td className="py-3 px-4 text-center hidden md:table-cell">
+                            <span className="text-sm text-gray-600">
+                              {kw.monthly_search_volume != null ? kw.monthly_search_volume.toLocaleString() : "-"}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 text-center hidden sm:table-cell">
+                            <span className="text-sm text-gray-600">
+                              {kw.current_rank_naver_pc != null ? `${kw.current_rank_naver_pc}위` : "-"}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 text-center hidden sm:table-cell">
+                            <span className="text-sm text-gray-600">
+                              {kw.current_rank_naver_mo != null ? `${kw.current_rank_naver_mo}위` : "-"}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 text-center hidden lg:table-cell">
+                            {isExposed ? (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-100 text-emerald-700">노출중</span>
+                            ) : (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 text-gray-500">미노출</span>
+                            )}
+                          </td>
+                          <td className="py-3 px-4 text-center">
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleArchive(kw.id); }}
+                              disabled={actionLoading === kw.id}
+                              className="text-xs text-gray-400 hover:text-gray-600 disabled:opacity-50"
+                              title="보관"
+                            >
+                              {actionLoading === kw.id ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin inline" />
+                              ) : (
+                                <Archive className="h-3.5 w-3.5 inline" />
+                              )}
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
         </>
@@ -227,19 +288,20 @@ export default function PortalKeywordsPage() {
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">
                       <p className="font-medium text-gray-900">{kw.keyword}</p>
+                      {kw.metadata?.reason && (
+                        <p className="text-xs text-gray-500 mt-1">{kw.metadata.reason}</p>
+                      )}
+                      {kw.metadata?.description && !kw.metadata?.reason && (
+                        <p className="text-xs text-gray-500 mt-1">{kw.metadata.description}</p>
+                      )}
                       {kw.metadata?.content_angle && (
                         <p className="text-xs text-violet-600 mt-1">
                           콘텐츠 각도: {kw.metadata.content_angle}
                         </p>
                       )}
-                      {kw.metadata?.search_intent && (
-                        <p className="text-xs text-gray-500 mt-0.5">
-                          검색 의도: {kw.metadata.search_intent}
-                        </p>
-                      )}
-                      {kw.metadata?.relevance && (
-                        <p className="text-xs text-gray-400 mt-0.5">
-                          관련도: {kw.metadata.relevance}
+                      {kw.monthly_search_volume != null && (
+                        <p className="text-xs text-blue-500 mt-1">
+                          예상 검색량: {kw.monthly_search_volume.toLocaleString()}
                         </p>
                       )}
                     </div>
@@ -247,22 +309,25 @@ export default function PortalKeywordsPage() {
                       <button
                         onClick={() => handleApprove(kw.id)}
                         disabled={actionLoading === kw.id}
-                        className="h-8 w-8 rounded-full bg-emerald-50 text-emerald-600 hover:bg-emerald-100 flex items-center justify-center transition-colors disabled:opacity-50"
-                        title="승인"
+                        className="h-8 px-3 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-100 flex items-center gap-1 text-xs font-medium transition-colors disabled:opacity-50"
+                        title="활성 키워드로 추가"
                       >
                         {actionLoading === kw.id ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
                         ) : (
-                          <Check className="h-4 w-4" />
+                          <>
+                            <Check className="h-3.5 w-3.5" />
+                            추가
+                          </>
                         )}
                       </button>
                       <button
                         onClick={() => handleReject(kw.id)}
                         disabled={actionLoading === kw.id}
-                        className="h-8 w-8 rounded-full bg-red-50 text-red-500 hover:bg-red-100 flex items-center justify-center transition-colors disabled:opacity-50"
-                        title="거절"
+                        className="h-8 w-8 rounded-lg bg-gray-50 text-gray-400 hover:bg-gray-100 flex items-center justify-center transition-colors disabled:opacity-50"
+                        title="무시"
                       >
-                        <X className="h-4 w-4" />
+                        <X className="h-3.5 w-3.5" />
                       </button>
                     </div>
                   </div>
@@ -287,8 +352,8 @@ export default function PortalKeywordsPage() {
                 <thead className="bg-gray-50 border-b">
                   <tr>
                     <th className="text-left py-3 px-4 font-medium text-gray-600">키워드</th>
-                    <th className="text-center py-3 px-4 font-medium text-gray-600 hidden sm:table-cell">소스</th>
-                    <th className="text-center py-3 px-4 font-medium text-gray-600">등록일</th>
+                    <th className="text-center py-3 px-4 font-medium text-gray-600">보관일</th>
+                    <th className="text-center py-3 px-4 font-medium text-gray-600">액션</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -297,13 +362,24 @@ export default function PortalKeywordsPage() {
                       <td className="py-3 px-4">
                         <span className="text-gray-500">{kw.keyword}</span>
                       </td>
-                      <td className="py-3 px-4 text-center hidden sm:table-cell">
-                        <span className="text-xs text-gray-400">
-                          {sourceLabels[kw.source || ""] || kw.source || "-"}
-                        </span>
-                      </td>
                       <td className="py-3 px-4 text-center text-xs text-gray-400">
                         {new Date(kw.created_at).toLocaleDateString("ko-KR")}
+                      </td>
+                      <td className="py-3 px-4 text-center">
+                        <button
+                          onClick={() => handleRestore(kw.id)}
+                          disabled={actionLoading === kw.id}
+                          className="text-xs text-blue-500 hover:text-blue-600 disabled:opacity-50 flex items-center gap-1 mx-auto"
+                        >
+                          {actionLoading === kw.id ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <>
+                              <RotateCcw className="h-3.5 w-3.5" />
+                              복원
+                            </>
+                          )}
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -371,7 +447,7 @@ export default function PortalKeywordsPage() {
         </>
       )}
 
-      {/* Keyword Strategy Section (only when data exists) */}
+      {/* Keyword Strategy Section */}
       {keywordStrategy && (
         <div className="rounded-xl border bg-white p-6">
           <div className="flex items-center gap-2 text-gray-900 mb-4">
@@ -417,6 +493,16 @@ export default function PortalKeywordsPage() {
             )}
           </div>
         </div>
+      )}
+
+      {/* Keyword Detail Modal */}
+      {selectedKeyword && (
+        <KeywordDetailModal
+          keywordId={selectedKeyword.id}
+          keywordName={selectedKeyword.keyword}
+          searchVolume={selectedKeyword.monthly_search_volume ?? null}
+          onClose={() => setSelectedKeyword(null)}
+        />
       )}
     </div>
   );

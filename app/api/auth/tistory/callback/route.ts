@@ -1,6 +1,6 @@
 /**
  * Tistory OAuth 콜백
- * GET /api/auth/tistory/callback?code=XXX&state=CLIENT_ID
+ * GET /api/auth/tistory/callback?code=XXX&state=CLIENT_ID[:portal]
  *
  * 플로우:
  * 1. code → access_token 교환
@@ -15,20 +15,24 @@ import { getTistoryBlogInfo, saveTistoryAccount } from "@/lib/publishers/tistory
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const code = searchParams.get("code");
-  const state = searchParams.get("state"); // clientId
-
-  if (!code) {
-    return NextResponse.redirect(
-      new URL("/blog-accounts?error=tistory_no_code", request.url)
-    );
-  }
+  const state = searchParams.get("state"); // clientId or clientId:portal
 
   // state에 `:portal` 접미사가 있으면 포털에서 온 요청
   const isPortal = state?.endsWith(":portal") ?? false;
   const clientId = isPortal ? state!.replace(/:portal$/, "") : state;
+
+  const errorBase = isPortal ? "/portal/blog" : "/blog-accounts";
+  const successBase = isPortal ? "/portal/blog" : "/blog-accounts";
+
+  if (!code) {
+    return NextResponse.redirect(
+      new URL(`${errorBase}?error=tistory_no_code`, request.url)
+    );
+  }
+
   if (!clientId) {
     return NextResponse.redirect(
-      new URL("/blog-accounts?error=tistory_no_client", request.url)
+      new URL(`${errorBase}?error=tistory_no_client`, request.url)
     );
   }
 
@@ -38,7 +42,7 @@ export async function GET(request: NextRequest) {
 
   if (!tistoryClientId || !tistoryClientSecret || !tistoryRedirectUri) {
     return NextResponse.redirect(
-      new URL("/blog-accounts?error=tistory_not_configured", request.url)
+      new URL(`${errorBase}?error=tistory_not_configured`, request.url)
     );
   }
 
@@ -74,7 +78,7 @@ export async function GET(request: NextRequest) {
 
     if (!accessToken) {
       return NextResponse.redirect(
-        new URL("/blog-accounts?error=tistory_token_failed", request.url)
+        new URL(`${errorBase}?error=tistory_token_failed`, request.url)
       );
     }
 
@@ -82,7 +86,7 @@ export async function GET(request: NextRequest) {
     const blogInfo = await getTistoryBlogInfo(accessToken);
     if (!blogInfo.success || !blogInfo.blogName) {
       return NextResponse.redirect(
-        new URL("/blog-accounts?error=tistory_blog_info_failed", request.url)
+        new URL(`${errorBase}?error=tistory_blog_info_failed`, request.url)
       );
     }
 
@@ -96,21 +100,18 @@ export async function GET(request: NextRequest) {
 
     if (!saveResult.success) {
       return NextResponse.redirect(
-        new URL(`/blog-accounts?error=tistory_save_failed&msg=${encodeURIComponent(saveResult.error || "")}`, request.url)
+        new URL(`${errorBase}?error=tistory_save_failed&msg=${encodeURIComponent(saveResult.error || "")}`, request.url)
       );
     }
 
-    // 4. 성공 → 포털이면 /portal/blog, 아니면 기존 /blog-accounts로 리다이렉트
-    const successRedirect = isPortal
-      ? "/portal/blog?success=tistory_connected"
-      : "/blog-accounts?success=tistory_connected";
+    // 4. 성공 리다이렉트
     return NextResponse.redirect(
-      new URL(successRedirect, request.url)
+      new URL(`${successBase}?success=tistory_connected`, request.url)
     );
   } catch (error) {
     console.error("[tistory-oauth] 콜백 처리 실패:", error);
     return NextResponse.redirect(
-      new URL("/blog-accounts?error=tistory_callback_error", request.url)
+      new URL(`${errorBase}?error=tistory_callback_error`, request.url)
     );
   }
 }
