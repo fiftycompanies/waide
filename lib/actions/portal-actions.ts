@@ -12,7 +12,7 @@ export async function getPortalDashboard(clientId: string) {
     .from("brand_analyses")
     .select("id, marketing_score, basic_info, keyword_rankings, content_strategy, analyzed_at, seo_audit, analysis_result")
     .eq("client_id", clientId)
-    .eq("status", "completed")
+    .in("status", ["completed", "converted"])
     .order("analyzed_at", { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -91,7 +91,7 @@ export async function getPortalKeywords(clientId: string) {
     .from("brand_analyses")
     .select("keyword_rankings, keyword_analysis, analyzed_at, analysis_result")
     .eq("client_id", clientId)
-    .eq("status", "completed")
+    .in("status", ["completed", "converted"])
     .order("analyzed_at", { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -141,7 +141,7 @@ export async function getPortalReport(clientId: string) {
     .from("brand_analyses")
     .select("id, marketing_score, analyzed_at, content_strategy")
     .eq("client_id", clientId)
-    .eq("status", "completed")
+    .in("status", ["completed", "converted"])
     .order("analyzed_at", { ascending: false })
     .limit(3);
 
@@ -182,7 +182,7 @@ export async function getPortalDashboardV2(clientId: string) {
     db.from("brand_analyses")
       .select("id, marketing_score, keyword_rankings, analyzed_at, analysis_result, content_strategy")
       .eq("client_id", clientId)
-      .eq("status", "completed")
+      .in("status", ["completed", "converted"])
       .order("analyzed_at", { ascending: false })
       .limit(1)
       .maybeSingle(),
@@ -223,7 +223,7 @@ export async function getPortalDashboardV2(clientId: string) {
     checkPublications,
     exposedKeywordsRes,
   ] = await Promise.all([
-    db.from("brand_analyses").select("id", { count: "exact", head: true }).eq("client_id", clientId).eq("status", "completed"),
+    db.from("brand_analyses").select("id", { count: "exact", head: true }).eq("client_id", clientId).in("status", ["completed", "converted"]),
     db.from("keywords").select("id", { count: "exact", head: true }).eq("client_id", clientId),
     db.from("blog_accounts").select("id", { count: "exact", head: true }).eq("client_id", clientId).eq("is_active", true),
     db.from("contents").select("id", { count: "exact", head: true }).eq("client_id", clientId),
@@ -435,7 +435,7 @@ export async function getPortalKeywordsV2(clientId: string) {
     db.from("brand_analyses")
       .select("analysis_result")
       .eq("client_id", clientId)
-      .eq("status", "completed")
+      .in("status", ["completed", "converted"])
       .order("analyzed_at", { ascending: false })
       .limit(1)
       .maybeSingle(),
@@ -553,7 +553,7 @@ export async function getPortalReportV2(clientId: string, year?: number, month?:
     db.from("brand_analyses")
       .select("id, marketing_score, analyzed_at, content_strategy")
       .eq("client_id", clientId)
-      .eq("status", "completed")
+      .in("status", ["completed", "converted"])
       .order("analyzed_at", { ascending: false })
       .limit(5),
   ]);
