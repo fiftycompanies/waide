@@ -128,11 +128,10 @@ export function OnboardingRefineClient({
         {/* 헤더 */}
         <div className="text-center">
           <h1 className="text-2xl font-bold text-gray-900 mb-2">
-            프로젝트 시작하기
+            AI가 놓친 우리 매장만의 강점이 있나요?
           </h1>
           <p className="text-gray-500 text-sm">
-            분석 결과를 확인하고 키워드와 정보를 보완한 후 프로젝트를
-            시작하세요
+            알려주시면 경쟁사를 압도하는 콘텐츠를 만들 수 있어요
           </p>
         </div>
 
@@ -230,7 +229,7 @@ export function OnboardingRefineClient({
               onChange={(e) =>
                 setFormData({ ...formData, strengths: e.target.value })
               }
-              placeholder="예: 직접 로스팅한 스페셜티 원두, 매일 만드는 수제 디저트"
+              placeholder="예) 주차 30대 가능, 대표가 직접 시술, 15년 경력..."
               className="w-full px-3 py-2 rounded-lg border text-sm min-h-[60px] focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 resize-none"
             />
           </div>

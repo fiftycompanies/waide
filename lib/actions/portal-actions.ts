@@ -209,10 +209,33 @@ export async function getPortalDashboardV2(clientId: string) {
       .limit(5),
     // 클라이언트 정보
     db.from("clients")
-      .select("brand_name:name, assigned_sales_agent_id, brand_persona")
+      .select("brand_name:name, assigned_sales_agent_id, brand_persona, created_at")
       .eq("id", clientId)
       .single(),
   ]);
+
+  // 온보딩 체크리스트 쿼리 (병렬)
+  const [
+    checkAnalysis,
+    checkKeywords,
+    checkBlogAccounts,
+    checkContents,
+    checkPublications,
+  ] = await Promise.all([
+    db.from("brand_analyses").select("id", { count: "exact", head: true }).eq("client_id", clientId).eq("status", "completed"),
+    db.from("keywords").select("id", { count: "exact", head: true }).eq("client_id", clientId),
+    db.from("blog_accounts").select("id", { count: "exact", head: true }).eq("client_id", clientId).eq("is_active", true),
+    db.from("contents").select("id", { count: "exact", head: true }).eq("client_id", clientId),
+    db.from("publications").select("id", { count: "exact", head: true }).eq("client_id", clientId).eq("status", "published"),
+  ]);
+
+  const onboardingChecklist = {
+    analysisComplete: (checkAnalysis.count ?? 0) > 0,
+    keywordsSet: (checkKeywords.count ?? 0) > 0,
+    blogConnected: (checkBlogAccounts.count ?? 0) > 0,
+    firstContent: (checkContents.count ?? 0) > 0,
+    firstPublish: (checkPublications.count ?? 0) > 0,
+  };
 
   // 최근 콘텐츠 QC 평균
   const recentContents = recentContentsRes.data || [];
@@ -268,6 +291,8 @@ export async function getPortalDashboardV2(clientId: string) {
     latestAnalysis: analysisRes.data,
     scoreBreakdown: rawScoreBreakdown,
     brandName: clientRes.data?.brand_name || "",
+    clientCreatedAt: clientRes.data?.created_at || null,
+    onboardingChecklist,
     brandPersona: brandPersonaRaw,
     improvementPlan,
     seoComments,

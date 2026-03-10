@@ -29,6 +29,14 @@ import {
   Palette,
   Sparkles,
 } from "lucide-react";
+import { getSupabaseClient } from "@/lib/supabase/client";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 
 // ═══════════════════════════════════════════
 // Score Gauge Component
@@ -270,6 +278,7 @@ export default function AnalysisResultPage({
   });
   const [newKeyword, setNewKeyword] = useState("");
   const [refining, setRefining] = useState(false);
+  const [showLoginModal, setShowLoginModal] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -346,12 +355,28 @@ export default function AnalysisResultPage({
     setRefineData({ ...refineData, keywords: refineData.keywords.filter((k) => k !== kw) });
   };
 
-  const handleStartProject = () => {
+  const handleStartProject = async () => {
     // localStorage에 analysis_id 저장 (로그인/가입 플로우 생존)
     if (typeof window !== "undefined") {
       localStorage.setItem("waide_analysis_id", id);
+      localStorage.setItem("pending_analysis_id", id);
     }
-    router.push(`/login?redirect=${encodeURIComponent(`/onboarding/refine?analysis_id=${id}`)}`);
+
+    // Supabase 세션 체크
+    try {
+      const supabase = getSupabaseClient();
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (sessionData?.session) {
+        // 로그인된 상태 → 바로 온보딩으로
+        router.push(`/onboarding/refine?analysis_id=${id}`);
+        return;
+      }
+    } catch {
+      // 세션 확인 실패 → 모달 표시
+    }
+
+    // 비로그인 → 모달 표시
+    setShowLoginModal(true);
   };
 
   if (loading) {
@@ -1557,6 +1582,40 @@ export default function AnalysisResultPage({
           <ArrowRight className="h-5 w-5" />
         </button>
       </div>
+
+      {/* 로그인/회원가입 모달 */}
+      <Dialog open={showLoginModal} onOpenChange={setShowLoginModal}>
+        <DialogContent className="bg-[#1a1a1a] border-[#2a2a2a] text-white sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-white text-lg">
+              마케팅을 시작하려면 로그인이 필요해요
+            </DialogTitle>
+            <DialogDescription className="text-[#888]">
+              로그인하면 분석 결과를 기반으로 맞춤 마케팅 프로젝트를 만들 수 있어요
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-3 mt-4">
+            <button
+              onClick={() => {
+                const redirect = encodeURIComponent(`/onboarding/refine?analysis_id=${id}`);
+                router.push(`/login?redirect=${redirect}`);
+              }}
+              className="w-full h-12 rounded-xl bg-[#10b981] hover:bg-[#34d399] text-white font-semibold transition-colors"
+            >
+              로그인
+            </button>
+            <button
+              onClick={() => {
+                const redirect = encodeURIComponent(`/onboarding/refine?analysis_id=${id}`);
+                router.push(`/signup?redirect=${redirect}`);
+              }}
+              className="w-full h-12 rounded-xl bg-[#2a2a2a] hover:bg-[#333] text-white font-semibold border border-[#3a3a3a] transition-colors"
+            >
+              회원가입
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

@@ -33,8 +33,15 @@ function LoginForm() {
           setError(result.error);
           return;
         }
-        // redirect 파라미터가 있으면 우선, 없으면 역할 기반 기본 경로
-        const target = redirectTo.startsWith("/") ? redirectTo : result.redirect;
+        // redirect 파라미터가 있으면 우선, 없으면 pending_analysis_id 체크, 없으면 역할 기반 기본 경로
+        let target = redirectTo.startsWith("/") ? redirectTo : result.redirect;
+        if (!redirectTo.startsWith("/") && typeof window !== "undefined") {
+          const pendingId = localStorage.getItem("pending_analysis_id");
+          if (pendingId) {
+            localStorage.removeItem("pending_analysis_id");
+            target = `/onboarding/refine?analysis_id=${pendingId}`;
+          }
+        }
         router.push(target);
         router.refresh();
       } catch {

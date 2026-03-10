@@ -2,6 +2,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { PortalShell } from "@/components/portal/portal-shell";
 import { PortalPendingPage } from "@/components/portal/portal-pending";
+import { KakaoFloatingButton } from "@/components/portal/kakao-floating-button";
 
 export default async function PortalLayout({
   children,
@@ -20,14 +21,17 @@ export default async function PortalLayout({
   }
 
   return (
-    <PortalShell
-      userName={user.name}
-      userEmail={user.email}
-      userId={user.id}
-      clientId={user.client_id}
-      brandName={user.client_brand_name || ""}
-    >
-      {children}
-    </PortalShell>
+    <>
+      <PortalShell
+        userName={user.name}
+        userEmail={user.email}
+        userId={user.id}
+        clientId={user.client_id}
+        brandName={user.client_brand_name || ""}
+      >
+        {children}
+      </PortalShell>
+      <KakaoFloatingButton />
+    </>
   );
 }

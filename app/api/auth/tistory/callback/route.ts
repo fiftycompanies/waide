@@ -23,7 +23,9 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const clientId = state;
+  // state에 `:portal` 접미사가 있으면 포털에서 온 요청
+  const isPortal = state?.endsWith(":portal") ?? false;
+  const clientId = isPortal ? state!.replace(/:portal$/, "") : state;
   if (!clientId) {
     return NextResponse.redirect(
       new URL("/blog-accounts?error=tistory_no_client", request.url)
@@ -98,9 +100,12 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // 4. 성공 → 블로그 계정 페이지로 리다이렉트
+    // 4. 성공 → 포털이면 /portal/blog, 아니면 기존 /blog-accounts로 리다이렉트
+    const successRedirect = isPortal
+      ? "/portal/blog?success=tistory_connected"
+      : "/blog-accounts?success=tistory_connected";
     return NextResponse.redirect(
-      new URL("/blog-accounts?success=tistory_connected", request.url)
+      new URL(successRedirect, request.url)
     );
   } catch (error) {
     console.error("[tistory-oauth] 콜백 처리 실패:", error);

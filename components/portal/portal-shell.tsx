@@ -9,6 +9,7 @@ import {
   Home,
   Key,
   LogOut,
+  Rss,
   Settings,
   User,
 } from "lucide-react";
@@ -20,6 +21,7 @@ const navItems = [
   { title: "키워드 관리", url: "/portal/keywords", icon: Key },
   { title: "콘텐츠 현황", url: "/portal/contents", icon: FileText },
   { title: "월간 리포트", url: "/portal/reports", icon: BarChart2 },
+  { title: "블로그 관리", url: "/portal/blog", icon: Rss },
   { title: "설정", url: "/portal/settings", icon: Settings },
 ];
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import {
   BarChart2,
   CheckCircle2,
@@ -10,6 +11,7 @@ import {
   Lightbulb,
   Loader2,
   Phone,
+  Rss,
   Sparkles,
   Target,
   TrendingUp,
@@ -47,6 +49,14 @@ interface ScoreArea {
   detail?: string;
 }
 
+interface OnboardingChecklist {
+  analysisComplete: boolean;
+  keywordsSet: boolean;
+  blogConnected: boolean;
+  firstContent: boolean;
+  firstPublish: boolean;
+}
+
 interface DashboardData {
   kpi: KpiData;
   latestAnalysis: {
@@ -58,6 +68,8 @@ interface DashboardData {
   } | null;
   scoreBreakdown: Record<string, ScoreArea> | null;
   brandName: string;
+  clientCreatedAt: string | null;
+  onboardingChecklist: OnboardingChecklist;
   brandPersona: {
     one_liner?: string;
     positioning?: string;
@@ -138,19 +150,139 @@ export default function PortalDashboardPage() {
     );
   }
 
-  const { kpi } = data;
+  const { kpi, onboardingChecklist } = data;
+
+  // 가입일로부터 N일째 계산
+  const daysSinceJoin = data.clientCreatedAt
+    ? Math.max(1, Math.ceil((Date.now() - new Date(data.clientCreatedAt).getTime()) / (1000 * 60 * 60 * 24)))
+    : null;
+
+  // 온보딩 체크리스트 항목
+  const checklistItems = [
+    { key: "analysisComplete", label: "분석 완료", done: onboardingChecklist.analysisComplete },
+    { key: "keywordsSet", label: "키워드 설정", done: onboardingChecklist.keywordsSet },
+    { key: "blogConnected", label: "블로그 연결", done: onboardingChecklist.blogConnected },
+    { key: "firstContent", label: "첫 콘텐츠 생성", done: onboardingChecklist.firstContent },
+    { key: "firstPublish", label: "첫 발행 완료", done: onboardingChecklist.firstPublish },
+  ];
+  const completedCount = checklistItems.filter((i) => i.done).length;
+  const progressPct = Math.round((completedCount / checklistItems.length) * 100);
+
+  // 키워드 순위 요약 (TOP3/TOP10)
+  const kwRankings = (data.latestAnalysis?.keyword_rankings ?? []) as Array<{ keyword: string; rank: number | null }>;
+  const rankedKws = kwRankings.filter((k) => k.rank != null && k.rank > 0);
+  const top3Count = rankedKws.filter((k) => k.rank! <= 3).length;
+  const top10Count = rankedKws.filter((k) => k.rank! <= 10).length;
+  const topKeywords = rankedKws
+    .sort((a, b) => (a.rank ?? 999) - (b.rank ?? 999))
+    .slice(0, 5);
 
   return (
     <div className="space-y-6">
-      {/* Welcome */}
-      <div>
+      {/* ── 섹션 1: 환영 카드 ── */}
+      <div className="rounded-xl border bg-gradient-to-r from-emerald-50 to-white p-6">
         <h1 className="text-2xl font-bold text-gray-900">
-          {data.brandName || "대시보드"}
+          안녕하세요, {data.brandName || "고객"}님!
         </h1>
         <p className="text-sm text-gray-500 mt-1">
-          마케팅 현황을 한눈에 확인하세요
+          {daysSinceJoin
+            ? `Waide와 함께한 지 ${daysSinceJoin}일째 운영 중이에요`
+            : "마케팅 현황을 한눈에 확인하세요"}
         </p>
       </div>
+
+      {/* ── 섹션 2: 빠른 액션 카드 ── */}
+      <div className="grid grid-cols-3 gap-3">
+        <Link
+          href="/portal/keywords"
+          className="flex flex-col items-center gap-2 p-4 rounded-xl border bg-white hover:bg-emerald-50 hover:border-emerald-200 transition-colors"
+        >
+          <Key className="h-6 w-6 text-emerald-600" />
+          <span className="text-sm font-medium text-gray-700">키워드 관리</span>
+        </Link>
+        <Link
+          href="/portal/contents"
+          className="flex flex-col items-center gap-2 p-4 rounded-xl border bg-white hover:bg-purple-50 hover:border-purple-200 transition-colors"
+        >
+          <FileText className="h-6 w-6 text-purple-600" />
+          <span className="text-sm font-medium text-gray-700">콘텐츠 현황</span>
+        </Link>
+        <Link
+          href="/portal/blog"
+          className="flex flex-col items-center gap-2 p-4 rounded-xl border bg-white hover:bg-blue-50 hover:border-blue-200 transition-colors"
+        >
+          <Rss className="h-6 w-6 text-blue-600" />
+          <span className="text-sm font-medium text-gray-700">블로그 관리</span>
+        </Link>
+      </div>
+
+      {/* ── 섹션 3: 온보딩 체크리스트 ── */}
+      {completedCount < checklistItems.length && (
+        <div className="rounded-xl border bg-white p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-gray-900">시작 가이드</h2>
+            <span className="text-sm text-emerald-600 font-medium">{completedCount}/{checklistItems.length} 완료</span>
+          </div>
+          <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden mb-4">
+            <div
+              className="h-full bg-emerald-500 rounded-full transition-all duration-500"
+              style={{ width: `${progressPct}%` }}
+            />
+          </div>
+          <div className="space-y-2.5">
+            {checklistItems.map((item) => (
+              <div key={item.key} className="flex items-center gap-3">
+                <div className={`h-5 w-5 rounded-full flex items-center justify-center ${item.done ? "bg-emerald-100" : "bg-gray-100"}`}>
+                  {item.done ? (
+                    <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                  ) : (
+                    <div className="h-2 w-2 rounded-full bg-gray-300" />
+                  )}
+                </div>
+                <span className={`text-sm ${item.done ? "text-gray-400 line-through" : "text-gray-700 font-medium"}`}>
+                  {item.label}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── 섹션 4: 키워드 순위 현황 요약 ── */}
+      {topKeywords.length > 0 && (
+        <div className="rounded-xl border bg-white p-6">
+          <div className="flex items-center gap-2 text-gray-900 mb-4">
+            <TrendingUp className="h-5 w-5 text-emerald-500" />
+            <h2 className="text-lg font-semibold">키워드 순위 현황</h2>
+          </div>
+          <div className="flex gap-4 mb-4">
+            <div className="flex-1 rounded-lg bg-emerald-50 p-3 text-center">
+              <p className="text-2xl font-bold text-emerald-700">{top3Count}</p>
+              <p className="text-xs text-emerald-600">TOP 3</p>
+            </div>
+            <div className="flex-1 rounded-lg bg-blue-50 p-3 text-center">
+              <p className="text-2xl font-bold text-blue-700">{top10Count}</p>
+              <p className="text-xs text-blue-600">TOP 10</p>
+            </div>
+            <div className="flex-1 rounded-lg bg-gray-50 p-3 text-center">
+              <p className="text-2xl font-bold text-gray-700">{rankedKws.length}</p>
+              <p className="text-xs text-gray-500">전체 노출</p>
+            </div>
+          </div>
+          <div className="space-y-2">
+            {topKeywords.map((kw) => (
+              <div key={kw.keyword} className="flex items-center justify-between py-1.5 border-b last:border-0">
+                <span className="text-sm text-gray-700">{kw.keyword}</span>
+                <span className={`text-sm font-bold ${
+                  kw.rank! <= 3 ? "text-emerald-600" : kw.rank! <= 10 ? "text-blue-600" : "text-gray-500"
+                }`}>
+                  {kw.rank}위
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
