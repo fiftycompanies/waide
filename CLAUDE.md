@@ -107,6 +107,7 @@
 | 경로 | 페이지명 | 데이터 소스 |
 |------|---------|-----------|
 | `/portal` | 포털 대시보드 (KPI 4종 + 브랜드 요약 + 최근 활동 타임라인) | `keywords`, `contents`, `brand_analyses`, `clients` (brand_persona), `sales_agents` |
+| `/portal/analysis` | 브랜드 분석 (마케팅 점수 + SEO 진단 + 키워드 + 개선 액션플랜) | `brand_analyses` |
 | `/portal/keywords` | 키워드 관리 (활성/AI추천/보관 탭 + 승인/거절) | `keywords`, `brand_analyses` (keyword_strategy) |
 | `/portal/contents` | 콘텐츠 현황 (필터 + 상세보기 + QC 결과) | `contents` (metadata: qc_result, rewrite_history) |
 | `/portal/reports` | 월간 리포트 (발행추이 차트 + 키워드성장 차트 + 순위현황 + AI활동) | `contents`, `keywords`, `agent_execution_logs`, `serp_results`, `brand_analyses` |

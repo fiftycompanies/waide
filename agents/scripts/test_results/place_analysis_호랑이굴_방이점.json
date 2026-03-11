@@ -1,0 +1,146 @@
+{
+  "place_id": "1501810705",
+  "basic_info": {
+    "name": "호랑이굴 방이점",
+    "category": "곱창,막창,양",
+    "address": "서울 송파구 오금로15길 16 1층",
+    "phone": "",
+    "hours": "23:00에 라스트오더",
+    "sns_url": "",
+    "homepage_url": "https://www.instagram.com/horangigul_bang2/",
+    "visitor_reviews": 2955,
+    "blog_reviews": 1211,
+    "service_labels": [
+      "booking",
+      "talktalk"
+    ]
+  },
+  "brand_analysis": {
+    "industry": {
+      "main": "음식점",
+      "sub": "곱창전문점",
+      "region": "송파구 방이동"
+    },
+    "tone": {
+      "style": "친근한 해요체, 맛집 추천 스타일",
+      "personality": "정통성 있는, 푸근한, 본격적인",
+      "example_phrases": [
+        "진짜 맛있어요",
+        "옛날 그 맛 그대로",
+        "사장님이 직접",
+        "숨은 맛집",
+        "단골들만 아는"
+      ]
+    },
+    "target_audience": {
+      "primary": "30~50대 직장인, 회식/모임 고객",
+      "secondary": "20~30대 커플, 친구 모임",
+      "pain_points": [
+        "맛없는 곱창집 경험",
+        "비싼 가격 대비 양 부족",
+        "냄새나고 불친절한 서비스",
+        "신선하지 않은 재료",
+        "예약 어려운 인기 맛집"
+      ],
+      "search_intent": "송파구/방이동에서 맛있고 신선한 곱창을 먹고 싶어하는 의도"
+    },
+    "usp": [
+      "방이동 곱창 맛집으로 입소문",
+      "2,955개 방문자 리뷰 검증된 맛",
+      "1,211개 블로그 후기로 증명된 인기",
+      "23시까지 라스트오더 가능",
+      "예약 시스템 운영으로 대기시간 단축"
+    ],
+    "selling_points_from_reviews": [
+      "압도적인 리뷰 수로 검증된 맛집 신뢰도",
+      "꾸준한 블로그 포스팅으로 입증된 지속적 인기",
+      "높은 재방문율 추정",
+      "SNS 활동으로 젊은층에게도 어필",
+      "예약 서비스로 편리한 이용"
+    ],
+    "price_position": "합리적 가격의 동네 맛집",
+    "signature_products": [
+      "신선한 곱창",
+      "쫄깃한 막창",
+      "부드러운 양",
+      "곱창전골",
+      "막창볶음"
+    ],
+    "cta": {
+      "primary": "지금 바로 예약하고 진짜 곱창 맛 보세요!",
+      "secondary": "방이동 숨은 곱창 맛집, 오늘 방문해보세요"
+    },
+    "forbidden_terms": [
+      "무료",
+      "최고",
+      "No.1",
+      "업계 최초",
+      "의학적 효과",
+      "다이어트",
+      "건강에 좋은"
+    ]
+  },
+  "content_strategy": {
+    "recommended_keywords": [
+      {
+        "keyword": "방이동 곱창",
+        "intent": "지역 맛집 검색",
+        "priority": "high"
+      },
+      {
+        "keyword": "송파구 곱창맛집",
+        "intent": "지역 맛집 검색",
+        "priority": "high"
+      },
+      {
+        "keyword": "호랑이굴 방이점",
+        "intent": "업체명 직접 검색",
+        "priority": "high"
+      },
+      {
+        "keyword": "방이동 막창",
+        "intent": "특정 메뉴 검색",
+        "priority": "medium"
+      },
+      {
+        "keyword": "송파구 회식장소",
+        "intent": "모임 장소 검색",
+        "priority": "medium"
+      },
+      {
+        "keyword": "방이역 곱창",
+        "intent": "교통 중심 검색",
+        "priority": "medium"
+      },
+      {
+        "keyword": "곱창 맛집 추천",
+        "intent": "일반 맛집 검색",
+        "priority": "low"
+      },
+      {
+        "keyword": "송파구 술집",
+        "intent": "음주 모임 장소 검색",
+        "priority": "low"
+      }
+    ],
+    "recommended_content_types": [
+      "single",
+      "list",
+      "review",
+      "comparison"
+    ],
+    "posting_frequency": "주 2~3회",
+    "competitor_differentiation": "압도적인 리뷰 수와 검증된 맛을 강조하며, 예약 시스템의 편리함과 늦은 시간까지 운영하는 장점을 부각",
+    "content_angles": [
+      "신선한 재료의 중요성",
+      "곱창 부위별 맛의 차이",
+      "올바른 곱창 먹는 방법",
+      "회식 장소로서의 장점",
+      "방이동 맛집 투어",
+      "곱창과 어울리는 술 추천",
+      "계절별 곱창 요리법",
+      "곱창집 선택 기준",
+      "단골 고객들의 숨은 메뉴"
+    ]
+  }
+}

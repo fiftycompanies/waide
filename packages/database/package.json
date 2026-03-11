@@ -1,0 +1,23 @@
+{
+  "name": "@ai-marketer/database",
+  "version": "1.0.0",
+  "description": "Database schema and types for AI Marketer",
+  "main": "index.ts",
+  "types": "index.ts",
+  "scripts": {
+    "db:generate": "prisma generate",
+    "db:push": "prisma db push",
+    "db:migrate": "prisma migrate dev",
+    "db:studio": "prisma studio",
+    "db:format": "prisma format"
+  },
+  "keywords": ["database", "prisma", "supabase"],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@prisma/client": "^6.6.0"
+  },
+  "devDependencies": {
+    "prisma": "^6.6.0"
+  }
+}
