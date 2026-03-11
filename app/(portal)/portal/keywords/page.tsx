@@ -20,6 +20,7 @@ import {
   rejectSuggestedKeyword,
 } from "@/lib/actions/keyword-expansion-actions";
 import { updateKeywordStatus, createKeyword } from "@/lib/actions/keyword-actions";
+import { suggestKeywordsForClient } from "@/lib/actions/campaign-planning-actions";
 import KeywordDetailModal from "@/components/portal/keyword-detail-modal";
 
 interface KeywordItem {
@@ -56,6 +57,8 @@ export default function PortalKeywordsPage() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [newKeyword, setNewKeyword] = useState("");
   const [addingKeyword, setAddingKeyword] = useState(false);
+  const [suggestLoading, setSuggestLoading] = useState(false);
+  const [suggestError, setSuggestError] = useState<string | null>(null);
 
   const handleAddKeyword = async () => {
     const el = document.querySelector("meta[name='portal-client-id']");
@@ -74,6 +77,26 @@ export default function PortalKeywordsPage() {
       loadData();
     }
     setAddingKeyword(false);
+  };
+
+  const handleSuggestKeywords = async () => {
+    const el = document.querySelector("meta[name='portal-client-id']");
+    const clientId = el?.getAttribute("content") || "";
+    if (!clientId) return;
+    setSuggestLoading(true);
+    setSuggestError(null);
+    try {
+      const result = await suggestKeywordsForClient(clientId, 5);
+      if (result.success) {
+        loadData();
+      } else {
+        setSuggestError(result.error || "AI 추천에 실패했습니다. 잠시 후 다시 시도해주세요.");
+      }
+    } catch {
+      setSuggestError("AI 추천에 실패했습니다. 잠시 후 다시 시도해주세요.");
+    } finally {
+      setSuggestLoading(false);
+    }
   };
 
   const loadData = useCallback(() => {
@@ -318,6 +341,26 @@ export default function PortalKeywordsPage() {
               <Sparkles className="h-12 w-12 text-gray-300 mx-auto mb-3" />
               <p className="text-gray-500">아직 AI 추천 키워드가 없습니다</p>
               <p className="text-sm text-gray-400 mt-1">활성 키워드가 3개 이상 쌓이면 자동으로 추천됩니다.</p>
+              <button
+                onClick={handleSuggestKeywords}
+                disabled={suggestLoading}
+                className="mt-4 px-5 py-2.5 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 disabled:opacity-50 inline-flex items-center gap-2 transition-colors"
+              >
+                {suggestLoading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    AI 분석 중...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="h-4 w-4" />
+                    AI 추천 받기
+                  </>
+                )}
+              </button>
+              {suggestError && (
+                <p className="text-sm text-red-500 mt-2">{suggestError}</p>
+              )}
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
