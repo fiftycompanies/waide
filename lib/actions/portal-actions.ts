@@ -455,34 +455,39 @@ export async function getPortalKeywordsV2(clientId: string) {
 // ── 포털 콘텐츠 V2 데이터 (Phase P-1) ─────────────────────────────────
 
 export async function getPortalContentsV2(clientId: string) {
-  const db = createAdminClient();
-
-  const { data: contents } = await db
+  const supabase = createAdminClient();
+  const { data, error } = await (supabase as ReturnType<typeof createAdminClient>)
     .from("contents")
-    .select("id, title, keyword, publish_status, published_at, published_url, platform, qc_score, created_at, body, metadata, keyword_id, keywords(keyword)")
+    .select(`
+      id, title, publish_status, created_at, published_at,
+      published_url, body, qc_score, keyword_id, metadata,
+      keywords!keyword_id(keyword)
+    `)
     .eq("client_id", clientId)
     .order("created_at", { ascending: false })
-    .limit(50);
+    .limit(100);
+
+  if (error) {
+    console.error("[portal-actions] getPortalContentsV2 error:", error);
+    return [];
+  }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return (contents || []).map((c: any) => {
-    const kwJoin = Array.isArray(c.keywords) ? c.keywords[0] : c.keywords;
-    return {
-      id: c.id as string,
-      title: c.title as string,
-      keyword: (c.keyword || kwJoin?.keyword || null) as string | null,
-      publish_status: c.publish_status as string,
-      published_at: c.published_at as string | null,
-      published_url: c.published_url as string | null,
-      platform: c.platform as string | null,
-      qc_score: (c.qc_score ?? c.metadata?.qc_score ?? null) as number | null,
-      created_at: c.created_at as string,
-      body: c.body as string | null,
-      keyword_id: (c.keyword_id || null) as string | null,
-      qcResult: (c.metadata?.qc_result ?? null) as unknown,
-      rewriteHistory: (c.metadata?.rewrite_history ?? null) as unknown,
-    };
-  });
+  return (data ?? []).map((c: any) => ({
+    id: c.id as string,
+    title: c.title as string,
+    keyword: (c.keywords?.keyword ?? null) as string | null,
+    publish_status: c.publish_status as string,
+    published_at: c.published_at as string | null,
+    published_url: c.published_url as string | null,
+    platform: null as string | null,
+    qc_score: (c.qc_score ?? c.metadata?.qc_score ?? null) as number | null,
+    created_at: c.created_at as string,
+    body: c.body as string | null,
+    keyword_id: (c.keyword_id || null) as string | null,
+    qcResult: (c.metadata?.qc_result ?? null) as unknown,
+    rewriteHistory: (c.metadata?.rewrite_history ?? null) as unknown,
+  }));
 }
 
 // ── 포털 리포트 V2 데이터 (Phase P-1) ─────────────────────────────────

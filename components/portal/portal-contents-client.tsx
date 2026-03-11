@@ -45,7 +45,6 @@ interface ActiveJob {
   updated_at: string;
 }
 
-type TabType = "contents" | "jobs";
 type FilterType = "all" | "drafting" | "reviewing" | "published";
 
 const statusLabels: Record<string, { text: string; color: string }> = {
@@ -67,7 +66,6 @@ export default function PortalContentsClient() {
   const [contents, setContents] = useState<ContentItem[]>([]);
   const [activeJobs, setActiveJobs] = useState<ActiveJob[]>([]);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<TabType>("contents");
   const [filter, setFilter] = useState<FilterType>("all");
   const [selectedContent, setSelectedContent] = useState<ContentItem | null>(null);
   const [publishModalContent, setPublishModalContent] = useState<ContentItem | null>(null);
@@ -124,6 +122,9 @@ export default function PortalContentsClient() {
         return contents;
     }
   })();
+
+  // Show active jobs in "all" or "drafting" filter
+  const showJobs = filter === "all" || filter === "drafting";
 
   const countByStatus = (status: string) => contents.filter((c) => c.publish_status === status).length;
 
@@ -347,231 +348,185 @@ export default function PortalContentsClient() {
         </div>
         <div className="p-4 rounded-xl border bg-white text-center">
           <p className="text-xs text-gray-500">생성중</p>
-          <p className="text-2xl font-bold text-amber-600 mt-1">{countByStatus("draft") + countByStatus("review")}</p>
+          <p className="text-2xl font-bold text-amber-600 mt-1">{countByStatus("draft") + countByStatus("review") + activeJobs.length}</p>
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-1 border-b">
-        <button
-          onClick={() => setTab("contents")}
-          className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
-            tab === "contents"
-              ? "border-emerald-600 text-emerald-600"
-              : "border-transparent text-gray-500 hover:text-gray-700"
-          }`}
-        >
-          전체 콘텐츠
-        </button>
-        <button
-          onClick={() => setTab("jobs")}
-          className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors flex items-center gap-1.5 ${
-            tab === "jobs"
-              ? "border-emerald-600 text-emerald-600"
-              : "border-transparent text-gray-500 hover:text-gray-700"
-          }`}
-        >
-          생성 진행중
-          {activeJobs.length > 0 && (
-            <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-amber-100 text-amber-700 font-medium">
-              {activeJobs.length}
-            </span>
-          )}
-        </button>
+      {/* Filters */}
+      <div className="flex gap-2 overflow-x-auto pb-1">
+        {filterGroups.map((f) => (
+          <button
+            key={f.key}
+            onClick={() => setFilter(f.key)}
+            className={`px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
+              filter === f.key
+                ? "bg-gray-900 text-white"
+                : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+            }`}
+          >
+            {f.label}
+          </button>
+        ))}
       </div>
 
-      {/* Tab 1: Contents */}
-      {tab === "contents" && (
-        <>
-          {/* Filters */}
-          <div className="flex gap-2 overflow-x-auto pb-1">
-            {filterGroups.map((f) => (
-              <button
-                key={f.key}
-                onClick={() => setFilter(f.key)}
-                className={`px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
-                  filter === f.key
-                    ? "bg-gray-900 text-white"
-                    : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                }`}
-              >
-                {f.label}
-              </button>
-            ))}
-          </div>
-
-          {/* Content list */}
-          {filtered.length === 0 ? (
-            <div className="rounded-xl border bg-white p-12 text-center">
-              <FileText className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-              <p className="text-gray-500">
-                {filter === "all" ? "아직 콘텐츠가 없습니다" : `${filterGroups.find(f => f.key === filter)?.label} 상태의 콘텐츠가 없습니다`}
-              </p>
-              <p className="text-sm text-gray-400 mt-1">
-                마케팅 서비스가 시작되면 여기에 콘텐츠가 표시됩니다
-              </p>
-            </div>
-          ) : (
-            <div className="rounded-xl border bg-white overflow-hidden">
-              <table className="w-full text-sm">
-                <thead className="bg-gray-50 border-b">
-                  <tr>
-                    <th className="text-left py-3 px-4 font-medium text-gray-600">제목</th>
-                    <th className="text-center py-3 px-4 font-medium text-gray-600 hidden sm:table-cell">키워드</th>
-                    <th className="text-center py-3 px-4 font-medium text-gray-600">상태</th>
-                    <th className="text-center py-3 px-4 font-medium text-gray-600 hidden md:table-cell">QC</th>
-                    <th className="text-center py-3 px-4 font-medium text-gray-600 hidden md:table-cell">날짜</th>
-                    <th className="text-center py-3 px-4 font-medium text-gray-600 hidden lg:table-cell">액션</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filtered.map((content) => {
-                    const st = statusLabels[content.publish_status] || statusLabels.draft;
-                    return (
-                      <tr
-                        key={content.id}
-                        className="border-b last:border-0 hover:bg-gray-50 transition-colors"
-                      >
-                        <td
-                          className="py-3 px-4 cursor-pointer"
-                          onClick={() => setSelectedContent(content)}
-                        >
-                          <p className="font-medium text-gray-900 truncate max-w-[200px] sm:max-w-[300px]">
-                            {content.title || "제목 없음"}
-                          </p>
-                          <p className="text-xs text-gray-400 sm:hidden mt-0.5">
-                            {content.keyword}
-                          </p>
-                        </td>
-                        <td className="py-3 px-4 text-center hidden sm:table-cell">
-                          <span className="text-xs text-gray-500">{content.keyword || "-"}</span>
-                        </td>
-                        <td className="py-3 px-4 text-center">
-                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${st.color}`}>
-                            {st.text}
+      {/* Active Jobs (shown inline at top) */}
+      {showJobs && activeJobs.length > 0 && (
+        <div className="space-y-2">
+          {activeJobs.map((job) => {
+            const payload = job.input_payload || {};
+            const keyword = payload.keyword || "";
+            const contentType = payload.content_type || "";
+            const isPending = job.status === "PENDING";
+            return (
+              <div key={job.id} className="rounded-xl border bg-white p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-2 h-2 rounded-full ${isPending ? "bg-gray-400" : "bg-amber-500 animate-pulse"}`} />
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">
+                        {keyword || job.title}
+                      </p>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        {contentType && (
+                          <span className="text-xs text-gray-400">
+                            {contentType === "info" ? "정보성" : contentType === "review" ? "후기형" : contentType === "compare" ? "비교형" : contentType}
                           </span>
-                        </td>
-                        <td className="py-3 px-4 text-center hidden md:table-cell">
-                          {content.qc_score !== null ? (
-                            <span className={`text-xs font-medium ${
-                              content.qc_score >= 70 ? "text-emerald-600" : "text-amber-600"
-                            }`}>
-                              {content.qc_score}점
-                            </span>
-                          ) : (
-                            <span className="text-xs text-gray-300">-</span>
-                          )}
-                        </td>
-                        <td className="py-3 px-4 text-center text-xs text-gray-500 hidden md:table-cell">
-                          {content.published_at
-                            ? new Date(content.published_at).toLocaleDateString("ko-KR")
-                            : new Date(content.created_at).toLocaleDateString("ko-KR")}
-                        </td>
-                        <td className="py-3 px-4 text-center hidden lg:table-cell">
-                          <div className="flex items-center justify-center gap-1.5">
-                            <button
-                              onClick={(e) => { e.stopPropagation(); setSelectedContent(content); }}
-                              className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600"
-                              title="보기"
-                            >
-                              <Eye className="h-3.5 w-3.5" />
-                            </button>
-                            {content.publish_status === "published" && content.body && (
-                              <button
-                                onClick={(e) => { e.stopPropagation(); handleCopyBody(content); }}
-                                className={`p-1 rounded hover:bg-gray-100 ${
-                                  copied === content.id ? "text-emerald-600" : "text-gray-400 hover:text-gray-600"
-                                }`}
-                                title="본문 복사"
-                              >
-                                <ClipboardCopy className="h-3.5 w-3.5" />
-                              </button>
-                            )}
-                            {content.publish_status === "approved" && (
-                              <button
-                                onClick={(e) => { e.stopPropagation(); setPublishModalContent(content); }}
-                                className="p-1 rounded hover:bg-blue-50 text-blue-500 hover:text-blue-600"
-                                title="URL 등록"
-                              >
-                                <Link2 className="h-3.5 w-3.5" />
-                              </button>
-                            )}
-                            {content.published_url && (
-                              <a
-                                href={content.published_url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                onClick={(e) => e.stopPropagation()}
-                                className="p-1 rounded hover:bg-gray-100 text-emerald-500 hover:text-emerald-600"
-                                title="발행된 글 보기"
-                              >
-                                <ExternalLink className="h-3.5 w-3.5" />
-                              </a>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </>
-      )}
-
-      {/* Tab 2: Active Jobs */}
-      {tab === "jobs" && (
-        <>
-          {activeJobs.length === 0 ? (
-            <div className="rounded-xl border bg-white p-12 text-center">
-              <Clock className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-              <p className="text-gray-500">현재 생성 중인 콘텐츠가 없습니다</p>
-              <p className="text-sm text-gray-400 mt-1">
-                블로그 작성 페이지에서 콘텐츠 생성을 요청하세요
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {activeJobs.map((job) => {
-                const payload = job.input_payload || {};
-                const keyword = payload.keyword || "";
-                const contentType = payload.content_type || "";
-                const isPending = job.status === "PENDING";
-                return (
-                  <div key={job.id} className="rounded-xl border bg-white p-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className={`w-2 h-2 rounded-full ${isPending ? "bg-gray-400" : "bg-amber-500 animate-pulse"}`} />
-                        <div>
-                          <p className="text-sm font-medium text-gray-900">
-                            {keyword || job.title}
-                          </p>
-                          <div className="flex items-center gap-2 mt-0.5">
-                            {contentType && (
-                              <span className="text-xs text-gray-400">
-                                {contentType === "info" ? "정보성" : contentType === "review" ? "후기형" : contentType === "compare" ? "비교형" : contentType}
-                              </span>
-                            )}
-                            <span className="text-xs text-gray-400">
-                              {new Date(job.created_at).toLocaleDateString("ko-KR")}
-                            </span>
-                          </div>
-                        </div>
+                        )}
+                        <span className="text-xs text-gray-400">
+                          {new Date(job.created_at).toLocaleDateString("ko-KR")}
+                        </span>
                       </div>
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                        isPending ? "bg-gray-100 text-gray-600" : "bg-amber-100 text-amber-700"
-                      }`}>
-                        {isPending ? "대기중" : "생성중"}
-                      </span>
                     </div>
                   </div>
+                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                    isPending ? "bg-amber-50 text-amber-600" : "bg-amber-100 text-amber-700"
+                  }`}>
+                    {isPending ? "대기중" : "생성중"}
+                  </span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Content list */}
+      {filtered.length === 0 && !(showJobs && activeJobs.length > 0) ? (
+        <div className="rounded-xl border bg-white p-12 text-center">
+          <FileText className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+          <p className="text-gray-500">
+            {filter === "all" ? "아직 콘텐츠가 없습니다" : `${filterGroups.find(f => f.key === filter)?.label} 상태의 콘텐츠가 없습니다`}
+          </p>
+          <p className="text-sm text-gray-400 mt-1">
+            마케팅 서비스가 시작되면 여기에 콘텐츠가 표시됩니다
+          </p>
+        </div>
+      ) : filtered.length > 0 ? (
+        <div className="rounded-xl border bg-white overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 border-b">
+              <tr>
+                <th className="text-left py-3 px-4 font-medium text-gray-600">제목</th>
+                <th className="text-center py-3 px-4 font-medium text-gray-600 hidden sm:table-cell">키워드</th>
+                <th className="text-center py-3 px-4 font-medium text-gray-600">상태</th>
+                <th className="text-center py-3 px-4 font-medium text-gray-600 hidden md:table-cell">QC</th>
+                <th className="text-center py-3 px-4 font-medium text-gray-600 hidden md:table-cell">날짜</th>
+                <th className="text-center py-3 px-4 font-medium text-gray-600 hidden lg:table-cell">액션</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((content) => {
+                const st = statusLabels[content.publish_status] || statusLabels.draft;
+                return (
+                  <tr
+                    key={content.id}
+                    className="border-b last:border-0 hover:bg-gray-50 transition-colors"
+                  >
+                    <td
+                      className="py-3 px-4 cursor-pointer"
+                      onClick={() => setSelectedContent(content)}
+                    >
+                      <p className="font-medium text-gray-900 truncate max-w-[200px] sm:max-w-[300px]">
+                        {content.title || "제목 없음"}
+                      </p>
+                      <p className="text-xs text-gray-400 sm:hidden mt-0.5">
+                        {content.keyword}
+                      </p>
+                    </td>
+                    <td className="py-3 px-4 text-center hidden sm:table-cell">
+                      <span className="text-xs text-gray-500">{content.keyword || "-"}</span>
+                    </td>
+                    <td className="py-3 px-4 text-center">
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${st.color}`}>
+                        {st.text}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4 text-center hidden md:table-cell">
+                      {content.qc_score !== null ? (
+                        <span className={`text-xs font-medium ${
+                          content.qc_score >= 70 ? "text-emerald-600" : "text-amber-600"
+                        }`}>
+                          {content.qc_score}점
+                        </span>
+                      ) : (
+                        <span className="text-xs text-gray-300">-</span>
+                      )}
+                    </td>
+                    <td className="py-3 px-4 text-center text-xs text-gray-500 hidden md:table-cell">
+                      {content.published_at
+                        ? new Date(content.published_at).toLocaleDateString("ko-KR")
+                        : new Date(content.created_at).toLocaleDateString("ko-KR")}
+                    </td>
+                    <td className="py-3 px-4 text-center hidden lg:table-cell">
+                      <div className="flex items-center justify-center gap-1.5">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setSelectedContent(content); }}
+                          className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600"
+                          title="보기"
+                        >
+                          <Eye className="h-3.5 w-3.5" />
+                        </button>
+                        {content.publish_status === "published" && content.body && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleCopyBody(content); }}
+                            className={`p-1 rounded hover:bg-gray-100 ${
+                              copied === content.id ? "text-emerald-600" : "text-gray-400 hover:text-gray-600"
+                            }`}
+                            title="본문 복사"
+                          >
+                            <ClipboardCopy className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                        {content.publish_status === "approved" && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setPublishModalContent(content); }}
+                            className="p-1 rounded hover:bg-blue-50 text-blue-500 hover:text-blue-600"
+                            title="URL 등록"
+                          >
+                            <Link2 className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                        {content.published_url && (
+                          <a
+                            href={content.published_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="p-1 rounded hover:bg-gray-100 text-emerald-500 hover:text-emerald-600"
+                            title="발행된 글 보기"
+                          >
+                            <ExternalLink className="h-3.5 w-3.5" />
+                          </a>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
                 );
               })}
-            </div>
-          )}
-        </>
-      )}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
 
       {/* Publish URL Modal */}
       {publishModalContent && (
