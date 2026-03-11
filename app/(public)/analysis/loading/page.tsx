@@ -24,6 +24,7 @@ function LoadingContent() {
   const ref = paramRef || cookieRef;
 
   const existingId = searchParams.get("id") ?? "";
+  const from = searchParams.get("from") ?? "";
   const [progress, setProgress] = useState(0);
   const [currentStep, setCurrentStep] = useState(0);
   const [analysisId, setAnalysisId] = useState<string | null>(existingId || null);
@@ -82,7 +83,7 @@ function LoadingContent() {
           clearInterval(progressInterval);
           clearInterval(stepInterval);
           clearInterval(pollInterval);
-          setTimeout(() => router.replace(`/analysis/${analysisId}`), 800);
+          setTimeout(() => router.replace(`/analysis/${analysisId}${from ? `?from=${from}` : ""}`), 800);
         } else if (data.status === "failed") {
           clearInterval(progressInterval);
           clearInterval(stepInterval);

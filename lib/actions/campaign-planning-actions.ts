@@ -52,6 +52,10 @@ export async function suggestKeywordsForClient(
   clientId: string,
   count: number = 3
 ): Promise<{ success: boolean; keywords: SuggestedKeyword[]; error?: string }> {
+  if (!clientId || clientId.trim() === "") {
+    return { success: false, keywords: [], error: "클라이언트 ID가 필요합니다. 페이지를 새로고침 후 다시 시도해주세요." };
+  }
+
   const db = createAdminClient();
 
   // 1. 클라이언트 + 브랜드 정보 조회

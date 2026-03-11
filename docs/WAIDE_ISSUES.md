@@ -33,6 +33,23 @@
 - **수정**: `AnalysisRequiredBanner` 컴포넌트 임포트 + `clientId` 전달 (L476~478)
 - **커밋**: 917e930
 
+### [FIX-1] 분석 플로우 UX 연결 ✅
+- **파일**: `components/portal/analysis-required-banner.tsx`, `app/(public)/analysis/loading/page.tsx`, `app/(public)/analysis/[id]/page.tsx`
+- **증상**: 포털에서 분석 시작 후 정적 "분석을 시작했습니다" 텍스트만 표시, 분석 결과 페이지에서 포털 복귀 수단 없음
+- **수정**:
+  - banner: 성공 시 `router.push(/analysis/loading?id=${analysisId}&from=portal)` 리다이렉트
+  - loading: `from` 파라미터 추출 → 완료 시 `?from=portal` 전달
+  - result: `useSearchParams`로 `from=portal` 감지 → "← 포털 대시보드로 돌아가기" 링크 표시
+
+### [FIX-2] AI 키워드 추천 빈 clientId 방어 ✅
+- **파일**: `lib/actions/campaign-planning-actions.ts`
+- **증상**: clientId가 빈 문자열일 때 "클라이언트를 찾을 수 없습니다" 에러 (FIX-A로 근본 원인 해결 완료)
+- **수정**: `suggestKeywordsForClient()` 최상단에 빈 clientId 체크 + 사용자 친화적 에러 메시지 추가
+
+### [FIX-3] AI 추천 탭 승인/거절 UI ✅ (이미 구현됨)
+- **파일**: `app/(portal)/portal/keywords/page.tsx`
+- **확인**: `handleApprove` (L122-133) → `approveSuggestedKeyword()`, `handleReject` (L135-146) → `rejectSuggestedKeyword()` — 이미 정상 연결 확인
+
 ---
 
 ## 잠재 이슈 (코드에서 확인)

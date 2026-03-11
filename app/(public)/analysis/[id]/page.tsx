@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, use } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   MapPin,
   Phone,
@@ -257,6 +257,8 @@ export default function AnalysisResultPage({
 }) {
   const { id } = use(params);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const fromPortal = searchParams.get("from") === "portal";
   const [data, setData] = useState<AnalysisData | null>(null);
   const [loading, setLoading] = useState(true);
   const [showConsultation, setShowConsultation] = useState(false);
@@ -445,6 +447,16 @@ export default function AnalysisResultPage({
   return (
     <>
       <div className="mx-auto max-w-5xl px-6 py-8">
+        {/* ── 포털에서 진입한 경우 복귀 링크 ── */}
+        {fromPortal && (
+          <button
+            onClick={() => router.push("/portal")}
+            className="mb-6 flex items-center gap-2 text-sm text-[#10b981] hover:text-[#34d399] transition-colors"
+          >
+            <span>←</span>
+            <span>포털 대시보드로 돌아가기</span>
+          </button>
+        )}
         {/* ── Section 1: 매장 요약 ── */}
         <div className="mb-8 rounded-2xl border border-[#2a2a2a] bg-[#1a1a1a] p-6 md:p-8">
           <div className="flex flex-col md:flex-row items-start md:items-center gap-8">
