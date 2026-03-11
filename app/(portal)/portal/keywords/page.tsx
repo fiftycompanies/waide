@@ -8,6 +8,7 @@ import {
   Lightbulb,
   Loader2,
   MessageCircle,
+  Plus,
   RotateCcw,
   Sparkles,
   Target,
@@ -24,7 +25,7 @@ import {
   rejectSuggestedKeyword,
 } from "@/lib/actions/keyword-expansion-actions";
 import { getPortalQuestions, type Question } from "@/lib/actions/question-actions";
-import { updateKeywordStatus } from "@/lib/actions/keyword-actions";
+import { updateKeywordStatus, createKeyword } from "@/lib/actions/keyword-actions";
 import KeywordDetailModal from "@/components/portal/keyword-detail-modal";
 
 interface KeywordItem {
@@ -59,6 +60,28 @@ export default function PortalKeywordsPage() {
   const [activeTab, setActiveTab] = useState<TabType>("active");
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [selectedKeyword, setSelectedKeyword] = useState<KeywordItem | null>(null);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [newKeyword, setNewKeyword] = useState("");
+  const [addingKeyword, setAddingKeyword] = useState(false);
+
+  const handleAddKeyword = async () => {
+    const el = document.querySelector("meta[name='portal-client-id']");
+    const clientId = el?.getAttribute("content") || "";
+    if (!newKeyword.trim() || !clientId) return;
+    setAddingKeyword(true);
+    const result = await createKeyword({
+      clientId,
+      keyword: newKeyword.trim(),
+      platform: "naver",
+      competitionLevel: "medium",
+    });
+    if (result.success) {
+      setNewKeyword("");
+      setShowAddForm(false);
+      loadData();
+    }
+    setAddingKeyword(false);
+  };
 
   const loadData = useCallback(() => {
     const el = document.querySelector("meta[name='portal-client-id']");
@@ -153,12 +176,42 @@ export default function PortalKeywordsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">키워드 관리</h1>
-        <p className="text-sm text-gray-500 mt-1">
-          키워드 현황을 관리하고 AI 추천 키워드를 승인하세요
-        </p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">키워드 관리</h1>
+          <p className="text-sm text-gray-500 mt-1">
+            키워드 현황을 관리하고 AI 추천 키워드를 승인하세요
+          </p>
+        </div>
+        <button
+          onClick={() => setShowAddForm(!showAddForm)}
+          className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 flex items-center gap-1.5 shrink-0"
+        >
+          <Plus className="h-4 w-4" />
+          키워드 추가
+        </button>
       </div>
+
+      {showAddForm && (
+        <div className="rounded-xl border bg-white p-4 flex gap-2">
+          <input
+            type="text"
+            value={newKeyword}
+            onChange={(e) => setNewKeyword(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") handleAddKeyword(); }}
+            placeholder="추가할 키워드 입력"
+            className="flex-1 px-4 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            disabled={addingKeyword}
+          />
+          <button
+            onClick={handleAddKeyword}
+            disabled={addingKeyword || !newKeyword.trim()}
+            className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 disabled:opacity-50 flex items-center gap-1.5"
+          >
+            {addingKeyword ? <Loader2 className="h-4 w-4 animate-spin" /> : "저장"}
+          </button>
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
@@ -275,8 +328,8 @@ export default function PortalKeywordsPage() {
           {suggestedKeywords.length === 0 ? (
             <div className="rounded-xl border bg-white p-12 text-center">
               <Sparkles className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-              <p className="text-gray-500">대기 중인 AI 추천 키워드가 없습니다</p>
-              <p className="text-sm text-gray-400 mt-1">AI가 새로운 키워드를 발굴하면 여기에 표시됩니다</p>
+              <p className="text-gray-500">AI가 키워드를 분석 중입니다</p>
+              <p className="text-sm text-gray-400 mt-1">활성 키워드를 기반으로 연관 키워드를 추천해 드립니다</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -317,17 +370,18 @@ export default function PortalKeywordsPage() {
                         ) : (
                           <>
                             <Check className="h-3.5 w-3.5" />
-                            추가
+                            활성화
                           </>
                         )}
                       </button>
                       <button
                         onClick={() => handleReject(kw.id)}
                         disabled={actionLoading === kw.id}
-                        className="h-8 w-8 rounded-lg bg-gray-50 text-gray-400 hover:bg-gray-100 flex items-center justify-center transition-colors disabled:opacity-50"
-                        title="무시"
+                        className="h-8 px-3 rounded-lg bg-gray-50 text-gray-400 hover:bg-gray-100 flex items-center gap-1 text-xs font-medium transition-colors disabled:opacity-50"
+                        title="제외"
                       >
                         <X className="h-3.5 w-3.5" />
+                        제외
                       </button>
                     </div>
                   </div>

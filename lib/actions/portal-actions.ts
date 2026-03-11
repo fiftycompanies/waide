@@ -459,37 +459,30 @@ export async function getPortalContentsV2(clientId: string) {
 
   const { data: contents } = await db
     .from("contents")
-    .select("id, title, keyword, publish_status, published_at, published_url, platform, qc_score, created_at, body, metadata")
+    .select("id, title, keyword, publish_status, published_at, published_url, platform, qc_score, created_at, body, metadata, keyword_id, keywords(keyword)")
     .eq("client_id", clientId)
     .order("created_at", { ascending: false })
-    .limit(100);
+    .limit(50);
 
-  return (contents || []).map((c: {
-    id: string;
-    title: string;
-    keyword: string;
-    publish_status: string;
-    published_at: string | null;
-    published_url: string | null;
-    platform: string | null;
-    qc_score: number | null;
-    created_at: string;
-    body: string | null;
-    metadata: Record<string, unknown> | null;
-  }) => ({
-    id: c.id,
-    title: c.title,
-    keyword: c.keyword,
-    publish_status: c.publish_status,
-    published_at: c.published_at,
-    published_url: c.published_url,
-    platform: c.platform,
-    qc_score: c.qc_score ?? (c.metadata as { qc_score?: number } | null)?.qc_score ?? null,
-    created_at: c.created_at,
-    body: c.body,
-    qcResult: (c.metadata as { qc_result?: unknown } | null)?.qc_result ?? null,
-    rewriteHistory: (c.metadata as { rewrite_history?: unknown } | null)?.rewrite_history ?? null,
-  }));
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (contents || []).map((c: any) => {
+    const kwJoin = Array.isArray(c.keywords) ? c.keywords[0] : c.keywords;
+    return {
+      id: c.id as string,
+      title: c.title as string,
+      keyword: (c.keyword || kwJoin?.keyword || null) as string | null,
+      publish_status: c.publish_status as string,
+      published_at: c.published_at as string | null,
+      published_url: c.published_url as string | null,
+      platform: c.platform as string | null,
+      qc_score: (c.qc_score ?? c.metadata?.qc_score ?? null) as number | null,
+      created_at: c.created_at as string,
+      body: c.body as string | null,
+      keyword_id: (c.keyword_id || null) as string | null,
+      qcResult: (c.metadata?.qc_result ?? null) as unknown,
+      rewriteHistory: (c.metadata?.rewrite_history ?? null) as unknown,
+    };
+  });
 }
 
 // ── 포털 리포트 V2 데이터 (Phase P-1) ─────────────────────────────────

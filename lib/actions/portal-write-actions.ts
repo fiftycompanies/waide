@@ -22,12 +22,12 @@ export async function createPortalContentJob(payload: {
       .from("jobs")
       .insert({
         client_id: payload.clientId,
-        assigned_agent: "COPYWRITER",
+        assigned_agent: "CMO",
         job_type: "CONTENT_CREATE",
         status: "PENDING",
         title: `[포털 콘텐츠 생성] ${payload.keyword}${payload.count > 1 ? ` (${i + 1}/${payload.count})` : ""}`,
         trigger_type: "USER",
-        triggered_by: "PORTAL",
+        triggered_by: "SYSTEM",
         priority: "medium",
         input_payload: {
           keyword: payload.keyword,

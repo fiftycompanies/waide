@@ -50,6 +50,9 @@ export default function PortalWriteClient() {
   const [volumeLoading, setVolumeLoading] = useState(false);
   const [volumeResult, setVolumeResult] = useState<{ pc: number; mo: number } | null>(null);
 
+  // Keyword display
+  const [showAllKeywords, setShowAllKeywords] = useState(false);
+
   // Step 2 state
   const [contentCount, setContentCount] = useState(1);
   const [contentType, setContentType] = useState<ContentType>("info");
@@ -182,25 +185,35 @@ export default function PortalWriteClient() {
                   <p className="text-xs text-gray-400 mt-1">직접 입력 탭을 사용하세요</p>
                 </div>
               ) : (
-                activeKeywords.map((kw) => (
-                  <button
-                    key={kw.id}
-                    onClick={() => setSelectedKeyword(kw)}
-                    className={`text-left p-4 rounded-xl border transition-colors ${
-                      selectedKeyword?.id === kw.id ? "border-emerald-500 bg-emerald-50" : "border-gray-200 bg-white hover:bg-gray-50"
-                    }`}
-                  >
-                    <p className="font-medium text-gray-900">{kw.keyword}</p>
-                    <div className="flex gap-3 mt-1">
-                      {kw.current_rank_naver_pc != null && (
-                        <span className="text-xs text-gray-500">순위 {kw.current_rank_naver_pc}위</span>
-                      )}
-                      {kw.monthly_search_volume != null && (
-                        <span className="text-xs text-gray-500">월 {kw.monthly_search_volume.toLocaleString()}</span>
-                      )}
-                    </div>
-                  </button>
-                ))
+                <>
+                  {(showAllKeywords ? activeKeywords : activeKeywords.slice(0, 10)).map((kw) => (
+                    <button
+                      key={kw.id}
+                      onClick={() => setSelectedKeyword(kw)}
+                      className={`text-left p-4 rounded-xl border transition-colors ${
+                        selectedKeyword?.id === kw.id ? "border-emerald-500 bg-emerald-50" : "border-gray-200 bg-white hover:bg-gray-50"
+                      }`}
+                    >
+                      <p className="font-medium text-gray-900">{kw.keyword}</p>
+                      <div className="flex gap-3 mt-1">
+                        {kw.current_rank_naver_pc != null && (
+                          <span className="text-xs text-gray-500">순위 {kw.current_rank_naver_pc}위</span>
+                        )}
+                        {kw.monthly_search_volume != null && (
+                          <span className="text-xs text-gray-500">월 {kw.monthly_search_volume.toLocaleString()}</span>
+                        )}
+                      </div>
+                    </button>
+                  ))}
+                  {!showAllKeywords && activeKeywords.length > 10 && (
+                    <button
+                      onClick={() => setShowAllKeywords(true)}
+                      className="col-span-full text-sm text-emerald-600 hover:text-emerald-700 font-medium py-2"
+                    >
+                      더보기 (+{activeKeywords.length - 10}개)
+                    </button>
+                  )}
+                </>
               )}
             </div>
           )}
@@ -287,8 +300,8 @@ export default function PortalWriteClient() {
 
           {/* 참고 URL */}
           <div className="rounded-xl border bg-white p-5">
-            <label className="text-sm font-medium text-gray-900 block mb-1">참고 URL (선택)</label>
-            <p className="text-xs text-gray-400 mb-3">참고할 블로그 URL을 입력하면 AI가 구조를 참고합니다</p>
+            <label className="text-sm font-medium text-gray-900 block mb-1">참고 블로그 URL (N블로그 우선)</label>
+            <p className="text-xs text-gray-400 mb-3">상위 노출된 블로그 URL을 입력하면 AI가 구조와 스타일을 참고합니다</p>
             <div className="space-y-2">
               {referenceUrls.map((url, i) => (
                 <input

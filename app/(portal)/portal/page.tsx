@@ -5,6 +5,7 @@ import Link from "next/link";
 import {
   BarChart2,
   CheckCircle2,
+  ChevronRight,
   Clock,
   FileText,
   Key,
@@ -19,6 +20,7 @@ import {
   User,
 } from "lucide-react";
 import { getPortalDashboardV2 } from "@/lib/actions/portal-actions";
+import KeywordOccupancySection from "@/components/portal/keyword-occupancy-section";
 
 interface KpiData {
   activeKeywords: number;
@@ -164,11 +166,11 @@ export default function PortalDashboardPage() {
 
   // 온보딩 체크리스트 항목
   const checklistItems = [
-    { key: "analysisComplete", label: "분석 완료", done: onboardingChecklist.analysisComplete },
-    { key: "keywordsSet", label: "키워드 설정", done: onboardingChecklist.keywordsSet },
-    { key: "blogConnected", label: "블로그 연결", done: onboardingChecklist.blogConnected },
-    { key: "firstContent", label: "첫 콘텐츠 생성", done: onboardingChecklist.firstContent },
-    { key: "firstPublish", label: "첫 발행 완료", done: onboardingChecklist.firstPublish },
+    { key: "analysisComplete", label: "분석 완료", done: onboardingChecklist.analysisComplete, href: "#analysis" },
+    { key: "keywordsSet", label: "키워드 설정", done: onboardingChecklist.keywordsSet, href: "/portal/keywords" },
+    { key: "blogConnected", label: "블로그 연결", done: onboardingChecklist.blogConnected, href: "/portal/blog" },
+    { key: "firstContent", label: "첫 콘텐츠 생성", done: onboardingChecklist.firstContent, href: "/portal/write" },
+    { key: "firstPublish", label: "첫 발행 완료", done: onboardingChecklist.firstPublish, href: "/portal/contents" },
   ];
   const completedCount = checklistItems.filter((i) => i.done).length;
   const progressPct = Math.round((completedCount / checklistItems.length) * 100);
@@ -184,16 +186,26 @@ export default function PortalDashboardPage() {
 
   return (
     <div className="space-y-6">
-      {/* ── 섹션 1: 환영 카드 ── */}
+      {/* ── 섹션 1: 환영 카드 + 잔여 포인트 ── */}
       <div className="rounded-xl border bg-gradient-to-r from-emerald-50 to-white p-6">
-        <h1 className="text-2xl font-bold text-gray-900">
-          안녕하세요, {data.brandName || "고객"}님!
-        </h1>
-        <p className="text-sm text-gray-500 mt-1">
-          {daysSinceJoin
-            ? `Waide와 함께한 지 ${daysSinceJoin}일째 운영 중이에요`
-            : "마케팅 현황을 한눈에 확인하세요"}
-        </p>
+        <div className="flex items-start justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">
+              안녕하세요, {data.brandName || "고객"}님!
+            </h1>
+            <p className="text-sm text-gray-500 mt-1">
+              {daysSinceJoin
+                ? `Waide와 함께한 지 ${daysSinceJoin}일째 운영 중이에요`
+                : "마케팅 현황을 한눈에 확인하세요"}
+            </p>
+          </div>
+          <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200/60 shrink-0">
+            <span className="text-lg">🪙</span>
+            <span className="text-sm text-gray-700">
+              잔여 포인트: <span className="font-bold text-amber-700">{data.pointBalance ?? 0}건</span>
+            </span>
+          </div>
+        </div>
       </div>
 
       {/* ── 섹션 2: 빠른 액션 카드 ── */}
@@ -236,7 +248,11 @@ export default function PortalDashboardPage() {
           </div>
           <div className="space-y-2.5">
             {checklistItems.map((item) => (
-              <div key={item.key} className="flex items-center gap-3">
+              <Link
+                key={item.key}
+                href={item.href}
+                className="flex items-center gap-3 group"
+              >
                 <div className={`h-5 w-5 rounded-full flex items-center justify-center ${item.done ? "bg-emerald-100" : "bg-gray-100"}`}>
                   {item.done ? (
                     <CheckCircle2 className="h-4 w-4 text-emerald-600" />
@@ -244,10 +260,13 @@ export default function PortalDashboardPage() {
                     <div className="h-2 w-2 rounded-full bg-gray-300" />
                   )}
                 </div>
-                <span className={`text-sm ${item.done ? "text-gray-400 line-through" : "text-gray-700 font-medium"}`}>
+                <span className={`text-sm ${item.done ? "text-gray-400 line-through" : "text-gray-700 font-medium group-hover:underline"}`}>
                   {item.label}
                 </span>
-              </div>
+                {!item.done && (
+                  <ChevronRight className="h-3.5 w-3.5 text-gray-300 group-hover:text-gray-500 ml-auto" />
+                )}
+              </Link>
             ))}
           </div>
         </div>
@@ -335,14 +354,9 @@ export default function PortalDashboardPage() {
         </div>
       </div>
 
-      {/* Point Balance Banner */}
-      <div className="flex items-center gap-3 px-5 py-3 rounded-xl border bg-gradient-to-r from-amber-50 to-orange-50 border-amber-200/60">
-        <span className="text-lg">🪙</span>
-        <span className="text-sm text-gray-700">
-          잔여 포인트: <span className="font-bold text-amber-700">{data.pointBalance ?? 0}건</span>
-        </span>
-        <span className="text-xs text-gray-400 ml-auto">충전 문의: 담당자에게 연락하세요</span>
-      </div>
+
+      {/* ── 키워드 점유율 ── */}
+      <KeywordOccupancySection data={data.keywordOccupancy} />
 
       {/* AEO Score Card */}
       {data.aeoScore && data.aeoScore.score !== null && (
