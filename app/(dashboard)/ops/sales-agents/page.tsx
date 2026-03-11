@@ -28,14 +28,9 @@ import {
 
 function getBaseUrl(): string {
   if (typeof window !== "undefined") {
-    // 클라이언트: 환경변수 > window.location.origin
-    const envUrl = process.env.NEXT_PUBLIC_APP_URL;
-    if (envUrl) return envUrl;
-    const vercelUrl = process.env.NEXT_PUBLIC_VERCEL_URL;
-    if (vercelUrl) return `https://${vercelUrl}`;
-    return window.location.origin;
+    return process.env.NEXT_PUBLIC_APP_URL || window.location.origin;
   }
-  return "https://web-five-gold-12.vercel.app";
+  return process.env.NEXT_PUBLIC_APP_URL || "https://waide.co.kr";
 }
 
 // ── Modal ────────────────────────────────────────────────────────────────────

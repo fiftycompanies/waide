@@ -32,8 +32,8 @@ export async function sendReportEmail(params: SendReportParams): Promise<SendRes
   }
 
   const fromEmail = process.env.REPORT_FROM_EMAIL || "onboarding@resend.dev";
-  const portalUrl = process.env.NEXT_PUBLIC_SITE_URL
-    ? `${process.env.NEXT_PUBLIC_SITE_URL}/portal/reports`
+  const portalUrl = process.env.NEXT_PUBLIC_APP_URL
+    ? `${process.env.NEXT_PUBLIC_APP_URL}/portal/reports`
     : undefined;
 
   try {

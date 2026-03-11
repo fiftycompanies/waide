@@ -124,7 +124,7 @@ export async function resetUserPassword(
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_BASE_URL || "https://web-five-gold-12.vercel.app";
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://waide.co.kr";
 
     const { error } = await adminAuth.auth.resetPasswordForEmail(email, {
       redirectTo: `${baseUrl}/login?reset=true`,

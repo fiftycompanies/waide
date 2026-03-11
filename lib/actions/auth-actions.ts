@@ -488,7 +488,7 @@ export async function inviteUser(
   if (error) return { success: false as const, error: error.message };
 
   const baseUrl =
-    process.env.NEXT_PUBLIC_APP_URL || "https://web-five-gold-12.vercel.app";
+    process.env.NEXT_PUBLIC_APP_URL || "https://waide.co.kr";
   const inviteUrl = `${baseUrl}/signup?invite=${data.token}`;
 
   return { success: true as const, inviteUrl };

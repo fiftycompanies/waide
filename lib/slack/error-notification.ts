@@ -54,10 +54,7 @@ export async function sendErrorSlackNotification(
 
   const now = new Date().toLocaleString("ko-KR", { timeZone: "Asia/Seoul" });
 
-  const baseUrl =
-    process.env.NEXT_PUBLIC_APP_URL ||
-    process.env.NEXT_PUBLIC_BASE_URL ||
-    "https://web-five-gold-12.vercel.app";
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://waide.co.kr";
 
   const typeEmoji: Record<string, string> = {
     client: "🖥️",

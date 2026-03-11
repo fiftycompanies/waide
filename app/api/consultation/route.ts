@@ -92,8 +92,7 @@ export async function POST(request: Request) {
     // Slack 알림 + 영업사원 카운터 (non-blocking)
     try {
       const slackToken = process.env.SLACK_BOT_TOKEN;
-      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || (process.env.VERCEL_URL
-        ? `https://${process.env.VERCEL_URL}` : "https://waide.co.kr");
+      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://waide.co.kr";
       const resultUrl = `${baseUrl}/analysis/${analysisId}`;
 
       // 영업사원 이름 조회 + 카운터 증가

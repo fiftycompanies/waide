@@ -195,7 +195,7 @@ export async function inviteClientUser(
     return { success: false, error: insertErr.message };
   }
 
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://web-five-gold-12.vercel.app";
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://waide.co.kr";
   const inviteUrl = `${baseUrl}/invite/${token}`;
 
   revalidatePath(`/ops/clients/${clientId}`);

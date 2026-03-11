@@ -70,7 +70,7 @@ function getBaseUrl(): string {
   if (typeof window !== "undefined") {
     return window.location.origin;
   }
-  return process.env.NEXT_PUBLIC_APP_URL || "https://web-five-gold-12.vercel.app";
+  return process.env.NEXT_PUBLIC_APP_URL || "https://waide.co.kr";
 }
 
 // ═════════════════════════════════════

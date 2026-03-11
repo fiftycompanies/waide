@@ -1896,8 +1896,7 @@ export async function runFullAnalysis(
       const kwCount = ((keywordAnalysis as Record<string, unknown>)?.keywords as unknown[] ?? []).length;
       const topImprove = ((contentStrategy as Record<string, unknown>)?.improvements as string[] ?? [])[0] ?? "";
 
-      const baseUrl = process.env.NEXT_PUBLIC_APP_URL
-        || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "https://waide.co.kr");
+      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://waide.co.kr";
       const resultUrl = `${baseUrl}/analysis/${analysisId}`;
 
       const slackMsg = [
