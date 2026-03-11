@@ -1587,6 +1587,11 @@ export async function runFullAnalysis(
     const parsed = await parseUrl(analysis.input_url);
 
     if (!parsed.placeId) {
+      if (parsed.urlType === "website") {
+        // 웹사이트 분석 파이프라인으로 분기
+        await runWebsiteAnalysis(analysisId, analysis.input_url);
+        return;
+      }
       await db.from("brand_analyses").update({
         status: "failed",
         basic_info: { error: "place_id를 찾을 수 없습니다. 네이버 플레이스 URL을 직접 입력해주세요." },
@@ -2348,4 +2353,316 @@ function seoAuditToImprovements(audit: SeoAudit): string[] {
     }
   }
   return result;
+}
+
+// ═══════════════════════════════════════════
+// 웹사이트 분석 파이프라인
+// ═══════════════════════════════════════════
+
+interface WebsiteSeoItem {
+  label: string;
+  key: string;
+  value: string;
+  status: "good" | "warning" | "danger";
+  detail: string;
+  score: number;
+}
+
+async function runWebsiteAnalysis(analysisId: string, url: string): Promise<void> {
+  const db = createAdminClient();
+
+  // 1. HTML 수집
+  let html: string;
+  try {
+    const resp = await fetch(url, {
+      headers: { "User-Agent": BROWSER_UA },
+      signal: AbortSignal.timeout(15000),
+    });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    html = await resp.text();
+  } catch {
+    await db.from("brand_analyses").update({
+      status: "failed",
+      url_type: "website",
+      basic_info: { error: "웹사이트에 접근할 수 없습니다" },
+    }).eq("id", analysisId);
+    return;
+  }
+
+  // 2. HTML에서 텍스트 추출
+  const bodyText = extractTextFromHtml(html).slice(0, 3000);
+
+  // 3. SEO 룰 기반 체크
+  const seoItems = checkWebsiteSeo(html, url);
+  const seoTechnicalScore = seoItems.reduce((sum, item) => sum + item.score, 0);
+
+  // 4. Claude AI 분석
+  let aiAnalysis: WebsiteAiResult | null = null;
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (apiKey) {
+    try {
+      aiAnalysis = await analyzeWebsiteWithClaude(url, bodyText, seoItems, apiKey);
+    } catch (err) {
+      console.error("[website-analysis] Claude 분석 실패 (룰 기반으로 진행):", err);
+    }
+  }
+
+  // 5. 마케팅 점수 계산
+  const scoreBreakdown = {
+    seo_technical: Math.min(30, seoTechnicalScore),
+    brand_message: aiAnalysis?.marketing_score_breakdown?.brand_message ?? 12,
+    content_channel: aiAnalysis?.marketing_score_breakdown?.content_channel ?? 10,
+    cta_conversion: aiAnalysis?.marketing_score_breakdown?.cta_conversion ?? 8,
+  };
+  const totalScore = scoreBreakdown.seo_technical + scoreBreakdown.brand_message + scoreBreakdown.content_channel + scoreBreakdown.cta_conversion;
+
+  // 6. DB UPDATE
+  const basicInfo = aiAnalysis?.basic_info ?? {
+    name: extractTitleFromHtml(html),
+    category: "웹사이트",
+    region: "전국",
+    description: bodyText.slice(0, 100),
+  };
+
+  const keywordAnalysis = aiAnalysis?.keyword_analysis ?? {
+    current_keywords: [],
+    recommended_keywords: [],
+    main_keyword: "",
+    secondary_keyword: "",
+    keywords: [],
+  };
+
+  const contentStrategy = {
+    brand_analysis: aiAnalysis?.brand_analysis ?? null,
+    improvements: aiAnalysis?.improvements ?? [],
+    score_breakdown: scoreBreakdown,
+  };
+
+  const seoAudit = {
+    items: seoItems,
+    totalIssues: seoItems.filter(i => i.status === "warning").length,
+    criticalIssues: seoItems.filter(i => i.status === "danger").length,
+    score: seoTechnicalScore,
+  };
+
+  await db.from("brand_analyses").update({
+    status: "completed",
+    url_type: "website",
+    basic_info: basicInfo,
+    keyword_analysis: keywordAnalysis,
+    content_strategy: contentStrategy,
+    seo_audit: seoAudit,
+    marketing_score: totalScore,
+    analyzed_at: new Date().toISOString(),
+  }).eq("id", analysisId);
+}
+
+function extractTextFromHtml(html: string): string {
+  let text = html;
+  // script/style 제거
+  text = text.replace(/<script[\s\S]*?<\/script>/gi, " ");
+  text = text.replace(/<style[\s\S]*?<\/style>/gi, " ");
+  text = text.replace(/<noscript[\s\S]*?<\/noscript>/gi, " ");
+  // HTML 태그 제거
+  text = text.replace(/<[^>]+>/g, " ");
+  // HTML 엔티티 디코딩
+  text = text.replace(/&nbsp;/gi, " ").replace(/&amp;/gi, "&").replace(/&lt;/gi, "<").replace(/&gt;/gi, ">");
+  // 공백 정리
+  text = text.replace(/\s+/g, " ").trim();
+  return text;
+}
+
+function extractTitleFromHtml(html: string): string {
+  const match = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+  return match ? match[1].trim().split(/[|\-–—]/)[0].trim() : "웹사이트";
+}
+
+function checkWebsiteSeo(html: string, url: string): WebsiteSeoItem[] {
+  const items: WebsiteSeoItem[] = [];
+  const lowerHtml = html.toLowerCase();
+
+  // 1. title 태그
+  const titleMatch = html.match(/<title[^>]*>([^<]*)<\/title>/i);
+  const titleText = titleMatch ? titleMatch[1].trim() : "";
+  const titleLen = titleText.length;
+  if (!titleText) {
+    items.push({ label: "페이지 제목 (title)", key: "title", value: "없음", status: "danger", detail: "title 태그가 없습니다", score: 0 });
+  } else if (titleLen < 10 || titleLen > 60) {
+    items.push({ label: "페이지 제목 (title)", key: "title", value: `${titleLen}자`, status: "warning", detail: titleLen < 10 ? "너무 짧습니다 (10~60자 권장)" : "너무 깁니다 (10~60자 권장)", score: 2 });
+  } else {
+    items.push({ label: "페이지 제목 (title)", key: "title", value: `${titleLen}자`, status: "good", detail: "적정 길이입니다", score: 4 });
+  }
+
+  // 2. meta description
+  const descMatch = html.match(/<meta[^>]*name\s*=\s*["']description["'][^>]*content\s*=\s*["']([^"']*)["']/i)
+    || html.match(/<meta[^>]*content\s*=\s*["']([^"']*)["'][^>]*name\s*=\s*["']description["']/i);
+  const descText = descMatch ? descMatch[1].trim() : "";
+  const descLen = descText.length;
+  if (!descText) {
+    items.push({ label: "메타 설명 (description)", key: "description", value: "없음", status: "danger", detail: "meta description이 없습니다", score: 0 });
+  } else if (descLen < 50 || descLen > 160) {
+    items.push({ label: "메타 설명 (description)", key: "description", value: `${descLen}자`, status: "warning", detail: descLen < 50 ? "너무 짧습니다 (50~160자 권장)" : "너무 깁니다 (50~160자 권장)", score: 2 });
+  } else {
+    items.push({ label: "메타 설명 (description)", key: "description", value: `${descLen}자`, status: "good", detail: "적정 길이입니다", score: 4 });
+  }
+
+  // 3. h1 태그
+  const h1Match = html.match(/<h1[^>]*>/i);
+  if (!h1Match) {
+    items.push({ label: "H1 제목 태그", key: "h1", value: "없음", status: "danger", detail: "H1 태그가 없습니다", score: 0 });
+  } else {
+    items.push({ label: "H1 제목 태그", key: "h1", value: "있음", status: "good", detail: "H1 태그가 존재합니다", score: 4 });
+  }
+
+  // 4. img alt 비율
+  const imgTags = html.match(/<img[^>]*>/gi) || [];
+  const imgWithAlt = imgTags.filter(tag => /alt\s*=\s*["'][^"']+["']/i.test(tag));
+  const altRatio = imgTags.length > 0 ? Math.round((imgWithAlt.length / imgTags.length) * 100) : 100;
+  if (imgTags.length === 0) {
+    items.push({ label: "이미지 ALT 텍스트", key: "img_alt", value: "이미지 없음", status: "warning", detail: "이미지가 없습니다", score: 2 });
+  } else if (altRatio < 50) {
+    items.push({ label: "이미지 ALT 텍스트", key: "img_alt", value: `${altRatio}%`, status: "danger", detail: `${imgTags.length}개 이미지 중 ${imgWithAlt.length}개만 ALT 있음`, score: 1 });
+  } else if (altRatio < 80) {
+    items.push({ label: "이미지 ALT 텍스트", key: "img_alt", value: `${altRatio}%`, status: "warning", detail: `ALT 텍스트 비율이 낮습니다`, score: 3 });
+  } else {
+    items.push({ label: "이미지 ALT 텍스트", key: "img_alt", value: `${altRatio}%`, status: "good", detail: "ALT 텍스트가 잘 설정되어 있습니다", score: 5 });
+  }
+
+  // 5. og:title, og:description
+  const hasOgTitle = /property\s*=\s*["']og:title["']/i.test(html);
+  const hasOgDesc = /property\s*=\s*["']og:description["']/i.test(html);
+  if (hasOgTitle && hasOgDesc) {
+    items.push({ label: "OG 메타 태그", key: "og_tags", value: "완비", status: "good", detail: "og:title, og:description 모두 있음", score: 5 });
+  } else if (hasOgTitle || hasOgDesc) {
+    items.push({ label: "OG 메타 태그", key: "og_tags", value: "일부", status: "warning", detail: hasOgTitle ? "og:description 누락" : "og:title 누락", score: 3 });
+  } else {
+    items.push({ label: "OG 메타 태그", key: "og_tags", value: "없음", status: "danger", detail: "OG 메타 태그가 없습니다 (SNS 공유 시 불리)", score: 0 });
+  }
+
+  // 6. 블로그/뉴스 섹션
+  const hasBlogLink = /href\s*=\s*["'][^"']*\/(blog|news|journal|magazine|story|stories|posting)[/"']/i.test(html);
+  if (hasBlogLink) {
+    items.push({ label: "블로그/뉴스 섹션", key: "blog_section", value: "있음", status: "good", detail: "콘텐츠 마케팅 채널이 있습니다", score: 5 });
+  } else {
+    items.push({ label: "블로그/뉴스 섹션", key: "blog_section", value: "없음", status: "warning", detail: "블로그/뉴스 섹션이 없습니다", score: 2 });
+  }
+
+  // 7. 모바일 viewport
+  const hasViewport = lowerHtml.includes("name=\"viewport\"") || lowerHtml.includes("name='viewport'");
+  if (hasViewport) {
+    items.push({ label: "모바일 반응형 (viewport)", key: "viewport", value: "설정됨", status: "good", detail: "모바일 최적화가 설정되어 있습니다", score: 5 });
+  } else {
+    items.push({ label: "모바일 반응형 (viewport)", key: "viewport", value: "없음", status: "danger", detail: "viewport 메타태그가 없습니다", score: 0 });
+  }
+
+  return items;
+}
+
+interface WebsiteAiResult {
+  basic_info: {
+    name: string;
+    category: string;
+    region: string;
+    description: string;
+  };
+  brand_analysis: {
+    tone: { style: string; personality: string; example_phrases: string[] };
+    target_audience: { primary: string; pain_points: string[]; search_intent: string };
+    usp: string[];
+    content_angles: string[];
+  };
+  keyword_analysis: {
+    current_keywords: string[];
+    recommended_keywords: string[];
+    main_keyword: string;
+    secondary_keyword: string;
+    keywords: Array<{ keyword: string; intent: string; priority: string }>;
+  };
+  improvements: string[];
+  marketing_score_breakdown: {
+    seo_technical: number;
+    brand_message: number;
+    content_channel: number;
+    cta_conversion: number;
+  };
+}
+
+async function analyzeWebsiteWithClaude(
+  url: string,
+  bodyText: string,
+  seoItems: WebsiteSeoItem[],
+  apiKey: string,
+): Promise<WebsiteAiResult> {
+  const seoSummary = seoItems.map(i => `${i.label}: ${i.value} (${i.status})`).join("\n");
+
+  const systemPrompt = `당신은 웹사이트 마케팅 분석 전문가입니다. 주어진 웹사이트 정보를 분석하여 반드시 유효한 JSON만 출력하세요. 마크다운이나 추가 설명 없이 JSON만 출력하세요.`;
+
+  const userPrompt = `아래 웹사이트를 분석하세요.
+
+URL: ${url}
+
+=== 사이트 텍스트 (최대 3000자) ===
+${bodyText}
+
+=== SEO 진단 결과 ===
+${seoSummary}
+
+다음 JSON 구조로 응답하세요:
+{
+  "basic_info": {
+    "name": "사이트명 (title 기반 추론)",
+    "category": "업종 (추론)",
+    "region": "지역 또는 전국",
+    "description": "한줄 설명"
+  },
+  "brand_analysis": {
+    "tone": { "style": "톤 스타일", "personality": "브랜드 성격", "example_phrases": ["예시 문구1"] },
+    "target_audience": { "primary": "주 타겟", "pain_points": ["고충1"], "search_intent": "검색 의도" },
+    "usp": ["차별점1"],
+    "content_angles": ["콘텐츠 방향1"]
+  },
+  "keyword_analysis": {
+    "current_keywords": ["현재 사이트에서 노리는 키워드"],
+    "recommended_keywords": ["추천 키워드"],
+    "main_keyword": "메인 키워드",
+    "secondary_keyword": "보조 키워드"
+  },
+  "improvements": ["개선사항1", "개선사항2"],
+  "marketing_score_breakdown": {
+    "seo_technical": 0,
+    "brand_message": 0,
+    "content_channel": 0,
+    "cta_conversion": 0
+  }
+}
+
+점수 기준:
+- seo_technical: 위 SEO 진단 결과 기반 (이미 계산됨, 0으로 두세요)
+- brand_message: 브랜드 메시지 명확성 (0~25점)
+- content_channel: 콘텐츠 채널 활용도 (0~25점)
+- cta_conversion: CTA/전환 요소 (0~20점)`;
+
+  const resp = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
+    },
+    body: JSON.stringify({
+      model: "claude-sonnet-4-20250514",
+      max_tokens: 2000,
+      messages: [{ role: "user", content: userPrompt }],
+      system: systemPrompt,
+    }),
+  });
+
+  if (!resp.ok) throw new Error(`Claude API ${resp.status}`);
+  const data = await resp.json();
+  const text = data.content?.[0]?.text ?? "{}";
+
+  // JSON 추출 (마크다운 코드블록 처리)
+  const jsonMatch = text.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) throw new Error("JSON not found in response");
+  return JSON.parse(jsonMatch[0]);
 }

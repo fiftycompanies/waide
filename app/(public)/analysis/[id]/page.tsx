@@ -432,6 +432,8 @@ export default function AnalysisResultPage({
     status: "good" | "warning" | "danger" | "not_found";
   }>;
 
+  const isWebsite = data.url_type === "website";
+
   // ── 에이전트 체인 결과 (analysis_result JSONB) ──
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const analysisResult = (data.analysis_result ?? {}) as Record<string, any>;
@@ -551,7 +553,7 @@ export default function AnalysisResultPage({
               <div className="rounded-2xl border border-[#2a2a2a] bg-[#1a1a1a] p-6">
                 <h3 className="text-lg font-semibold text-white mb-1 flex items-center gap-2">
                   <ClipboardList className="h-5 w-5 text-amber-400" />
-                  플레이스 SEO 진단
+                  {isWebsite ? "웹사이트 SEO 기술 진단" : "플레이스 SEO 진단"}
                 </h3>
                 <p className="text-xs text-[#666666] mb-4">
                   진단 점수{" "}
@@ -663,8 +665,88 @@ export default function AnalysisResultPage({
           return null;
         })()}
 
-        {/* ── Section 2: 심층 분석 (Custom Tabs) ── */}
-        <div className="mb-8">
+        {/* ── Website: 브랜드 분석 + 키워드 전략 + 개선 액션플랜 ── */}
+        {isWebsite && ba && (
+          <div className="mb-8 rounded-2xl border border-[#2a2a2a] bg-[#1a1a1a] p-6">
+            <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-violet-400" />
+              브랜드 분석
+            </h3>
+            <div className="grid md:grid-cols-2 gap-4">
+              {ba.tone && (
+                <div className="p-4 rounded-xl bg-[#111111] border border-[#2a2a2a]">
+                  <p className="text-xs text-[#666666] mb-1">브랜드 톤</p>
+                  <p className="text-sm text-white font-medium">{ba.tone.style}</p>
+                  {ba.tone.personality && <p className="text-xs text-[#a0a0a0] mt-1">{ba.tone.personality}</p>}
+                </div>
+              )}
+              {ba.target_audience && (
+                <div className="p-4 rounded-xl bg-[#111111] border border-[#2a2a2a]">
+                  <p className="text-xs text-[#666666] mb-1">타겟 고객</p>
+                  <p className="text-sm text-white font-medium">{ba.target_audience.primary}</p>
+                  {ba.target_audience.search_intent && <p className="text-xs text-[#a0a0a0] mt-1">검색 의도: {ba.target_audience.search_intent}</p>}
+                </div>
+              )}
+              {ba.usp && (ba.usp as string[]).length > 0 && (
+                <div className="p-4 rounded-xl bg-[#111111] border border-[#2a2a2a]">
+                  <p className="text-xs text-[#666666] mb-2">차별화 포인트 (USP)</p>
+                  <div className="space-y-1">
+                    {(ba.usp as string[]).map((u: string, i: number) => (
+                      <p key={i} className="text-sm text-[#a0a0a0] flex items-start gap-2">
+                        <span className="text-[#10b981] mt-0.5 shrink-0">•</span>
+                        {u}
+                      </p>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {ba.content_angles && (ba.content_angles as string[]).length > 0 && (
+                <div className="p-4 rounded-xl bg-[#111111] border border-[#2a2a2a]">
+                  <p className="text-xs text-[#666666] mb-2">콘텐츠 방향</p>
+                  <div className="space-y-1">
+                    {(ba.content_angles as string[]).map((a: string, i: number) => (
+                      <p key={i} className="text-sm text-[#a0a0a0] flex items-start gap-2">
+                        <span className="text-blue-400 mt-0.5 shrink-0">•</span>
+                        {a}
+                      </p>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+            {ba.target_audience?.pain_points && (ba.target_audience.pain_points as string[]).length > 0 && (
+              <div className="mt-4 p-4 rounded-xl bg-amber-500/5 border border-amber-500/10">
+                <p className="text-xs text-amber-400 mb-2 font-medium">고객 고충 포인트</p>
+                <div className="flex flex-wrap gap-2">
+                  {(ba.target_audience.pain_points as string[]).map((p: string, i: number) => (
+                    <span key={i} className="px-2.5 py-1 rounded-full text-xs bg-amber-500/10 text-amber-300 border border-amber-500/20">{p}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Website: 개선 액션플랜 ── */}
+        {isWebsite && improvements.length > 0 && (
+          <div className="mb-8 rounded-2xl border border-[#2a2a2a] bg-[#1a1a1a] p-6">
+            <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+              <Lightbulb className="h-5 w-5 text-amber-400" />
+              개선 액션플랜
+            </h3>
+            <div className="space-y-2">
+              {improvements.map((item, i) => (
+                <div key={i} className="p-3 rounded-lg bg-[#111111] border border-[#2a2a2a] flex items-start gap-3">
+                  <div className="w-6 h-6 rounded-full bg-amber-500/10 text-amber-400 flex items-center justify-center text-xs font-bold shrink-0">{i + 1}</div>
+                  <p className="text-sm text-[#a0a0a0]">{item}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ── Section 2: 심층 분석 (Custom Tabs) — 네이버 플레이스만 ── */}
+        {!isWebsite && <div className="mb-8">
           <div className="flex gap-2 mb-4 overflow-x-auto">
             <TabButton active={activeTab === "review"} onClick={() => setActiveTab("review")}>리뷰 분석</TabButton>
             <TabButton active={activeTab === "menu"} onClick={() => setActiveTab("menu")}>메뉴/가격</TabButton>
@@ -934,7 +1016,7 @@ export default function AnalysisResultPage({
               )}
             </div>
           )}
-        </div>
+        </div>}
 
         {/* ── Section 3: 키워드 분석 ── */}
         <div className="mb-8 rounded-2xl border border-[#2a2a2a] bg-[#1a1a1a] p-6">
@@ -1132,7 +1214,7 @@ export default function AnalysisResultPage({
         </div>
 
         {/* ── Section 6: 경쟁사 비교 분석 (에이전트 결과) ── */}
-        {competitorAnalysis && (
+        {!isWebsite && competitorAnalysis && (
           <div className="mb-8 rounded-2xl border border-[#2a2a2a] bg-[#1a1a1a] p-6">
             <h3 className="text-lg font-semibold text-white flex items-center gap-2 mb-4">
               <Award className="h-5 w-5 text-amber-400" />
@@ -1206,7 +1288,7 @@ export default function AnalysisResultPage({
         )}
 
         {/* ── Section 7: AI SEO 진단 코멘트 (에이전트 결과) ── */}
-        {seoComments && (
+        {!isWebsite && seoComments && (
           <div className="mb-8 rounded-2xl border border-[#2a2a2a] bg-[#1a1a1a] p-6">
             <h3 className="text-lg font-semibold text-white flex items-center gap-2 mb-2">
               <Search className="h-5 w-5 text-blue-400" />
@@ -1262,7 +1344,7 @@ export default function AnalysisResultPage({
         )}
 
         {/* ── Section 8: 개선 액션플랜 (에이전트 결과) ── */}
-        {improvementPlan && (
+        {!isWebsite && improvementPlan && (
           <div className="mb-8 rounded-2xl border border-[#2a2a2a] bg-[#1a1a1a] p-6">
             <h3 className="text-lg font-semibold text-white flex items-center gap-2 mb-2">
               <Lightbulb className="h-5 w-5 text-amber-400" />

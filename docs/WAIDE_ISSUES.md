@@ -50,6 +50,26 @@
 - **파일**: `app/(portal)/portal/keywords/page.tsx`
 - **확인**: `handleApprove` (L122-133) → `approveSuggestedKeyword()`, `handleReject` (L135-146) → `rejectSuggestedKeyword()` — 이미 정상 연결 확인
 
+### [FIX-4] 웹사이트 분석 파이프라인 추가 ✅
+- **파일**: `lib/place-analyzer.ts`
+- **증상**: url_type='website'인 URL 입력 시 "place_id를 찾을 수 없습니다" 에러로 실패
+- **수정**: `runFullAnalysis()`에서 `parsed.urlType === "website"` 분기 → `runWebsiteAnalysis()` 호출. HTML 페치 → 텍스트 추출 → 7항목 SEO 룰 체크 → Claude Sonnet 분석 → 마케팅 점수 계산 (seo_technical 30 + brand_message 25 + content_channel 25 + cta_conversion 20) → DB 저장
+
+### [FIX-5] 분석 결과 페이지 웹사이트 분기 ✅
+- **파일**: `app/(public)/analysis/[id]/page.tsx`
+- **증상**: 웹사이트 분석 결과에서 네이버 플레이스 전용 섹션(리뷰/메뉴/이미지/경쟁사/SEO코멘트/개선플랜)이 표시됨
+- **수정**: `isWebsite` 플래그로 분기. 웹사이트: 마케팅 점수 + SEO 기술 진단 + 키워드 전략 + 브랜드 분석 + 개선 액션플랜만 표시. 네이버 플레이스: 기존 전체 표시
+
+### [FIX-6] 포털 배너 URL 검증 + 인라인 분석 애니메이션 ✅
+- **파일**: `components/portal/analysis-required-banner.tsx`
+- **증상**: (1) 네이버 URL만 허용, 일반 URL 차단 (2) 분석 시 외부 로딩 페이지로 리다이렉트
+- **수정**: (1) http/https URL 모두 허용, 비네이버 URL에 "홈페이지 URL로 웹사이트 마케팅 진단을 진행합니다" 안내 표시, 비URL 입력 시 에러 (2) idle→analyzing→completed→failed 4상태 인라인 UI. 2초 간격 폴링, 3초 간격 상태 메시지 로테이션, 120초 타임아웃, 완료 시 결과 페이지 자동 이동
+
+### [FIX-7] 키워드 페이지 clientId props 전환 ✅
+- **파일**: `app/(portal)/portal/keywords/page.tsx`, `portal-keywords-client.tsx`
+- **증상**: 클라이언트 컴포넌트에서 meta 태그 DOM 쿼리로 clientId 획득 → 타이밍 이슈
+- **수정**: server component wrapper (`page.tsx`)에서 `getCurrentUser()` → `user.client_id` 조회 후 client component에 props로 전달. DOM 쿼리 제거
+
 ---
 
 ## 잠재 이슈 (코드에서 확인)
