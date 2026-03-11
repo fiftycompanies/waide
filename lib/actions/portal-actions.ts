@@ -228,9 +228,9 @@ export async function getPortalDashboardV2(clientId: string) {
     db.from("blog_accounts").select("id", { count: "exact", head: true }).eq("client_id", clientId).eq("is_active", true),
     db.from("contents").select("id", { count: "exact", head: true }).eq("client_id", clientId),
     db.from("publications").select("id", { count: "exact", head: true }).eq("client_id", clientId).eq("status", "published"),
-    // keyword_visibility에서 노출 키워드 집계
+    // keyword_visibility에서 노출 키워드 집계 (키워드명 JOIN)
     db.from("keyword_visibility")
-      .select("keyword_id, rank_pc, rank_mo, is_exposed")
+      .select("keyword_id, rank_pc, rank_mo, is_exposed, keywords!keyword_id(keyword)")
       .eq("client_id", clientId)
       .eq("is_exposed", true)
       .order("measured_at", { ascending: false })
@@ -337,7 +337,14 @@ export async function getPortalDashboardV2(clientId: string) {
     keywordOccupancy: {
       total: activeKeywordsRes.count || 0,
       exposed: exposedKeywords?.length || 0,
-      keywords: (exposedKeywords || []) as { keyword_id: string; rank_pc: number | null; rank_mo: number | null; is_exposed: boolean }[],
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      keywords: (exposedKeywords || []).map((kw: any) => ({
+        keyword_id: kw.keyword_id as string,
+        keyword: (kw.keywords?.keyword ?? null) as string | null,
+        rank_pc: kw.rank_pc as number | null,
+        rank_mo: kw.rank_mo as number | null,
+        is_exposed: kw.is_exposed as boolean,
+      })),
     },
   };
 }

@@ -59,10 +59,14 @@ export default function PortalKeywordsPage() {
   const [addingKeyword, setAddingKeyword] = useState(false);
   const [suggestLoading, setSuggestLoading] = useState(false);
   const [suggestError, setSuggestError] = useState<string | null>(null);
+  const [clientId, setClientId] = useState("");
+
+  useEffect(() => {
+    const el = document.querySelector("meta[name='portal-client-id']");
+    setClientId(el?.getAttribute("content") || "");
+  }, []);
 
   const handleAddKeyword = async () => {
-    const el = document.querySelector("meta[name='portal-client-id']");
-    const clientId = el?.getAttribute("content") || "";
     if (!newKeyword.trim() || !clientId) return;
     setAddingKeyword(true);
     const result = await createKeyword({
@@ -80,8 +84,6 @@ export default function PortalKeywordsPage() {
   };
 
   const handleSuggestKeywords = async () => {
-    const el = document.querySelector("meta[name='portal-client-id']");
-    const clientId = el?.getAttribute("content") || "";
     if (!clientId) return;
     setSuggestLoading(true);
     setSuggestError(null);
@@ -100,20 +102,18 @@ export default function PortalKeywordsPage() {
   };
 
   const loadData = useCallback(() => {
-    const el = document.querySelector("meta[name='portal-client-id']");
-    const clientId = el?.getAttribute("content") || "";
-    if (clientId) {
-      getPortalKeywordsV2(clientId).then((d) => {
-        setActiveKeywords(d.activeKeywords as KeywordItem[]);
-        setSuggestedKeywords(d.suggestedKeywords as KeywordItem[]);
-        setArchivedKeywords(d.archivedKeywords as KeywordItem[]);
-        setKeywordStrategy(d.keywordStrategy || null);
-        setLoading(false);
-      });
-    } else {
+    if (!clientId) {
       setLoading(false);
+      return;
     }
-  }, []);
+    getPortalKeywordsV2(clientId).then((d) => {
+      setActiveKeywords(d.activeKeywords as KeywordItem[]);
+      setSuggestedKeywords(d.suggestedKeywords as KeywordItem[]);
+      setArchivedKeywords(d.archivedKeywords as KeywordItem[]);
+      setKeywordStrategy(d.keywordStrategy || null);
+      setLoading(false);
+    });
+  }, [clientId]);
 
   useEffect(() => {
     loadData();

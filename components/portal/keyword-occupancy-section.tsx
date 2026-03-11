@@ -5,7 +5,7 @@ import { Eye } from "lucide-react";
 interface KeywordOccupancy {
   total: number;
   exposed: number;
-  keywords: { keyword_id: string; rank_pc: number | null; rank_mo: number | null; is_exposed: boolean }[];
+  keywords: { keyword_id: string; keyword?: string | null; rank_pc: number | null; rank_mo: number | null; is_exposed: boolean }[];
 }
 
 export default function KeywordOccupancySection({ data }: { data: KeywordOccupancy }) {
@@ -47,7 +47,7 @@ export default function KeywordOccupancySection({ data }: { data: KeywordOccupan
               {kw.rank_pc != null && (
                 <span className="font-semibold">{kw.rank_pc}위</span>
               )}
-              {kw.keyword_id.slice(0, 8)}
+              {kw.keyword || kw.keyword_id.slice(0, 8)}
             </span>
           ))}
         </div>

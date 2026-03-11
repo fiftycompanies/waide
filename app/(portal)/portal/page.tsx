@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { getPortalDashboardV2 } from "@/lib/actions/portal-actions";
 import KeywordOccupancySection from "@/components/portal/keyword-occupancy-section";
+import AnalysisRequiredBanner from "@/components/portal/analysis-required-banner";
 
 interface KpiData {
   activeKeywords: number;
@@ -96,7 +97,7 @@ interface DashboardData {
   keywordOccupancy: {
     total: number;
     exposed: number;
-    keywords: { keyword_id: string; rank_pc: number | null; rank_mo: number | null; is_exposed: boolean }[];
+    keywords: { keyword_id: string; keyword?: string | null; rank_pc: number | null; rank_mo: number | null; is_exposed: boolean }[];
   };
 }
 
@@ -123,12 +124,14 @@ function timeAgo(dateStr: string): string {
 export default function PortalDashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [clientId, setClientId] = useState("");
 
   useEffect(() => {
     const el = document.querySelector("meta[name='portal-client-id']");
-    const clientId = el?.getAttribute("content") || "";
-    if (clientId) {
-      getPortalDashboardV2(clientId).then((d) => {
+    const cid = el?.getAttribute("content") || "";
+    setClientId(cid);
+    if (cid) {
+      getPortalDashboardV2(cid).then((d) => {
         setData(d as DashboardData);
         setLoading(false);
       });
@@ -166,11 +169,11 @@ export default function PortalDashboardPage() {
 
   // 온보딩 체크리스트 항목
   const checklistItems = [
-    { key: "analysisComplete", label: "분석 완료", done: onboardingChecklist.analysisComplete, href: "#analysis" },
-    { key: "keywordsSet", label: "키워드 설정", done: onboardingChecklist.keywordsSet, href: "/portal/keywords" },
-    { key: "blogConnected", label: "블로그 연결", done: onboardingChecklist.blogConnected, href: "/portal/blog" },
-    { key: "firstContent", label: "첫 콘텐츠 생성", done: onboardingChecklist.firstContent, href: "/portal/write" },
-    { key: "firstPublish", label: "첫 발행 완료", done: onboardingChecklist.firstPublish, href: "/portal/contents" },
+    { key: "analysisComplete", label: onboardingChecklist.analysisComplete ? "네이버 플레이스 분석" : "네이버 플레이스 분석", desc: onboardingChecklist.analysisComplete ? undefined : "업체 URL을 등록하고 AI 분석을 시작하세요", done: onboardingChecklist.analysisComplete, href: onboardingChecklist.analysisComplete ? "#analysis" : "#analysis-start" },
+    { key: "keywordsSet", label: "키워드 설정", desc: undefined as string | undefined, done: onboardingChecklist.keywordsSet, href: "/portal/keywords" },
+    { key: "blogConnected", label: "블로그 연결", desc: undefined as string | undefined, done: onboardingChecklist.blogConnected, href: "/portal/blog" },
+    { key: "firstContent", label: "첫 콘텐츠 생성", desc: undefined as string | undefined, done: onboardingChecklist.firstContent, href: "/portal/write" },
+    { key: "firstPublish", label: onboardingChecklist.firstPublish ? "첫 발행 완료" : "첫 콘텐츠 발행하기", desc: onboardingChecklist.firstPublish ? undefined : "작성된 콘텐츠를 블로그에 발행하세요", done: onboardingChecklist.firstPublish, href: "/portal/contents" },
   ];
   const completedCount = checklistItems.filter((i) => i.done).length;
   const progressPct = Math.round((completedCount / checklistItems.length) * 100);
@@ -252,19 +255,31 @@ export default function PortalDashboardPage() {
                 key={item.key}
                 href={item.href}
                 className="flex items-center gap-3 group"
+                onClick={(e) => {
+                  if (item.href.startsWith("#")) {
+                    e.preventDefault();
+                    const target = document.getElementById(item.href.slice(1));
+                    target?.scrollIntoView({ behavior: "smooth" });
+                  }
+                }}
               >
-                <div className={`h-5 w-5 rounded-full flex items-center justify-center ${item.done ? "bg-emerald-100" : "bg-gray-100"}`}>
+                <div className={`h-5 w-5 rounded-full flex items-center justify-center shrink-0 ${item.done ? "bg-emerald-100" : "bg-gray-100"}`}>
                   {item.done ? (
                     <CheckCircle2 className="h-4 w-4 text-emerald-600" />
                   ) : (
                     <div className="h-2 w-2 rounded-full bg-gray-300" />
                   )}
                 </div>
-                <span className={`text-sm ${item.done ? "text-gray-400 line-through" : "text-gray-700 font-medium group-hover:underline"}`}>
-                  {item.label}
-                </span>
+                <div className="flex-1 min-w-0">
+                  <span className={`text-sm ${item.done ? "text-gray-400 line-through" : "text-gray-700 font-medium group-hover:underline"}`}>
+                    {item.label}
+                  </span>
+                  {!item.done && item.desc && (
+                    <p className="text-xs text-gray-400 mt-0.5">{item.desc}</p>
+                  )}
+                </div>
                 {!item.done && (
-                  <ChevronRight className="h-3.5 w-3.5 text-gray-300 group-hover:text-gray-500 ml-auto" />
+                  <ChevronRight className="h-3.5 w-3.5 text-gray-300 group-hover:text-gray-500 shrink-0" />
                 )}
               </Link>
             ))}
@@ -443,7 +458,7 @@ export default function PortalDashboardPage() {
         </div>
       )}
 
-      {/* Brand Persona One-liner */}
+      {/* Brand Persona One-liner / Analysis Start */}
       {data.brandPersona?.one_liner ? (
         <div className="rounded-xl border bg-gradient-to-r from-emerald-50 to-white p-5">
           <div className="flex items-center gap-2 text-emerald-700 text-sm font-medium mb-2">
@@ -458,10 +473,8 @@ export default function PortalDashboardPage() {
           )}
         </div>
       ) : (
-        <div className="rounded-xl border bg-gray-50 p-5 text-center">
-          <Sparkles className="h-6 w-6 text-gray-300 mx-auto mb-2" />
-          <p className="text-sm text-gray-500">분석 준비 중입니다</p>
-          <p className="text-xs text-gray-400 mt-1">브랜드 분석이 완료되면 맞춤 인사이트가 표시됩니다</p>
+        <div id="analysis-start" className="rounded-xl border bg-white overflow-hidden">
+          <AnalysisRequiredBanner clientId={clientId || undefined} />
         </div>
       )}
 
