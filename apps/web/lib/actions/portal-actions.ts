@@ -1025,55 +1025,66 @@ export async function getPortalSerpPage(clientId: string) {
 // ── Task 1-1: 발행 현황 상태별 분리 ──────────────────────────────────────
 
 export async function getPortalPublishStatusBreakdown(clientId: string) {
-  const db = createAdminClient();
-  const monthStart = new Date();
-  monthStart.setDate(1);
-  monthStart.setHours(0, 0, 0, 0);
-  const now = new Date().toISOString();
+  try {
+    const db = createAdminClient();
+    const monthStart = new Date();
+    monthStart.setDate(1);
+    monthStart.setHours(0, 0, 0, 0);
+    const now = new Date().toISOString();
 
-  const [publishedRes, scheduledRes, draftRes, pointBalance] = await Promise.all([
-    // 이번 달 발행 완료
-    db.from("contents")
-      .select("id", { count: "exact", head: true })
-      .eq("client_id", clientId)
-      .eq("publish_status", "published")
-      .gte("created_at", monthStart.toISOString()),
-    // 예약 대기 (scheduled_at 설정됨 + 아직 미발행)
-    db.from("contents")
-      .select("id", { count: "exact", head: true })
-      .eq("client_id", clientId)
-      .in("publish_status", ["draft", "approved", "review"])
-      .not("scheduled_at", "is", null)
-      .gte("scheduled_at", now),
-    // 초안 (이번 달)
-    db.from("contents")
-      .select("id", { count: "exact", head: true })
-      .eq("client_id", clientId)
-      .eq("publish_status", "draft")
-      .gte("created_at", monthStart.toISOString()),
-    getPortalPointBalance(clientId),
-  ]);
+    const [publishedRes, scheduledRes, draftRes, pointBalance] = await Promise.all([
+      // 이번 달 발행 완료
+      db.from("contents")
+        .select("id", { count: "exact", head: true })
+        .eq("client_id", clientId)
+        .eq("publish_status", "published")
+        .gte("created_at", monthStart.toISOString()),
+      // 예약 대기 (scheduled_at 설정됨 + 아직 미발행)
+      db.from("contents")
+        .select("id", { count: "exact", head: true })
+        .eq("client_id", clientId)
+        .in("publish_status", ["draft", "approved", "review"])
+        .not("scheduled_at", "is", null)
+        .gte("scheduled_at", now),
+      // 초안 (이번 달)
+      db.from("contents")
+        .select("id", { count: "exact", head: true })
+        .eq("client_id", clientId)
+        .eq("publish_status", "draft")
+        .gte("created_at", monthStart.toISOString()),
+      getPortalPointBalance(clientId),
+    ]);
 
-  return {
-    published_count: publishedRes.count ?? 0,
-    scheduled_count: scheduledRes.count ?? 0,
-    draft_count: draftRes.count ?? 0,
-    remaining: pointBalance,
-  };
+    if (publishedRes.error) console.error("[getPortalPublishStatusBreakdown] publishedRes error:", publishedRes.error);
+    if (scheduledRes.error) console.error("[getPortalPublishStatusBreakdown] scheduledRes error:", scheduledRes.error);
+    if (draftRes.error) console.error("[getPortalPublishStatusBreakdown] draftRes error:", draftRes.error);
+
+    return {
+      published_count: publishedRes.count ?? 0,
+      scheduled_count: scheduledRes.count ?? 0,
+      draft_count: draftRes.count ?? 0,
+      remaining: pointBalance,
+    };
+  } catch (err) {
+    console.error("[getPortalPublishStatusBreakdown] FATAL:", err);
+    throw err;
+  }
 }
 
 // ── Task 1-2: 키워드 Top3 + delta ───────────────────────────────────────
 
 export async function getPortalKeywordTop3WithDelta(clientId: string) {
+  try {
   const db = createAdminClient();
 
   // 활성 키워드 목록
-  const { data: activeKws } = await db
+  const { data: activeKws, error: kwErr } = await db
     .from("keywords")
     .select("id, keyword, current_rank_naver_pc, current_rank_google")
     .eq("client_id", clientId)
     .eq("status", "active");
 
+  if (kwErr) console.error("[getPortalKeywordTop3WithDelta] keywords query error:", kwErr);
   if (!activeKws || activeKws.length === 0) return [];
 
   const kwIds = activeKws.map((k: { id: string }) => k.id);
@@ -1082,13 +1093,15 @@ export async function getPortalKeywordTop3WithDelta(clientId: string) {
   const twoDaysAgo = new Date();
   twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
 
-  const { data: visData } = await db
+  const { data: visData, error: visErr } = await db
     .from("keyword_visibility")
     .select("keyword_id, rank_pc, checked_at")
     .eq("client_id", clientId)
     .in("keyword_id", kwIds)
     .gte("checked_at", twoDaysAgo.toISOString())
     .order("checked_at", { ascending: false });
+
+  if (visErr) console.error("[getPortalKeywordTop3WithDelta] keyword_visibility query error:", visErr);
 
   // 키워드별 오늘 rank / 어제 rank 계산
   const today = new Date().toISOString().slice(0, 10);
@@ -1133,6 +1146,10 @@ export async function getPortalKeywordTop3WithDelta(clientId: string) {
   });
 
   return results.slice(0, 3);
+  } catch (err) {
+    console.error("[getPortalKeywordTop3WithDelta] FATAL:", err);
+    throw err;
+  }
 }
 
 // ── Task 1-3: 추천 액션 rule-based ──────────────────────────────────────
@@ -1149,6 +1166,7 @@ export async function getPortalRecommendedActions(
   clientId: string,
   healthScore: { seo: { score: number } } | null,
 ): Promise<RecommendedAction[]> {
+  try {
   const actions: RecommendedAction[] = [];
   const db = createAdminClient();
 
@@ -1221,4 +1239,8 @@ export async function getPortalRecommendedActions(
   }
 
   return actions.slice(0, 3);
+  } catch (err) {
+    console.error("[getPortalRecommendedActions] FATAL:", err);
+    throw err;
+  }
 }
