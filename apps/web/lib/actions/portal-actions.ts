@@ -1021,3 +1021,204 @@ export async function getPortalSerpPage(clientId: string) {
     criticalKeywordId,
   };
 }
+
+// ── Task 1-1: 발행 현황 상태별 분리 ──────────────────────────────────────
+
+export async function getPortalPublishStatusBreakdown(clientId: string) {
+  const db = createAdminClient();
+  const monthStart = new Date();
+  monthStart.setDate(1);
+  monthStart.setHours(0, 0, 0, 0);
+  const now = new Date().toISOString();
+
+  const [publishedRes, scheduledRes, draftRes, pointBalance] = await Promise.all([
+    // 이번 달 발행 완료
+    db.from("contents")
+      .select("id", { count: "exact", head: true })
+      .eq("client_id", clientId)
+      .eq("publish_status", "published")
+      .gte("created_at", monthStart.toISOString()),
+    // 예약 대기 (scheduled_at 설정됨 + 아직 미발행)
+    db.from("contents")
+      .select("id", { count: "exact", head: true })
+      .eq("client_id", clientId)
+      .in("publish_status", ["draft", "approved", "review"])
+      .not("scheduled_at", "is", null)
+      .gte("scheduled_at", now),
+    // 초안 (이번 달)
+    db.from("contents")
+      .select("id", { count: "exact", head: true })
+      .eq("client_id", clientId)
+      .eq("publish_status", "draft")
+      .gte("created_at", monthStart.toISOString()),
+    getPortalPointBalance(clientId),
+  ]);
+
+  return {
+    published_count: publishedRes.count ?? 0,
+    scheduled_count: scheduledRes.count ?? 0,
+    draft_count: draftRes.count ?? 0,
+    remaining: pointBalance,
+  };
+}
+
+// ── Task 1-2: 키워드 Top3 + delta ───────────────────────────────────────
+
+export async function getPortalKeywordTop3WithDelta(clientId: string) {
+  const db = createAdminClient();
+
+  // 활성 키워드 목록
+  const { data: activeKws } = await db
+    .from("keywords")
+    .select("id, keyword, current_rank_naver_pc, current_rank_google")
+    .eq("client_id", clientId)
+    .eq("status", "active");
+
+  if (!activeKws || activeKws.length === 0) return [];
+
+  const kwIds = activeKws.map((k: { id: string }) => k.id);
+
+  // 최근 2일간 keyword_visibility 데이터
+  const twoDaysAgo = new Date();
+  twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+
+  const { data: visData } = await db
+    .from("keyword_visibility")
+    .select("keyword_id, rank_pc, checked_at")
+    .eq("client_id", clientId)
+    .in("keyword_id", kwIds)
+    .gte("checked_at", twoDaysAgo.toISOString())
+    .order("checked_at", { ascending: false });
+
+  // 키워드별 오늘 rank / 어제 rank 계산
+  const today = new Date().toISOString().slice(0, 10);
+  const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+
+  const todayRanks: Record<string, number | null> = {};
+  const yesterdayRanks: Record<string, number | null> = {};
+
+  for (const row of (visData || []) as Array<{ keyword_id: string; rank_pc: number | null; checked_at: string }>) {
+    const day = row.checked_at.slice(0, 10);
+    if (day === today && !(row.keyword_id in todayRanks)) {
+      todayRanks[row.keyword_id] = row.rank_pc;
+    } else if (day === yesterday && !(row.keyword_id in yesterdayRanks)) {
+      yesterdayRanks[row.keyword_id] = row.rank_pc;
+    }
+  }
+
+  // 결과 생성
+  const results = activeKws.map((kw: { id: string; keyword: string; current_rank_naver_pc: number | null; current_rank_google: number | null }) => {
+    const currentRank = todayRanks[kw.id] ?? kw.current_rank_naver_pc;
+    const prevRank = yesterdayRanks[kw.id] ?? null;
+    const delta = (prevRank != null && currentRank != null) ? prevRank - currentRank : null;
+    return {
+      keyword_id: kw.id,
+      keyword: kw.keyword,
+      rank: currentRank,
+      rank_google: kw.current_rank_google,
+      delta,
+    };
+  });
+
+  // 정렬: delta 하락폭 큰 순 우선 (delta가 큰 음수), 없으면 rank 낮은 순
+  results.sort((a: { delta: number | null; rank: number | null }, b: { delta: number | null; rank: number | null }) => {
+    // 하락 키워드 우선 (delta < 0)
+    const aDropping = a.delta !== null && a.delta < -10;
+    const bDropping = b.delta !== null && b.delta < -10;
+    if (aDropping && !bDropping) return -1;
+    if (!aDropping && bDropping) return 1;
+    if (aDropping && bDropping) return (a.delta!) - (b.delta!); // 더 큰 하락 먼저
+    // 그 외: rank 낮은 순 (1위가 먼저)
+    return (a.rank ?? 999) - (b.rank ?? 999);
+  });
+
+  return results.slice(0, 3);
+}
+
+// ── Task 1-3: 추천 액션 rule-based ──────────────────────────────────────
+
+interface RecommendedAction {
+  type: "serp_drop" | "no_publish" | "low_points" | "seo_low" | "add_keyword";
+  keyword?: string;
+  link: string;
+  title: string;
+  description: string;
+}
+
+export async function getPortalRecommendedActions(
+  clientId: string,
+  healthScore: { seo: { score: number } } | null,
+): Promise<RecommendedAction[]> {
+  const actions: RecommendedAction[] = [];
+  const db = createAdminClient();
+
+  // 1) delta < -10인 키워드
+  const top3 = await getPortalKeywordTop3WithDelta(clientId);
+  const droppingKw = top3.find((k) => k.delta !== null && k.delta < -10);
+  if (droppingKw) {
+    actions.push({
+      type: "serp_drop",
+      keyword: droppingKw.keyword,
+      link: `/portal/blog/write?keyword_id=${droppingKw.keyword_id}&urgent=true`,
+      title: "순위 하락 키워드 대응",
+      description: `"${droppingKw.keyword}" 순위가 ${Math.abs(droppingKw.delta!)}단계 하락했습니다`,
+    });
+  }
+
+  // 2) 마지막 발행일 14일 이상 경과
+  if (actions.length < 3) {
+    const fourteenDaysAgo = new Date();
+    fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
+    const { data: recentPub } = await db
+      .from("contents")
+      .select("published_at")
+      .eq("client_id", clientId)
+      .eq("publish_status", "published")
+      .order("published_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (!recentPub?.published_at || new Date(recentPub.published_at) < fourteenDaysAgo) {
+      actions.push({
+        type: "no_publish",
+        link: "/portal/blog/write",
+        title: "콘텐츠 발행 필요",
+        description: "14일 이상 발행이 없습니다. 꾸준한 발행이 핵심입니다",
+      });
+    }
+  }
+
+  // 3) 잔여 포인트 ≤ 3
+  if (actions.length < 3) {
+    const balance = await getPortalPointBalance(clientId);
+    if (balance <= 3) {
+      actions.push({
+        type: "low_points",
+        link: "/portal/settings",
+        title: "포인트 부족",
+        description: `잔여 포인트 ${balance}건. 추가 충전이 필요합니다`,
+      });
+    }
+  }
+
+  // 4) SEO 점수 < 40
+  if (actions.length < 3 && healthScore && healthScore.seo.score < 40) {
+    actions.push({
+      type: "seo_low",
+      link: "/portal/serp",
+      title: "SEO 점수 개선",
+      description: `현재 SEO 점수 ${healthScore.seo.score}점. 개선이 필요합니다`,
+    });
+  }
+
+  // 5) 기본: 키워드 추가
+  if (actions.length < 3) {
+    actions.push({
+      type: "add_keyword",
+      link: "/portal/keywords",
+      title: "키워드 추가",
+      description: "새로운 키워드를 등록하고 SEO 커버리지를 확장하세요",
+    });
+  }
+
+  return actions.slice(0, 3);
+}
