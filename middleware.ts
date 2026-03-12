@@ -79,6 +79,34 @@ async function isValidAdminSession(token: string): Promise<boolean> {
   }
 }
 
+// ── Supabase users 테이블 역할 조회 (service role, Edge 호환) ─────────
+const ADMIN_ALLOWED_ROLES = ["super_admin", "admin", "sales"];
+
+async function getSupabaseUserRole(authUserId: string): Promise<string | null> {
+  try {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const serviceKey = process.env.SUPABASE_SERVICE_KEY;
+    if (!supabaseUrl || !serviceKey) return null;
+
+    const supabaseAdmin = createServerClient(supabaseUrl, serviceKey, {
+      cookies: {
+        getAll() { return []; },
+        setAll() {},
+      },
+    });
+
+    const { data } = await supabaseAdmin
+      .from("users")
+      .select("role")
+      .eq("auth_id", authUserId)
+      .single();
+
+    return data?.role ?? null;
+  } catch {
+    return null;
+  }
+}
+
 // ── Supabase Auth 세션 확인 (Edge Runtime 호환) ──────────────────────
 async function getSupabaseUser(request: NextRequest, response: NextResponse) {
   try {
@@ -146,11 +174,18 @@ export async function middleware(request: NextRequest) {
     const isValid = token ? await isValidAdminSession(token) : false;
 
     if (!isValid) {
-      // Supabase Auth로 폴백 — 어드민 역할 사용자도 /ops 접근 가능
+      // Supabase Auth로 폴백 — 역할 확인 후 어드민 역할만 통과
       const supabaseUser = await getSupabaseUser(request, response);
       if (supabaseUser) {
-        // Supabase Auth 인증됨 → 통과 (역할 체크는 페이지 레벨에서)
-        return response;
+        // users 테이블에서 역할 조회 → 어드민 역할만 허용
+        const role = await getSupabaseUserRole(supabaseUser.id);
+        if (role && ADMIN_ALLOWED_ROLES.includes(role)) {
+          return response;
+        }
+        // client_owner/client_member 또는 역할 미확인 → 포털로 리다이렉트
+        const portalUrl = request.nextUrl.clone();
+        portalUrl.pathname = "/portal";
+        return NextResponse.redirect(portalUrl);
       }
 
       const url = request.nextUrl.clone();

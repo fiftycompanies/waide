@@ -80,6 +80,17 @@
   - FIX-8d: portal-shell.tsx navItems에 "브랜드 분석" 메뉴 추가 (2번째, Activity 아이콘)
   - FIX-8e: analysis-required-banner.tsx 완료 상태를 인라인 결과 표시로 변경 (router.push 제거 → AnalysisResultView compact + "전체 화면으로 보기" 링크)
 
+### [FIX-9] 보안: 고객 계정이 어드민 대시보드 접근 가능 ✅
+- **파일**: `middleware.ts` L82~108 (신규 함수), L176~189 (수정)
+- **증상**: client_owner/client_member 역할의 Supabase Auth 사용자가 /dashboard, /ops/* 등 어드민 전용 라우트에 직접 접근 가능
+- **원인**: middleware.ts L148-153에서 HMAC 검증 실패 시 Supabase Auth 폴백이 역할 체크 없이 모든 인증 사용자를 통과시킴
+- **수정**:
+  - `getSupabaseUserRole(authUserId)` 함수 추가: service role key로 users 테이블에서 역할 조회
+  - `ADMIN_ALLOWED_ROLES = ["super_admin", "admin", "sales"]` 상수 추가
+  - 어드민 보호 라우트 Supabase 폴백에서 역할 체크 → 허용 역할만 통과, 나머지는 /portal로 리다이렉트
+  - 역할 조회 실패 시도 fail-closed (포털로 리다이렉트)
+- **필요 환경변수**: `SUPABASE_SERVICE_KEY` (기존 서비스 키, Vercel에 이미 설정됨)
+
 ---
 
 ## 잠재 이슈 (코드에서 확인)

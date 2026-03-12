@@ -1061,6 +1061,7 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 - Supabase query builder에는 `.catch()` 없음 → `.then(({ error }) => { if (error) ... })` 패턴 사용
 - AEO 추적 포인트 정책: 추적 자체는 무료, 콘텐츠 생성만 1포인트, 실패 시 refundPoints() 자동 환불
 - apps/web에 실체 파일 생성 금지: 소스 원본은 루트에만 존재. `apps/web/app`, `apps/web/lib` 등은 루트의 심볼릭 링크. apps/web에 별도 파일을 만들면 동기화 불일치로 Vercel 배포 실패.
+- 미들웨어 Supabase Auth 폴백 보안: 어드민 보호 라우트에서 Supabase Auth 폴백 시 반드시 users.role 체크 필요. `ADMIN_ALLOWED_ROLES`에 포함된 역할만 통과, client_owner/client_member는 /portal로 리다이렉트. fail-closed 원칙 (역할 조회 실패 시 접근 거부).
 
 ---
 
