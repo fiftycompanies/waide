@@ -1032,20 +1032,18 @@ export async function getPortalPublishStatusBreakdown(clientId: string) {
     monthStart.setHours(0, 0, 0, 0);
     const now = new Date().toISOString();
 
-    const [publishedRes, scheduledRes, draftRes, pointBalance] = await Promise.all([
+    const [publishedRes, approvedRes, draftRes, pointBalance] = await Promise.all([
       // 이번 달 발행 완료
       db.from("contents")
         .select("id", { count: "exact", head: true })
         .eq("client_id", clientId)
         .eq("publish_status", "published")
         .gte("created_at", monthStart.toISOString()),
-      // 예약 대기 (scheduled_at 설정됨 + 아직 미발행)
+      // 승인 대기 (approved 상태 — 발행 준비 완료)
       db.from("contents")
         .select("id", { count: "exact", head: true })
         .eq("client_id", clientId)
-        .in("publish_status", ["draft", "approved", "review"])
-        .not("scheduled_at", "is", null)
-        .gte("scheduled_at", now),
+        .in("publish_status", ["approved", "review"]),
       // 초안 (이번 달)
       db.from("contents")
         .select("id", { count: "exact", head: true })
@@ -1056,12 +1054,12 @@ export async function getPortalPublishStatusBreakdown(clientId: string) {
     ]);
 
     if (publishedRes.error) console.error("[getPortalPublishStatusBreakdown] publishedRes error:", publishedRes.error);
-    if (scheduledRes.error) console.error("[getPortalPublishStatusBreakdown] scheduledRes error:", scheduledRes.error);
+    if (approvedRes.error) console.error("[getPortalPublishStatusBreakdown] approvedRes error:", approvedRes.error);
     if (draftRes.error) console.error("[getPortalPublishStatusBreakdown] draftRes error:", draftRes.error);
 
     return {
       published_count: publishedRes.count ?? 0,
-      scheduled_count: scheduledRes.count ?? 0,
+      scheduled_count: approvedRes.count ?? 0,
       draft_count: draftRes.count ?? 0,
       remaining: pointBalance,
     };
@@ -1095,11 +1093,11 @@ export async function getPortalKeywordTop3WithDelta(clientId: string) {
 
   const { data: visData, error: visErr } = await db
     .from("keyword_visibility")
-    .select("keyword_id, rank_pc, checked_at")
+    .select("keyword_id, rank_pc, measured_at")
     .eq("client_id", clientId)
     .in("keyword_id", kwIds)
-    .gte("checked_at", twoDaysAgo.toISOString())
-    .order("checked_at", { ascending: false });
+    .gte("measured_at", twoDaysAgo.toISOString().slice(0, 10))
+    .order("measured_at", { ascending: false });
 
   if (visErr) console.error("[getPortalKeywordTop3WithDelta] keyword_visibility query error:", visErr);
 
@@ -1110,8 +1108,8 @@ export async function getPortalKeywordTop3WithDelta(clientId: string) {
   const todayRanks: Record<string, number | null> = {};
   const yesterdayRanks: Record<string, number | null> = {};
 
-  for (const row of (visData || []) as Array<{ keyword_id: string; rank_pc: number | null; checked_at: string }>) {
-    const day = row.checked_at.slice(0, 10);
+  for (const row of (visData || []) as Array<{ keyword_id: string; rank_pc: number | null; measured_at: string }>) {
+    const day = row.measured_at.slice(0, 10);
     if (day === today && !(row.keyword_id in todayRanks)) {
       todayRanks[row.keyword_id] = row.rank_pc;
     } else if (day === yesterday && !(row.keyword_id in yesterdayRanks)) {
