@@ -1,0 +1,168 @@
+// .cursorrules
+// AI Marketer - Coding Standards & Guidelines
+
+You are an Expert Full Stack Engineer specialized in Next.js 14, TypeScript, and Supabase.
+
+## 1. Tech Stack & Style
+
+- Use **Next.js 14 App Router** for all routing.
+- Use **TypeScript** strictly (no `any` types).
+- Use **Tailwind CSS** for styling.
+- Use **Shadcn/ui** for UI components (buttons, inputs, cards).
+- Use **Zod** for schema validation.
+- Use **Lucide React** for icons.
+- Use **Zustand** for client-side state management.
+
+## 2. Architecture
+
+- **Server Actions** or **Route Handlers** for backend logic.
+- **Supabase Client** should be instantiated cleanly using the lib helpers (`@/lib/supabase`).
+- Keep components small, functional, and reusable.
+- Follow the Monorepo structure: `apps/web` is the main frontend, `packages/database` contains types.
+
+### File Organization
+```
+apps/web/
+├── app/                    # Next.js App Router pages
+│   ├── (dashboard)/        # Dashboard route group
+│   ├── api/                # API Route Handlers
+│   └── (auth)/             # Auth route group
+├── components/
+│   ├── ui/                 # Shadcn/ui components
+│   └── [feature]/          # Feature-specific components
+├── lib/
+│   ├── supabase/           # Supabase client utilities
+│   ├── store/              # Zustand stores
+│   └── utils.ts            # Utility functions
+└── hooks/                  # Custom React hooks
+```
+
+## 3. TypeScript Guidelines
+
+- **Never use `any`** - use `unknown` and type guards if needed.
+- Define interfaces for all data structures.
+- Use Zod schemas for runtime validation.
+- Import types from `@ai-marketer/database` for database entities.
+
+```typescript
+// ✅ Good
+interface BrandAnalysisResult {
+  toneVoice: string[];
+  keywords: string[];
+  summary: string;
+}
+
+// ❌ Bad
+const data: any = response.json();
+```
+
+## 4. API Route Handlers
+
+- Always validate input with Zod.
+- Use try-catch for error handling.
+- Return consistent response shapes.
+
+```typescript
+// Example Route Handler Pattern
+import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
+
+const RequestSchema = z.object({
+  url: z.string().url(),
+});
+
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const validated = RequestSchema.parse(body);
+    
+    // Process logic here
+    
+    return NextResponse.json({ success: true, data: result });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        { success: false, error: 'Validation failed', details: error.errors },
+        { status: 400 }
+      );
+    }
+    return NextResponse.json(
+      { success: false, error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}
+```
+
+## 5. Component Guidelines
+
+- Use functional components with TypeScript interfaces for props.
+- Prefer Server Components; use `"use client"` only when necessary.
+- Keep components focused on a single responsibility.
+
+```typescript
+// ✅ Good Component Pattern
+interface AnalyzeButtonProps {
+  isLoading: boolean;
+  onClick: () => void;
+}
+
+export function AnalyzeButton({ isLoading, onClick }: AnalyzeButtonProps) {
+  return (
+    <Button onClick={onClick} disabled={isLoading}>
+      {isLoading ? <Loader2 className="animate-spin" /> : 'Analyze'}
+    </Button>
+  );
+}
+```
+
+## 6. Error Handling
+
+- Always wrap API calls in try-catch blocks.
+- Provide clear, user-friendly error messages.
+- Log errors for debugging (use console.error in development).
+
+```typescript
+try {
+  const response = await fetch('/api/brand/analyze', {
+    method: 'POST',
+    body: JSON.stringify({ url }),
+  });
+  
+  if (!response.ok) {
+    throw new Error('Failed to analyze brand');
+  }
+  
+  const data = await response.json();
+  return data;
+} catch (error) {
+  console.error('Brand analysis failed:', error);
+  toast.error('브랜드 분석에 실패했습니다. 다시 시도해주세요.');
+}
+```
+
+## 7. Styling Guidelines
+
+- Use Tailwind CSS utility classes.
+- Follow the established color scheme (violet/fuchsia gradients).
+- Use CSS variables defined in globals.css for theming.
+- Maintain consistent spacing (4, 6, 8 for padding/margins).
+
+## 8. Database & Supabase
+
+- Use typed Supabase client from `@/lib/supabase`.
+- Handle auth state properly with middleware.
+- Use Row Level Security (RLS) policies defined in migrations.
+
+## 9. Environment Variables
+
+Required environment variables:
+- `NEXT_PUBLIC_SUPABASE_URL` - Supabase project URL
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY` - Supabase anonymous key
+- `OPENAI_API_KEY` - OpenAI API key for LLM processing
+
+## 10. Korean Language Support
+
+- UI text should be in Korean (한국어).
+- Use proper Korean typography and spacing.
+- Date/time formatting should follow Korean conventions.

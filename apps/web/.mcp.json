@@ -1,0 +1,36 @@
+{
+  "mcpServers": {
+    "serena": {
+      "command": "uvx",
+      "args": ["serena-mcp"],
+      "description": "브랜드 페르소나 및 세션 메모리 관리 (SuperClaude MCP_Serena 참조)",
+      "env": {}
+    },
+    "tavily": {
+      "command": "npx",
+      "args": ["-y", "@tavily/mcp-server"],
+      "description": "실시간 웹 검색 — RND 딥리서치용 (Tavily API)",
+      "env": {
+        "TAVILY_API_KEY": "${TAVILY_API_KEY}"
+      }
+    },
+    "playwright": {
+      "command": "npx",
+      "args": ["-y", "@playwright/mcp-server"],
+      "description": "동적 웹페이지 스크래핑 — JavaScript 렌더링 필요한 사이트용",
+      "env": {}
+    },
+    "sequential-thinking": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-sequential-thinking"],
+      "description": "복잡한 전략 분석을 위한 다단계 추론 (SuperClaude MCP_Sequential 참조)",
+      "env": {}
+    }
+  },
+  "_notes": {
+    "serena": "cross-session 브랜드 페르소나 기억 — 클라이언트별 brand_voice 세션 유지",
+    "tavily": "TAVILY_API_KEY를 .env에 추가 필요. RND 에이전트의 딥리서치 강화",
+    "playwright": "동적 SPA/JS 페이지 크롤링. RND _fetch_url_text() 폴백으로 사용",
+    "sequential-thinking": "CMO 경쟁사 분석, RND 시계열 예측 등 복잡한 추론 체인용"
+  }
+}
