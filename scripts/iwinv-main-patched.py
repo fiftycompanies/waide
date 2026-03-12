@@ -42,7 +42,7 @@ stealth_cfg = Stealth(
 )
 
 # ── GraphQL 쿼리 ──────────────────────────────────────────
-GRAPHQL_BASE = """{placeDetail(input:{id:"%s",deviceType:"mobile",isNx:false,checkRedirect:false}){base{id name category roadAddress address phone virtualPhone visitorReviewsTotal visitorReviewsScore microReviews conveniences coordinate{x y}}description newBusinessHours{businessStatusDescription{status description}businessHours{day businessHours{start end}}}menus{name price recommend description}homepages{repr{url type}}images{images{origin url}}fsasReviews{total}}}"""
+GRAPHQL_BASE = """{placeDetail(input:{id:"%s",deviceType:"mobile",isNx:false,checkRedirect:false}){base{id name category roadAddress address phone virtualPhone visitorReviewsTotal visitorReviewsScore microReviews conveniences coordinate{x y}}description newBusinessHours{businessStatusDescription{status description}businessHours{day businessHours{start end}}}menus{name price recommend description}homepages{repr{url type}}images{images{origin url}}fsasReviews{total}bookingBusinessId bookingUrl saveCount}}"""
 
 GRAPHQL_REVIEW = """{placeDetail(input:{id:"%s",deviceType:"mobile",isNx:false,checkRedirect:false}){visitorReviewStats{analysis{themes{label count}}}}}"""
 
@@ -132,6 +132,7 @@ async def _crawl_place(place_id: str) -> dict:
         "reservationUrl": "", "reviewKeywords": [],
         "nearbyCompetitors": 0,
         "placeKeywords": [],
+        "bookmarkCount": None,
     }
 
     browser = await _get_browser()
@@ -227,6 +228,14 @@ async def _crawl_place(place_id: str) -> dict:
                     rpr = hp.get("repr")
                     if rpr and rpr.get("url"):
                         result["homepageUrl"] = rpr["url"]
+
+                # 저장수 (bookmarkCount / saveCount)
+                save_count = detail.get("saveCount")
+                if save_count is not None:
+                    try:
+                        result["bookmarkCount"] = int(save_count)
+                    except (ValueError, TypeError):
+                        pass
 
                 # 이미지
                 imgs = detail.get("images")
