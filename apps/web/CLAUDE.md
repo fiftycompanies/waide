@@ -1,3 +1,9 @@
+## ⚠️ Git 커밋 규칙 (절대 위반 금지)
+- 모든 git 작업(add/commit/push)은 반드시 루트 디렉토리 기준으로 실행
+- apps/web 안에서 git 명령어 실행 금지
+- Vercel 배포는 루트 레포(fiftycompanies/waide) main 브랜치 push로 자동 트리거됨
+- apps/web/.git 이 존재하면 즉시 제거 후 루트 기준으로 작업
+
 # Waide (AI Hospitality Aide) — 서비스 IA
 
 > 최종 업데이트: 2026-03-07
