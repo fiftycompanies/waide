@@ -70,6 +70,16 @@
 - **증상**: 클라이언트 컴포넌트에서 meta 태그 DOM 쿼리로 clientId 획득 → 타이밍 이슈
 - **수정**: server component wrapper (`page.tsx`)에서 `getCurrentUser()` → `user.client_id` 조회 후 client component에 props로 전달. DOM 쿼리 제거
 
+### [FIX-8] 분석 결과 컴포넌트 분리 + 포털 분석 페이지 ✅
+- **파일**: `components/analysis/ScoreGauge.tsx`, `components/analysis/AnalysisResultView.tsx`, `app/(portal)/portal/analysis/page.tsx`, `components/portal/portal-shell.tsx`, `components/portal/analysis-required-banner.tsx`
+- **증상**: (1) 분석 결과 페이지(1,715줄)에서 ScoreGauge 인라인 정의 중복, 포털에서 재사용 불가 (2) 포털에 브랜드 분석 전용 페이지 없음 (3) 포털 네비에 브랜드 분석 메뉴 없음 (4) 분석 완료 시 외부 결과 페이지로 리다이렉트
+- **수정**:
+  - FIX-8a: `ScoreGauge` 공유 컴포넌트 추출 (dark/light variant 지원)
+  - FIX-8b: `AnalysisResultView` 포털용 라이트 테마 컴포넌트 (variant="portal"/"public", compact 모드)
+  - FIX-8c: `/portal/analysis` 페이지 신규 (getBrandAnalysis → AnalysisResultView 렌더링, 빈 상태 처리)
+  - FIX-8d: portal-shell.tsx navItems에 "브랜드 분석" 메뉴 추가 (2번째, Activity 아이콘)
+  - FIX-8e: analysis-required-banner.tsx 완료 상태를 인라인 결과 표시로 변경 (router.push 제거 → AnalysisResultView compact + "전체 화면으로 보기" 링크)
+
 ---
 
 ## 잠재 이슈 (코드에서 확인)

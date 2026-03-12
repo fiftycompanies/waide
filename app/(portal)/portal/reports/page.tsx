@@ -17,12 +17,14 @@ import {
   Bar,
   LineChart,
   Line,
+  ComposedChart,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
+import { Activity } from "lucide-react";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function ContentsTooltip({ active, payload, label }: any) {
@@ -44,6 +46,22 @@ function KeywordsTooltip({ active, payload, label }: any) {
     <div className="bg-white border rounded-lg shadow-sm px-3 py-2 text-sm">
       <p className="text-gray-500 text-xs mb-1">{y}년 {parseInt(m)}월</p>
       <p className="font-medium text-gray-900">{payload[0].value}개 활성 키워드</p>
+    </div>
+  );
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function CorrelationTooltip({ active, payload, label }: any) {
+  if (!active || !payload?.length) return null;
+  const [y, m] = (label as string).split("-");
+  return (
+    <div className="bg-white border rounded-lg shadow-sm px-3 py-2 text-sm">
+      <p className="text-gray-500 text-xs mb-1">{y}년 {parseInt(m)}월</p>
+      {payload.map((p: { dataKey: string; value: number; color: string }) => (
+        <p key={p.dataKey} className="font-medium" style={{ color: p.color }}>
+          {p.dataKey === "publishCount" ? `발행 ${p.value}건` : `활성 키워드 ${p.value}개`}
+        </p>
+      ))}
     </div>
   );
 }
@@ -212,6 +230,90 @@ export default function PortalReportsPage() {
           <p className="text-xs text-gray-400 mt-1">에이전트 실행</p>
         </div>
       </div>
+
+      {/* Section 1-B: Monthly Performance Summary */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="p-4 rounded-xl border bg-white">
+          <p className="text-xs text-gray-500 mb-1">총 발행 수</p>
+          <p className="text-2xl font-bold text-gray-900">{data.summary.monthlyContents}건</p>
+        </div>
+        <div className="p-4 rounded-xl border bg-white">
+          <p className="text-xs text-gray-500 mb-1">평균 순위</p>
+          <p className="text-2xl font-bold text-gray-900">
+            {data.serpRankings.length > 0
+              ? `${Math.round(data.serpRankings.filter((r) => r.rank > 0).reduce((s, r) => s + r.rank, 0) / Math.max(1, data.serpRankings.filter((r) => r.rank > 0).length))}위`
+              : "-"}
+          </p>
+        </div>
+        <div className="p-4 rounded-xl border bg-white">
+          <p className="text-xs text-gray-500 mb-1">노출 키워드</p>
+          <p className="text-2xl font-bold text-gray-900">
+            {data.serpRankings.filter((r) => r.rank > 0 && r.rank <= 30).length}개
+          </p>
+          <p className="text-[10px] text-gray-400">30위 이내</p>
+        </div>
+        <div className="p-4 rounded-xl border bg-white">
+          <p className="text-xs text-gray-500 mb-1">마케팅 점수</p>
+          {data.analyses.length > 0 ? (
+            <div className="flex items-end gap-2">
+              <p className="text-2xl font-bold text-gray-900">{data.analyses[0].marketing_score}</p>
+              {data.analyses.length > 1 && (() => {
+                const diff = data.analyses[0].marketing_score - data.analyses[1].marketing_score;
+                if (diff === 0) return null;
+                return (
+                  <span className={`text-sm font-medium ${diff > 0 ? "text-emerald-600" : "text-red-500"}`}>
+                    {diff > 0 ? "+" : ""}{diff}
+                  </span>
+                );
+              })()}
+            </div>
+          ) : (
+            <p className="text-2xl font-bold text-gray-900">-</p>
+          )}
+        </div>
+      </div>
+
+      {/* Section 1-C: Publish vs Rank Correlation Chart */}
+      {data.contentsTrend.some((d) => d.count > 0) && (
+        <div className="rounded-xl border bg-white p-6">
+          <div className="flex items-center gap-2 text-gray-900 mb-4">
+            <Activity className="h-5 w-5 text-emerald-500" />
+            <h2 className="text-lg font-semibold">발행 vs 순위 상관관계</h2>
+          </div>
+          <div className="h-56">
+            <ResponsiveContainer width="100%" height="100%">
+              <ComposedChart
+                data={data.contentsTrend.map((ct) => {
+                  const kw = data.keywordsTrend.find((k) => k.month === ct.month);
+                  return {
+                    month: ct.month,
+                    publishCount: ct.count,
+                    activeKeywords: kw?.count ?? 0,
+                  };
+                })}
+              >
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <XAxis dataKey="month" tickFormatter={formatMonth} tick={{ fontSize: 12, fill: "#9ca3af" }} />
+                <YAxis yAxisId="left" allowDecimals={false} tick={{ fontSize: 12, fill: "#9ca3af" }} label={{ value: "발행", angle: -90, position: "insideLeft", style: { fontSize: 11, fill: "#9ca3af" } }} />
+                <YAxis yAxisId="right" orientation="right" allowDecimals={false} tick={{ fontSize: 12, fill: "#9ca3af" }} label={{ value: "키워드", angle: 90, position: "insideRight", style: { fontSize: 11, fill: "#9ca3af" } }} />
+                <Tooltip content={<CorrelationTooltip />} />
+                <Bar yAxisId="left" dataKey="publishCount" fill="#8b5cf6" radius={[4, 4, 0, 0]} barSize={24} />
+                <Line yAxisId="right" type="monotone" dataKey="activeKeywords" stroke="#10b981" strokeWidth={2} dot={{ fill: "#10b981", r: 3 }} />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="flex items-center justify-center gap-6 mt-3">
+            <div className="flex items-center gap-1.5">
+              <div className="w-3 h-3 rounded-sm bg-violet-500" />
+              <span className="text-xs text-gray-500">발행 콘텐츠</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="w-3 h-0.5 bg-emerald-500" />
+              <span className="text-xs text-gray-500">활성 키워드</span>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Section 2: Contents Trend Chart */}
       <div className="rounded-xl border bg-white p-6">

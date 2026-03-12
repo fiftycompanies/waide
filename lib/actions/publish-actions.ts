@@ -181,6 +181,34 @@ export async function executePublish(params: {
       .eq("id", params.blogAccountId);
   }
 
+  // Phase 4: 발행 완료/실패 알림 생성
+  if (result.success) {
+    try {
+      const { createNotification } = await import("@/lib/actions/notification-actions");
+      await createNotification({
+        clientId: params.clientId,
+        type: "publish_complete",
+        title: `"${content.title || "Untitled"}" 발행 완료`,
+        body: result.external_url || undefined,
+        metadata: { content_id: params.contentId, platform: params.platform, published_url: result.external_url },
+      });
+
+      // 잔여 포인트 경고 알림
+      const { getPortalPointBalance } = await import("@/lib/actions/portal-actions");
+      const balance = await getPortalPointBalance(params.clientId);
+      if (balance <= 3) {
+        await createNotification({
+          clientId: params.clientId,
+          type: "quota_warning",
+          title: `잔여 포인트 ${balance}건 남음`,
+          body: "포인트가 부족하면 발행이 중단됩니다.",
+        });
+      }
+    } catch (notifErr) {
+      console.error("[publish-actions] notification creation failed:", notifErr);
+    }
+  }
+
   revalidatePath("/publish");
   revalidatePath("/contents");
 
@@ -280,7 +308,34 @@ export async function checkAutoPublish(
 
   if (channels.length === 0) return;
 
-  // 4. 콘텐츠 조회
+  // 4. Phase 4: confirm_count 체크 (처음 3건 컨펌)
+  const extSettings = settings?.settings as Record<string, unknown> | null;
+  const confirmCount = (extSettings?.confirm_count as number) ?? 0;
+  if (confirmCount < 3) {
+    // 콘텐츠 제목 조회
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: confirmContent } = await (db as any)
+      .from("contents")
+      .select("title")
+      .eq("id", contentId)
+      .single();
+
+    try {
+      const { createNotification } = await import("@/lib/actions/notification-actions");
+      await createNotification({
+        clientId,
+        type: "auto_publish_confirm",
+        title: `자동발행 확인 필요: "${confirmContent?.title || "Untitled"}"`,
+        body: "발행 전 내용을 확인해주세요.",
+        metadata: { content_id: contentId },
+      });
+    } catch (notifErr) {
+      console.error("[publish-actions] auto_publish_confirm notification failed:", notifErr);
+    }
+    return; // 컨펌 필요 시 자동발행 스킵
+  }
+
+  // 4b. 콘텐츠 조회
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: content } = await (db as any)
     .from("contents")

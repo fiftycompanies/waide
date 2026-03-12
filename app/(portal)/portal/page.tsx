@@ -19,9 +19,10 @@ import {
   Trophy,
   User,
 } from "lucide-react";
-import { getPortalDashboardV2 } from "@/lib/actions/portal-actions";
+import { getPortalDashboardV2, getPortalHealthScore, getPortalUrgentBannerCondition } from "@/lib/actions/portal-actions";
 import KeywordOccupancySection from "@/components/portal/keyword-occupancy-section";
 import AnalysisRequiredBanner from "@/components/portal/analysis-required-banner";
+import { AlertTriangle, Activity, X } from "lucide-react";
 
 interface KpiData {
   activeKeywords: number;
@@ -101,6 +102,45 @@ interface DashboardData {
   };
 }
 
+interface HealthScoreData {
+  totalScore: number;
+  grade: "A" | "B" | "C" | "D" | "F";
+  blog: { score: number };
+  seo: { score: number };
+  serp: { score: number };
+  place: { score: number };
+  prevMonthScore: number | null;
+  delta: number | null;
+}
+
+interface UrgentBannerData {
+  show: boolean;
+  reason: "rank_drop" | "no_publish_14d" | "no_publish_this_month" | "low_quota";
+  criticalKeywordId: string | null;
+  message: string;
+}
+
+// Mini sparkline SVG for keyword rows
+function MiniSparkline({ data, width = 60, height = 20 }: { data: number[]; width?: number; height?: number }) {
+  if (!data || data.length < 2) return null;
+  const validData = data.filter((v) => v > 0);
+  if (validData.length < 2) return null;
+  const minVal = Math.min(...validData);
+  const maxVal = Math.max(...validData);
+  const range = maxVal - minVal || 1;
+  const points = data.map((v, i) => {
+    const x = (i / (data.length - 1)) * width;
+    const y = v > 0 ? height - ((v - minVal) / range) * (height - 4) - 2 : height / 2;
+    return `${x},${y}`;
+  }).join(" ");
+  const isUp = data[data.length - 1] < data[0]; // lower rank = better
+  return (
+    <svg width={width} height={height} className="inline-block">
+      <polyline fill="none" stroke={isUp ? "#10b981" : "#ef4444"} strokeWidth="1.5" points={points} />
+    </svg>
+  );
+}
+
 const statusLabels: Record<string, { text: string; color: string }> = {
   published: { text: "발행됨", color: "bg-emerald-100 text-emerald-700" },
   approved: { text: "검수완료", color: "bg-blue-100 text-blue-700" },
@@ -125,14 +165,29 @@ export default function PortalDashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [clientId, setClientId] = useState("");
+  const [healthScore, setHealthScore] = useState<HealthScoreData | null>(null);
+  const [urgentBanner, setUrgentBanner] = useState<UrgentBannerData | null>(null);
+  const [bannerDismissed, setBannerDismissed] = useState(false);
 
   useEffect(() => {
     const el = document.querySelector("meta[name='portal-client-id']");
     const cid = el?.getAttribute("content") || "";
     setClientId(cid);
     if (cid) {
-      getPortalDashboardV2(cid).then((d) => {
+      // Check sessionStorage for banner dismissal
+      const dismissedToday = sessionStorage.getItem("urgent_banner_dismissed");
+      if (dismissedToday === new Date().toISOString().slice(0, 10)) {
+        setBannerDismissed(true);
+      }
+      // Load all data in parallel
+      Promise.all([
+        getPortalDashboardV2(cid),
+        getPortalHealthScore(cid).catch(() => null),
+        getPortalUrgentBannerCondition(cid).catch(() => null),
+      ]).then(([d, hs, ub]) => {
         setData(d as DashboardData);
+        if (hs) setHealthScore(hs as HealthScoreData);
+        if (ub) setUrgentBanner(ub as UrgentBannerData);
         setLoading(false);
       });
     } else {
@@ -210,6 +265,33 @@ export default function PortalDashboardPage() {
           </div>
         </div>
       </div>
+
+      {/* ── 긴급 후킹 배너 ── */}
+      {urgentBanner?.show && !bannerDismissed && (
+        <div className="rounded-xl border border-red-200 bg-red-50 p-4 flex items-center gap-3">
+          <AlertTriangle className="h-5 w-5 text-red-500 shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-red-800">{urgentBanner.message}</p>
+          </div>
+          {urgentBanner.criticalKeywordId && (
+            <Link
+              href={`/portal/blog/write?keyword_id=${urgentBanner.criticalKeywordId}&urgent=true`}
+              className="shrink-0 px-3 py-1.5 rounded-lg bg-red-600 text-white text-xs font-medium hover:bg-red-700 transition-colors"
+            >
+              지금 발행하기
+            </Link>
+          )}
+          <button
+            onClick={() => {
+              setBannerDismissed(true);
+              sessionStorage.setItem("urgent_banner_dismissed", new Date().toISOString().slice(0, 10));
+            }}
+            className="shrink-0 p-1 rounded hover:bg-red-100 transition-colors"
+          >
+            <X className="h-4 w-4 text-red-400" />
+          </button>
+        </div>
+      )}
 
       {/* ── 섹션 2: 빠른 액션 카드 ── */}
       <div className="grid grid-cols-3 gap-3">
@@ -401,8 +483,81 @@ export default function PortalDashboardPage() {
         </div>
       )}
 
-      {/* Marketing Score Card */}
-      {data.latestAnalysis?.marketing_score != null && (
+      {/* ── 마케팅 건강 점수 카드 ── */}
+      {healthScore && (
+        <div className="rounded-xl border bg-white p-6">
+          <div className="flex items-center gap-2 text-gray-900 mb-4">
+            <Activity className="h-5 w-5 text-emerald-500" />
+            <h2 className="text-lg font-semibold">마케팅 건강 점수</h2>
+            <span className={`ml-auto px-2.5 py-0.5 rounded-full text-sm font-bold ${
+              healthScore.grade === "A" ? "bg-emerald-100 text-emerald-700" :
+              healthScore.grade === "B" ? "bg-blue-100 text-blue-700" :
+              healthScore.grade === "C" ? "bg-amber-100 text-amber-700" :
+              healthScore.grade === "D" ? "bg-orange-100 text-orange-700" :
+              "bg-red-100 text-red-700"
+            }`}>
+              {healthScore.grade}
+            </span>
+          </div>
+          <div className="flex items-center gap-4 mb-4">
+            <div className="relative flex items-center justify-center h-20 w-20 shrink-0">
+              <svg className="h-20 w-20 -rotate-90" viewBox="0 0 36 36">
+                <circle cx="18" cy="18" r="15.9" fill="none" stroke="#e5e7eb" strokeWidth="3" />
+                <circle
+                  cx="18" cy="18" r="15.9" fill="none"
+                  stroke={healthScore.totalScore >= 70 ? "#10b981" : healthScore.totalScore >= 40 ? "#f59e0b" : "#ef4444"}
+                  strokeWidth="3" strokeLinecap="round"
+                  strokeDasharray={`${healthScore.totalScore} ${100 - healthScore.totalScore}`}
+                />
+              </svg>
+              <span className="absolute text-lg font-bold text-gray-900">{healthScore.totalScore}</span>
+            </div>
+            <div className="flex-1">
+              {healthScore.delta != null && (
+                <p className={`text-sm font-medium mb-2 ${healthScore.delta >= 0 ? "text-emerald-600" : "text-red-500"}`}>
+                  전월 대비 {healthScore.delta >= 0 ? "+" : ""}{healthScore.delta}점
+                </p>
+              )}
+              <div className="grid grid-cols-4 gap-2">
+                {[
+                  { label: "블로그", score: healthScore.blog.score, color: "bg-purple-500" },
+                  { label: "SEO", score: healthScore.seo.score, color: "bg-blue-500" },
+                  { label: "SERP", score: healthScore.serp.score, color: "bg-emerald-500" },
+                  { label: "플레이스", score: healthScore.place.score, color: "bg-amber-500" },
+                ].map(({ label, score, color }) => (
+                  <div key={label} className="text-center">
+                    <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden mb-1">
+                      <div className={`h-full rounded-full ${color}`} style={{ width: `${Math.min(score, 100)}%` }} />
+                    </div>
+                    <p className="text-[11px] text-gray-500">{label}</p>
+                    <p className="text-xs font-bold text-gray-700">{score}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+          {(() => {
+            const items = [
+              { key: "blog", label: "블로그", score: healthScore.blog.score, href: "/portal/blog/write" },
+              { key: "seo", label: "SEO", score: healthScore.seo.score, href: "/portal/serp" },
+              { key: "serp", label: "SERP", score: healthScore.serp.score, href: "/portal/blog/write" },
+              { key: "place", label: "플레이스", score: healthScore.place.score, href: "/portal/serp" },
+            ];
+            const lowest = items.reduce((a, b) => (a.score <= b.score ? a : b));
+            return (
+              <Link
+                href={lowest.href}
+                className="block w-full text-center py-2 rounded-lg bg-emerald-50 text-emerald-700 text-sm font-medium hover:bg-emerald-100 transition-colors"
+              >
+                점수 올리기 ({lowest.label} 개선) →
+              </Link>
+            );
+          })()}
+        </div>
+      )}
+
+      {/* Marketing Score Card (기존 — healthScore 없을 때 폴백) */}
+      {!healthScore && data.latestAnalysis?.marketing_score != null && (
         <div className="rounded-xl border bg-white p-6">
           <div className="flex items-center gap-2 text-gray-900 mb-4">
             <Trophy className="h-5 w-5 text-amber-500" />

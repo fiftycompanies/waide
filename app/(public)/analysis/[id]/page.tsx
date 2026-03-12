@@ -37,41 +37,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-
-// ═══════════════════════════════════════════
-// Score Gauge Component
-// ═══════════════════════════════════════════
-
-function ScoreGauge({ score, size = 160 }: { score: number; size?: number }) {
-  const radius = (size - 20) / 2;
-  const circumference = 2 * Math.PI * radius;
-  const strokeDashoffset = circumference - (score / 100) * circumference;
-  const color = score >= 70 ? "#10b981" : score >= 40 ? "#f59e0b" : "#ef4444";
-
-  return (
-    <div className="relative inline-flex items-center justify-center" style={{ width: size, height: size }}>
-      <svg width={size} height={size} className="-rotate-90">
-        <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="#2a2a2a" strokeWidth="8" />
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          fill="none"
-          stroke={color}
-          strokeWidth="8"
-          strokeDasharray={circumference}
-          strokeDashoffset={strokeDashoffset}
-          strokeLinecap="round"
-          className="transition-all duration-1000 ease-out"
-        />
-      </svg>
-      <div className="absolute flex flex-col items-center">
-        <span className="text-4xl font-bold text-white">{score}</span>
-        <span className="text-xs text-[#666666]">/ 100</span>
-      </div>
-    </div>
-  );
-}
+import { ScoreGauge } from "@/components/analysis/ScoreGauge";
 
 // ═══════════════════════════════════════════
 // Source Badge Component

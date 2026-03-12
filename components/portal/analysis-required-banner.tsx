@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { BarChart2, Loader2, CheckCircle2, AlertTriangle, Globe } from "lucide-react";
-import { runBrandAnalysis, getAnalysisStatus } from "@/lib/actions/analysis-brand-actions";
+import { runBrandAnalysis, getAnalysisStatus, getBrandAnalysis, type BrandAnalysisRow } from "@/lib/actions/analysis-brand-actions";
+import { AnalysisResultView } from "@/components/analysis/AnalysisResultView";
 
 type AnalysisState = "idle" | "analyzing" | "completed" | "failed";
 
@@ -35,13 +36,13 @@ function isNaverUrl(url: string): boolean {
 }
 
 export default function AnalysisRequiredBanner({ clientId }: AnalysisRequiredBannerProps) {
-  const router = useRouter();
   const [url, setUrl] = useState("");
   const [state, setState] = useState<AnalysisState>("idle");
   const [error, setError] = useState<string | null>(null);
   const [analysisId, setAnalysisId] = useState<string | null>(null);
   const [messageIndex, setMessageIndex] = useState(0);
   const [elapsed, setElapsed] = useState(0);
+  const [analysisData, setAnalysisData] = useState<BrandAnalysisRow | null>(null);
 
   const trimmedUrl = url.trim();
   const isNaver = isNaverUrl(trimmedUrl);
@@ -66,9 +67,12 @@ export default function AnalysisRequiredBanner({ clientId }: AnalysisRequiredBan
         const result = await getAnalysisStatus(analysisId);
         if (result.status === "completed") {
           setState("completed");
-          setTimeout(() => {
-            router.push(`/analysis/${analysisId}?from=portal`);
-          }, 1500);
+          // Fetch full analysis data for inline display
+          if (clientId) {
+            getBrandAnalysis(clientId).then((data) => {
+              if (data) setAnalysisData(data);
+            });
+          }
         } else if (result.status === "failed") {
           setState("failed");
           setError("분석에 실패했습니다. 다시 시도해주세요.");
@@ -78,7 +82,7 @@ export default function AnalysisRequiredBanner({ clientId }: AnalysisRequiredBan
       }
     }, 2000);
     return () => clearInterval(interval);
-  }, [state, analysisId, router]);
+  }, [state, analysisId, clientId]);
 
   // 120-second timeout
   useEffect(() => {
@@ -147,12 +151,26 @@ export default function AnalysisRequiredBanner({ clientId }: AnalysisRequiredBan
   // ── COMPLETED STATE ──
   if (state === "completed") {
     return (
-      <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
-        <div className="h-16 w-16 rounded-full bg-emerald-50 flex items-center justify-center mb-6">
-          <CheckCircle2 className="h-8 w-8 text-emerald-500" />
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+            <h2 className="text-lg font-bold text-gray-900">분석 완료</h2>
+          </div>
+          <Link
+            href="/portal/analysis"
+            className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors"
+          >
+            전체 화면으로 보기
+          </Link>
         </div>
-        <h2 className="text-xl font-bold text-gray-900 mb-2">분석 완료!</h2>
-        <p className="text-sm text-gray-500">결과 페이지로 이동합니다...</p>
+        {analysisData ? (
+          <AnalysisResultView data={analysisData as unknown as Record<string, unknown>} variant="portal" compact />
+        ) : (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="h-6 w-6 text-emerald-500 animate-spin" />
+          </div>
+        )}
       </div>
     );
   }

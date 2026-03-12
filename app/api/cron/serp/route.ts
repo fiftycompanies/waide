@@ -16,6 +16,8 @@ import {
   getSchedulerSettings,
 } from "@/lib/scheduler";
 import { collectSerpAll } from "@/lib/serp-collector";
+import { createAdminClient } from "@/lib/supabase/service";
+import { createNotification } from "@/lib/actions/notification-actions";
 
 export const maxDuration = 300; // 5분 (Vercel Pro)
 export const dynamic = "force-dynamic";
@@ -56,6 +58,49 @@ export async function POST(request: Request) {
       .join("\n");
 
     await sendSlackNotification(msg, settings.slack_webhook_url || undefined, "serp");
+
+    // 순위 변동 알림 생성 (Phase 4)
+    try {
+      const db = createAdminClient();
+      const today = new Date().toISOString().slice(0, 10);
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: changes } = await (db as any)
+        .from("keyword_visibility")
+        .select("client_id, keyword_id, rank_pc, rank_change_pc, keywords(keyword)")
+        .eq("date", today)
+        .not("rank_change_pc", "is", null);
+
+      if (changes && changes.length > 0) {
+        for (const row of changes) {
+          const change = row.rank_change_pc ?? 0;
+          const kwName = row.keywords?.keyword || "키워드";
+
+          // 순위 10 이상 하락
+          if (change <= -10) {
+            const oldRank = (row.rank_pc ?? 0) - change;
+            await createNotification({
+              clientId: row.client_id,
+              type: "rank_drop",
+              title: `[${kwName}] ${oldRank}위 → ${row.rank_pc}위 하락`,
+              metadata: { keyword_id: row.keyword_id, old_rank: oldRank, new_rank: row.rank_pc },
+            });
+          }
+          // 순위 5 이상 상승 & TOP10 진입
+          else if (change >= 5 && row.rank_pc != null && row.rank_pc <= 10) {
+            await createNotification({
+              clientId: row.client_id,
+              type: "rank_rise",
+              title: `[${kwName}] TOP10 진입! (${row.rank_pc}위)`,
+              metadata: { keyword_id: row.keyword_id, new_rank: row.rank_pc },
+            });
+          }
+        }
+      }
+    } catch (notifErr) {
+      console.error("[cron/serp] notification generation error:", notifErr);
+      // 알림 생성 실패해도 SERP 수집 결과에 영향 없음
+    }
 
     return {
       date: summary.date,

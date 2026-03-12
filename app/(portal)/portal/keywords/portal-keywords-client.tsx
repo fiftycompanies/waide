@@ -3,12 +3,14 @@
 import { useEffect, useState, useCallback } from "react";
 import {
   Archive,
+  BarChart,
   Check,
   Key,
   Lightbulb,
   Loader2,
   Plus,
   RotateCcw,
+  Search,
   Sparkles,
   Target,
   TrendingUp,
@@ -21,6 +23,8 @@ import {
 } from "@/lib/actions/keyword-expansion-actions";
 import { updateKeywordStatus, createKeyword } from "@/lib/actions/keyword-actions";
 import { suggestKeywordsForClient } from "@/lib/actions/campaign-planning-actions";
+import { queryKeywordVolume, registerKeywordsFromVolume, type VolumeResult } from "@/lib/actions/keyword-volume-actions";
+import { getKeywordStrategy } from "@/lib/actions/keyword-strategy-actions";
 import KeywordDetailModal from "@/components/portal/keyword-detail-modal";
 
 interface KeywordItem {
@@ -42,7 +46,7 @@ interface KeywordItem {
   } | null;
 }
 
-type TabType = "active" | "suggested" | "archived";
+type TabType = "active" | "suggested" | "archived" | "volume" | "strategy";
 
 interface PortalKeywordsClientProps {
   clientId: string;
@@ -63,6 +67,71 @@ export default function PortalKeywordsClient({ clientId }: PortalKeywordsClientP
   const [addingKeyword, setAddingKeyword] = useState(false);
   const [suggestLoading, setSuggestLoading] = useState(false);
   const [suggestError, setSuggestError] = useState<string | null>(null);
+
+  // 검색량 조회 탭
+  const [volumeInput, setVolumeInput] = useState("");
+  const [volumeResults, setVolumeResults] = useState<VolumeResult[]>([]);
+  const [volumeLoading, setVolumeLoading] = useState(false);
+  const [volumeError, setVolumeError] = useState<string | null>(null);
+  const [selectedVolumes, setSelectedVolumes] = useState<Set<string>>(new Set());
+  const [registeringVolume, setRegisteringVolume] = useState(false);
+
+  // 키워드 전략 탭
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [fullStrategy, setFullStrategy] = useState<any>(null);
+  const [strategyLoading, setStrategyLoading] = useState(false);
+  const [strategyActivating, setStrategyActivating] = useState<string | null>(null);
+
+  // ── 검색량 조회 핸들러 ──
+  const handleVolumeSearch = async () => {
+    const keywords = volumeInput.split(",").map(k => k.trim()).filter(Boolean).slice(0, 5);
+    if (keywords.length === 0) return;
+    setVolumeLoading(true);
+    setVolumeError(null);
+    setVolumeResults([]);
+    setSelectedVolumes(new Set());
+    const result = await queryKeywordVolume(keywords);
+    if (result.success) {
+      setVolumeResults(result.results);
+    } else {
+      setVolumeError(result.error || "검색량 조회에 실패했습니다");
+    }
+    setVolumeLoading(false);
+  };
+
+  const handleRegisterFromVolume = async () => {
+    const toRegister = volumeResults
+      .filter(r => selectedVolumes.has(r.keyword))
+      .map(r => ({
+        keyword: r.keyword,
+        monthlyTotal: r.monthlyTotal,
+        monthlyPc: r.monthlyPc,
+        monthlyMo: r.monthlyMo,
+      }));
+    if (toRegister.length === 0) return;
+    setRegisteringVolume(true);
+    const result = await registerKeywordsFromVolume(clientId, toRegister);
+    if (result.success) {
+      setSelectedVolumes(new Set());
+      loadData();
+    }
+    setRegisteringVolume(false);
+  };
+
+  // ── 키워드 전략 로드 ──
+  const loadStrategy = async () => {
+    setStrategyLoading(true);
+    const strategy = await getKeywordStrategy(clientId);
+    setFullStrategy(strategy);
+    setStrategyLoading(false);
+  };
+
+  const handleActivateKeyword = async (keywordId: string) => {
+    setStrategyActivating(keywordId);
+    await updateKeywordStatus(keywordId, "active");
+    loadData();
+    setStrategyActivating(null);
+  };
 
   const handleAddKeyword = async () => {
     if (!newKeyword.trim() || !clientId) return;
@@ -181,6 +250,8 @@ export default function PortalKeywordsClient({ clientId }: PortalKeywordsClientP
     { key: "active", label: "활성 키워드", count: activeKeywords.length, icon: Key },
     { key: "suggested", label: "AI 추천", count: suggestedKeywords.length, icon: Sparkles },
     { key: "archived", label: "보관", count: archivedKeywords.length, icon: Archive },
+    { key: "volume", label: "검색량 조회", count: 0, icon: Search },
+    { key: "strategy", label: "키워드 전략", count: 0, icon: BarChart },
   ];
 
   return (
@@ -471,6 +542,236 @@ export default function PortalKeywordsClient({ clientId }: PortalKeywordsClientP
             </div>
           )}
         </>
+      )}
+
+      {/* Volume Tab Content */}
+      {activeTab === "volume" && (
+        <div className="space-y-4">
+          <div className="rounded-xl border bg-white p-6">
+            <h2 className="text-sm font-semibold text-gray-700 mb-3">키워드 검색량 조회</h2>
+            <p className="text-xs text-gray-400 mb-4">키워드를 쉼표로 구분하여 입력하세요 (최대 5개)</p>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={volumeInput}
+                onChange={(e) => setVolumeInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") handleVolumeSearch(); }}
+                placeholder="예: 강남 맛집, 강남 카페, 강남 데이트"
+                className="flex-1 px-4 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                disabled={volumeLoading}
+              />
+              <button
+                onClick={handleVolumeSearch}
+                disabled={volumeLoading || !volumeInput.trim()}
+                className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 disabled:opacity-50 flex items-center gap-1.5 shrink-0"
+              >
+                {volumeLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                조회
+              </button>
+            </div>
+            {volumeError && <p className="text-sm text-red-500 mt-2">{volumeError}</p>}
+          </div>
+
+          {volumeResults.length > 0 && (
+            <div className="rounded-xl border bg-white overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 border-b">
+                    <tr>
+                      <th className="text-left py-3 px-4 font-medium text-gray-600">
+                        <input
+                          type="checkbox"
+                          checked={selectedVolumes.size === volumeResults.length && volumeResults.length > 0}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedVolumes(new Set(volumeResults.map(r => r.keyword)));
+                            } else {
+                              setSelectedVolumes(new Set());
+                            }
+                          }}
+                          className="rounded border-gray-300"
+                        />
+                      </th>
+                      <th className="text-left py-3 px-4 font-medium text-gray-600">키워드</th>
+                      <th className="text-center py-3 px-4 font-medium text-gray-600">PC 검색량</th>
+                      <th className="text-center py-3 px-4 font-medium text-gray-600">모바일 검색량</th>
+                      <th className="text-center py-3 px-4 font-medium text-gray-600">경쟁도</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {volumeResults.map((r) => (
+                      <tr key={r.keyword} className="border-b last:border-0 hover:bg-gray-50">
+                        <td className="py-3 px-4">
+                          <input
+                            type="checkbox"
+                            checked={selectedVolumes.has(r.keyword)}
+                            onChange={(e) => {
+                              const next = new Set(selectedVolumes);
+                              if (e.target.checked) next.add(r.keyword);
+                              else next.delete(r.keyword);
+                              setSelectedVolumes(next);
+                            }}
+                            className="rounded border-gray-300"
+                          />
+                        </td>
+                        <td className="py-3 px-4 font-medium text-gray-900">{r.keyword}</td>
+                        <td className="py-3 px-4 text-center text-gray-600">{r.monthlyPc?.toLocaleString() ?? "-"}</td>
+                        <td className="py-3 px-4 text-center text-gray-600">{r.monthlyMo?.toLocaleString() ?? "-"}</td>
+                        <td className="py-3 px-4 text-center">
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${
+                            r.competition === "높음" ? "bg-red-100 text-red-700" :
+                            r.competition === "중간" ? "bg-yellow-100 text-yellow-700" :
+                            "bg-green-100 text-green-700"
+                          }`}>
+                            {r.competition || "-"}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {selectedVolumes.size > 0 && (
+                <div className="p-4 border-t bg-gray-50 flex items-center justify-between">
+                  <span className="text-sm text-gray-600">{selectedVolumes.size}개 키워드 선택됨</span>
+                  <button
+                    onClick={handleRegisterFromVolume}
+                    disabled={registeringVolume}
+                    className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 disabled:opacity-50 flex items-center gap-1.5"
+                  >
+                    {registeringVolume ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                    키워드 등록
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Strategy Tab Content */}
+      {activeTab === "strategy" && (
+        <div className="space-y-4">
+          {!fullStrategy && !strategyLoading && (
+            <div className="rounded-xl border bg-white p-12 text-center">
+              <Target className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+              <p className="text-gray-500">키워드 전략을 불러오세요</p>
+              <p className="text-sm text-gray-400 mt-1">AI가 분석한 키워드 전략을 확인할 수 있습니다</p>
+              <button
+                onClick={loadStrategy}
+                className="mt-4 px-5 py-2.5 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 inline-flex items-center gap-2"
+              >
+                <BarChart className="h-4 w-4" />
+                전략 불러오기
+              </button>
+            </div>
+          )}
+
+          {strategyLoading && (
+            <div className="flex items-center justify-center py-20">
+              <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
+            </div>
+          )}
+
+          {fullStrategy && !strategyLoading && (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Quick Win */}
+              {fullStrategy.quick_win_keywords && fullStrategy.quick_win_keywords.length > 0 && (
+                <div className="rounded-xl border bg-white p-5">
+                  <div className="flex items-center gap-2 mb-3">
+                    <TrendingUp className="h-4 w-4 text-emerald-600" />
+                    <h3 className="text-sm font-semibold text-emerald-700">Quick Win</h3>
+                  </div>
+                  <p className="text-xs text-gray-400 mb-3">빠르게 성과를 낼 수 있는 키워드</p>
+                  <div className="space-y-2">
+                    {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                    {fullStrategy.quick_win_keywords.map((k: any, i: number) => (
+                      <div key={i} className="flex items-center justify-between p-2 rounded-lg bg-emerald-50">
+                        <span className="text-sm text-emerald-800">{k.keyword}</span>
+                        <button
+                          onClick={() => handleActivateKeyword(k.id || k.keyword_id)}
+                          disabled={strategyActivating === (k.id || k.keyword_id)}
+                          className="text-xs px-2 py-1 rounded bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50"
+                        >
+                          {strategyActivating === (k.id || k.keyword_id) ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : "활성화"}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Niche */}
+              {fullStrategy.niche_keywords && fullStrategy.niche_keywords.length > 0 && (
+                <div className="rounded-xl border bg-white p-5">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Lightbulb className="h-4 w-4 text-violet-600" />
+                    <h3 className="text-sm font-semibold text-violet-700">니치 선점</h3>
+                  </div>
+                  <p className="text-xs text-gray-400 mb-3">경쟁이 낮은 틈새 키워드</p>
+                  <div className="space-y-2">
+                    {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                    {fullStrategy.niche_keywords.map((k: any, i: number) => (
+                      <div key={i} className="flex items-center justify-between p-2 rounded-lg bg-violet-50">
+                        <span className="text-sm text-violet-800">{k.keyword}</span>
+                        <button
+                          onClick={() => handleActivateKeyword(k.id || k.keyword_id)}
+                          disabled={strategyActivating === (k.id || k.keyword_id)}
+                          className="text-xs px-2 py-1 rounded bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-50"
+                        >
+                          {strategyActivating === (k.id || k.keyword_id) ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : "활성화"}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Defense */}
+              {fullStrategy.defense_keywords && fullStrategy.defense_keywords.length > 0 && (
+                <div className="rounded-xl border bg-white p-5">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Key className="h-4 w-4 text-blue-600" />
+                    <h3 className="text-sm font-semibold text-blue-700">방어 키워드</h3>
+                  </div>
+                  <p className="text-xs text-gray-400 mb-3">기존 순위를 지키는 키워드</p>
+                  <div className="space-y-2">
+                    {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                    {fullStrategy.defense_keywords.map((k: any, i: number) => (
+                      <div key={i} className="flex items-center justify-between p-2 rounded-lg bg-blue-50">
+                        <span className="text-sm text-blue-800">{k.keyword}</span>
+                        <button
+                          onClick={() => handleActivateKeyword(k.id || k.keyword_id)}
+                          disabled={strategyActivating === (k.id || k.keyword_id)}
+                          className="text-xs px-2 py-1 rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+                        >
+                          {strategyActivating === (k.id || k.keyword_id) ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : "활성화"}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* No strategy data */}
+              {(!fullStrategy.quick_win_keywords || fullStrategy.quick_win_keywords.length === 0) &&
+               (!fullStrategy.niche_keywords || fullStrategy.niche_keywords.length === 0) &&
+               (!fullStrategy.defense_keywords || fullStrategy.defense_keywords.length === 0) && (
+                <div className="col-span-full rounded-xl border bg-white p-12 text-center">
+                  <Target className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                  <p className="text-gray-500">아직 키워드 전략이 생성되지 않았습니다</p>
+                  <p className="text-sm text-gray-400 mt-1">매니저에게 전략 수립을 요청해 주세요</p>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       )}
 
       {/* Keyword Strategy Section */}

@@ -1,7 +1,5 @@
-"use client";
-
-import PortalContentsClient from "@/components/portal/portal-contents-client";
+import { redirect } from "next/navigation";
 
 export default function PortalContentsPage() {
-  return <PortalContentsClient />;
+  redirect("/portal/blog?tab=contents");
 }

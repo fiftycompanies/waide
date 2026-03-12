@@ -4,26 +4,25 @@ import { usePathname, useRouter } from "next/navigation";
 import { useTransition } from "react";
 import Link from "next/link";
 import {
-  BarChart2,
-  FileText,
+  BarChart3,
+  Bell,
+  Globe,
   Home,
-  Key,
   LogOut,
-  PenLine,
-  Rss,
+  Search,
   Settings,
-  User,
+  TrendingUp,
 } from "lucide-react";
 import { Logo } from "@/components/logo";
 import { portalSignOut } from "@/lib/actions/auth-actions";
 
 const navItems = [
   { title: "대시보드", url: "/portal", icon: Home },
-  { title: "블로그 작성", url: "/portal/write", icon: PenLine },
-  { title: "콘텐츠 현황", url: "/portal/contents", icon: FileText },
-  { title: "키워드 관리", url: "/portal/keywords", icon: Key },
-  { title: "블로그 관리", url: "/portal/blog", icon: Rss },
-  { title: "월간 리포트", url: "/portal/reports", icon: BarChart2 },
+  { title: "SERP 트래킹", url: "/portal/serp", icon: TrendingUp },
+  { title: "블로그 관리", url: "/portal/blog", icon: Globe },
+  { title: "키워드 관리", url: "/portal/keywords", icon: Search },
+  { title: "분석 리포트", url: "/portal/reports", icon: BarChart3 },
+  { title: "알림 센터", url: "/portal/notifications", icon: Bell },
   { title: "설정", url: "/portal/settings", icon: Settings },
 ];
 
@@ -34,6 +33,7 @@ interface PortalShellProps {
   userId: string;
   clientId: string;
   brandName: string;
+  unreadNotificationCount?: number;
 }
 
 export function PortalShell({
@@ -43,6 +43,7 @@ export function PortalShell({
   userId,
   clientId,
   brandName,
+  unreadNotificationCount = 0,
 }: PortalShellProps) {
   const pathname = usePathname();
   const router = useRouter();
@@ -84,7 +85,7 @@ export function PortalShell({
                 <Link
                   key={item.url}
                   href={item.url}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm transition-colors ${
+                  className={`relative flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm transition-colors ${
                     isActive(item.url)
                       ? "bg-emerald-50 text-emerald-700 font-medium"
                       : "text-gray-600 hover:bg-gray-100"
@@ -92,6 +93,11 @@ export function PortalShell({
                 >
                   <item.icon className="h-4 w-4" />
                   {item.title}
+                  {item.url === "/portal/notifications" && unreadNotificationCount > 0 && (
+                    <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
+                      {unreadNotificationCount > 99 ? "99+" : unreadNotificationCount}
+                    </span>
+                  )}
                 </Link>
               ))}
             </nav>
@@ -122,7 +128,7 @@ export function PortalShell({
             <Link
               key={item.url}
               href={item.url}
-              className={`flex flex-col items-center gap-0.5 px-3 py-1 text-xs ${
+              className={`relative flex flex-col items-center gap-0.5 px-3 py-1 text-xs ${
                 isActive(item.url)
                   ? "text-emerald-600 font-medium"
                   : "text-gray-400"
@@ -130,6 +136,11 @@ export function PortalShell({
             >
               <item.icon className="h-5 w-5" />
               {item.title}
+              {item.url === "/portal/notifications" && unreadNotificationCount > 0 && (
+                <span className="absolute -top-0.5 right-0 min-w-[16px] h-[16px] px-0.5 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center">
+                  {unreadNotificationCount > 99 ? "99+" : unreadNotificationCount}
+                </span>
+              )}
             </Link>
           ))}
         </div>

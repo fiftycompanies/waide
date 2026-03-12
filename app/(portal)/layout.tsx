@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { PortalShell } from "@/components/portal/portal-shell";
 import { PortalPendingPage } from "@/components/portal/portal-pending";
 import { KakaoFloatingButton } from "@/components/portal/kakao-floating-button";
+import { getUnreadCount } from "@/lib/actions/notification-actions";
 
 export default async function PortalLayout({
   children,
@@ -20,6 +21,14 @@ export default async function PortalLayout({
     return <PortalPendingPage />;
   }
 
+  // Phase 4: 읽지 않은 알림 수 조회
+  let unreadCount = 0;
+  try {
+    unreadCount = await getUnreadCount(user.client_id);
+  } catch {
+    // 알림 테이블 미생성 시 graceful skip
+  }
+
   return (
     <>
       <PortalShell
@@ -28,6 +37,7 @@ export default async function PortalLayout({
         userId={user.id}
         clientId={user.client_id}
         brandName={user.client_brand_name || ""}
+        unreadNotificationCount={unreadCount}
       >
         {children}
       </PortalShell>

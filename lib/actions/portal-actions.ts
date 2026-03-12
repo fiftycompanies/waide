@@ -404,7 +404,7 @@ async function getPortalAEOScoreQuick(clientId: string): Promise<{
 
 // ── 포인트 잔액 조회 (포털용) ─────────────────────────────────────────
 
-async function getPortalPointBalance(clientId: string): Promise<number> {
+export async function getPortalPointBalance(clientId: string): Promise<number> {
   const db = createAdminClient();
   const { data } = await db
     .from("client_points")
@@ -737,5 +737,287 @@ export async function getPortalSettings(userId: string, clientId: string) {
     user,
     subscription,
     salesAgent,
+  };
+}
+
+// ── Phase 2: 마케팅 건강 점수 ──────────────────────────────────────────────
+
+export async function getPortalHealthScore(clientId: string) {
+  const db = createAdminClient();
+
+  // 블로그 점수: 최근 30일 published contents count × 가중치
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  const { count: publishedLast30 } = await db
+    .from("contents")
+    .select("id", { count: "exact", head: true })
+    .eq("client_id", clientId)
+    .eq("publish_status", "published")
+    .gte("published_at", thirtyDaysAgo.toISOString());
+  const blogScore = Math.min(100, (publishedLast30 || 0) * 12);
+
+  // SEO 점수: brand_analyses.seo_audit
+  const { data: latestAnalysis } = await db
+    .from("brand_analyses")
+    .select("marketing_score, seo_audit")
+    .eq("client_id", clientId)
+    .in("status", ["completed", "converted"])
+    .order("analyzed_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const seoAudit = latestAnalysis?.seo_audit as any;
+  const seoScore = seoAudit?.score ?? (latestAnalysis?.marketing_score ?? 0);
+
+  // SERP 점수: keyword_visibility에서 활성 키워드 점유율
+  const { data: activeKws } = await db
+    .from("keywords")
+    .select("id")
+    .eq("client_id", clientId)
+    .eq("status", "active");
+  const activeKwIds = (activeKws || []).map((k: { id: string }) => k.id);
+
+  let serpScore = 0;
+  if (activeKwIds.length > 0) {
+    const { data: visibility } = await db
+      .from("keyword_visibility")
+      .select("rank_pc")
+      .eq("client_id", clientId)
+      .in("keyword_id", activeKwIds)
+      .order("checked_at", { ascending: false })
+      .limit(activeKwIds.length);
+    const withRank = (visibility || []).filter((v: { rank_pc: number | null }) => v.rank_pc != null && v.rank_pc <= 30);
+    serpScore = visibility && visibility.length > 0
+      ? Math.round((withRank.length / visibility.length) * 100)
+      : 0;
+  }
+
+  // 플레이스 점수: 메인 키워드 3개 순위 기반
+  const { data: mainKws } = await db
+    .from("keywords")
+    .select("current_rank_naver_pc")
+    .eq("client_id", clientId)
+    .eq("status", "active")
+    .order("priority", { ascending: true })
+    .limit(3);
+  const placeScores = (mainKws || []).map((k: { current_rank_naver_pc: number | null }) => {
+    const r = k.current_rank_naver_pc;
+    if (r == null) return 0;
+    if (r <= 3) return 100;
+    if (r <= 10) return 80;
+    if (r <= 20) return 60;
+    if (r <= 30) return 40;
+    return 20;
+  });
+  const placeScore = placeScores.length > 0
+    ? Math.round(placeScores.reduce((a: number, b: number) => a + b, 0) / placeScores.length)
+    : 0;
+
+  // 가중 평균
+  const totalScore = Math.round(blogScore * 0.25 + seoScore * 0.25 + serpScore * 0.25 + placeScore * 0.25);
+  const grade = totalScore >= 90 ? "A" as const : totalScore >= 70 ? "B" as const : totalScore >= 50 ? "C" as const : totalScore >= 30 ? "D" as const : "F" as const;
+
+  // 전월 점수
+  const prevMonthScore = latestAnalysis?.marketing_score ?? null;
+  const delta = prevMonthScore != null ? totalScore - prevMonthScore : null;
+
+  return {
+    totalScore,
+    grade,
+    blog: { score: blogScore },
+    seo: { score: seoScore },
+    serp: { score: serpScore },
+    place: { score: placeScore },
+    prevMonthScore,
+    delta,
+  };
+}
+
+// ── Phase 2: 긴급 후킹 배너 조건 ──────────────────────────────────────────
+
+export async function getPortalUrgentBannerCondition(clientId: string) {
+  const db = createAdminClient();
+
+  // A: rank > 20 or 하락 키워드 존재
+  const { data: dangerKws } = await db
+    .from("keywords")
+    .select("id, keyword, current_rank_naver_pc")
+    .eq("client_id", clientId)
+    .eq("status", "active")
+    .or("current_rank_naver_pc.gt.20,current_rank_naver_pc.is.null")
+    .limit(1);
+
+  // B: 최근 발행이 14일 이전
+  const fourteenDaysAgo = new Date();
+  fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
+  const { data: recentPub } = await db
+    .from("contents")
+    .select("published_at")
+    .eq("client_id", clientId)
+    .eq("publish_status", "published")
+    .order("published_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const noRecentPublish = !recentPub?.published_at || new Date(recentPub.published_at) < fourteenDaysAgo;
+
+  // C: 이번달 발행 0
+  const monthStart = new Date();
+  monthStart.setDate(1);
+  monthStart.setHours(0, 0, 0, 0);
+  const { count: thisMonthCount } = await db
+    .from("contents")
+    .select("id", { count: "exact", head: true })
+    .eq("client_id", clientId)
+    .eq("publish_status", "published")
+    .gte("published_at", monthStart.toISOString());
+  const noPublishThisMonth = (thisMonthCount || 0) === 0;
+
+  // D: 잔여 포인트 3 이하
+  const balance = await getPortalPointBalance(clientId);
+  const lowQuota = balance <= 3;
+
+  // 위험 키워드 ID (가장 순위 나쁜 키워드)
+  const criticalKeywordId = dangerKws?.[0]?.id ?? null;
+
+  // 우선순위: rank_drop > no_publish_14d > no_publish_this_month > low_quota
+  if (dangerKws && dangerKws.length > 0) {
+    return {
+      show: true,
+      reason: "rank_drop" as const,
+      criticalKeywordId,
+      message: `"${dangerKws[0].keyword}" 키워드의 순위가 하락했습니다. 지금 콘텐츠를 발행하세요!`,
+    };
+  }
+  if (noRecentPublish) {
+    return {
+      show: true,
+      reason: "no_publish_14d" as const,
+      criticalKeywordId,
+      message: "최근 14일간 발행된 콘텐츠가 없습니다. 꾸준한 발행이 순위 유지의 핵심입니다!",
+    };
+  }
+  if (noPublishThisMonth) {
+    return {
+      show: true,
+      reason: "no_publish_this_month" as const,
+      criticalKeywordId,
+      message: "이번 달 아직 콘텐츠를 발행하지 않았습니다. 지금 시작하세요!",
+    };
+  }
+  if (lowQuota) {
+    return {
+      show: true,
+      reason: "low_quota" as const,
+      criticalKeywordId: null,
+      message: `잔여 포인트가 ${balance}개 남았습니다. 플랜을 업그레이드하세요.`,
+    };
+  }
+
+  return { show: false, reason: null, criticalKeywordId: null, message: "" };
+}
+
+// ── Phase 2: SERP 트래킹 페이지 데이터 ─────────────────────────────────────
+
+export async function getPortalSerpPage(clientId: string) {
+  const db = createAdminClient();
+
+  // 활성 키워드 목록
+  const { data: keywords } = await db
+    .from("keywords")
+    .select("id, keyword, current_rank_naver_pc, current_rank_naver_mo, current_rank_google")
+    .eq("client_id", clientId)
+    .eq("status", "active")
+    .order("created_at", { ascending: false });
+
+  if (!keywords || keywords.length === 0) {
+    return { keywords: [], missingKeywords: [], criticalKeywordId: null };
+  }
+
+  // keyword_visibility 최근 7일 데이터
+  const sevenDaysAgo = new Date();
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+  const kwIds = keywords.map((k: { id: string }) => k.id);
+
+  const { data: visibilityData } = await db
+    .from("keyword_visibility")
+    .select("keyword_id, rank_pc, rank_google, checked_at")
+    .eq("client_id", clientId)
+    .in("keyword_id", kwIds)
+    .gte("checked_at", sevenDaysAgo.toISOString())
+    .order("checked_at", { ascending: true });
+
+  // 키워드별 최신 발행일
+  const { data: latestContents } = await db
+    .from("contents")
+    .select("keyword_id, published_at, published_url")
+    .eq("client_id", clientId)
+    .eq("publish_status", "published")
+    .in("keyword_id", kwIds)
+    .order("published_at", { ascending: false });
+
+  // 키워드별 데이터 매핑
+  const missingKeywords: string[] = [];
+  let criticalKeywordId: string | null = null;
+  let worstRank = 0;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const keywordResults = keywords.map((kw: any) => {
+    const kwVisibility = (visibilityData || []).filter(
+      (v: { keyword_id: string }) => v.keyword_id === kw.id
+    );
+
+    // Sparkline: 최근 7일 네이버 PC 순위
+    const sparkline = kwVisibility.map((v: { rank_pc: number | null }) => v.rank_pc ?? 0);
+    while (sparkline.length < 7) sparkline.unshift(0);
+    const last7 = sparkline.slice(-7);
+
+    // 순위 변화 (네이버)
+    const currentRank = kw.current_rank_naver_pc;
+    const prevRank = kwVisibility.length >= 2 ? kwVisibility[kwVisibility.length - 2]?.rank_pc : null;
+    const rankChange = currentRank != null && prevRank != null ? prevRank - currentRank : null;
+
+    // 상태 배지
+    let statusBadge: "top" | "mid" | "danger" | "invisible" = "invisible";
+    if (currentRank != null) {
+      if (currentRank <= 10) statusBadge = "top";
+      else if (currentRank <= 30) statusBadge = "mid";
+      else if (currentRank <= 50) statusBadge = "danger";
+    }
+
+    // 누락 키워드 (null or >= 50)
+    if (currentRank == null || currentRank >= 50) {
+      missingKeywords.push(kw.keyword);
+    }
+
+    // 가장 위험한 키워드 추적
+    if (currentRank != null && currentRank > worstRank) {
+      worstRank = currentRank;
+      criticalKeywordId = kw.id;
+    } else if (currentRank == null && !criticalKeywordId) {
+      criticalKeywordId = kw.id;
+    }
+
+    // 최근 발행 정보
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const latestContent = (latestContents || []).find((c: any) => c.keyword_id === kw.id);
+
+    return {
+      id: kw.id,
+      keyword: kw.keyword,
+      platform: "naver" as const,
+      currentRank: currentRank ?? null,
+      rankGoogle: kw.current_rank_google ?? null,
+      rankChange,
+      sparkline: last7,
+      publishedUrl: latestContent?.published_url ?? null,
+      statusBadge,
+      lastPublishedAt: latestContent?.published_at ?? null,
+    };
+  });
+
+  return {
+    keywords: keywordResults,
+    missingKeywords,
+    criticalKeywordId,
   };
 }

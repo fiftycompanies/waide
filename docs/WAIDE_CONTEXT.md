@@ -24,17 +24,22 @@
 
 | 경로 | 파일 | 설명 |
 |------|------|------|
-| `/portal` | `app/(portal)/portal/page.tsx` (676줄) | 대시보드 — KPI 4종, 브랜드 요약, 온보딩 체크리스트, 키워드 순위, 점유율, AEO 스코어, 마케팅 점수, 최근 활동 |
-| `/portal/keywords` | `app/(portal)/portal/keywords/page.tsx` (537줄) | 키워드 관리 — 3탭(활성/AI추천/보관), 승인/거절, 키워드 추가, AI 추천 받기, 전략 섹션 |
-| `/portal/contents` | `app/(portal)/portal/contents/page.tsx` | 콘텐츠 현황 — 상태 필터, 상세보기, QC 결과 |
-| `/portal/reports` | `app/(portal)/portal/reports/page.tsx` | 월간 리포트 — 발행추이 차트, 키워드 성장, 순위 현황, AEO 노출, PDF 다운로드 |
+| `/portal` | `app/(portal)/portal/page.tsx` | 대시보드 — 긴급배너, KPI 4종, 건강점수카드(블로그/SEO/SERP/플레이스), 브랜드 요약, 온보딩 체크리스트, 키워드 순위, 점유율, AEO 스코어, 최근 활동 |
+| `/portal/serp` | `app/(portal)/portal/serp/page.tsx` | SERP 트래킹 — 키워드 순위 테이블, 스파크라인, 30일 차트, 키워드 추가/삭제, 누락 키워드 배너 |
+| `/portal/blog` | `app/(portal)/portal/blog/page.tsx` | 블로그 관리 통합 — 4탭(블로그목록/AI작성/자동발행설정/콘텐츠관리), server component + `PortalBlogUnifiedClient` |
+| `/portal/blog/write` | `app/(portal)/portal/blog/write/page.tsx` | AI 블로그 작성 V2 — 4단계 플로우(키워드선택/제목생성/본문편집+SEO체크/발행설정+예약발행), `PortalWriteV2Client` |
+| `/portal/blog/[id]` | `app/(portal)/portal/blog/[id]/page.tsx` | 발행글 상세 — `PortalBlogPostDetail` (본문 미리보기, 발행 후 순위 추이 차트, AI 인사이트, 발행 이력, AI 보완 작성 버튼) |
+| `/portal/keywords` | `app/(portal)/portal/keywords/page.tsx` | 키워드 관리 — 5탭(활성/AI추천/보관/검색량조회/키워드전략), 승인/거절, 키워드 추가, AI 추천 받기 |
+| `/portal/reports` | `app/(portal)/portal/reports/page.tsx` | 분석 리포트 — 월간 성과 요약, 발행vs순위 상관 차트, 발행추이 차트, 키워드 성장, 순위 현황, AEO 노출, PDF 다운로드 |
+| `/portal/notifications` | `app/(portal)/portal/notifications/page.tsx` | 알림 센터 — 알림 피드(5종류), 알림 설정(종류별 토글+이메일), `PortalNotificationsClient` |
 | `/portal/settings` | `app/(portal)/portal/settings/page.tsx` | 설정 — 프로필, 비밀번호, 구독 정보 |
-| `/portal/blog` | `app/(portal)/portal/blog/page.tsx` | 블로그 관리 |
-| `/portal/write` | `app/(portal)/portal/write/page.tsx` | 콘텐츠 작성 |
+| `/portal/analysis` | `app/(portal)/portal/analysis/page.tsx` | **리다이렉트** → `/portal` |
+| `/portal/contents` | `app/(portal)/portal/contents/page.tsx` | **리다이렉트** → `/portal/blog?tab=contents` |
+| `/portal/write` | `app/(portal)/portal/write/page.tsx` | **리다이렉트** → `/portal/blog/write` |
 
 ### 포털 레이아웃/유틸
 
-- `app/(portal)/portal/layout.tsx` — 포털 레이아웃 (meta 태그로 clientId 전달)
+- `app/(portal)/layout.tsx` — 포털 레이아웃 (meta 태그로 clientId 전달, unreadNotificationCount 서버 조회 → PortalShell prop)
 - `app/(portal)/portal/loading.tsx` — 로딩 스피너
 - `app/(portal)/portal/error.tsx` — 에러 바운더리
 
@@ -44,12 +49,19 @@
 
 | 파일 | 설명 |
 |------|------|
-| `components/portal/portal-shell.tsx` | 포털 셸 (네비게이션, meta 태그 clientId/userId) |
+| `components/portal/portal-shell.tsx` | 포털 셸 (네비게이션 7항목: 대시보드/SERP트래킹/블로그관리/키워드관리/분석리포트/알림센터/설정, unreadNotificationCount 뱃지) |
+| `components/portal/portal-blog-unified-client.tsx` | 블로그 관리 통합 (4탭: 블로그목록/AI작성/자동발행설정/콘텐츠관리) |
+| `components/portal/portal-blog-post-detail.tsx` | 발행글 상세 (본문 미리보기, 발행 후 순위 추이 차트(Recharts), AI 인사이트, 발행 이력, AI 보완 작성 버튼) |
+| `components/portal/portal-notifications-client.tsx` | 알림 센터 (알림 피드 5종류, 타입별 아이콘/CTA, 알림 설정 토글, 상대시간 표시) |
+| `components/portal/portal-serp-client.tsx` | SERP 트래킹 (키워드 순위 테이블, 스파크라인, 30일 차트, 키워드 추가/삭제) |
 | `components/portal/portal-pending.tsx` | client_id 미연결 사용자 대기 화면 |
 | `components/portal/portal-contents-client.tsx` | 콘텐츠 현황 클라이언트 컴포넌트 |
 | `components/portal/portal-blog-client.tsx` | 블로그 관리 클라이언트 컴포넌트 |
-| `components/portal/portal-write-client.tsx` | 콘텐츠 작성 클라이언트 컴포넌트 |
-| `components/portal/analysis-required-banner.tsx` | 분석 시작 배너 (URL 입력 + runBrandAnalysis) |
+| `components/portal/portal-write-client.tsx` | 콘텐츠 작성 클라이언트 컴포넌트 (V1, 유지) |
+| `components/portal/portal-write-v2-client.tsx` | AI 블로그 작성 V2 (4단계: 키워드선택/제목생성/본문편집+SEO체크/발행설정+예약발행) |
+| `components/portal/analysis-required-banner.tsx` | 분석 시작 배너 (URL 입력 + runBrandAnalysis + 완료 시 인라인 결과 표시) |
+| `components/analysis/ScoreGauge.tsx` | 공유 점수 게이지 (dark/light variant, SVG 원형 차트) |
+| `components/analysis/AnalysisResultView.tsx` | 공유 분석 결과 뷰 (portal/public variant, compact 모드) |
 | `components/portal/keyword-detail-modal.tsx` | 키워드 상세 모달 |
 | `components/portal/keyword-occupancy-section.tsx` | 키워드 점유율 섹션 (진행바 + 칩) |
 | `components/portal/publish-url-modal.tsx` | 발행 URL 입력 모달 |
@@ -63,13 +75,14 @@
 
 | 파일 | 주요 함수 |
 |------|----------|
-| `portal-actions.ts` | `getPortalDashboardV2()`, `getPortalKeywordsV2()`, `getPortalContentsV2()`, `getPortalReportV2()`, `getPortalSettings()`, `getPortalPointBalance()` |
+| `portal-actions.ts` | `getPortalDashboardV2()`, `getPortalKeywordsV2()`, `getPortalContentsV2()`, `getPortalReportV2()`, `getPortalSettings()`, `getPortalPointBalance()`, `getPortalHealthScore()`, `getPortalUrgentBannerCondition()`, `getPortalSerpPage()` |
 | `keyword-expansion-actions.ts` | `approveSuggestedKeyword()`, `rejectSuggestedKeyword()`, `bulkApproveSuggestedKeywords()` |
 | `campaign-planning-actions.ts` | `suggestKeywordsForClient()`, `addManualKeyword()`, `triggerContentGeneration()` |
 | `keyword-actions.ts` | `updateKeywordStatus()`, `createKeyword()`, `triggerClientSerpCheck()`, `getClientRankings()` |
-| `analysis-brand-actions.ts` | `runBrandAnalysis()`, `getAnalysisStatus()` |
+| `analysis-brand-actions.ts` | `runBrandAnalysis()`, `getAnalysisStatus()`, `getBrandAnalysis()` |
 | `auth-actions.ts` | `portalSignIn()`, `portalSignUp()`, `portalSignOut()`, `updateUserProfile()`, `changeUserPassword()` |
 | `question-actions.ts` | `getPortalQuestions()` |
+| `notification-actions.ts` | `getNotifications()`, `getUnreadCount()`, `markAllRead()`, `markRead()`, `createNotification()`, `getNotificationSettings()`, `updateNotificationSettings()` |
 
 ### 어드민 관련
 
@@ -129,7 +142,7 @@
 | `clients` | 고객사 (최상위 부모) | brand_persona JSONB, onboarding_checklist JSONB, metadata JSONB |
 | `users` | 포털 사용자 (Supabase Auth) | client_id FK → clients, role CHECK |
 | `keywords` | SEO 키워드 | status: active/suggested/paused/archived, metadata JSONB |
-| `contents` | 생성된 콘텐츠 | metadata JSONB (qc_score, qc_result), content_type CHECK |
+| `contents` | 생성된 콘텐츠 | metadata JSONB (qc_score, qc_result), content_type CHECK, scheduled_at TIMESTAMPTZ |
 | `brand_analyses` | 브랜드 분석 결과 | analysis_result JSONB, status: pending/analyzing/completed/failed/converted |
 | `keyword_visibility` | 키워드 노출 점수 | client_id 보유, keywords FK 조인으로 키워드명 매핑 |
 | `blog_accounts` | 블로그 계정 | platform: naver/tistory/wordpress/medium/brunch |
@@ -160,6 +173,8 @@
 | `admin_users` | 어드민 계정 |
 | `invitations` | 초대 토큰 (7일 만료) |
 | `error_logs` | 에러 모니터링 |
+| `notifications` | 알림 (5종류: rank_drop/rank_rise/publish_complete/quota_warning/auto_publish_confirm, is_read 플래그) |
+| `notification_settings` | 알림 설정 (client_id UNIQUE, settings JSONB: 종류별 토글 + email_enabled) |
 
 ### 인프라 테이블
 
@@ -171,7 +186,7 @@
 | `content_benchmarks` | 벤치마크 캐시 (7일 TTL) |
 | `scoring_criteria` | 채점 기준 |
 | `settings` | 전역 설정 (API키, 가중치) |
-| `auto_publish_settings` | 자동 발행 설정 |
+| `auto_publish_settings` | 자동 발행 설정 (settings JSONB: keyword_pool, schedule, confirm_count) |
 | `evolving_knowledge` | 진화지식 패턴 |
 
 ---
@@ -185,3 +200,12 @@
 5. **프롬프트 동적 로딩** — agent_prompts 테이블에서 런타임 로딩 (코드 하드코딩 금지)
 6. **JSONB 업데이트** — SELECT → spread → UPDATE 순서
 7. **keyword_visibility 사용** — serp_results에는 client_id 없음, 클라이언트별 순위 데이터는 keyword_visibility 테이블 사용
+8. **알림 비차단 설계** — 모든 createNotification 호출은 try/catch 래핑, 실패해도 서비스 파이프라인 블로킹 금지
+
+---
+
+## 8. API Routes (Phase 4 추가)
+
+| API 경로 | 메서드 | 기능 |
+|----------|--------|------|
+| `/api/portal/post-insight` | POST | AI 인사이트 코멘트 (Claude Haiku, 발행 7일+ 경과 콘텐츠, contents.metadata.insight 캐시) |

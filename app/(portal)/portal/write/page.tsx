@@ -1,7 +1,5 @@
-"use client";
-
-import PortalWriteClient from "@/components/portal/portal-write-client";
+import { redirect } from "next/navigation";
 
 export default function PortalWritePage() {
-  return <PortalWriteClient />;
+  redirect("/portal/blog/write");
 }
