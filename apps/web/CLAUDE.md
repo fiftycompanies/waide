@@ -4,12 +4,14 @@
 - Vercel 배포는 루트 레포(fiftycompanies/waide) main 브랜치 push로 자동 트리거됨
 - apps/web/.git 이 존재하면 즉시 제거 후 루트 기준으로 작업
 
-## ⚠️ 파일 구조 규칙 — 심볼릭 링크 (절대 위반 금지)
-- **소스 코드 원본은 오직 `apps/web/` 안에만 존재** — 루트의 `app/`, `lib/`, `components/`, `public/`, `prisma/`, `middleware.ts`, `next.config.ts`, `tsconfig.json`, `postcss.config.mjs`, `package.json` 은 모두 `apps/web/` 심볼릭 링크
-- 루트에 직접 파일 생성/복사 절대 금지 — 반드시 `apps/web/` 안에서 편집
-- 새 최상위 디렉토리/파일 추가 시: `apps/web/`에 생성 후, 루트에 심볼릭 링크 (`ln -s apps/web/xxx xxx`)
-- Vercel은 루트에서 빌드하므로, 루트 심볼릭 링크가 깨지면 배포 실패
-- `tsconfig.json`의 `exclude`에 `"apps"` 포함 필수 — 심볼릭 링크 + 실제 디렉토리 이중 참조 방지
+## ⚠️ 파일 구조 규칙 — 단일 소스 (절대 위반 금지)
+- **소스 코드 원본은 루트에만 존재** — `app/`, `lib/`, `components/`, `public/`, `prisma/`, `middleware.ts`, `next.config.ts`, `tsconfig.json`, `postcss.config.mjs`, `package.json`
+- `apps/web/`의 위 파일들은 루트를 가리키는 심볼릭 링크 (`../../app` 등)
+- `apps/web/`에만 존재하는 파일: `.env.local`, `.env`, `CLAUDE.md`, `.claude/`, `DEPLOY.md`, `node_modules/`
+- 파일 편집은 루트 기준. `apps/web/`에서 편집해도 심볼릭 링크를 통해 동일 파일 수정됨
+- Vercel은 루트에서 빌드 — 루트 파일이 실체이므로 동기화 문제 없음
+- `apps/web/`에 별도 실체 파일 생성 절대 금지 (심볼릭 링크 구조 파괴)
+- `tsconfig.json`의 `exclude`에 `"apps"` 포함 필수 — 이중 참조 방지
 
 # Waide (AI Hospitality Aide) — 서비스 IA
 
@@ -1058,7 +1060,7 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 - Playwright optional dependency: `import("playwright")` 하면 Turbopack이 번들링 시도 → `Function("m", "return import(m)")("playwright")` 사용 필수
 - Supabase query builder에는 `.catch()` 없음 → `.then(({ error }) => { if (error) ... })` 패턴 사용
 - AEO 추적 포인트 정책: 추적 자체는 무료, 콘텐츠 생성만 1포인트, 실패 시 refundPoints() 자동 환불
-- 루트 파일 이중 생성 금지: 루트의 app/lib/components 등은 `apps/web/`의 심볼릭 링크. 루트에 직접 파일 생성하면 Vercel 빌드와 로컬 tsc가 다른 파일을 참조하여 배포 실패. 반드시 `apps/web/` 안에서만 편집.
+- apps/web에 실체 파일 생성 금지: 소스 원본은 루트에만 존재. `apps/web/app`, `apps/web/lib` 등은 루트의 심볼릭 링크. apps/web에 별도 파일을 만들면 동기화 불일치로 Vercel 배포 실패.
 
 ---
 
