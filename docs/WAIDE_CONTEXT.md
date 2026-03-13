@@ -13,7 +13,7 @@
 | 백엔드 | Next.js Server Actions + API Routes |
 | DB | Supabase (PostgreSQL), `createAdminClient()` — service_role key, RLS 바이패스 |
 | AI | Claude API (Haiku 4.5), 프롬프트 동적 로딩 (agent_prompts 테이블) |
-| 인증 | 이중 구조: Supabase Auth (포털) + HMAC-SHA256 (어드민) |
+| 인증 | Supabase Auth 통합 (구글/카카오 OAuth) + HMAC 폴백(deprecated) |
 | 배포 | Vercel (icn1 서울) |
 | PDF | @react-pdf/renderer (NotoSansKR 한글 폰트) |
 | 이메일 | Resend + @react-email/components |
@@ -86,7 +86,7 @@
 | `campaign-planning-actions.ts` | `suggestKeywordsForClient()`, `addManualKeyword()`, `triggerContentGeneration()` |
 | `keyword-actions.ts` | `updateKeywordStatus()`, `createKeyword()`, `triggerClientSerpCheck()`, `getClientRankings()` |
 | `analysis-brand-actions.ts` | `runBrandAnalysis()`, `getAnalysisStatus()`, `getBrandAnalysis()` |
-| `auth-actions.ts` | `portalSignIn()`, `portalSignUp()`, `portalSignOut()`, `updateUserProfile()`, `changeUserPassword()` |
+| `auth-actions.ts` | `unifiedLogin()`, `portalSignUp()`, `portalSignOut()`, `updateUserProfile()`, `changeUserPassword()` |
 | `question-actions.ts` | `getPortalQuestions()` |
 | `notification-actions.ts` | `getNotifications()`, `getUnreadCount()`, `markAllRead()`, `markRead()`, `createNotification()`, `getNotificationSettings()`, `updateNotificationSettings()` |
 
@@ -176,7 +176,7 @@
 | `sales_agents` | 영업사원 |
 | `consultation_requests` | 상담 신청 |
 | `report_deliveries` | 월간 리포트 발송 이력 |
-| `admin_users` | 어드민 계정 |
+| `admin_users` | 어드민 계정 (DEPRECATED — Supabase Auth로 전환 중) |
 | `invitations` | 초대 토큰 (7일 만료) |
 | `error_logs` | 에러 모니터링 |
 | `notifications` | 알림 (5종류: rank_drop/rank_rise/publish_complete/quota_warning/auto_publish_confirm, is_read 플래그) |
@@ -202,7 +202,7 @@
 1. **모든 데이터는 `client_id` FK로 연결** — `clients`가 최상위 부모
 2. **Server Actions에서 `createAdminClient()` 사용** — service_role key, RLS 바이패스
 3. **포털 clientId 전달** — PortalShell에서 hidden meta 태그 → 클라이언트 컴포넌트에서 DOM 쿼리
-4. **이중 인증** — 어드민=HMAC-SHA256, 포털=Supabase Auth, 절대 혼용 금지
+4. **통합 인증** — Supabase Auth 단일 인증 (구글/카카오 OAuth 지원), HMAC 폴백은 deprecated (기존 admin_users 사용자 전환 완료까지 유지)
 5. **프롬프트 동적 로딩** — agent_prompts 테이블에서 런타임 로딩 (코드 하드코딩 금지)
 6. **JSONB 업데이트** — SELECT → spread → UPDATE 순서
 7. **keyword_visibility 사용** — serp_results에는 client_id 없음, 클라이언트별 순위 데이터는 keyword_visibility 테이블 사용

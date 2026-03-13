@@ -118,6 +118,15 @@
 - **변경**: 목록/생성/작업현황 3탭 (useSearchParams URL 기반 탭 네비게이션, 어드민 /contents와 동일 구조)
 - **커밋**: fa08dd3
 
+### [AUTH-1] 인증 완전 통합 — Supabase Auth 단일화 + 구글/카카오 OAuth ✅
+- **Phase 1**: `scripts/migrations/064_auth_unification.sql` — users.auth_provider 컬럼, viewer 역할 CHECK, handle_new_user 트리거
+- **Phase 2**: `lib/auth.ts` — isAdminRole(), isClientRole(), getEffectiveClientId() 헬퍼 추가, viewer 역할
+- **Phase 3**: `app/(public)/login/page.tsx` — 구글/카카오 OAuth 버튼 추가, `app/auth/callback/route.ts` 생성
+- **Phase 4**: `middleware.ts` — Supabase Auth 기본 + HMAC deprecated 폴백, 포털↔어드민 역할 격리
+- **Phase 5**: `lib/auth/admin-session.ts` — getAdminSession() Supabase Auth 기본 전환, `lib/actions/admin-actions.ts` — adminLogout() 양쪽 세션 클리어
+- **사전 조건**: Supabase Dashboard에서 구글/카카오 OAuth provider 활성화 + 064 마이그레이션 실행 필요
+- **커밋**: 968de06, 5a8a053, 6d1c34e, c1a4401, f47c44a
+
 ---
 
 ## 잠재 이슈 (코드에서 확인)

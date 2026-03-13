@@ -15,8 +15,8 @@
 
 # Waide (AI Hospitality Aide) — 서비스 IA
 
-> 최종 업데이트: 2026-03-07
-> 버전: Phase 6 완료 (자동 배포 엔진 — Tistory/WordPress/Medium)
+> 최종 업데이트: 2026-03-13
+> 버전: Phase AUTH-1 완료 (인증 통합 — Supabase Auth 단일화 + OAuth)
 
 ---
 
@@ -56,7 +56,7 @@
 9. 에이전트 프롬프트: agent_prompts 테이블에서 동적 로딩
 10. 질문하지 말고 합리적으로 판단하여 진행. 완료 후 결과만 요약.
 11. 매 작업 완료 시 이 CLAUDE.md도 함께 업데이트할 것.
-12. 인증 이중 구조: 어드민=HMAC-SHA256 (admins 테이블), 고객=Supabase Auth (users 테이블). 절대 혼용 금지.
+12. 인증 통합: Supabase Auth 단일 인증 (구글/카카오 OAuth). HMAC 폴백은 deprecated (기존 admin_users 사용자 전환 완료까지 유지). getAdminSession()은 Supabase Auth 우선 → HMAC 폴백 순서.
 13. users.role CHECK: 'super_admin'/'admin'/'sales'/'client_owner'/'client_member'
 14. subscriptions.status CHECK: 'trial'/'active'/'past_due'/'cancelled'/'paused'
 15. admin_users.role CHECK: 'super_admin'/'admin'/'sales'/'viewer' — 사이드바 메뉴 자동 필터링
@@ -84,7 +84,7 @@
 | 에이전트 | Python (LangGraph), OMC 3-티어 라우팅 |
 | 크론 | Vercel Cron |
 | 알림 | Slack Webhook API |
-| 인증 | Supabase Auth (고객 포털) + HMAC-SHA256 (어드민) — 이중 인증 |
+| 인증 | Supabase Auth 통합 (구글/카카오 OAuth) + HMAC 폴백(deprecated) |
 | PDF | @react-pdf/renderer (서버사이드 Buffer 생성, NotoSansKR 한글 폰트) |
 | 이메일 | Resend + @react-email/components (리포트 PDF 첨부 발송) |
 | 배포 | Vercel (icn1 서울, 프로덕션 배포 완료) |
@@ -904,6 +904,18 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
   - 프롬프트 레지스트리 10개: question_engine, seo_writer, aeo_qa_writer, aeo_list_writer, aeo_entity_writer, qc_agent, cmo_strategy, niche_keyword, mention_detection, aeo_type_judge
   - tsc --noEmit 통과
 
+- Phase AUTH-1: 인증 완전 통합 — Supabase Auth 단일화 + 구글/카카오 OAuth (2026-03-13)
+  - scripts/migrations/064_auth_unification.sql: users.auth_provider 컬럼 + role CHECK에 viewer 추가 + handle_new_user 트리거 + admin_users DEPRECATED
+  - lib/auth.ts: isAdminRole(), isClientRole(), getEffectiveClientId() 헬퍼 추가, UserRole에 'viewer' 추가
+  - app/(public)/login/page.tsx: 구글/카카오 OAuth 버튼 추가 (Supabase Auth signInWithOAuth), 소셜 → 이메일 순서
+  - app/auth/callback/route.ts: OAuth 콜백 (code→session 교환 → users.role 조회 → role 기반 리다이렉트)
+  - lib/actions/auth-actions.ts: unifiedLogin() username 로그인 deprecated 메시지 추가
+  - middleware.ts: Supabase Auth 기본 + HMAC deprecated 폴백, 포털↔어드민 역할 격리, /auth/callback 퍼블릭
+  - lib/auth/admin-session.ts: getAdminSession() Supabase Auth 우선 → HMAC 폴백, AdminPayload 인터페이스 유지
+  - lib/actions/admin-actions.ts: adminLogout() Supabase Auth + HMAC 쿠키 동시 클리어
+  - 사전 조건: Supabase Dashboard에서 구글/카카오 OAuth provider 활성화 + 064 마이그레이션 실행 필요
+  - tsc --noEmit 통과
+
 ### 설계 원칙
 
 1. **점수 = 룰 기반 고정** — 마케팅 점수(100점), 계정 등급, 키워드 난이도는 모두 Python/SQL 규칙 기반. AI는 해석·코멘트만 생성.
@@ -964,6 +976,7 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 | 16 | **Phase 4+5** | LLM 크롤링 + Mention Detection + AEO Score + 추적 큐 + 엔티티 콘텐츠 | ✅ 완료 |
 | 17 | **Phase 6** | 자동 배포 엔진 — Tistory/WordPress/Medium + OAuth + 자동발행 | ✅ 완료 |
 | 18 | **Phase 7-10** | 프롬프트 편집 + 진화지식 + 니치 키워드 + 검색량 + 리포트 AEO | ✅ 완료 |
+| 19 | **AUTH-1** | 인증 통합 — Supabase Auth 단일화 + 구글/카카오 OAuth + HMAC deprecated | ✅ 완료 |
 
 ### 미구현 (우선순위 순)
 
@@ -973,8 +986,7 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 | 3 | **구글 상위노출** (마케팅점수 15점 자리 비어있음) | 중간 |
 | 4 | **홈페이지 SEO/AEO 분석** (크롤링 → meta/schema/heading) | 중간 |
 | 5 | **검색량 트렌드 차트** (DataLab 12개월) | 낮음 |
-| 6 | **소셜 로그인** (카카오/구글/네이버 OAuth) | 낮음 |
-| 7 | **소스 매칭 AI** (규칙 기반 → AI 업그레이드) | 나중 |
+| 6 | **소스 매칭 AI** (규칙 기반 → AI 업그레이드) | 나중 |
 
 ---
 
@@ -1024,8 +1036,9 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 | 059 | llm_answers + mentions + aeo_scores + aeo_tracking_queue + aeo_tracking_settings 테이블 + point_transactions 'refund' + contents 'aeo_entity' | **SQL 생성 완료** |
 | 060 | blog_accounts 확장 (auth_type/access_token/api_key/is_default 등) + publications + auto_publish_settings 테이블 | **SQL 생성 완료** |
 | 061 | evolving_knowledge 확장 (knowledge_type/title/description/evidence/confidence/is_active/learned_at) + keywords 확장 (monthly_search_volume/pc_volume/mobile_volume/competition/volume_updated_at) | **SQL 생성 완료** |
+| 064 | AUTH 통합: users.auth_provider 컬럼 + role CHECK에 viewer 추가 + handle_new_user 트리거 + admin_users DEPRECATED 주석 | **SQL 생성 완료** |
 
-> ⚠️ 045~060: scripts/migrations/ 디렉토리에 SQL 파일 생성. Supabase Dashboard에서 실행 필요.
+> ⚠️ 045~064: scripts/migrations/ 디렉토리에 SQL 파일 생성. Supabase Dashboard에서 실행 필요.
 
 ---
 
