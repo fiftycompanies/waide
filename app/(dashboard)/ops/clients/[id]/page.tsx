@@ -20,6 +20,7 @@ import {
   Link2,
   Loader2,
   Mail,
+  MapPin,
   Minus,
   Play,
   Plus,
@@ -1340,9 +1341,161 @@ function AccountTab({ clientId }: { clientId: string }) {
   );
 }
 
+// ── Place Tab ──────────────────────────────────────────────────────────────
+
+interface PlaceStatsRecord {
+  measured_at: string;
+  visitor_review_count: number | null;
+  blog_review_count: number | null;
+  bookmark_count: number | null;
+}
+
+function PlaceTab({ clientId }: { clientId: string }) {
+  const [data, setData] = useState<PlaceStatsRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    import("@/lib/supabase/service").then((mod) => {
+      const db = mod.createAdminClient();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (db as any)
+        .from("place_stats_history")
+        .select("measured_at, visitor_review_count, blog_review_count, bookmark_count")
+        .eq("client_id", clientId)
+        .order("measured_at", { ascending: false })
+        .limit(30)
+        .then(({ data: rows }: { data: PlaceStatsRecord[] | null }) => {
+          setData(rows ?? []);
+          setLoading(false);
+        });
+    });
+  }, [clientId]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (data.length === 0) {
+    return (
+      <div className="text-center py-12 text-muted-foreground">
+        <MapPin className="h-8 w-8 mx-auto mb-2 opacity-40" />
+        <p className="text-sm">플레이스 통계 데이터가 없습니다</p>
+        <p className="text-xs mt-1 text-muted-foreground/70">일간 수집 크론이 실행되면 리뷰수/저장수 이력이 표시됩니다</p>
+      </div>
+    );
+  }
+
+  // 최신(첫 번째) vs 이전(마지막) 비교
+  const latest = data[0];
+  const oldest = data[data.length - 1];
+  const reviewDelta = (latest.visitor_review_count ?? 0) - (oldest.visitor_review_count ?? 0);
+  const blogDelta = (latest.blog_review_count ?? 0) - (oldest.blog_review_count ?? 0);
+  const bookmarkDelta = (latest.bookmark_count ?? 0) - (oldest.bookmark_count ?? 0);
+
+  // 차트용 오름차순 데이터
+  const sorted = [...data].reverse();
+  const chartW = 600;
+  const chartH = 140;
+  const pad = { top: 20, right: 20, bottom: 25, left: 40 };
+  const w = chartW - pad.left - pad.right;
+  const h = chartH - pad.top - pad.bottom;
+
+  const allVals = sorted.map((d) => d.visitor_review_count ?? 0);
+  const maxVal = Math.max(...allVals, 1);
+  const minVal = Math.min(...allVals);
+  const range = maxVal - minVal || 1;
+
+  const getX = (i: number) => pad.left + (sorted.length > 1 ? (i / (sorted.length - 1)) * w : w / 2);
+  const getY = (v: number) => pad.top + h - ((v - minVal) / range) * h;
+
+  const points = sorted.map((d, i) => `${getX(i)},${getY(d.visitor_review_count ?? 0)}`).join(" ");
+
+  return (
+    <div className="space-y-6">
+      {/* Stat Cards */}
+      <div className="grid grid-cols-3 gap-4">
+        {[
+          { label: "방문자 리뷰", value: latest.visitor_review_count, delta: reviewDelta },
+          { label: "블로그 리뷰", value: latest.blog_review_count, delta: blogDelta },
+          { label: "저장수", value: latest.bookmark_count, delta: bookmarkDelta },
+        ].map((stat) => (
+          <div key={stat.label} className="border rounded-lg p-4 text-center">
+            <p className="text-xs text-muted-foreground">{stat.label}</p>
+            <p className="text-2xl font-bold mt-1">{stat.value ?? "-"}</p>
+            {stat.delta !== 0 && (
+              <p className={`text-xs mt-0.5 flex items-center justify-center gap-0.5 ${stat.delta > 0 ? "text-emerald-600" : "text-red-500"}`}>
+                {stat.delta > 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+                {stat.delta > 0 ? "+" : ""}{stat.delta} ({data.length}일)
+              </p>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* 30-day chart */}
+      <div className="border rounded-lg p-4">
+        <h3 className="font-semibold text-sm mb-3">방문자 리뷰 추이 (최근 {sorted.length}일)</h3>
+        <svg viewBox={`0 0 ${chartW} ${chartH}`} className="w-full max-w-[600px]">
+          {/* Grid */}
+          {[minVal, Math.round((minVal + maxVal) / 2), maxVal].map((v) => (
+            <g key={v}>
+              <line x1={pad.left} y1={getY(v)} x2={chartW - pad.right} y2={getY(v)} stroke="#e5e7eb" strokeDasharray="4,4" />
+              <text x={pad.left - 6} y={getY(v) + 4} textAnchor="end" className="text-[10px] fill-gray-400">{v}</text>
+            </g>
+          ))}
+          {/* Date labels */}
+          {sorted.filter((_, i) => i % Math.max(1, Math.floor(sorted.length / 5)) === 0).map((d) => {
+            const idx = sorted.indexOf(d);
+            const date = new Date(d.measured_at);
+            return (
+              <text key={idx} x={getX(idx)} y={chartH - 5} textAnchor="middle" className="text-[10px] fill-gray-400">
+                {`${date.getMonth() + 1}/${date.getDate()}`}
+              </text>
+            );
+          })}
+          {/* Line */}
+          <polyline fill="none" stroke="#8b5cf6" strokeWidth="2" points={points} />
+          {/* Dots */}
+          {sorted.map((d, i) => (
+            <circle key={i} cx={getX(i)} cy={getY(d.visitor_review_count ?? 0)} r="3" fill="white" stroke="#8b5cf6" strokeWidth="1.5" />
+          ))}
+        </svg>
+      </div>
+
+      {/* Data table */}
+      <div className="border rounded-lg overflow-hidden">
+        <table className="w-full text-sm">
+          <thead className="bg-muted/50 border-b">
+            <tr>
+              <th className="text-left py-2.5 px-3 font-medium text-muted-foreground">날짜</th>
+              <th className="text-center py-2.5 px-3 font-medium text-muted-foreground">방문자 리뷰</th>
+              <th className="text-center py-2.5 px-3 font-medium text-muted-foreground">블로그 리뷰</th>
+              <th className="text-center py-2.5 px-3 font-medium text-muted-foreground">저장수</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.slice(0, 15).map((d) => (
+              <tr key={d.measured_at} className="border-b last:border-0 hover:bg-muted/30">
+                <td className="py-2 px-3 text-muted-foreground">{new Date(d.measured_at).toLocaleDateString("ko-KR")}</td>
+                <td className="py-2 px-3 text-center font-medium">{d.visitor_review_count ?? "-"}</td>
+                <td className="py-2 px-3 text-center font-medium">{d.blog_review_count ?? "-"}</td>
+                <td className="py-2 px-3 text-center font-medium">{d.bookmark_count ?? "-"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 // ── Main Page ──────────────────────────────────────────────────────────────
 
-type TabKey = "overview" | "keywords" | "contents" | "analyses" | "persona" | "subscription" | "onboarding" | "rankings" | "reports" | "account";
+type TabKey = "overview" | "keywords" | "contents" | "analyses" | "persona" | "subscription" | "onboarding" | "rankings" | "reports" | "account" | "place";
 
 export default function ClientDetailPage() {
   const params = useParams();
@@ -1396,6 +1549,7 @@ export default function ClientDetailPage() {
     { key: "onboarding", label: "온보딩", icon: CheckSquare },
     { key: "account", label: "계정", icon: Link2 },
     { key: "reports", label: "리포트", icon: FileBarChart },
+    { key: "place", label: "플레이스", icon: MapPin },
   ];
 
   return (
@@ -1485,6 +1639,7 @@ export default function ClientDetailPage() {
       {activeTab === "onboarding" && <OnboardingTab client={client} />}
       {activeTab === "account" && <AccountTab clientId={client.id} />}
       {activeTab === "reports" && <ReportTab clientId={client.id} />}
+      {activeTab === "place" && <PlaceTab clientId={client.id} />}
 
       <BrandAnalysisModal
         open={showAnalysisModal}

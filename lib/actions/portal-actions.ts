@@ -462,8 +462,22 @@ export async function getPortalKeywordsV2(clientId: string) {
 
 // ── 포털 콘텐츠 V2 데이터 (Phase P-1) ─────────────────────────────────
 
-export async function getPortalContentsV2(clientId: string) {
+export async function getPortalContentsV2(
+  clientId: string,
+  options?: { page?: number; pageSize?: number },
+) {
   const supabase = createAdminClient();
+  const page = options?.page ?? 1;
+  const pageSize = options?.pageSize ?? 20;
+  const from = (page - 1) * pageSize;
+  const to = from + pageSize - 1;
+
+  // 총 건수 조회
+  const { count } = await (supabase as ReturnType<typeof createAdminClient>)
+    .from("contents")
+    .select("id", { count: "exact", head: true })
+    .eq("client_id", clientId);
+
   const { data, error } = await (supabase as ReturnType<typeof createAdminClient>)
     .from("contents")
     .select(`
@@ -473,15 +487,15 @@ export async function getPortalContentsV2(clientId: string) {
     `)
     .eq("client_id", clientId)
     .order("created_at", { ascending: false })
-    .limit(100);
+    .range(from, to);
 
   if (error) {
     console.error("[portal-actions] getPortalContentsV2 error:", error);
-    return [];
+    return { contents: [], total: 0, page, pageSize };
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return (data ?? []).map((c: any) => ({
+  const contents = (data ?? []).map((c: any) => ({
     id: c.id as string,
     title: c.title as string,
     keyword: (c.keywords?.keyword ?? null) as string | null,
@@ -496,6 +510,8 @@ export async function getPortalContentsV2(clientId: string) {
     qcResult: (c.metadata?.qc_result ?? null) as unknown,
     rewriteHistory: (c.metadata?.rewrite_history ?? null) as unknown,
   }));
+
+  return { contents, total: count ?? 0, page, pageSize };
 }
 
 // ── 포털 리포트 V2 데이터 (Phase P-1) ─────────────────────────────────
@@ -941,7 +957,7 @@ export async function getPortalSerpPage(clientId: string) {
 
   const { data: visibilityData } = await db
     .from("keyword_visibility")
-    .select("keyword_id, rank_pc, rank_google, checked_at")
+    .select("keyword_id, rank_pc, rank_google, naver_mention_count, google_mention_count, checked_at")
     .eq("client_id", clientId)
     .in("keyword_id", kwIds)
     .gte("checked_at", sevenDaysAgo.toISOString())
@@ -1002,6 +1018,9 @@ export async function getPortalSerpPage(clientId: string) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const latestContent = (latestContents || []).find((c: any) => c.keyword_id === kw.id);
 
+    // 최신 mention_count (마지막 visibility 레코드에서)
+    const latestVisibility = kwVisibility.length > 0 ? kwVisibility[kwVisibility.length - 1] : null;
+
     return {
       id: kw.id,
       keyword: kw.keyword,
@@ -1013,6 +1032,8 @@ export async function getPortalSerpPage(clientId: string) {
       publishedUrl: latestContent?.published_url ?? null,
       statusBadge,
       lastPublishedAt: latestContent?.published_at ?? null,
+      naverMentionCount: latestVisibility?.naver_mention_count ?? 0,
+      googleMentionCount: latestVisibility?.google_mention_count ?? 0,
     };
   });
 

@@ -787,12 +787,13 @@ export async function deactivateKeyword(
   try {
     const db = createAdminClient();
 
-    // is_primary 확인
+    // is_primary 확인 (client_id 소유권 검증 포함)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: kw } = await (db as any)
       .from("keywords")
       .select("is_primary")
       .eq("id", keywordId)
+      .eq("client_id", clientId)
       .single();
 
     if (kw?.is_primary) {

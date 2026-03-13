@@ -33,6 +33,8 @@ interface SerpKeyword {
   publishedUrl: string | null;
   statusBadge: "top" | "mid" | "danger" | "invisible";
   lastPublishedAt: string | null;
+  naverMentionCount?: number;
+  googleMentionCount?: number;
 }
 
 interface Props {
@@ -291,6 +293,7 @@ export default function PortalSerpClient({ clientId }: Props) {
                   <th className="text-center py-3 px-4 font-medium text-gray-600 hidden md:table-cell">변화</th>
                   <th className="text-center py-3 px-4 font-medium text-gray-600 hidden lg:table-cell">7일 추이</th>
                   <th className="text-center py-3 px-4 font-medium text-gray-600">상태</th>
+                  <th className="text-center py-3 px-4 font-medium text-gray-600 hidden lg:table-cell">점유</th>
                   <th className="text-center py-3 px-4 font-medium text-gray-600 hidden md:table-cell">최근 발행</th>
                   <th className="text-center py-3 px-4 font-medium text-gray-600">액션</th>
                 </tr>
@@ -349,6 +352,13 @@ export default function PortalSerpClient({ clientId }: Props) {
                           {statusBadgeLabel(kw.statusBadge)}
                         </span>
                       </td>
+                      <td className="py-3 px-4 text-center hidden lg:table-cell">
+                        <div className="flex items-center justify-center gap-1.5 text-xs">
+                          <span className="text-green-600 font-medium" title="네이버 점유">N {kw.naverMentionCount ?? 0}</span>
+                          <span className="text-gray-300">/</span>
+                          <span className="text-blue-600 font-medium" title="구글 점유">G {kw.googleMentionCount ?? 0}</span>
+                        </div>
+                      </td>
                       <td className="py-3 px-4 text-center hidden md:table-cell">
                         <span className="text-xs text-gray-400">
                           {kw.lastPublishedAt ? new Date(kw.lastPublishedAt).toLocaleDateString("ko-KR") : "-"}
@@ -385,7 +395,7 @@ export default function PortalSerpClient({ clientId }: Props) {
                     {/* 30-day chart expand */}
                     {expandedKeywordId === kw.id && (
                       <tr key={`${kw.id}-chart`}>
-                        <td colSpan={8} className="px-4 py-4 bg-gray-50 border-b">
+                        <td colSpan={9} className="px-4 py-4 bg-gray-50 border-b">
                           {chartLoading ? (
                             <div className="flex items-center justify-center py-8">
                               <Loader2 className="h-5 w-5 animate-spin text-gray-400" />

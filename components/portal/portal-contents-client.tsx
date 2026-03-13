@@ -81,7 +81,9 @@ export default function PortalContentsClient() {
         getPortalContentsV2(cid),
         getPortalActiveJobs(cid),
       ]).then(([contentsData, jobsData]) => {
-        setContents(contentsData as ContentItem[]);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const items = Array.isArray(contentsData) ? contentsData : (contentsData as any)?.contents ?? [];
+        setContents(items as ContentItem[]);
         setActiveJobs(jobsData as ActiveJob[]);
         setLoading(false);
       });
@@ -96,7 +98,9 @@ export default function PortalContentsClient() {
       getPortalContentsV2(clientId),
       getPortalActiveJobs(clientId),
     ]).then(([contentsData, jobsData]) => {
-      setContents(contentsData as ContentItem[]);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const items = Array.isArray(contentsData) ? contentsData : (contentsData as any)?.contents ?? [];
+      setContents(items as ContentItem[]);
       setActiveJobs(jobsData as ActiveJob[]);
     });
   };

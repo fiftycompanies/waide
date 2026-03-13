@@ -160,7 +160,9 @@ export default function PortalBlogUnifiedClient({ clientId }: PortalBlogUnifiedC
       getPublications({ clientId, limit: 50 }),
       getPortalKeywordsV2(clientId).catch(() => null),
     ]).then(([c, accs, sets, pubs, kwData]) => {
-      setContents(c as ContentItem[]);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const items = Array.isArray(c) ? c : (c as any)?.contents ?? [];
+      setContents(items as ContentItem[]);
       setAccounts(accs);
       setSettings(sets);
       setPublications(pubs);
