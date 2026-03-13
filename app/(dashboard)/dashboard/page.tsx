@@ -738,9 +738,6 @@ export default function DashboardPage() {
     <div className="p-6 space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">대시보드</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          비즈니스 KPI · SEO 운영 · 고객 현황 한눈에 확인
-        </p>
       </div>
 
       <Suspense fallback={<DashboardSkeleton />}>
