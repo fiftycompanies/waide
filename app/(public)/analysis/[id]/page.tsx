@@ -379,14 +379,23 @@ export default function AnalysisResultPage({
     improvement_tip?: string;
   }> = ia.images ?? [];
   const collectedUrls: Array<{ url: string; type?: string }> = ia.collected_urls ?? [];
-  const keywords: Array<{
+  // ka.keywords 우선, 비어있으면 current_keywords + recommended_keywords 폴백 (웹사이트 분석 호환)
+  const rawKeywords = (ka.keywords ?? []) as Array<{
     keyword: string;
     intent: string;
     priority: string;
     monthlySearch?: number;
     competition?: string;
     source?: string;
-  }> = [...(ka.keywords ?? [])].sort(
+  }>;
+  const fallbackKeywords: typeof rawKeywords =
+    rawKeywords.length > 0
+      ? rawKeywords
+      : [
+          ...((ka.current_keywords ?? []) as string[]).map((kw: string) => ({ keyword: kw, intent: "현재 노출", priority: "high" as const, source: "현재" })),
+          ...((ka.recommended_keywords ?? []) as string[]).map((kw: string) => ({ keyword: kw, intent: "추천", priority: "medium" as const, source: "AI 추천" })),
+        ];
+  const keywords = [...fallbackKeywords].sort(
     (a: { monthlySearch?: number }, b: { monthlySearch?: number }) =>
       (b.monthlySearch ?? 0) - (a.monthlySearch ?? 0)
   );
@@ -1013,62 +1022,72 @@ export default function AnalysisResultPage({
             )}
           </div>
 
-          {/* Keyword table */}
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-[#2a2a2a] text-[#666666]">
-                  <th className="text-left py-3 px-2">키워드</th>
-                  <th className="text-left py-3 px-2">검색 의도</th>
-                  <th className="text-center py-3 px-2">월간 검색량</th>
-                  <th className="text-center py-3 px-2">경쟁도</th>
-                  <th className="text-center py-3 px-2">출처</th>
-                  <th className="text-center py-3 px-2">우선순위</th>
-                </tr>
-              </thead>
-              <tbody>
-                {keywords.map((kw, i) => (
-                  <tr key={i} className="border-b border-[#2a2a2a]/50 hover:bg-white/[0.02] transition-colors">
-                    <td className="py-3 px-2 text-white font-medium">{kw.keyword}</td>
-                    <td className="py-3 px-2 text-[#a0a0a0]">{kw.intent}</td>
-                    <td className="py-3 px-2 text-center text-[#a0a0a0]">{kw.monthlySearch ? kw.monthlySearch.toLocaleString() : "-"}</td>
-                    <td className="py-3 px-2 text-center">
-                      <span className={`px-2 py-0.5 rounded-full text-xs border ${kw.competition === "높음" ? "border-red-500/30 text-red-400" : kw.competition === "중간" ? "border-amber-500/30 text-amber-400" : "border-emerald-500/30 text-emerald-400"}`}>
-                        {kw.competition ?? "-"}
-                      </span>
-                    </td>
-                    <td className="py-3 px-2 text-center"><SourceBadge source={kw.source} /></td>
-                    <td className="py-3 px-2 text-center">
-                      <span className={`px-2 py-0.5 rounded-full text-xs ${kw.priority === "high" ? "bg-red-500/10 text-red-400" : kw.priority === "medium" ? "bg-amber-500/10 text-amber-400" : "bg-[#2a2a2a] text-[#666666]"}`}>
-                        {kw.priority === "high" ? "높음" : kw.priority === "medium" ? "중간" : "낮음"}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          {/* Keyword table / empty state */}
+          {keywords.length > 0 ? (
+            <>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-[#2a2a2a] text-[#666666]">
+                      <th className="text-left py-3 px-2">키워드</th>
+                      <th className="text-left py-3 px-2">검색 의도</th>
+                      <th className="text-center py-3 px-2">월간 검색량</th>
+                      <th className="text-center py-3 px-2">경쟁도</th>
+                      <th className="text-center py-3 px-2">출처</th>
+                      <th className="text-center py-3 px-2">우선순위</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {keywords.map((kw, i) => (
+                      <tr key={i} className="border-b border-[#2a2a2a]/50 hover:bg-white/[0.02] transition-colors">
+                        <td className="py-3 px-2 text-white font-medium">{kw.keyword}</td>
+                        <td className="py-3 px-2 text-[#a0a0a0]">{kw.intent}</td>
+                        <td className="py-3 px-2 text-center text-[#a0a0a0]">{kw.monthlySearch ? kw.monthlySearch.toLocaleString() : "-"}</td>
+                        <td className="py-3 px-2 text-center">
+                          <span className={`px-2 py-0.5 rounded-full text-xs border ${kw.competition === "높음" ? "border-red-500/30 text-red-400" : kw.competition === "중간" ? "border-amber-500/30 text-amber-400" : "border-emerald-500/30 text-emerald-400"}`}>
+                            {kw.competition ?? "-"}
+                          </span>
+                        </td>
+                        <td className="py-3 px-2 text-center"><SourceBadge source={kw.source} /></td>
+                        <td className="py-3 px-2 text-center">
+                          <span className={`px-2 py-0.5 rounded-full text-xs ${kw.priority === "high" ? "bg-red-500/10 text-red-400" : kw.priority === "medium" ? "bg-amber-500/10 text-amber-400" : "bg-[#2a2a2a] text-[#666666]"}`}>
+                            {kw.priority === "high" ? "높음" : kw.priority === "medium" ? "중간" : "낮음"}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
 
-          {/* Tag cloud */}
-          <div className="mt-6">
-            <h4 className="text-sm text-[#666666] mb-3">키워드 클라우드 (크기 = 검색량)</h4>
-            <div className="flex flex-wrap gap-2 items-center">
-              {keywords.map((kw, i) => {
-                const vol = kw.monthlySearch ?? 0;
-                const sz = vol >= 10000 ? "text-xl font-bold px-4 py-2" : vol >= 1000 ? "text-base font-semibold px-3 py-1.5" : vol >= 100 ? "text-sm px-3 py-1" : "text-xs px-2 py-1";
-                const srcCls = SOURCE_COLORS[kw.source ?? ""] ?? "bg-[#222222] text-[#a0a0a0] border-[#2a2a2a]";
-                return (
-                  <span
-                    key={i}
-                    className={`${sz} rounded-full border cursor-default transition-all hover:scale-105 ${srcCls}`}
-                    title={`${kw.keyword}\n검색량: ${vol.toLocaleString()}\n경쟁도: ${kw.competition ?? "-"}\n출처: ${kw.source ?? "-"}`}
-                  >
-                    {kw.keyword}
-                  </span>
-                );
-              })}
+              {/* Tag cloud */}
+              <div className="mt-6">
+                <h4 className="text-sm text-[#666666] mb-3">키워드 클라우드 (크기 = 검색량)</h4>
+                <div className="flex flex-wrap gap-2 items-center">
+                  {keywords.map((kw, i) => {
+                    const vol = kw.monthlySearch ?? 0;
+                    const sz = vol >= 10000 ? "text-xl font-bold px-4 py-2" : vol >= 1000 ? "text-base font-semibold px-3 py-1.5" : vol >= 100 ? "text-sm px-3 py-1" : "text-xs px-2 py-1";
+                    const srcCls = SOURCE_COLORS[kw.source ?? ""] ?? "bg-[#222222] text-[#a0a0a0] border-[#2a2a2a]";
+                    return (
+                      <span
+                        key={i}
+                        className={`${sz} rounded-full border cursor-default transition-all hover:scale-105 ${srcCls}`}
+                        title={`${kw.keyword}\n검색량: ${vol.toLocaleString()}\n경쟁도: ${kw.competition ?? "-"}\n출처: ${kw.source ?? "-"}`}
+                      >
+                        {kw.keyword}
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="py-8 text-center">
+              <Search className="h-8 w-8 text-[#333333] mx-auto mb-3" />
+              <p className="text-[#666666] text-sm">키워드 분석 데이터가 아직 준비되지 않았습니다</p>
+              <p className="text-[#444444] text-xs mt-1">프로젝트 시작 후 키워드를 등록하면 상세 분석이 제공됩니다</p>
             </div>
-          </div>
+          )}
         </div>
 
         {/* ── Section 4: AI 콘텐츠 전략 ── */}
