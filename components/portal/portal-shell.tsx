@@ -6,22 +6,24 @@ import Link from "next/link";
 import {
   BarChart3,
   Bell,
-  Globe,
+  FileEdit,
   Home,
+  Key,
   LogOut,
-  Search,
+  Send,
   Settings,
-  TrendingUp,
+  Smartphone,
 } from "lucide-react";
 import { Logo } from "@/components/logo";
 import { portalSignOut } from "@/lib/actions/auth-actions";
 
 const navItems = [
   { title: "대시보드", url: "/portal", icon: Home },
-  { title: "SERP 트래킹", url: "/portal/serp", icon: TrendingUp },
-  { title: "블로그 관리", url: "/portal/blog", icon: Globe },
-  { title: "키워드 관리", url: "/portal/keywords", icon: Search },
-  { title: "분석 리포트", url: "/portal/reports", icon: BarChart3 },
+  { title: "키워드 관리", url: "/portal/keywords", icon: Key },
+  { title: "콘텐츠 관리", url: "/portal/contents", icon: FileEdit },
+  { title: "발행 관리", url: "/portal/publish", icon: Send },
+  { title: "성과 분석", url: "/portal/analytics", icon: BarChart3 },
+  { title: "블로그 계정", url: "/portal/blog-accounts", icon: Smartphone },
   { title: "알림 센터", url: "/portal/notifications", icon: Bell },
   { title: "설정", url: "/portal/settings", icon: Settings },
 ];
