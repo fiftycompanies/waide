@@ -118,6 +118,12 @@
 - **변경**: 목록/생성/작업현황 3탭 (useSearchParams URL 기반 탭 네비게이션, 어드민 /contents와 동일 구조)
 - **커밋**: fa08dd3
 
+### [UI-1] 레이아웃 단일화 — 포털 사이드바 통합 ✅
+- **Phase 1**: `components/dashboard/app-sidebar.tsx` — AppRole 타입 확장 (6역할), 포털 메뉴 8항목 추가, isClientUser 분기 (로고/BrandSelector/프로필/로그아웃)
+- **Phase 2**: `app/(portal)/layout.tsx` — PortalShell → SidebarProvider + AppSidebar 교체, hidden meta 태그 유지
+- **Phase 3**: `middleware.ts` — 포털 라우트 HMAC 폴백 추가 (어드민→/dashboard redirect)
+- **커밋**: 7f69913, eef3b6e, 841d2bc
+
 ### [AUTH-1] 인증 완전 통합 — Supabase Auth 단일화 + 구글/카카오 OAuth ✅
 - **Phase 1**: `scripts/migrations/064_auth_unification.sql` — users.auth_provider 컬럼, viewer 역할 CHECK, handle_new_user 트리거
 - **Phase 2**: `lib/auth.ts` — isAdminRole(), isClientRole(), getEffectiveClientId() 헬퍼 추가, viewer 역할

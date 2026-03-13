@@ -42,7 +42,7 @@
 
 ### 포털 레이아웃/유틸
 
-- `app/(portal)/layout.tsx` — 포털 레이아웃 (meta 태그로 clientId 전달, unreadNotificationCount 서버 조회 → PortalShell prop)
+- `app/(portal)/layout.tsx` — 포털 레이아웃 (SidebarProvider + AppSidebar 사용, 어드민과 동일 사이드바 구조, userRole prop으로 고객 메뉴 필터링)
 - `app/(portal)/portal/loading.tsx` — 로딩 스피너
 - `app/(portal)/portal/error.tsx` — 에러 바운더리
 
@@ -52,7 +52,7 @@
 
 | 파일 | 설명 |
 |------|------|
-| `components/portal/portal-shell.tsx` | 포털 셸 (네비게이션 8항목: 대시보드/SERP트래킹/콘텐츠관리/키워드관리/발행관리/성과분석/블로그계정/설정, unreadNotificationCount 뱃지) |
+| `components/portal/portal-shell.tsx` | 포털 셸 (DEPRECATED — 레이아웃이 AppSidebar로 교체됨, 파일 유지) |
 | `components/portal/portal-blog-unified-client.tsx` | 블로그 관리 통합 (4탭: 블로그목록/AI작성/자동발행설정/콘텐츠관리) |
 | `components/portal/portal-blog-post-detail.tsx` | 발행글 상세 (본문 미리보기, 발행 후 순위 추이 차트(Recharts), AI 인사이트, 발행 이력, AI 보완 작성 버튼) |
 | `components/portal/portal-notifications-client.tsx` | 알림 센터 (알림 피드 5종류, 타입별 아이콘/CTA, 알림 설정 토글, 상대시간 표시) |
@@ -201,7 +201,7 @@
 
 1. **모든 데이터는 `client_id` FK로 연결** — `clients`가 최상위 부모
 2. **Server Actions에서 `createAdminClient()` 사용** — service_role key, RLS 바이패스
-3. **포털 clientId 전달** — PortalShell에서 hidden meta 태그 → 클라이언트 컴포넌트에서 DOM 쿼리
+3. **포털 clientId 전달** — 포털 layout에서 hidden meta 태그 → 클라이언트 컴포넌트에서 DOM 쿼리
 4. **통합 인증** — Supabase Auth 단일 인증 (구글/카카오 OAuth 지원), HMAC 폴백은 deprecated (기존 admin_users 사용자 전환 완료까지 유지)
 5. **프롬프트 동적 로딩** — agent_prompts 테이블에서 런타임 로딩 (코드 하드코딩 금지)
 6. **JSONB 업데이트** — SELECT → spread → UPDATE 순서
