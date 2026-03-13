@@ -83,8 +83,18 @@ export async function adminLogin(
   redirect("/dashboard");
 }
 
-// ── 로그아웃 ──────────────────────────────────────────────────
+// ── 로그아웃 (Supabase Auth + HMAC 쿠키 동시 클리어) ──────────
 export async function adminLogout(): Promise<void> {
+  // Supabase Auth 세션 삭제
+  try {
+    const { createClient } = await import("@/lib/supabase/server");
+    const supabase = await createClient();
+    await supabase.auth.signOut();
+  } catch {
+    // Supabase 세션이 없어도 진행
+  }
+
+  // HMAC 쿠키 삭제 (DEPRECATED 폴백 정리)
   const cookieStore = await cookies();
   cookieStore.delete(COOKIE_NAME);
   redirect("/login");
