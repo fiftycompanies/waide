@@ -1,7 +1,9 @@
 /**
- * /auth/callback — OAuth 콜백 처리
- * Google/Kakao OAuth 인증 후 Supabase가 여기로 리다이렉트.
- * code → session 교환 후 users.role 조회 → 적절한 페이지로 분기.
+ * /auth/callback — OAuth + 이메일 인증 콜백 처리
+ * Google/Kakao OAuth, 비밀번호 재설정, 초대 수락 후 Supabase가 여기로 리다이렉트.
+ * code → session 교환 후:
+ *   - type=recovery/invite → /auth/reset-password (비밀번호 설정)
+ *   - 그 외 → /dashboard (role 무관, middleware가 처리)
  */
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
@@ -10,7 +12,8 @@ import { NextResponse, type NextRequest } from "next/server";
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
-  const next = searchParams.get("next") ?? "/portal";
+  const type = searchParams.get("type");
+  const next = searchParams.get("next") ?? "/dashboard";
 
   if (!code) {
     return NextResponse.redirect(new URL("/login?error=no_code", origin));
@@ -40,37 +43,11 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(new URL("/login?error=auth_failed", origin));
   }
 
-  // role 조회 → 어드민 역할이면 /dashboard, 고객이면 /portal
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (user) {
-    // service key로 users 테이블 역할 조회
-    const serviceKey = process.env.SUPABASE_SERVICE_KEY;
-    if (serviceKey) {
-      const { createClient } = await import("@supabase/supabase-js");
-      const adminDb = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        serviceKey,
-        { auth: { autoRefreshToken: false, persistSession: false } }
-      );
-
-      const { data: dbUser } = await adminDb
-        .from("users")
-        .select("role, client_id")
-        .eq("auth_id", user.id)
-        .single();
-
-      if (dbUser) {
-        const adminRoles = ["super_admin", "admin", "sales", "viewer"];
-        if (adminRoles.includes(dbUser.role)) {
-          return NextResponse.redirect(new URL("/dashboard", origin));
-        }
-      }
-    }
+  // ── 비밀번호 재설정 / 초대 수락 → 비밀번호 설정 페이지 ──────────────
+  if (type === "recovery" || type === "invite") {
+    return NextResponse.redirect(new URL("/auth/reset-password", origin));
   }
 
-  // 기본: 고객 포털로
+  // ── 일반 로그인 → /dashboard (middleware가 role 분기 처리) ──────────
   return NextResponse.redirect(new URL(next, origin));
 }

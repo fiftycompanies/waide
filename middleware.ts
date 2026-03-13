@@ -43,7 +43,7 @@ const PUBLIC_ROUTES = [
   "/api/consultation",
   "/api/cron",
   "/invite",
-  "/auth/callback",
+  "/auth",
   "/api/auth",
 ];
 
