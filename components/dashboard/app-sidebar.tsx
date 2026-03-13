@@ -5,7 +5,6 @@ import {
   AlertTriangle,
   BarChart2,
   BarChart3,
-  Bell,
   Bot,
   Building2,
   ClipboardList,
@@ -136,16 +135,15 @@ const settingsNavItems: NavItem[] = [
   { title: "어드민 관리",   url: "/settings/admins",      icon: ShieldCheck,       roles: SUPER_ADMIN_ONLY },
 ];
 
-// ═══ 고객 포털 ═══
-const portalNavItems: NavItem[] = [
-  { title: "대시보드",      url: "/portal",               icon: Home,        roles: CLIENT_ROLES },
-  { title: "키워드 관리",   url: "/portal/keywords",      icon: Key,         roles: CLIENT_ROLES },
-  { title: "콘텐츠 관리",   url: "/portal/contents",      icon: FileEdit,    roles: CLIENT_ROLES },
-  { title: "발행 관리",     url: "/portal/publish",        icon: Send,        roles: CLIENT_ROLES },
-  { title: "성과 분석",     url: "/portal/analytics",      icon: BarChart3,   roles: CLIENT_ROLES },
-  { title: "블로그 계정",   url: "/portal/blog-accounts",  icon: Smartphone,  roles: CLIENT_ROLES },
-  { title: "알림 센터",     url: "/portal/notifications",  icon: Bell,        roles: CLIENT_ROLES },
-  { title: "설정",          url: "/portal/settings",       icon: Settings,    roles: CLIENT_ROLES },
+// ═══ 고객 메뉴 (어드민 경로 공유) ═══
+const clientNavItems: NavItem[] = [
+  { title: "대시보드",      url: "/dashboard",      icon: Home,        roles: CLIENT_ROLES },
+  { title: "키워드 관리",   url: "/keywords",       icon: Key,         roles: CLIENT_ROLES },
+  { title: "콘텐츠 관리",   url: "/contents",       icon: FileEdit,    roles: CLIENT_ROLES },
+  { title: "발행 관리",     url: "/publish",        icon: Send,        roles: CLIENT_ROLES },
+  { title: "성과 분석",     url: "/analytics",      icon: BarChart3,   roles: CLIENT_ROLES },
+  { title: "블로그 계정",   url: "/blog-accounts",  icon: Smartphone,  roles: CLIENT_ROLES },
+  { title: "설정",          url: "/settings",       icon: Settings,    roles: CLIENT_ROLES },
 ];
 
 // ── 역할 라벨 매핑 ────────────────────────────────────────────────────────
@@ -167,12 +165,11 @@ interface AppSidebarProps {
   brands?: AiMarketBrand[];
   selectedClientId?: string | null;
   adminRole?: string | null;
-  // 고객 포털용 추가 props
+  // 고객 사용자 props (dashboard layout에서 전달)
   userName?: string | null;
   userEmail?: string | null;
   userRole?: string | null;
   brandName?: string | null;
-  unreadNotificationCount?: number;
 }
 
 export function AppSidebar({
@@ -183,7 +180,6 @@ export function AppSidebar({
   userEmail = null,
   userRole = null,
   brandName = null,
-  unreadNotificationCount = 0,
 }: AppSidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
@@ -219,7 +215,6 @@ export function AppSidebar({
 
   const isActive = (url: string) => {
     if (url === "/dashboard") return pathname === url;
-    if (url === "/portal") return pathname === url;
     if (url === "/ops") return pathname === "/ops";
     return pathname === url || pathname.startsWith(`${url}/`);
   };
@@ -237,18 +232,10 @@ export function AppSidebar({
   const filterByRole = (items: NavItem[]) =>
     items.filter((item) => item.roles.includes(currentRole));
 
-  // 알림 뱃지 적용
-  const portalItemsWithBadge = portalNavItems.map((item) => {
-    if (item.url === "/portal/notifications" && unreadNotificationCount > 0) {
-      return { ...item, badge: unreadNotificationCount };
-    }
-    return item;
-  });
-
   // 어드민/고객에 따라 메뉴 그룹 구성
   const navGroups = isClientUser
     ? [
-        { label: "메뉴", items: filterByRole(portalItemsWithBadge), separator: false },
+        { label: "메뉴", items: filterByRole(clientNavItems), separator: false },
       ].filter((g) => g.items.length > 0)
     : [
         { label: "서비스", items: filterByRole(serviceNavItems), separator: false },
@@ -259,8 +246,8 @@ export function AppSidebar({
         { label: "설정", items: filterByRole(settingsNavItems), separator: false },
       ].filter((g) => g.items.length > 0);
 
-  const homeUrl = isClientUser ? "/portal" : "/dashboard";
-  const settingsUrl = isClientUser ? "/portal/settings" : "/settings/account";
+  const homeUrl = "/dashboard";
+  const settingsUrl = isClientUser ? "/settings" : "/settings/account";
 
   return (
     <Sidebar className="border-r border-border/40">

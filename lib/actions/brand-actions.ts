@@ -683,8 +683,19 @@ export async function getSelectedBrandInfo(
   }
 }
 
-/** 글로벌 브랜드 필터 쿠키 읽기 */
+/** 글로벌 브랜드 필터 — 고객 역할은 자신의 client_id 고정 반환 */
 export async function getSelectedClientId(): Promise<string | null> {
+  // 고객 역할 사용자 → 항상 본인 client_id (BrandSelector 무시)
+  try {
+    const { getCurrentUser, isClientRole } = await import("@/lib/auth");
+    const user = await getCurrentUser();
+    if (user && isClientRole(user.role)) {
+      return user.client_id;
+    }
+  } catch {
+    // auth 실패 → 쿠키 폴백
+  }
+
   const cookieStore = await cookies();
   return cookieStore.get("selected_client")?.value ?? null;
 }

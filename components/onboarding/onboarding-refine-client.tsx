@@ -86,7 +86,7 @@ export function OnboardingRefineClient({
         localStorage.removeItem("waide_analysis_id");
       }
       setTimeout(() => {
-        router.push("/portal");
+        router.push("/dashboard");
       }, 1500);
     } catch {
       setError("오류가 발생했습니다. 다시 시도해주세요.");

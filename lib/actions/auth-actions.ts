@@ -535,7 +535,7 @@ export async function updateUserProfile(
 
   if (error) return { success: false as const, error: error.message };
 
-  revalidatePath("/portal/settings");
+  revalidatePath("/settings");
   return { success: true as const };
 }
 
@@ -623,11 +623,9 @@ export async function unifiedLogin(identifier: string, password: string) {
   // 2. Supabase Auth 로그인 (이메일 기반 — 모든 역할 통합)
   const result = await portalSignIn(identifier, password);
   if (result.success) {
-    const isClientUser =
-      result.role === "client_owner" || result.role === "client_member";
     return {
       success: true as const,
-      redirect: isClientUser ? "/portal" : "/dashboard",
+      redirect: "/dashboard",
     };
   }
 

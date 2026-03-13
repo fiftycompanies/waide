@@ -1,13 +1,13 @@
 /**
  * middleware.ts — Supabase Auth 단일 인증 라우트 가드
- * Phase AUTH-1: HMAC 제거 → Supabase Auth 통합
+ * Phase AUTH-1 + UI-2: 포털 제거 → /dashboard 단일화
  *
  * 분기 로직:
- *   PUBLIC  → 통과
- *   AUTH    → 이미 로그인 시 role 기반 리다이렉트
- *   ADMIN   → Supabase Auth + role ∈ {super_admin,admin,sales,viewer}
- *   PORTAL  → Supabase Auth + role ∈ {client_owner,client_member}
- *   /       → 로그인 상태면 role 기반 리다이렉트
+ *   PUBLIC     → 통과
+ *   AUTH       → 이미 로그인 시 /dashboard 리다이렉트
+ *   PROTECTED  → Supabase Auth + 유효 role 필수
+ *   /portal/*  → /dashboard (또는 동등 어드민 경로)로 리다이렉트
+ *   /          → 로그인 상태면 /dashboard 리다이렉트
  */
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
@@ -49,6 +49,9 @@ const PUBLIC_ROUTES = [
 
 // ── 어드민 영역 접근 가능 역할 ──────────────────────────────────────────
 const ADMIN_ALLOWED_ROLES = ["super_admin", "admin", "sales", "viewer"];
+
+// ── 전체 유효 역할 (어드민 + 고객) ──────────────────────────────────────
+const ALL_VALID_ROLES = [...ADMIN_ALLOWED_ROLES, "client_owner", "client_member"];
 
 // ── Supabase users 테이블 역할 조회 (service role, Edge 호환) ────────────
 async function getSupabaseUserRole(authUserId: string): Promise<string | null> {
@@ -107,10 +110,9 @@ async function getSupabaseUser(request: NextRequest, response: NextResponse) {
   }
 }
 
-// ── role 기반 리다이렉트 대상 결정 ──────────────────────────────────────
-function getRedirectByRole(role: string | null): string {
-  if (role && ADMIN_ALLOWED_ROLES.includes(role)) return "/dashboard";
-  return "/portal";
+// ── role 기반 리다이렉트 대상 결정 (모든 역할 → /dashboard) ──────────────
+function getRedirectByRole(_role: string | null): string {
+  return "/dashboard";
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -159,55 +161,33 @@ export async function middleware(request: NextRequest) {
     return response;
   }
 
-  // ─── 2. 포털 라우트 → client 역할만 접근 가능 ──────────────────
+  // ─── 2. 포털 라우트 → /dashboard (또는 동등 경로)로 리다이렉트 ──
+  //     포털 완전 제거 — 모든 /portal/* 경로를 어드민 경로로 전환
   if (isPortal) {
-    // 2-A. Supabase Auth 체크
-    const supabaseUser = await getSupabaseUser(request, response);
-    if (supabaseUser) {
-      const role = await getSupabaseUserRole(supabaseUser.id);
-      // 어드민 역할이 /portal 접근 → /dashboard로 리다이렉트
-      if (role && ADMIN_ALLOWED_ROLES.includes(role)) {
-        const url = request.nextUrl.clone();
-        url.pathname = "/dashboard";
-        return NextResponse.redirect(url);
-      }
-      return response;
-    }
-
-    // 2-B. HMAC 폴백 — 어드민이므로 /dashboard로 (DEPRECATED)
-    const hmacToken = request.cookies.get(HMAC_COOKIE_NAME)?.value;
-    if (hmacToken && await isValidAdminSession(hmacToken)) {
-      const url = request.nextUrl.clone();
-      url.pathname = "/dashboard";
-      return NextResponse.redirect(url);
-    }
-
-    // 미인증 → /login 리다이렉트
     const url = request.nextUrl.clone();
-    url.pathname = "/login";
-    url.searchParams.set("redirect", pathname);
+    if (pathname === "/portal" || pathname === "/portal/") {
+      url.pathname = "/dashboard";
+    } else {
+      // /portal/keywords → /keywords, /portal/contents → /contents 등
+      url.pathname = pathname.replace(/^\/portal/, "");
+    }
     return NextResponse.redirect(url);
   }
 
-  // ─── 3. 어드민 보호 라우트 ────────────────────────────────────
+  // ─── 3. 보호 라우트 (어드민 + 고객 공용) ─────────────────────
   if (isAdminProtected) {
     // 3-A. Supabase Auth 체크 (기본)
     const supabaseUser = await getSupabaseUser(request, response);
     if (supabaseUser) {
       const role = await getSupabaseUserRole(supabaseUser.id);
-      if (role && ADMIN_ALLOWED_ROLES.includes(role)) {
+      // 유효 역할 → 통과 (어드민 + 고객 모두)
+      if (role && ALL_VALID_ROLES.includes(role)) {
         return response;
       }
-      // client_owner/client_member → /portal 리다이렉트
-      if (role) {
-        const portalUrl = request.nextUrl.clone();
-        portalUrl.pathname = "/portal";
-        return NextResponse.redirect(portalUrl);
-      }
-      // role 조회 실패 → fail-closed (포털로)
-      const portalUrl = request.nextUrl.clone();
-      portalUrl.pathname = "/portal";
-      return NextResponse.redirect(portalUrl);
+      // role 없음 또는 유효하지 않음 → fail-closed (/login)
+      const loginUrl = request.nextUrl.clone();
+      loginUrl.pathname = "/login";
+      return NextResponse.redirect(loginUrl);
     }
 
     // 3-B. HMAC 폴백 (DEPRECATED — 기존 admin_users 사용자 전환 완료 전까지 유지)
@@ -250,10 +230,9 @@ export async function middleware(request: NextRequest) {
         const defaultTarget = getRedirectByRole(role);
 
         if (redirectTo && redirectTo.startsWith("/")) {
-          // 어드민 역할이 아닌데 어드민 라우트로 가려는 경우 → 포털
-          const isAdminRedirect = ADMIN_PROTECTED_ROUTES.some((r) => redirectTo.startsWith(r));
-          if (isAdminRedirect && role && !ADMIN_ALLOWED_ROLES.includes(role)) {
-            url.pathname = "/portal";
+          // /portal/* redirect → 어드민 동등 경로로 변환
+          if (redirectTo.startsWith("/portal")) {
+            url.pathname = redirectTo === "/portal" ? "/dashboard" : redirectTo.replace(/^\/portal/, "");
           } else {
             url.pathname = redirectTo;
           }

@@ -11,8 +11,8 @@ export default async function OnboardingRefinePage({ searchParams }: PageProps) 
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
-  // 이미 client_id가 있으면 포털로
-  if (user.client_id) redirect("/portal");
+  // 이미 client_id가 있으면 대시보드로
+  if (user.client_id) redirect("/dashboard");
 
   const params = await searchParams;
   const analysisId = params.analysis_id;
