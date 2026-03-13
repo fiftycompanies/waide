@@ -1,6 +1,6 @@
 # Waide 프로젝트 컨텍스트
 
-> 최종 업데이트: 2026-03-11
+> 최종 업데이트: 2026-03-13
 > 소스 코드 기반 자동 생성
 
 ---
@@ -25,16 +25,19 @@
 | 경로 | 파일 | 설명 |
 |------|------|------|
 | `/portal` | `app/(portal)/portal/page.tsx` | 대시보드 — 긴급배너, KPI 4종, 건강점수카드(블로그/SEO/SERP/플레이스), 브랜드 요약, 온보딩 체크리스트, 키워드 순위, 점유율, AEO 스코어, 최근 활동 |
-| `/portal/serp` | `app/(portal)/portal/serp/page.tsx` | SERP 트래킹 — 키워드 순위 테이블, 스파크라인, 30일 차트, 키워드 추가/삭제, 누락 키워드 배너 |
+| `/portal/serp` | `app/(portal)/portal/serp/page.tsx` | SERP 트래킹 — 키워드 순위 테이블+점유(N/G) 컬럼, 스파크라인, 30일 차트, 키워드 추가/삭제, 누락 키워드 배너 |
 | `/portal/blog` | `app/(portal)/portal/blog/page.tsx` | 블로그 관리 통합 — 4탭(블로그목록/AI작성/자동발행설정/콘텐츠관리), server component + `PortalBlogUnifiedClient` |
 | `/portal/blog/write` | `app/(portal)/portal/blog/write/page.tsx` | AI 블로그 작성 V2 — 4단계 플로우(키워드선택/제목생성/본문편집+SEO체크/발행설정+예약발행), `PortalWriteV2Client` |
 | `/portal/blog/[id]` | `app/(portal)/portal/blog/[id]/page.tsx` | 발행글 상세 — `PortalBlogPostDetail` (본문 미리보기, 발행 후 순위 추이 차트, AI 인사이트, 발행 이력, AI 보완 작성 버튼) |
+| `/portal/contents` | `app/(portal)/portal/contents/page.tsx` | 콘텐츠 관리 — 3탭(목록/생성/작업현황), URL 기반 탭 네비게이션 |
 | `/portal/keywords` | `app/(portal)/portal/keywords/page.tsx` | 키워드 관리 — 5탭(활성/AI추천/보관/검색량조회/키워드전략), 승인/거절, 키워드 추가, AI 추천 받기 |
+| `/portal/publish` | `app/(portal)/portal/publish/page.tsx` | 발행 관리 — 3탭(대기/이력/자동설정), `PortalPublishClient` |
+| `/portal/blog-accounts` | `app/(portal)/portal/blog-accounts/page.tsx` | 블로그 계정 — 연결 계정 목록/상태/플랫폼별 관리, `PortalBlogAccountsClient` |
+| `/portal/analytics` | `app/(portal)/portal/analytics/page.tsx` | 성과 분석 — 4탭(SEO분석/AEO노출/경쟁분석/Citation), `PortalAnalyticsClient` |
 | `/portal/reports` | `app/(portal)/portal/reports/page.tsx` | 분석 리포트 — 월간 성과 요약, 발행vs순위 상관 차트, 발행추이 차트, 키워드 성장, 순위 현황, AEO 노출, PDF 다운로드 |
 | `/portal/notifications` | `app/(portal)/portal/notifications/page.tsx` | 알림 센터 — 알림 피드(5종류), 알림 설정(종류별 토글+이메일), `PortalNotificationsClient` |
 | `/portal/settings` | `app/(portal)/portal/settings/page.tsx` | 설정 — 프로필, 비밀번호, 구독 정보 |
 | `/portal/analysis` | `app/(portal)/portal/analysis/page.tsx` | **리다이렉트** → `/portal` |
-| `/portal/contents` | `app/(portal)/portal/contents/page.tsx` | **리다이렉트** → `/portal/blog?tab=contents` |
 | `/portal/write` | `app/(portal)/portal/write/page.tsx` | **리다이렉트** → `/portal/blog/write` |
 
 ### 포털 레이아웃/유틸
@@ -49,13 +52,16 @@
 
 | 파일 | 설명 |
 |------|------|
-| `components/portal/portal-shell.tsx` | 포털 셸 (네비게이션 7항목: 대시보드/SERP트래킹/블로그관리/키워드관리/분석리포트/알림센터/설정, unreadNotificationCount 뱃지) |
+| `components/portal/portal-shell.tsx` | 포털 셸 (네비게이션 8항목: 대시보드/SERP트래킹/콘텐츠관리/키워드관리/발행관리/성과분석/블로그계정/설정, unreadNotificationCount 뱃지) |
 | `components/portal/portal-blog-unified-client.tsx` | 블로그 관리 통합 (4탭: 블로그목록/AI작성/자동발행설정/콘텐츠관리) |
 | `components/portal/portal-blog-post-detail.tsx` | 발행글 상세 (본문 미리보기, 발행 후 순위 추이 차트(Recharts), AI 인사이트, 발행 이력, AI 보완 작성 버튼) |
 | `components/portal/portal-notifications-client.tsx` | 알림 센터 (알림 피드 5종류, 타입별 아이콘/CTA, 알림 설정 토글, 상대시간 표시) |
 | `components/portal/portal-serp-client.tsx` | SERP 트래킹 (키워드 순위 테이블, 스파크라인, 30일 차트, 키워드 추가/삭제) |
 | `components/portal/portal-pending.tsx` | client_id 미연결 사용자 대기 화면 |
-| `components/portal/portal-contents-client.tsx` | 콘텐츠 현황 클라이언트 컴포넌트 |
+| `components/portal/portal-contents-client.tsx` | 콘텐츠 관리 3탭 (목록/생성/작업현황), URL 기반 탭 네비게이션 |
+| `components/portal/portal-publish-client.tsx` | 발행 관리 (대기/이력/자동설정) |
+| `components/portal/portal-blog-accounts-client.tsx` | 블로그 계정 관리 (연결 상태/플랫폼별) |
+| `components/portal/portal-analytics-client.tsx` | 성과 분석 4탭 (SEO/AEO/경쟁/Citation) |
 | `components/portal/portal-blog-client.tsx` | 블로그 관리 클라이언트 컴포넌트 |
 | `components/portal/portal-write-client.tsx` | 콘텐츠 작성 클라이언트 컴포넌트 (V1, 유지) |
 | `components/portal/portal-write-v2-client.tsx` | AI 블로그 작성 V2 (4단계: 키워드선택/제목생성/본문편집+SEO체크/발행설정+예약발행) |
@@ -75,7 +81,7 @@
 
 | 파일 | 주요 함수 |
 |------|----------|
-| `portal-actions.ts` | `getPortalDashboardV2()`, `getPortalKeywordsV2()`, `getPortalContentsV2()`, `getPortalReportV2()`, `getPortalSettings()`, `getPortalPointBalance()`, `getPortalHealthScore()`, `getPortalUrgentBannerCondition()`, `getPortalSerpPage()` |
+| `portal-actions.ts` | `getPortalDashboardV2()`, `getPortalKeywordsV2()`, `getPortalContentsV2(clientId, options?)` (페이지네이션), `getPortalReportV2()`, `getPortalSettings()`, `getPortalPointBalance()`, `getPortalHealthScore()`, `getPortalUrgentBannerCondition()`, `getPortalSerpPage()` (점유 mention_count 포함), `getPortalActiveJobs()` |
 | `keyword-expansion-actions.ts` | `approveSuggestedKeyword()`, `rejectSuggestedKeyword()`, `bulkApproveSuggestedKeywords()` |
 | `campaign-planning-actions.ts` | `suggestKeywordsForClient()`, `addManualKeyword()`, `triggerContentGeneration()` |
 | `keyword-actions.ts` | `updateKeywordStatus()`, `createKeyword()`, `triggerClientSerpCheck()`, `getClientRankings()` |

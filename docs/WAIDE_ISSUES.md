@@ -1,6 +1,6 @@
 # Waide 현재 이슈 트래커
 
-> 최종 업데이트: 2026-03-11
+> 최종 업데이트: 2026-03-13
 > 소스 코드 직접 확인 기반
 
 ---
@@ -90,6 +90,33 @@
   - 어드민 보호 라우트 Supabase 폴백에서 역할 체크 → 허용 역할만 통과, 나머지는 /portal로 리다이렉트
   - 역할 조회 실패 시도 fail-closed (포털로 리다이렉트)
 - **필요 환경변수**: `SUPABASE_SERVICE_KEY` (기존 서비스 키, Vercel에 이미 설정됨)
+
+### [FIX-10] 보안: deactivateKeyword에 client_id 필터 누락 ✅
+- **파일**: `lib/actions/keyword-actions.ts` L~795
+- **증상**: is_primary 체크 쿼리에 client_id 필터 없이 keyword id만으로 조회 — 다른 고객의 키워드 접근 가능
+- **수정**: `.eq("client_id", clientId)` 추가
+- **커밋**: 9a4fe85
+
+### [STRUCT-A] 포털 메뉴 구조 어드민과 통일 ✅
+- **파일**: `components/portal/portal-shell.tsx`
+- **변경**: 포털 네비게이션 8항목으로 재편 (대시보드/SERP트래킹/콘텐츠관리/키워드관리/발행관리/성과분석/블로그계정/설정)
+- **리다이렉트**: /portal/blog→/portal/contents, /portal/analysis→/portal, /portal/write→/portal/blog/write, /portal/notifications→/portal/settings
+- **커밋**: 5aaad5f
+
+### [STRUCT-B] 포털 신규 페이지 3종 추가 ✅
+- **파일**: `app/(portal)/portal/publish/`, `portal/blog-accounts/`, `portal/analytics/`
+- **변경**: 발행관리(3탭), 블로그계정(연결 상태), 성과분석(4탭 SEO/AEO/경쟁/Citation)
+- **커밋**: 5daf569
+
+### [STRUCT-C] 어드민 플레이스 탭 + 점유 컬럼 + 페이지네이션 ✅
+- **파일**: `app/(dashboard)/ops/clients/[id]/page.tsx`, `portal-serp-client.tsx`, `portal-actions.ts`
+- **변경**: 어드민 클라이언트 상세에 "플레이스" 탭 추가 (place_stats_history, 30일 차트), SERP 테이블에 점유(N/G) 컬럼, getPortalContentsV2 페이지네이션
+- **커밋**: 9a4fe85
+
+### [STRUCT-D] 포털 콘텐츠 3탭 구조 ✅
+- **파일**: `components/portal/portal-contents-client.tsx`
+- **변경**: 목록/생성/작업현황 3탭 (useSearchParams URL 기반 탭 네비게이션, 어드민 /contents와 동일 구조)
+- **커밋**: fa08dd3
 
 ---
 
