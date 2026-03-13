@@ -1242,3 +1242,93 @@ export async function getPortalRecommendedActions(
     throw err;
   }
 }
+
+// ── 포털 대시보드: 플레이스/노출 데이터 ────────────────────────────────────
+export async function getPortalPlaceAndVisibilityData(clientId: string) {
+  try {
+    const db = createAdminClient();
+
+    // 1. Active keywords with is_primary
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: keywords } = await (db as any)
+      .from("keywords")
+      .select("id, keyword, is_primary")
+      .eq("client_id", clientId)
+      .eq("status", "active")
+      .order("is_primary", { ascending: false })
+      .order("created_at", { ascending: true });
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const kwList = (keywords || []) as any[];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const primaryKw = kwList.find((k: any) => k.is_primary) || null;
+
+    // 2. Place rank for primary keyword (latest)
+    let placeRank = null;
+    if (primaryKw) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data } = await (db as any)
+        .from("keyword_visibility")
+        .select("place_rank_pc, place_rank_mo, measured_at")
+        .eq("client_id", clientId)
+        .eq("keyword_id", primaryKw.id)
+        .order("measured_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      placeRank = data;
+    }
+
+    // 3. Place stats history (30 days for modal, last 15 for mini chart)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: placeHistory } = await (db as any)
+      .from("place_stats_history")
+      .select("measured_at, visitor_review_count, blog_review_count, bookmark_count")
+      .eq("client_id", clientId)
+      .order("measured_at", { ascending: false })
+      .limit(30);
+
+    const historyList = ((placeHistory || []) as Array<{
+      measured_at: string;
+      visitor_review_count: number | null;
+      blog_review_count: number | null;
+      bookmark_count: number | null;
+    }>).reverse(); // oldest first for charts
+
+    // 4. Keyword visibility with mention counts (latest per keyword)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: visibility } = await (db as any)
+      .from("keyword_visibility")
+      .select("keyword_id, rank_pc, rank_mo, rank_google, naver_mention_count, google_mention_count, measured_at")
+      .eq("client_id", clientId)
+      .order("measured_at", { ascending: false });
+
+    // Deduplicate: keep only the latest record per keyword_id
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const latestByKeyword = visibility
+      ? Object.values(
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (visibility as any[]).reduce((acc: Record<string, any>, row: any) => {
+            if (!acc[row.keyword_id]) acc[row.keyword_id] = row;
+            return acc;
+          }, {}),
+        )
+      : [];
+
+    return {
+      keywords: kwList,
+      primaryKeyword: primaryKw,
+      placeRank,
+      placeHistory: historyList,
+      visibilityByKeyword: latestByKeyword,
+    };
+  } catch (err) {
+    console.error("[getPortalPlaceAndVisibilityData]", err);
+    return {
+      keywords: [],
+      primaryKeyword: null,
+      placeRank: null,
+      placeHistory: [],
+      visibilityByKeyword: [],
+    };
+  }
+}

@@ -33,6 +33,8 @@ import {
 } from "@/lib/actions/portal-actions";
 import KeywordOccupancySection from "@/components/portal/keyword-occupancy-section";
 import AnalysisRequiredBanner from "@/components/portal/analysis-required-banner";
+import NaverGoogleSection from "@/components/portal/dashboard/naver-google-section";
+import { getPortalPlaceAndVisibilityData } from "@/lib/actions/portal-actions";
 import { AlertTriangle, Activity, X } from "lucide-react";
 
 interface KpiData {
@@ -221,6 +223,8 @@ export default function PortalDashboardPage() {
   const [publishStatus, setPublishStatus] = useState<PublishStatus | null>(null);
   const [kwTop3, setKwTop3] = useState<KeywordTop3Item[]>([]);
   const [recActions, setRecActions] = useState<RecommendedAction[]>([]);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [placeData, setPlaceData] = useState<any>(null);
 
   useEffect(() => {
     const el = document.querySelector("meta[name='portal-client-id']");
@@ -239,12 +243,14 @@ export default function PortalDashboardPage() {
         getPortalUrgentBannerCondition(cid).catch(() => null),
         getPortalPublishStatusBreakdown(cid).catch(() => null),
         getPortalKeywordTop3WithDelta(cid).catch(() => []),
-      ]).then(([d, hs, ub, ps, top3]) => {
+        getPortalPlaceAndVisibilityData(cid).catch(() => null),
+      ]).then(([d, hs, ub, ps, top3, pd]) => {
         setData(d as DashboardData);
         if (hs) setHealthScore(hs as HealthScoreData);
         if (ub) setUrgentBanner(ub as UrgentBannerData);
         if (ps) setPublishStatus(ps as PublishStatus);
         setKwTop3((top3 || []) as KeywordTop3Item[]);
+        if (pd) setPlaceData(pd);
         setLoading(false);
         // Load recommended actions after healthScore is available
         getPortalRecommendedActions(cid, hs as HealthScoreData | null)
@@ -349,6 +355,18 @@ export default function PortalDashboardPage() {
             <X className="h-4 w-4 text-red-400" />
           </button>
         </div>
+      )}
+
+      {/* ── 네이버/구글 현황 섹션 (Phase 4) ── */}
+      {placeData && (
+        <NaverGoogleSection
+          keywords={placeData.keywords}
+          primaryKeyword={placeData.primaryKeyword}
+          placeRank={placeData.placeRank}
+          placeHistory={placeData.placeHistory}
+          visibilityByKeyword={placeData.visibilityByKeyword}
+          brandName={data.brandName || ""}
+        />
       )}
 
       {/* ══════════════════════════════════════════════════════════════════
