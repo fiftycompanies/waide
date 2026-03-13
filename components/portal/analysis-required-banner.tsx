@@ -158,7 +158,7 @@ export default function AnalysisRequiredBanner({ clientId }: AnalysisRequiredBan
             <h2 className="text-lg font-bold text-gray-900">분석 완료</h2>
           </div>
           <Link
-            href="/portal/analysis"
+            href="/dashboard"
             className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors"
           >
             전체 화면으로 보기

@@ -2423,12 +2423,22 @@ async function runWebsiteAnalysis(analysisId: string, url: string): Promise<void
     description: bodyText.slice(0, 100),
   };
 
-  const keywordAnalysis = aiAnalysis?.keyword_analysis ?? {
+  const rawKa = aiAnalysis?.keyword_analysis ?? {
     current_keywords: [],
     recommended_keywords: [],
     main_keyword: "",
     secondary_keyword: "",
-    keywords: [],
+  };
+  // current_keywords + recommended_keywords → keywords 배열 변환
+  // 결과 페이지에서 ka.keywords (Array<{ keyword, intent, priority }>)를 읽음
+  const currentKws = (rawKa.current_keywords ?? []) as string[];
+  const recommendedKws = (rawKa.recommended_keywords ?? []) as string[];
+  const keywordAnalysis = {
+    ...rawKa,
+    keywords: [
+      ...currentKws.map((kw: string) => ({ keyword: kw, intent: "현재 노출", priority: "high" })),
+      ...recommendedKws.map((kw: string) => ({ keyword: kw, intent: "추천", priority: "medium" })),
+    ],
   };
 
   const contentStrategy = {
