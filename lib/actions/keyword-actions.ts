@@ -739,3 +739,125 @@ export async function searchKeywordVolumes(
     }));
   }
 }
+
+// ── is_primary 키워드 관리 (Phase 5) ──────────────────────────────────────
+
+/**
+ * 대표 키워드 지정 — 기존 primary 해제 후 새 primary 설정
+ * (partial unique index로 client_id당 1개만 허용)
+ */
+export async function setPrimaryKeyword(
+  keywordId: string,
+  clientId: string,
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const db = createAdminClient();
+
+    // 기존 primary 전부 해제
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (db as any)
+      .from("keywords")
+      .update({ is_primary: false })
+      .eq("client_id", clientId)
+      .eq("is_primary", true);
+
+    // 새 primary 설정
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (db as any)
+      .from("keywords")
+      .update({ is_primary: true })
+      .eq("id", keywordId)
+      .eq("client_id", clientId);
+
+    if (error) throw error;
+    return { success: true };
+  } catch (err) {
+    console.error("[setPrimaryKeyword]", err);
+    return { success: false, error: String(err) };
+  }
+}
+
+/**
+ * 키워드 비활성화 (소프트 삭제) — is_primary인 키워드는 삭제 불가
+ */
+export async function deactivateKeyword(
+  keywordId: string,
+  clientId: string,
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const db = createAdminClient();
+
+    // is_primary 확인
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: kw } = await (db as any)
+      .from("keywords")
+      .select("is_primary")
+      .eq("id", keywordId)
+      .single();
+
+    if (kw?.is_primary) {
+      return { success: false, error: "대표 키워드는 삭제할 수 없습니다. 다른 키워드를 대표로 지정하세요." };
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (db as any)
+      .from("keywords")
+      .update({ status: "archived" })
+      .eq("id", keywordId)
+      .eq("client_id", clientId);
+
+    if (error) throw error;
+    return { success: true };
+  } catch (err) {
+    console.error("[deactivateKeyword]", err);
+    return { success: false, error: String(err) };
+  }
+}
+
+/**
+ * 키워드 추가 — 첫 번째 키워드면 자동으로 is_primary = true
+ */
+export async function addKeywordWithPrimary(
+  keyword: string,
+  clientId: string,
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const db = createAdminClient();
+
+    // 중복 체크
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: existing } = await (db as any)
+      .from("keywords")
+      .select("id")
+      .eq("client_id", clientId)
+      .eq("keyword", keyword.trim())
+      .eq("status", "active")
+      .maybeSingle();
+
+    if (existing) {
+      return { success: false, error: "이미 등록된 키워드입니다." };
+    }
+
+    // 활성 키워드 수 확인 (첫 번째면 auto-primary)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { count } = await (db as any)
+      .from("keywords")
+      .select("id", { count: "exact", head: true })
+      .eq("client_id", clientId)
+      .eq("status", "active");
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (db as any).from("keywords").insert({
+      client_id: clientId,
+      keyword: keyword.trim(),
+      status: "active",
+      is_primary: count === 0,
+    });
+
+    if (error) throw error;
+    return { success: true };
+  } catch (err) {
+    console.error("[addKeywordWithPrimary]", err);
+    return { success: false, error: String(err) };
+  }
+}

@@ -21,7 +21,7 @@ import {
   approveSuggestedKeyword,
   rejectSuggestedKeyword,
 } from "@/lib/actions/keyword-expansion-actions";
-import { updateKeywordStatus, createKeyword } from "@/lib/actions/keyword-actions";
+import { updateKeywordStatus, createKeyword, setPrimaryKeyword, deactivateKeyword, addKeywordWithPrimary } from "@/lib/actions/keyword-actions";
 import { suggestKeywordsForClient } from "@/lib/actions/campaign-planning-actions";
 import { queryKeywordVolume, registerKeywordsFromVolume, type VolumeResult } from "@/lib/actions/keyword-volume-actions";
 import { getKeywordStrategy } from "@/lib/actions/keyword-strategy-actions";
@@ -33,6 +33,7 @@ interface KeywordItem {
   status: string;
   source: string | null;
   created_at: string;
+  is_primary?: boolean;
   monthly_search_volume?: number | null;
   current_rank_naver_pc?: number | null;
   current_rank_naver_mo?: number | null;
@@ -136,18 +137,42 @@ export default function PortalKeywordsClient({ clientId }: PortalKeywordsClientP
   const handleAddKeyword = async () => {
     if (!newKeyword.trim() || !clientId) return;
     setAddingKeyword(true);
-    const result = await createKeyword({
-      clientId,
-      keyword: newKeyword.trim(),
-      platform: "naver",
-      competitionLevel: "medium",
-    });
+    const result = await addKeywordWithPrimary(newKeyword.trim(), clientId);
     if (result.success) {
       setNewKeyword("");
       setShowAddForm(false);
       loadData();
     }
     setAddingKeyword(false);
+  };
+
+  const handleSetPrimary = async (keywordId: string) => {
+    setActionLoading(keywordId);
+    const result = await setPrimaryKeyword(keywordId, clientId);
+    if (result.success) {
+      setActiveKeywords((prev) =>
+        prev.map((k) => ({
+          ...k,
+          is_primary: k.id === keywordId,
+        })),
+      );
+    }
+    setActionLoading(null);
+  };
+
+  const handleDeactivate = async (keywordId: string) => {
+    setActionLoading(keywordId);
+    const result = await deactivateKeyword(keywordId, clientId);
+    if (result.success) {
+      const removed = activeKeywords.find((k) => k.id === keywordId);
+      if (removed) {
+        setActiveKeywords((prev) => prev.filter((k) => k.id !== keywordId));
+        setArchivedKeywords((prev) => [{ ...removed, status: "archived" }, ...prev]);
+      }
+    } else if (result.error) {
+      alert(result.error);
+    }
+    setActionLoading(null);
   };
 
   const handleSuggestKeywords = async () => {
@@ -336,6 +361,7 @@ export default function PortalKeywordsClient({ clientId }: PortalKeywordsClientP
                   <thead className="bg-gray-50 border-b">
                     <tr>
                       <th className="text-left py-3 px-4 font-medium text-gray-600">키워드</th>
+                      <th className="text-center py-3 px-4 font-medium text-gray-600 w-24">대표</th>
                       <th className="text-center py-3 px-4 font-medium text-gray-600 hidden md:table-cell">월 검색량</th>
                       <th className="text-center py-3 px-4 font-medium text-gray-600 hidden sm:table-cell">순위(PC)</th>
                       <th className="text-center py-3 px-4 font-medium text-gray-600 hidden sm:table-cell">순위(MO)</th>
@@ -354,6 +380,19 @@ export default function PortalKeywordsClient({ clientId }: PortalKeywordsClientP
                         >
                           <td className="py-3 px-4">
                             <span className="font-medium text-gray-900">{kw.keyword}</span>
+                          </td>
+                          <td className="py-3 px-4 text-center">
+                            {kw.is_primary ? (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700">★ 대표</span>
+                            ) : (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleSetPrimary(kw.id); }}
+                                disabled={actionLoading === kw.id}
+                                className="text-[10px] text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 px-2 py-0.5 rounded-full border border-gray-200 transition-colors disabled:opacity-50"
+                              >
+                                {actionLoading === kw.id ? "..." : "대표 지정"}
+                              </button>
+                            )}
                           </td>
                           <td className="py-3 px-4 text-center hidden md:table-cell">
                             <span className="text-sm text-gray-600">
@@ -378,18 +417,22 @@ export default function PortalKeywordsClient({ clientId }: PortalKeywordsClientP
                             )}
                           </td>
                           <td className="py-3 px-4 text-center">
-                            <button
-                              onClick={(e) => { e.stopPropagation(); handleArchive(kw.id); }}
-                              disabled={actionLoading === kw.id}
-                              className="text-xs text-gray-400 hover:text-gray-600 disabled:opacity-50"
-                              title="보관"
-                            >
-                              {actionLoading === kw.id ? (
-                                <Loader2 className="h-3.5 w-3.5 animate-spin inline" />
-                              ) : (
-                                <Archive className="h-3.5 w-3.5 inline" />
-                              )}
-                            </button>
+                            {kw.is_primary ? (
+                              <span className="text-[10px] text-gray-300" title="대표 키워드는 삭제 불가">—</span>
+                            ) : (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleDeactivate(kw.id); }}
+                                disabled={actionLoading === kw.id}
+                                className="text-xs text-gray-400 hover:text-red-500 disabled:opacity-50"
+                                title="비활성화"
+                              >
+                                {actionLoading === kw.id ? (
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin inline" />
+                                ) : (
+                                  <Archive className="h-3.5 w-3.5 inline" />
+                                )}
+                              </button>
+                            )}
                           </td>
                         </tr>
                       );

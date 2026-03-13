@@ -422,9 +422,10 @@ export async function getPortalKeywordsV2(clientId: string) {
   const [activeRes, suggestedRes, archivedRes, analysisRes] = await Promise.all([
     // 활성 키워드 (확장 필드 포함)
     db.from("keywords")
-      .select("id, keyword, status, source, created_at, metadata, monthly_search_volume, current_rank_naver_pc, current_rank_naver_mo")
+      .select("id, keyword, status, source, created_at, metadata, monthly_search_volume, current_rank_naver_pc, current_rank_naver_mo, is_primary")
       .eq("client_id", clientId)
       .eq("status", "active")
+      .order("is_primary", { ascending: false })
       .order("created_at", { ascending: false }),
     // AI 추천 키워드
     db.from("keywords")
