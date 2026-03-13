@@ -4,12 +4,15 @@ import { useEffect, useState, useTransition } from "react";
 import {
   AlertTriangle,
   BarChart2,
+  BarChart3,
+  Bell,
   Bot,
   Building2,
   ClipboardList,
   Coins,
   DollarSign,
   FileEdit,
+  Home,
   Key,
   LayoutDashboard,
   Library,
@@ -32,7 +35,7 @@ import {
 } from "lucide-react";
 import { Logo } from "@/components/logo";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 
 import {
   Sidebar,
@@ -56,48 +59,52 @@ import {
 } from "@/components/ui/dropdown-menu";
 import dynamic from "next/dynamic";
 import { adminLogout, getAdminInfo } from "@/lib/actions/admin-actions";
+import { portalSignOut } from "@/lib/actions/auth-actions";
 const BrandSelector = dynamic(
   () => import("@/components/dashboard/brand-selector").then(m => m.BrandSelector),
   { ssr: false }
 );
 import type { AiMarketBrand } from "@/lib/actions/brand-actions";
 import type { AdminPayload } from "@/lib/auth/admin-session";
+import type { UserRole } from "@/lib/auth";
 
-// ── 역할 타입 ─────────────────────────────────────────────────────────────
-type AdminRole = AdminPayload["role"];
+// ── 역할 타입 (어드민 + 고객 통합) ──────────────────────────────────────────
+type AppRole = UserRole; // "super_admin" | "admin" | "sales" | "viewer" | "client_owner" | "client_member"
 
 // ── 메뉴 아이템 타입 ──────────────────────────────────────────────────────
 interface NavItem {
   title: string;
   url: string;
   icon: React.ElementType;
-  roles: AdminRole[]; // 접근 가능한 역할 목록
+  roles: AppRole[]; // 접근 가능한 역할 목록
+  badge?: number; // 뱃지 카운트 (알림 등)
 }
 
 // ── 사이드바 메뉴 구조 (역할 기반 필터링 지원) ────────────────────────────
 
-const ALL_ROLES: AdminRole[] = ["super_admin", "admin", "sales", "viewer"];
-const ADMIN_ONLY: AdminRole[] = ["super_admin", "admin", "viewer"];
-const SUPER_ADMIN_ONLY: AdminRole[] = ["super_admin"];
+const ALL_ADMIN: AppRole[] = ["super_admin", "admin", "sales", "viewer"];
+const ADMIN_ONLY: AppRole[] = ["super_admin", "admin", "viewer"];
+const SUPER_ADMIN_ONLY: AppRole[] = ["super_admin"];
+const CLIENT_ROLES: AppRole[] = ["client_owner", "client_member"];
 
-// ═══ 서비스 (SEO & AEO) ═══
+// ═══ 어드민: 서비스 (SEO & AEO) ═══
 const serviceNavItems: NavItem[] = [
-  { title: "대시보드",    url: "/dashboard",  icon: LayoutDashboard, roles: ALL_ROLES },
-  { title: "키워드 관리", url: "/keywords",   icon: Key,             roles: ALL_ROLES },
-  { title: "콘텐츠 관리", url: "/contents",   icon: FileEdit,        roles: ALL_ROLES },
+  { title: "대시보드",    url: "/dashboard",  icon: LayoutDashboard, roles: ALL_ADMIN },
+  { title: "키워드 관리", url: "/keywords",   icon: Key,             roles: ALL_ADMIN },
+  { title: "콘텐츠 관리", url: "/contents",   icon: FileEdit,        roles: ALL_ADMIN },
   { title: "발행 관리",   url: "/publish",    icon: Send,            roles: ADMIN_ONLY },
-  { title: "성과 분석",   url: "/analytics",  icon: BarChart2,       roles: ALL_ROLES },
+  { title: "성과 분석",   url: "/analytics",  icon: BarChart2,       roles: ALL_ADMIN },
 ];
 
-// ═══ 고객 관리 ═══
+// ═══ 어드민: 고객 관리 ═══
 const clientMgmtNavItems: NavItem[] = [
-  { title: "고객 포트폴리오", url: "/clients",    icon: Building2, roles: ALL_ROLES },
-  { title: "브랜드 관리",     url: "/brands",     icon: Store,     roles: ALL_ROLES },
-  { title: "온보딩",          url: "/ops/onboarding", icon: Rocket,    roles: ALL_ROLES },
+  { title: "고객 포트폴리오", url: "/clients",    icon: Building2, roles: ALL_ADMIN },
+  { title: "브랜드 관리",     url: "/brands",     icon: Store,     roles: ALL_ADMIN },
+  { title: "온보딩",          url: "/ops/onboarding", icon: Rocket,    roles: ALL_ADMIN },
   { title: "계정 관리",       url: "/accounts",   icon: UserCog,   roles: ["super_admin", "admin"] },
 ];
 
-// ═══ 비즈니스 ═══
+// ═══ 어드민: 비즈니스 ═══
 const bizNavItems: NavItem[] = [
   { title: "매출 관리", url: "/ops/revenue",  icon: DollarSign,    roles: ADMIN_ONLY },
   { title: "이탈 관리", url: "/ops/churn",    icon: AlertTriangle, roles: ADMIN_ONLY },
@@ -105,20 +112,20 @@ const bizNavItems: NavItem[] = [
   { title: "포인트 관리", url: "/ops/points", icon: Coins,         roles: ["super_admin", "admin"] },
 ];
 
-// ═══ 영업 CRM ═══
+// ═══ 어드민: 영업 CRM ═══
 const crmNavItems: NavItem[] = [
-  { title: "분석 로그", url: "/ops/analysis-logs", icon: ClipboardList, roles: ALL_ROLES },
+  { title: "분석 로그", url: "/ops/analysis-logs", icon: ClipboardList, roles: ALL_ADMIN },
   { title: "영업사원",  url: "/ops/sales-agents",  icon: UserCheck,     roles: ADMIN_ONLY },
 ];
 
-// ═══ 리소스 ═══
+// ═══ 어드민: 리소스 ═══
 const resourceNavItems: NavItem[] = [
   { title: "블로그 계정",     url: "/ops/blog-accounts", icon: Smartphone, roles: ADMIN_ONLY },
   { title: "소스 라이브러리", url: "/ops/sources",       icon: Library,    roles: ADMIN_ONLY },
   { title: "자동 스케줄러",   url: "/ops/scheduler",     icon: Timer,      roles: ADMIN_ONLY },
 ];
 
-// ═══ 설정 ═══
+// ═══ 어드민: 설정 ═══
 const settingsNavItems: NavItem[] = [
   { title: "에이전트 설정", url: "/settings/agents",      icon: Bot,               roles: ADMIN_ONLY },
   { title: "점수 가중치",   url: "/ops/scoring-settings", icon: SlidersHorizontal, roles: ADMIN_ONLY },
@@ -129,75 +136,153 @@ const settingsNavItems: NavItem[] = [
   { title: "어드민 관리",   url: "/settings/admins",      icon: ShieldCheck,       roles: SUPER_ADMIN_ONLY },
 ];
 
+// ═══ 고객 포털 ═══
+const portalNavItems: NavItem[] = [
+  { title: "대시보드",      url: "/portal",               icon: Home,        roles: CLIENT_ROLES },
+  { title: "키워드 관리",   url: "/portal/keywords",      icon: Key,         roles: CLIENT_ROLES },
+  { title: "콘텐츠 관리",   url: "/portal/contents",      icon: FileEdit,    roles: CLIENT_ROLES },
+  { title: "발행 관리",     url: "/portal/publish",        icon: Send,        roles: CLIENT_ROLES },
+  { title: "성과 분석",     url: "/portal/analytics",      icon: BarChart3,   roles: CLIENT_ROLES },
+  { title: "블로그 계정",   url: "/portal/blog-accounts",  icon: Smartphone,  roles: CLIENT_ROLES },
+  { title: "알림 센터",     url: "/portal/notifications",  icon: Bell,        roles: CLIENT_ROLES },
+  { title: "설정",          url: "/portal/settings",       icon: Settings,    roles: CLIENT_ROLES },
+];
+
 // ── 역할 라벨 매핑 ────────────────────────────────────────────────────────
 const ROLE_LABELS: Record<string, string> = {
   super_admin: "슈퍼 어드민",
   admin: "어드민",
   sales: "영업",
   viewer: "뷰어",
+  client_owner: "관리자",
+  client_member: "멤버",
 };
+
+// ── 어드민 역할 판별 ──────────────────────────────────────────────────────
+function isAdminAppRole(role: AppRole): boolean {
+  return ALL_ADMIN.includes(role);
+}
 
 interface AppSidebarProps {
   brands?: AiMarketBrand[];
   selectedClientId?: string | null;
   adminRole?: string | null;
+  // 고객 포털용 추가 props
+  userName?: string | null;
+  userEmail?: string | null;
+  userRole?: string | null;
+  brandName?: string | null;
+  unreadNotificationCount?: number;
 }
 
-export function AppSidebar({ brands = [], selectedClientId = null, adminRole = null }: AppSidebarProps) {
+export function AppSidebar({
+  brands = [],
+  selectedClientId = null,
+  adminRole = null,
+  userName = null,
+  userEmail = null,
+  userRole = null,
+  brandName = null,
+  unreadNotificationCount = 0,
+}: AppSidebarProps) {
   const pathname = usePathname();
+  const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [admin, setAdmin] = useState<AdminPayload | null>(null);
 
-  useEffect(() => {
-    getAdminInfo().then(setAdmin);
-  }, []);
+  // userRole prop이 있으면 (포털에서 전달) 그것을 사용, 없으면 기존 어드민 로직
+  const currentRole: AppRole = (userRole as AppRole)
+    || (adminRole as AppRole)
+    || admin?.role
+    || "viewer";
 
-  // 서버에서 전달받은 role 우선, 폴백으로 클라이언트 조회
-  const currentRole: AdminRole = (adminRole as AdminRole) || admin?.role || "viewer";
+  const isClientUser = CLIENT_ROLES.includes(currentRole);
+
+  useEffect(() => {
+    // 어드민 역할일 때만 getAdminInfo 호출
+    if (!isClientUser && !userRole) {
+      getAdminInfo().then(setAdmin);
+    }
+  }, [isClientUser, userRole]);
 
   const handleSignOut = () => {
     startTransition(async () => {
-      await adminLogout();
+      if (isClientUser) {
+        await portalSignOut();
+        router.push("/login");
+        router.refresh();
+      } else {
+        await adminLogout();
+      }
     });
   };
 
   const isActive = (url: string) => {
     if (url === "/dashboard") return pathname === url;
-    // /ops exact match
+    if (url === "/portal") return pathname === url;
     if (url === "/ops") return pathname === "/ops";
     return pathname === url || pathname.startsWith(`${url}/`);
   };
 
-  const initials = admin?.displayName?.charAt(0).toUpperCase()
-    ?? admin?.username?.charAt(0).toUpperCase()
-    ?? "A";
+  // 프로필 표시 정보
+  const displayName = isClientUser
+    ? (userName || userEmail || "사용자")
+    : (admin?.displayName || admin?.username || "어드민");
+  const displayEmail = isClientUser
+    ? (userEmail || "")
+    : (admin?.username || "");
+  const initials = displayName.charAt(0).toUpperCase();
 
   // 역할에 따라 메뉴 항목 필터링
   const filterByRole = (items: NavItem[]) =>
     items.filter((item) => item.roles.includes(currentRole));
 
-  const navGroups = [
-    { label: "서비스", items: filterByRole(serviceNavItems), separator: false },
-    { label: "고객 관리", items: filterByRole(clientMgmtNavItems), separator: true },
-    { label: "비즈니스", items: filterByRole(bizNavItems), separator: false },
-    { label: "영업 CRM", items: filterByRole(crmNavItems), separator: false },
-    { label: "리소스", items: filterByRole(resourceNavItems), separator: false },
-    { label: "설정", items: filterByRole(settingsNavItems), separator: false },
-  ].filter((g) => g.items.length > 0);
+  // 알림 뱃지 적용
+  const portalItemsWithBadge = portalNavItems.map((item) => {
+    if (item.url === "/portal/notifications" && unreadNotificationCount > 0) {
+      return { ...item, badge: unreadNotificationCount };
+    }
+    return item;
+  });
+
+  // 어드민/고객에 따라 메뉴 그룹 구성
+  const navGroups = isClientUser
+    ? [
+        { label: "메뉴", items: filterByRole(portalItemsWithBadge), separator: false },
+      ].filter((g) => g.items.length > 0)
+    : [
+        { label: "서비스", items: filterByRole(serviceNavItems), separator: false },
+        { label: "고객 관리", items: filterByRole(clientMgmtNavItems), separator: true },
+        { label: "비즈니스", items: filterByRole(bizNavItems), separator: false },
+        { label: "영업 CRM", items: filterByRole(crmNavItems), separator: false },
+        { label: "리소스", items: filterByRole(resourceNavItems), separator: false },
+        { label: "설정", items: filterByRole(settingsNavItems), separator: false },
+      ].filter((g) => g.items.length > 0);
+
+  const homeUrl = isClientUser ? "/portal" : "/dashboard";
+  const settingsUrl = isClientUser ? "/portal/settings" : "/settings/account";
 
   return (
     <Sidebar className="border-r border-border/40">
       {/* Logo */}
       <SidebarHeader className="border-b border-border/40 p-4 pb-3">
-        <Link href="/dashboard">
+        <Link href={homeUrl}>
           <Logo size="md" />
         </Link>
+        {/* 고객: 브랜드명 표시 */}
+        {isClientUser && brandName && (
+          <span className="text-xs text-muted-foreground truncate mt-1">
+            {brandName}
+          </span>
+        )}
       </SidebarHeader>
 
-      {/* 글로벌 브랜드 셀렉터 */}
-      <div className="border-b border-border/40 pt-3">
-        <BrandSelector brands={brands} selectedClientId={selectedClientId} />
-      </div>
+      {/* 어드민 전용: 글로벌 브랜드 셀렉터 */}
+      {!isClientUser && (
+        <div className="border-b border-border/40 pt-3">
+          <BrandSelector brands={brands} selectedClientId={selectedClientId} />
+        </div>
+      )}
 
       <SidebarContent className="px-2">
         {navGroups.map((group) => (
@@ -218,9 +303,14 @@ export function AppSidebar({ brands = [], selectedClientId = null, adminRole = n
                         isActive={isActive(item.url)}
                         className="transition-colors"
                       >
-                        <Link href={item.url}>
+                        <Link href={item.url} className="relative">
                           <item.icon className="h-4 w-4" />
                           <span>{item.title}</span>
+                          {item.badge && item.badge > 0 && (
+                            <span className="absolute right-2 top-1/2 -translate-y-1/2 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
+                              {item.badge > 99 ? "99+" : item.badge}
+                            </span>
+                          )}
                         </Link>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
@@ -232,29 +322,33 @@ export function AppSidebar({ brands = [], selectedClientId = null, adminRole = n
         ))}
       </SidebarContent>
 
-      {/* 어드민 프로필 */}
+      {/* 프로필 */}
       <SidebarFooter className="border-t border-border/40 p-2">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button className="flex w-full items-center gap-3 rounded-lg p-2 text-left hover:bg-accent transition-colors">
               <Avatar className="h-8 w-8">
-                <AvatarFallback className="bg-gradient-to-br from-amber-500 to-orange-500 text-white text-xs font-bold">
+                <AvatarFallback className={`text-white text-xs font-bold ${
+                  isClientUser
+                    ? "bg-gradient-to-br from-emerald-500 to-teal-500"
+                    : "bg-gradient-to-br from-amber-500 to-orange-500"
+                }`}>
                   {initials}
                 </AvatarFallback>
               </Avatar>
               <div className="flex flex-col flex-1 min-w-0">
                 <span className="text-sm font-medium truncate">
-                  {admin?.displayName || admin?.username || "어드민"}
+                  {displayName}
                 </span>
                 <span className="text-xs text-muted-foreground truncate">
-                  {ROLE_LABELS[currentRole] || "어드민"}
+                  {ROLE_LABELS[currentRole] || currentRole}
                 </span>
               </div>
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="w-56">
             <DropdownMenuItem asChild>
-              <Link href="/settings/account">
+              <Link href={settingsUrl}>
                 <Settings className="h-4 w-4 mr-2" />
                 계정 설정
               </Link>
