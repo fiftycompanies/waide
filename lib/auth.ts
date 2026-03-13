@@ -1,12 +1,12 @@
 /**
  * lib/auth.ts — Supabase Auth 기반 사용자 인증 유틸리티
- * 기존 admins 테이블 인증과 병렬 운영
+ * Phase AUTH-1: 인증 통합 (admin_users → users 단일 테이블)
  */
 
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/service";
 
-export type UserRole = "super_admin" | "admin" | "sales" | "client_owner" | "client_member";
+export type UserRole = "super_admin" | "admin" | "sales" | "viewer" | "client_owner" | "client_member";
 
 export interface AppUser {
   id: string;
@@ -94,4 +94,29 @@ export function isClient(role: UserRole): boolean {
 /** 영업사원 여부 */
 export function isSales(role: UserRole): boolean {
   return role === "sales";
+}
+
+/** 어드민 영역 접근 가능 역할 (super_admin, admin, sales, viewer) */
+export function isAdminRole(role: UserRole): boolean {
+  return ["super_admin", "admin", "sales", "viewer"].includes(role);
+}
+
+/** 고객 포털 접근 역할 (client_owner, client_member) */
+export function isClientRole(role: UserRole): boolean {
+  return role === "client_owner" || role === "client_member";
+}
+
+/**
+ * role에 따라 적절한 client_id 반환
+ * - 고객 역할: 항상 본인 client_id만
+ * - 어드민 역할: 요청한 값 그대로 (브랜드 셀렉터)
+ */
+export async function getEffectiveClientId(requestedClientId?: string | null): Promise<string | null> {
+  const user = await getCurrentUser();
+  if (!user) return null;
+
+  if (isClientRole(user.role)) {
+    return user.client_id;
+  }
+  return requestedClientId ?? null;
 }
