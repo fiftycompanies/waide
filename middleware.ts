@@ -159,9 +159,9 @@ export async function middleware(request: NextRequest) {
     return response;
   }
 
-  // ─── 2. 포털 라우트 → Supabase Auth 필수 ──────────────────────
+  // ─── 2. 포털 라우트 → client 역할만 접근 가능 ──────────────────
   if (isPortal) {
-    // Supabase Auth 우선 체크
+    // 2-A. Supabase Auth 체크
     const supabaseUser = await getSupabaseUser(request, response);
     if (supabaseUser) {
       const role = await getSupabaseUserRole(supabaseUser.id);
@@ -172,6 +172,14 @@ export async function middleware(request: NextRequest) {
         return NextResponse.redirect(url);
       }
       return response;
+    }
+
+    // 2-B. HMAC 폴백 — 어드민이므로 /dashboard로 (DEPRECATED)
+    const hmacToken = request.cookies.get(HMAC_COOKIE_NAME)?.value;
+    if (hmacToken && await isValidAdminSession(hmacToken)) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/dashboard";
+      return NextResponse.redirect(url);
     }
 
     // 미인증 → /login 리다이렉트
