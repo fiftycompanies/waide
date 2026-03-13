@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import {
   Award,
   Calendar,
@@ -12,7 +13,10 @@ import {
   FileText,
   Link2,
   Loader2,
+  PenLine,
+  Settings,
   X,
+  Zap,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { getPortalContentsV2, getPortalActiveJobs } from "@/lib/actions/portal-actions";
@@ -46,6 +50,7 @@ interface ActiveJob {
 }
 
 type FilterType = "all" | "drafting" | "reviewing" | "published";
+type ContentsTab = "list" | "create" | "jobs";
 
 const statusLabels: Record<string, { text: string; color: string }> = {
   published: { text: "발행됨", color: "bg-emerald-100 text-emerald-700" },
@@ -63,6 +68,11 @@ const filterGroups: { key: FilterType; label: string }[] = [
 ];
 
 export default function PortalContentsClient() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const tabParam = searchParams.get("tab") as ContentsTab | null;
+  const currentTab: ContentsTab = tabParam && ["list", "create", "jobs"].includes(tabParam) ? tabParam : "list";
+
   const [contents, setContents] = useState<ContentItem[]>([]);
   const [activeJobs, setActiveJobs] = useState<ActiveJob[]>([]);
   const [loading, setLoading] = useState(true);
@@ -71,6 +81,10 @@ export default function PortalContentsClient() {
   const [publishModalContent, setPublishModalContent] = useState<ContentItem | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
   const [clientId, setClientId] = useState("");
+
+  const setTab = (tab: ContentsTab) => {
+    router.push(`/portal/contents?tab=${tab}`);
+  };
 
   useEffect(() => {
     const el = document.querySelector("meta[name='portal-client-id']");
@@ -327,95 +341,86 @@ export default function PortalContentsClient() {
   }
 
   // ── List view ──
+  const tabItems: { key: ContentsTab; label: string; icon: React.ReactNode }[] = [
+    { key: "list", label: "목록", icon: <FileText className="h-4 w-4" /> },
+    { key: "create", label: "생성", icon: <PenLine className="h-4 w-4" /> },
+    { key: "jobs", label: "작업현황", icon: <Settings className="h-4 w-4" /> },
+  ];
+
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">콘텐츠 현황</h1>
+        <h1 className="text-2xl font-bold text-gray-900">콘텐츠 관리</h1>
         <p className="text-sm text-gray-500 mt-1">
-          발행된 콘텐츠와 예정 콘텐츠를 확인하세요
+          콘텐츠 목록 · 생성 · 작업현황
         </p>
       </div>
 
-      {/* Summary */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="p-4 rounded-xl border bg-white text-center">
-          <p className="text-xs text-gray-500">전체</p>
-          <p className="text-2xl font-bold text-gray-900 mt-1">{contents.length}</p>
-        </div>
-        <div className="p-4 rounded-xl border bg-white text-center">
-          <p className="text-xs text-gray-500">발행됨</p>
-          <p className="text-2xl font-bold text-emerald-600 mt-1">{countByStatus("published")}</p>
-        </div>
-        <div className="p-4 rounded-xl border bg-white text-center">
-          <p className="text-xs text-gray-500">검수완료</p>
-          <p className="text-2xl font-bold text-blue-600 mt-1">{countByStatus("approved")}</p>
-        </div>
-        <div className="p-4 rounded-xl border bg-white text-center">
-          <p className="text-xs text-gray-500">생성중</p>
-          <p className="text-2xl font-bold text-amber-600 mt-1">{countByStatus("draft") + countByStatus("review") + activeJobs.length}</p>
-        </div>
-      </div>
-
-      {/* Filters */}
-      <div className="flex gap-2 overflow-x-auto pb-1">
-        {filterGroups.map((f) => (
+      {/* Tabs */}
+      <div className="flex gap-1 border-b">
+        {tabItems.map((t) => (
           <button
-            key={f.key}
-            onClick={() => setFilter(f.key)}
-            className={`px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
-              filter === f.key
-                ? "bg-gray-900 text-white"
-                : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+            key={t.key}
+            onClick={() => setTab(t.key)}
+            className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px ${
+              currentTab === t.key
+                ? "border-emerald-600 text-emerald-700"
+                : "border-transparent text-gray-500 hover:text-gray-700"
             }`}
           >
-            {f.label}
+            {t.icon}
+            {t.label}
+            {t.key === "jobs" && activeJobs.length > 0 && (
+              <span className="ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700">
+                {activeJobs.length}
+              </span>
+            )}
           </button>
         ))}
       </div>
 
-      {/* Active Jobs (shown inline at top) */}
-      {showJobs && activeJobs.length > 0 && (
-        <div className="space-y-2">
-          {activeJobs.map((job) => {
-            const payload = job.input_payload || {};
-            const keyword = payload.keyword || "";
-            const contentType = payload.content_type || "";
-            const isPending = job.status === "PENDING";
-            return (
-              <div key={job.id} className="rounded-xl border bg-white p-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className={`w-2 h-2 rounded-full ${isPending ? "bg-gray-400" : "bg-amber-500 animate-pulse"}`} />
-                    <div>
-                      <p className="text-sm font-medium text-gray-900">
-                        {keyword || job.title}
-                      </p>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        {contentType && (
-                          <span className="text-xs text-gray-400">
-                            {contentType === "info" ? "정보성" : contentType === "review" ? "후기형" : contentType === "compare" ? "비교형" : contentType}
-                          </span>
-                        )}
-                        <span className="text-xs text-gray-400">
-                          {new Date(job.created_at).toLocaleDateString("ko-KR")}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                    isPending ? "bg-amber-50 text-amber-600" : "bg-amber-100 text-amber-700"
-                  }`}>
-                    {isPending ? "대기중" : "생성중"}
-                  </span>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
+      {/* ── Tab: list ── */}
+      {currentTab === "list" && (
+        <>
+          {/* Summary */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="p-4 rounded-xl border bg-white text-center">
+              <p className="text-xs text-gray-500">전체</p>
+              <p className="text-2xl font-bold text-gray-900 mt-1">{contents.length}</p>
+            </div>
+            <div className="p-4 rounded-xl border bg-white text-center">
+              <p className="text-xs text-gray-500">발행됨</p>
+              <p className="text-2xl font-bold text-emerald-600 mt-1">{countByStatus("published")}</p>
+            </div>
+            <div className="p-4 rounded-xl border bg-white text-center">
+              <p className="text-xs text-gray-500">검수완료</p>
+              <p className="text-2xl font-bold text-blue-600 mt-1">{countByStatus("approved")}</p>
+            </div>
+            <div className="p-4 rounded-xl border bg-white text-center">
+              <p className="text-xs text-gray-500">생성중</p>
+              <p className="text-2xl font-bold text-amber-600 mt-1">{countByStatus("draft") + countByStatus("review") + activeJobs.length}</p>
+            </div>
+          </div>
 
-      {/* Content list */}
-      {filtered.length === 0 && !(showJobs && activeJobs.length > 0) ? (
+          {/* Filters */}
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {filterGroups.map((f) => (
+              <button
+                key={f.key}
+                onClick={() => setFilter(f.key)}
+                className={`px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
+                  filter === f.key
+                    ? "bg-gray-900 text-white"
+                    : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Content list */}
+          {filtered.length === 0 ? (
         <div className="rounded-xl border bg-white p-12 text-center">
           <FileText className="h-12 w-12 text-gray-300 mx-auto mb-3" />
           <p className="text-gray-500">
@@ -531,6 +536,84 @@ export default function PortalContentsClient() {
           </table>
         </div>
       ) : null}
+        </>
+      )}
+
+      {/* ── Tab: create ── */}
+      {currentTab === "create" && (
+        <div className="rounded-xl border bg-white p-12 text-center space-y-4">
+          <Zap className="h-12 w-12 text-emerald-400 mx-auto" />
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">콘텐츠 생성</h2>
+            <p className="text-sm text-gray-500 mt-2">
+              키워드를 선택하면 AI가 SEO 최적화된 블로그 콘텐츠를 자동으로 생성합니다.
+            </p>
+            <p className="text-xs text-gray-400 mt-1">
+              키워드 관리 페이지에서 활성 키워드를 확인하고, 생성할 콘텐츠 유형을 선택하세요.
+            </p>
+          </div>
+          <a
+            href="/portal/keywords"
+            className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700 transition-colors"
+          >
+            <PenLine className="h-4 w-4" />
+            키워드 관리로 이동
+          </a>
+        </div>
+      )}
+
+      {/* ── Tab: jobs ── */}
+      {currentTab === "jobs" && (
+        <>
+          {activeJobs.length === 0 ? (
+            <div className="rounded-xl border bg-white p-12 text-center">
+              <Settings className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+              <p className="text-gray-500">진행 중인 작업이 없습니다</p>
+              <p className="text-sm text-gray-400 mt-1">
+                콘텐츠 생성이 시작되면 여기에 작업 현황이 표시됩니다
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {activeJobs.map((job) => {
+                const payload = job.input_payload || {};
+                const keyword = payload.keyword || "";
+                const contentType = payload.content_type || "";
+                const isPending = job.status === "PENDING";
+                return (
+                  <div key={job.id} className="rounded-xl border bg-white p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-2 h-2 rounded-full ${isPending ? "bg-gray-400" : "bg-amber-500 animate-pulse"}`} />
+                        <div>
+                          <p className="text-sm font-medium text-gray-900">
+                            {keyword || job.title}
+                          </p>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            {contentType && (
+                              <span className="text-xs text-gray-400">
+                                {contentType === "info" ? "정보성" : contentType === "review" ? "후기형" : contentType === "compare" ? "비교형" : contentType}
+                              </span>
+                            )}
+                            <span className="text-xs text-gray-400">
+                              {new Date(job.created_at).toLocaleDateString("ko-KR")}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                        isPending ? "bg-amber-50 text-amber-600" : "bg-amber-100 text-amber-700"
+                      }`}>
+                        {isPending ? "대기중" : "생성중"}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </>
+      )}
 
       {/* Publish URL Modal */}
       {publishModalContent && (
