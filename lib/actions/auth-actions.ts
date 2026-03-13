@@ -568,7 +568,9 @@ import type { AdminPayload } from "@/lib/auth/admin-session";
 export async function unifiedLogin(identifier: string, password: string) {
   const isEmail = identifier.includes("@");
 
-  // 1. 어드민 로그인 시도 (username 기반)
+  // 1. username 기반 로그인 (DEPRECATED — HMAC 세션 + admin_users)
+  // Phase AUTH-1 이후 Supabase Auth 단일화 전환 중.
+  // 기존 어드민이 이메일 계정 전환 전까지 HMAC 폴백 유지.
   if (!isEmail) {
     const db = createAdminClient();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -582,7 +584,7 @@ export async function unifiedLogin(identifier: string, password: string) {
     if (admin) {
       const match = await bcrypt.compare(password, admin.password_hash as string);
       if (match) {
-        // 어드민 세션 쿠키 설정
+        // HMAC 세션 쿠키 설정 (DEPRECATED — 전환 완료 후 제거 예정)
         const token = createSessionToken({
           id: admin.id as string,
           username: admin.username as string,
@@ -610,9 +612,15 @@ export async function unifiedLogin(identifier: string, password: string) {
         return { success: true as const, redirect: "/dashboard" };
       }
     }
+
+    // username이 admin_users에 없거나 비밀번호 불일치 → 안내 메시지
+    return {
+      success: false as const,
+      error: "이메일 주소로 로그인해주세요. 관리자 계정은 이메일 로그인으로 전환되었습니다.",
+    };
   }
 
-  // 2. Supabase Auth 로그인 시도 (이메일 기반)
+  // 2. Supabase Auth 로그인 (이메일 기반 — 모든 역할 통합)
   const result = await portalSignIn(identifier, password);
   if (result.success) {
     const isClientUser =
@@ -625,6 +633,6 @@ export async function unifiedLogin(identifier: string, password: string) {
 
   return {
     success: false as const,
-    error: "아이디/이메일 또는 비밀번호가 올바르지 않습니다.",
+    error: "이메일 또는 비밀번호가 올바르지 않습니다.",
   };
 }
