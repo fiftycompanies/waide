@@ -1,9 +1,11 @@
 import { getCurrentUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { PortalShell } from "@/components/portal/portal-shell";
 import { PortalPendingPage } from "@/components/portal/portal-pending";
 import { KakaoFloatingButton } from "@/components/portal/kakao-floating-button";
 import { getUnreadCount } from "@/lib/actions/notification-actions";
+import { SidebarProvider, SidebarTrigger, SidebarInset } from "@/components/ui/sidebar";
+import { AppSidebar } from "@/components/dashboard/app-sidebar";
+import { Separator } from "@/components/ui/separator";
 
 export default async function PortalLayout({
   children,
@@ -21,7 +23,7 @@ export default async function PortalLayout({
     return <PortalPendingPage />;
   }
 
-  // Phase 4: 읽지 않은 알림 수 조회
+  // 읽지 않은 알림 수 조회
   let unreadCount = 0;
   try {
     unreadCount = await getUnreadCount(user.client_id);
@@ -31,16 +33,32 @@ export default async function PortalLayout({
 
   return (
     <>
-      <PortalShell
-        userName={user.name}
-        userEmail={user.email}
-        userId={user.id}
-        clientId={user.client_id}
-        brandName={user.client_brand_name || ""}
-        unreadNotificationCount={unreadCount}
-      >
-        {children}
-      </PortalShell>
+      <SidebarProvider>
+        <AppSidebar
+          userRole={user.role}
+          userName={user.name}
+          userEmail={user.email}
+          brandName={user.client_brand_name || ""}
+          unreadNotificationCount={unreadCount}
+        />
+        <SidebarInset>
+          <header className="flex h-14 shrink-0 items-center gap-2 border-b border-border/40 px-4">
+            <SidebarTrigger className="-ml-1" />
+            <Separator orientation="vertical" className="mr-2 h-4" />
+            {user.client_brand_name && (
+              <span className="text-sm font-medium text-muted-foreground">
+                {user.client_brand_name}
+              </span>
+            )}
+          </header>
+          <main className="flex-1 overflow-auto">
+            {/* Hidden meta for client pages to read clientId/userId */}
+            <meta name="portal-client-id" content={user.client_id} />
+            <meta name="portal-user-id" content={user.id} />
+            {children}
+          </main>
+        </SidebarInset>
+      </SidebarProvider>
       <KakaoFloatingButton />
     </>
   );
