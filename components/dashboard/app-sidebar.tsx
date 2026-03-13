@@ -29,6 +29,7 @@ import {
   Smartphone,
   Store,
   Timer,
+  Microscope,
   UserCheck,
   UserCog,
 } from "lucide-react";
@@ -142,6 +143,7 @@ const clientNavItems: NavItem[] = [
   { title: "콘텐츠 관리",   url: "/contents",       icon: FileEdit,    roles: CLIENT_ROLES },
   { title: "발행 관리",     url: "/publish",        icon: Send,        roles: CLIENT_ROLES },
   { title: "성과 분석",     url: "/analytics",      icon: BarChart3,   roles: CLIENT_ROLES },
+  { title: "브랜드 분석",   url: "/brand-analysis", icon: Microscope,  roles: CLIENT_ROLES },
   { title: "블로그 계정",   url: "/blog-accounts",  icon: Smartphone,  roles: CLIENT_ROLES },
   { title: "설정",          url: "/settings",       icon: Settings,    roles: CLIENT_ROLES },
 ];

@@ -28,6 +28,7 @@ const ADMIN_PROTECTED_ROUTES = [
   "/publish",
   "/clients",
   "/accounts",
+  "/brand-analysis",
 ];
 
 // ── 포털 보호 라우트 ────────────────────────────────────────────────────
