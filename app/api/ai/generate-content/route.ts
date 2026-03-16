@@ -21,6 +21,9 @@ export async function POST(request: NextRequest) {
     addSchemaMarkup,
   } = body;
 
+  const brandRegion = brandInfo?.region || "미정";
+  const brandDescription = brandInfo?.description || "없음";
+
   const typeLabel =
     contentType === "blog_info"
       ? "정보형"
@@ -31,7 +34,7 @@ export async function POST(request: NextRequest) {
   const hasImages = imageUrls?.length > 0;
 
   const imageSection = hasImages
-    ? `\n\n사용할 이미지:\n${(imageUrls as string[]).map((u: string, i: number) => `${i + 1}. ${u}`).join("\n")}\n각 H2 섹션 직후에 이미지를 ![설명](url) 형식으로 자연스럽게 배치해주세요.`
+    ? `\n\n사용할 이미지 (${(imageUrls as string[]).length}장):\n${(imageUrls as string[]).map((u: string, i: number) => `${i + 1}. ${u}`).join("\n")}\n\n[중요] 위 이미지를 반드시 모두 사용해야 합니다. 하나라도 빠뜨리지 마세요.\n각 H2 섹션 직후에 이미지를 ![설명](url) 형식으로 배치하세요. 이미지 수가 H2보다 많으면 한 섹션에 2장을 넣어도 됩니다.`
     : `\n\n이미지가 없습니다. 각 H2 섹션 직후에 아래 형식의 이미지 플레이스홀더를 1개씩 삽입해주세요:
 > 📷 [이미지 추천] {맥락에 맞는 이미지 설명 1~2줄} — 이런 사진을 넣어보세요.
 
@@ -68,8 +71,8 @@ ${schemaInstruction}`;
 [브랜드 정보]
 - 매장명: ${brandInfo?.name || "미정"}
 - 업종: ${brandInfo?.category || "미정"}
-- 지역: ${brandInfo?.region || "미정"}
-- 특징: ${brandInfo?.description || "없음"}
+- 지역: ${brandRegion}
+- 특징: ${brandDescription}
 
 [브리프]
 ${brief || "없음"}
@@ -90,7 +93,7 @@ ${imageSection}
       },
       body: JSON.stringify({
         model: "claude-sonnet-4-20250514",
-        max_tokens: 4000,
+        max_tokens: 8000,
         stream: true,
         system: systemPrompt,
         messages: [{ role: "user", content: userPrompt }],
@@ -142,6 +145,14 @@ ${imageSection}
                   ) {
                     const chunk = `data: ${JSON.stringify({ text: parsed.delta.text })}\n\n`;
                     controller.enqueue(encoder.encode(chunk));
+                  }
+                  // stop_reason 감지: max_tokens로 잘린 경우 경고 전송
+                  if (
+                    parsed.type === "message_delta" &&
+                    parsed.delta?.stop_reason === "max_tokens"
+                  ) {
+                    const warning = `data: ${JSON.stringify({ warning: "max_tokens_reached" })}\n\n`;
+                    controller.enqueue(encoder.encode(warning));
                   }
                 } catch {
                   // skip parse errors

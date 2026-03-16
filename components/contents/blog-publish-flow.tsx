@@ -59,7 +59,7 @@ interface BlogPublishFlowProps {
 type ContentType = "blog_info" | "blog_review" | "blog_list";
 
 const STEPS = [
-  { label: "매장 정보", icon: Store },
+  { label: "브랜드 정보", icon: Store },
   { label: "유형 · 키워드", icon: Hash },
   { label: "마케팅 포인트", icon: Pen },
   { label: "이미지", icon: ImageIcon },
@@ -90,10 +90,27 @@ export function BlogPublishFlow({
       naverPlaceUrl: placeId
         ? `https://m.place.naver.com/restaurant/${placeId}/home`
         : (bi.naver_place_url as string) || (bi.place_url as string) || "",
-      homepage: (bi.homepage as string) || (bi.website as string) || (bi.website_url as string) || "",
+      homepage: (bi.homepage_url as string) || (bi.homepage as string) || (bi.website as string) || (bi.website_url as string) || "",
       category: (bi.category as string) || "",
+      region: (bi.region as string) || (bi.address as string) || "",
+      description: "",
     };
   });
+
+  // brandInfo.description을 content_strategy에서 추출
+  useEffect(() => {
+    if (brandAnalysis?.content_strategy) {
+      const cs = brandAnalysis.content_strategy;
+      const brandA = cs.brand_analysis as Record<string, unknown> | undefined;
+      const parts: string[] = [];
+      if (brandA?.usp) parts.push(String(brandA.usp));
+      if (brandA?.strengths) parts.push(String(brandA.strengths));
+      if (parts.length > 0 && !brandInfo.description) {
+        setBrandInfo((prev) => ({ ...prev, description: parts.join(". ") }));
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [brandAnalysis]);
 
   // Step 1: Type + Keywords
   const [contentType, setContentType] = useState<ContentType>("blog_info");
@@ -124,6 +141,7 @@ export function BlogPublishFlow({
   const [saving, setSaving] = useState(false);
   const [copied, setCopied] = useState(false);
   const [addSchemaMarkup, setAddSchemaMarkup] = useState(true);
+  const [truncationWarning, setTruncationWarning] = useState(false);
 
   // Step 6: Publish + Track
   const [publishingAccounts, setPublishingAccounts] = useState(initialAccounts);
@@ -176,8 +194,28 @@ export function BlogPublishFlow({
     }
   }, [step, mainKeyword, brief, editedTitle, generatedContent]);
 
-  const handleNext = () => {
-    if (step < STEPS.length - 1 && canGoNext()) setStep(step + 1);
+  const handleNext = async () => {
+    if (step < STEPS.length - 1 && canGoNext()) {
+      // Step 5(콘텐츠 생성)에서 다음 클릭 시 자동 저장
+      if (step === 5 && generatedContent && !savedContentId && !saving) {
+        setSaving(true);
+        const result = await saveGeneratedContent({
+          clientId,
+          title: editedTitle || `${mainKeyword} - ${contentType}`,
+          body: generatedContent,
+          mainKeyword,
+          subKeywords,
+          contentType,
+          keywordId: mainKeywordId || undefined,
+          imageUrls: selectedImages.length > 0 ? selectedImages : undefined,
+        });
+        if (result.success && result.contentId) {
+          setSavedContentId(result.contentId);
+        }
+        setSaving(false);
+      }
+      setStep(step + 1);
+    }
   };
   const handleBack = () => {
     if (step > 0) setStep(step - 1);
@@ -292,6 +330,7 @@ export function BlogPublishFlow({
     setIsGenerating(true);
     setGeneratedContent("");
     setSavedContentId(null);
+    setTruncationWarning(false);
 
     try {
       const res = await fetch("/api/ai/generate-content", {
@@ -303,8 +342,8 @@ export function BlogPublishFlow({
           brandInfo: {
             name: brandInfo.name,
             category: brandInfo.category,
-            region: "",
-            description: "",
+            region: brandInfo.region,
+            description: brandInfo.description,
           },
           mainKeyword,
           subKeywords,
@@ -333,6 +372,9 @@ export function BlogPublishFlow({
             try {
               const parsed = JSON.parse(data);
               if (parsed.text) accumulated += parsed.text;
+              if (parsed.warning === "max_tokens_reached") {
+                setTruncationWarning(true);
+              }
             } catch {
               // skip
             }
@@ -543,19 +585,18 @@ export function BlogPublishFlow({
               content={generatedContent}
               isGenerating={isGenerating}
               savedContentId={savedContentId}
-              saving={saving}
               copied={copied}
               title={editedTitle}
               contentType={contentType}
               mainKeyword={mainKeyword}
               subKeywords={subKeywords}
               imageCount={selectedImages.length}
+              truncationWarning={truncationWarning}
               addSchemaMarkup={addSchemaMarkup}
               onSchemaMarkupChange={setAddSchemaMarkup}
               onGenerate={handleGenerate}
               onContentChange={setGeneratedContent}
               onCopy={handleCopy}
-              onSave={handleSave}
             />
           )}
           {step === 6 && (
@@ -595,10 +636,13 @@ export function BlogPublishFlow({
           {step < STEPS.length - 1 && (
             <Button
               onClick={handleNext}
-              disabled={!canGoNext()}
+              disabled={!canGoNext() || (step === 5 && saving)}
               className="gap-1 bg-violet-600 hover:bg-violet-700"
             >
-              다음
+              {step === 5 && saving ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : null}
+              {step === 5 && !savedContentId ? "저장 후 다음" : "다음"}
               <ChevronRight className="h-4 w-4" />
             </Button>
           )}
@@ -733,12 +777,12 @@ function KeywordCombobox({
 // Step Components
 // ═══════════════════════════════════════════════════════════════
 
-// Step 0: 매장 정보 확인
+// Step 0: 브랜드 정보 확인
 function StepBrandInfo({
   value,
   onChange,
 }: {
-  value: { name: string; naverPlaceUrl: string; homepage: string; category: string };
+  value: { name: string; naverPlaceUrl: string; homepage: string; category: string; region: string; description: string };
   onChange: (v: typeof value) => void;
 }) {
   const fields: { key: keyof typeof value; label: string; placeholder: string }[] = [
@@ -746,11 +790,13 @@ function StepBrandInfo({
     { key: "naverPlaceUrl", label: "네이버 플레이스 URL", placeholder: "https://m.place.naver.com/..." },
     { key: "homepage", label: "홈페이지", placeholder: "https://example.com" },
     { key: "category", label: "카테고리", placeholder: "카페 / 음식점 / 숙박" },
+    { key: "region", label: "지역", placeholder: "서울 강남구 / 제주시" },
+    { key: "description", label: "브랜드 특징", placeholder: "프리미엄 글램핑, 자연 속 힐링 체험" },
   ];
 
   return (
     <div className="space-y-4">
-      <h3 className="text-lg font-semibold">매장 정보 확인</h3>
+      <h3 className="text-lg font-semibold">브랜드 정보 확인</h3>
       <p className="text-sm text-muted-foreground">
         브랜드 분석 결과에서 가져온 정보입니다. 필요시 수정하세요.
       </p>
@@ -945,6 +991,17 @@ function StepImages({
           {loading ? "이미지 불러오는 중..." : "이미지 불러오기"}
         </Button>
       )}
+      {!placeId && crawledImages.length === 0 && (
+        <div className="rounded-lg border border-dashed border-muted-foreground/30 p-4 text-center">
+          <ImageIcon className="h-6 w-6 text-muted-foreground/50 mx-auto mb-2" />
+          <p className="text-sm text-muted-foreground">
+            네이버 플레이스 연동이 없어 자동 이미지 불러오기가 불가합니다.
+          </p>
+          <p className="text-xs text-muted-foreground mt-1">
+            아래 &quot;직접 업로드&quot;로 이미지를 추가하세요.
+          </p>
+        </div>
+      )}
 
       {/* Crawled Images Grid */}
       {crawledImages.length > 0 && (
@@ -1114,36 +1171,34 @@ function StepContentGeneration({
   content,
   isGenerating,
   savedContentId,
-  saving,
   copied,
   title,
   contentType,
   mainKeyword,
   subKeywords,
   imageCount,
+  truncationWarning,
   addSchemaMarkup,
   onSchemaMarkupChange,
   onGenerate,
   onContentChange,
   onCopy,
-  onSave,
 }: {
   content: string;
   isGenerating: boolean;
   savedContentId: string | null;
-  saving: boolean;
   copied: boolean;
   title: string;
   contentType: ContentType;
   mainKeyword: string;
   subKeywords: string[];
   imageCount: number;
+  truncationWarning: boolean;
   addSchemaMarkup: boolean;
   onSchemaMarkupChange: (v: boolean) => void;
   onGenerate: () => void;
   onContentChange: (v: string) => void;
   onCopy: () => void;
-  onSave: () => void;
 }) {
   const typeLabel = contentType === "blog_info" ? "정보형" : contentType === "blog_review" ? "후기성" : "소개성";
 
@@ -1282,23 +1337,20 @@ function StepContentGeneration({
               {copied ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
               {copied ? "복사 완료!" : "복사"}
             </Button>
-            {!savedContentId ? (
-              <Button
-                onClick={onSave}
-                disabled={saving}
-                size="sm"
-                className="gap-1 bg-violet-600 hover:bg-violet-700"
-              >
-                {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileText className="h-3.5 w-3.5" />}
-                {saving ? "저장 중..." : "저장"}
-              </Button>
-            ) : (
+            {savedContentId && (
               <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 gap-1">
                 <Check className="h-3 w-3" />
                 저장 완료
               </Badge>
             )}
           </div>
+
+          {/* Truncation warning */}
+          {truncationWarning && (
+            <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
+              ⚠️ 콘텐츠가 최대 길이에 도달하여 잘렸을 수 있습니다. &quot;재생성&quot;을 눌러 다시 시도하세요.
+            </div>
+          )}
 
           {/* Content textarea */}
           <textarea
