@@ -91,7 +91,7 @@ const CLIENT_ROLES: AppRole[] = ["client_owner", "client_member"];
 const serviceNavItems: NavItem[] = [
   { title: "대시보드",    url: "/dashboard",  icon: LayoutDashboard, roles: ALL_ADMIN },
   { title: "키워드 관리", url: "/keywords",   icon: Key,             roles: ALL_ADMIN },
-  { title: "콘텐츠 관리", url: "/contents",   icon: FileEdit,        roles: ALL_ADMIN },
+  { title: "블로그 발행", url: "/contents",   icon: FileEdit,        roles: ALL_ADMIN },
   { title: "발행 관리",   url: "/publish",    icon: Send,            roles: ADMIN_ONLY },
   { title: "성과 분석",   url: "/analytics",  icon: BarChart2,       roles: ALL_ADMIN },
 ];
@@ -140,7 +140,7 @@ const settingsNavItems: NavItem[] = [
 const clientNavItems: NavItem[] = [
   { title: "대시보드",      url: "/dashboard",      icon: Home,        roles: CLIENT_ROLES },
   { title: "키워드 관리",   url: "/keywords",       icon: Key,         roles: CLIENT_ROLES },
-  { title: "콘텐츠 관리",   url: "/contents",       icon: FileEdit,    roles: CLIENT_ROLES },
+  { title: "블로그 발행",   url: "/contents",       icon: FileEdit,    roles: CLIENT_ROLES },
   { title: "발행 관리",     url: "/publish",        icon: Send,        roles: CLIENT_ROLES },
   { title: "성과 분석",     url: "/analytics",      icon: BarChart3,   roles: CLIENT_ROLES },
   { title: "브랜드 분석",   url: "/brand-analysis", icon: Microscope,  roles: CLIENT_ROLES },
