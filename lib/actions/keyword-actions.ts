@@ -943,3 +943,125 @@ export async function getPublishRecommendedKeywords(
     return [];
   }
 }
+
+// ── 키워드 발행 이력 (콘텐츠 관리 > 키워드 이력 탭) ──────────────────────────
+
+export interface KeywordPublishHistoryItem {
+  keyword_id: string;
+  keyword: string;
+  status: string;
+  content_count: number;
+  contents: Array<{
+    id: string;
+    title: string | null;
+    publish_status: string;
+    published_url: string | null;
+    created_at: string;
+  }>;
+  rank_pc: number | null;
+  rank_mo: number | null;
+}
+
+export async function getKeywordPublishHistory(
+  clientId: string
+): Promise<KeywordPublishHistoryItem[]> {
+  const db = createAdminClient();
+
+  // 키워드 목록
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: keywords } = await (db as any)
+    .from("keywords")
+    .select("id, keyword, status")
+    .eq("client_id", clientId)
+    .neq("status", "archived")
+    .order("created_at", { ascending: false });
+
+  if (!keywords || keywords.length === 0) return [];
+
+  const keywordIds = keywords.map((k: { id: string }) => k.id);
+
+  // 해당 키워드들의 콘텐츠
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: contents } = await (db as any)
+    .from("contents")
+    .select("id, title, publish_status, published_url, created_at, keyword_id")
+    .in("keyword_id", keywordIds)
+    .order("created_at", { ascending: false });
+
+  // keyword_visibility 최신 순위
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: visRows } = await (db as any)
+    .from("keyword_visibility")
+    .select("keyword_id, rank_pc, rank_mo")
+    .eq("client_id", clientId)
+    .in("keyword_id", keywordIds)
+    .order("measured_at", { ascending: false });
+
+  // keyword_id별 최신 순위
+  const latestVis = new Map<string, { rank_pc: number | null; rank_mo: number | null }>();
+  if (visRows) {
+    for (const v of visRows as { keyword_id: string; rank_pc: number | null; rank_mo: number | null }[]) {
+      if (!latestVis.has(v.keyword_id)) {
+        latestVis.set(v.keyword_id, { rank_pc: v.rank_pc, rank_mo: v.rank_mo });
+      }
+    }
+  }
+
+  // keyword_id별 콘텐츠 그룹핑
+  const contentMap = new Map<string, Array<{ id: string; title: string | null; publish_status: string; published_url: string | null; created_at: string }>>();
+  if (contents) {
+    for (const c of contents as Array<{ id: string; title: string | null; publish_status: string; published_url: string | null; created_at: string; keyword_id: string }>) {
+      if (!contentMap.has(c.keyword_id)) contentMap.set(c.keyword_id, []);
+      contentMap.get(c.keyword_id)!.push({
+        id: c.id,
+        title: c.title,
+        publish_status: c.publish_status,
+        published_url: c.published_url,
+        created_at: c.created_at,
+      });
+    }
+  }
+
+  return (keywords as Array<{ id: string; keyword: string; status: string }>).map((kw) => {
+    const kwContents = contentMap.get(kw.id) ?? [];
+    const vis = latestVis.get(kw.id);
+    return {
+      keyword_id: kw.id,
+      keyword: kw.keyword,
+      status: kw.status,
+      content_count: kwContents.length,
+      contents: kwContents,
+      rank_pc: vis?.rank_pc ?? null,
+      rank_mo: vis?.rank_mo ?? null,
+    };
+  });
+}
+
+// ── 키워드 연결 콘텐츠 (키워드 페이지 accordion용) ──────────────────────────
+
+export interface KeywordLinkedContent {
+  id: string;
+  title: string | null;
+  publish_status: string;
+  published_url: string | null;
+  word_count: number | null;
+  created_at: string;
+}
+
+export async function getKeywordLinkedContents(
+  keywordId: string
+): Promise<KeywordLinkedContent[]> {
+  const db = createAdminClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (db as any)
+    .from("contents")
+    .select("id, title, publish_status, published_url, word_count, created_at")
+    .eq("keyword_id", keywordId)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error("[keyword-actions] getKeywordLinkedContents:", error);
+    return [];
+  }
+  return (data ?? []) as KeywordLinkedContent[];
+}

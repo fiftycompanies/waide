@@ -483,3 +483,77 @@ export async function bulkCreateContents(
   if (inserted > 0) revalidatePath("/ops/contents");
   return { success: errors.length === 0, inserted, skipped, errors };
 }
+
+// ── 콘텐츠 상세 조회 (모달용) ──────────────────────────────────────────────────
+
+export interface ContentDetail {
+  id: string;
+  title: string | null;
+  body: string | null;
+  publish_status: string;
+  word_count: number | null;
+  published_url: string | null;
+  is_tracking: boolean | null;
+  generated_by: string | null;
+  created_at: string;
+  published_at: string | null;
+  keyword_name: string | null;
+  keyword_id: string | null;
+  publishing_account_name: string | null;
+  current_rank_pc: number | null;
+  current_rank_mo: number | null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  metadata?: Record<string, any> | null;
+}
+
+export async function getContentDetail(contentId: string): Promise<ContentDetail | null> {
+  const db = createAdminClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (db as any)
+    .from("contents")
+    .select("id, title, body, publish_status, word_count, published_url, is_tracking, generated_by, created_at, published_at, keyword_id, metadata, keywords(keyword), publishing_accounts(account_name)")
+    .eq("id", contentId)
+    .single();
+
+  if (error || !data) {
+    console.error("[ops-actions] getContentDetail:", error);
+    return null;
+  }
+
+  // SERP 순위 조회 (keyword_visibility 최신 1건)
+  let rankPc: number | null = null;
+  let rankMo: number | null = null;
+  if (data.keyword_id) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: vis } = await (db as any)
+      .from("keyword_visibility")
+      .select("rank_pc, rank_mo")
+      .eq("keyword_id", data.keyword_id)
+      .order("measured_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (vis) {
+      rankPc = vis.rank_pc;
+      rankMo = vis.rank_mo;
+    }
+  }
+
+  return {
+    id: data.id,
+    title: data.title,
+    body: data.body,
+    publish_status: data.publish_status,
+    word_count: data.word_count,
+    published_url: data.published_url,
+    is_tracking: data.is_tracking,
+    generated_by: data.generated_by,
+    created_at: data.created_at,
+    published_at: data.published_at,
+    keyword_name: data.keywords?.keyword ?? null,
+    keyword_id: data.keyword_id,
+    publishing_account_name: data.publishing_accounts?.account_name ?? null,
+    current_rank_pc: rankPc,
+    current_rank_mo: rankMo,
+    metadata: data.metadata,
+  };
+}

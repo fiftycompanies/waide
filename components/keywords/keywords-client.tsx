@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useTransition, useMemo } from "react";
+import React, { useState, useTransition, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Check, Loader2 as Spinner, Plus, Sparkles, Trash2, PauseCircle, PlayCircle, TrendingUp, TrendingDown, Upload, X } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, ExternalLink, FileText, Loader2 as Spinner, Plus, Sparkles, Trash2, PauseCircle, PlayCircle, TrendingUp, TrendingDown, Upload, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -15,9 +15,9 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import type { Keyword } from "@/lib/actions/keyword-actions";
+import type { Keyword, KeywordLinkedContent } from "@/lib/actions/keyword-actions";
 import type { PublishRecommendedKeyword } from "@/lib/actions/keyword-actions";
-import { createKeyword, archiveKeyword, updateKeywordStatus } from "@/lib/actions/keyword-actions";
+import { createKeyword, archiveKeyword, updateKeywordStatus, getKeywordLinkedContents } from "@/lib/actions/keyword-actions";
 import { approveSuggestedKeyword, rejectSuggestedKeyword, bulkApproveSuggestedKeywords, expandNicheKeywords } from "@/lib/actions/keyword-expansion-actions";
 import { KeywordAddModal } from "@/components/keywords/keyword-add-modal";
 import { KeywordCsvDialog } from "@/components/keywords/keyword-csv-dialog";
@@ -373,6 +373,26 @@ export function KeywordsClient({ keywords, clientId, publishRecommended = [] }: 
   const [displayCount, setDisplayCount] = useState(5);
   const [nicheLoading, setNicheLoading] = useState(false);
   const [addModalOpen, setAddModalOpen] = useState(false);
+
+  // ── 키워드 accordion (연결 콘텐츠) ──────────────────────────────────────
+  const [expandedKw, setExpandedKw] = useState<string | null>(null);
+  const [kwContents, setKwContents] = useState<Record<string, KeywordLinkedContent[]>>({});
+  const [kwContentsLoading, setKwContentsLoading] = useState<string | null>(null);
+
+  async function handleToggleExpand(kwId: string, e: React.MouseEvent) {
+    e.stopPropagation();
+    if (expandedKw === kwId) {
+      setExpandedKw(null);
+      return;
+    }
+    setExpandedKw(kwId);
+    if (!kwContents[kwId]) {
+      setKwContentsLoading(kwId);
+      const data = await getKeywordLinkedContents(kwId);
+      setKwContents((prev) => ({ ...prev, [kwId]: data }));
+      setKwContentsLoading(null);
+    }
+  }
 
   // ── 발행 추천 / AI 추천 섹션 상태 ────────────────────────────────────────
   const [publishVisibleCount, setPublishVisibleCount] = useState(5);
@@ -740,6 +760,7 @@ export function KeywordsClient({ keywords, clientId, publishRecommended = [] }: 
           <table className="w-full text-sm min-w-[900px]">
             <thead>
               <tr className="border-b border-border/60 bg-muted/40 text-xs text-muted-foreground">
+                <th className="w-8 px-1 py-3" />
                 {isAllMode && <th className="px-3 py-3 text-left font-medium">브랜드</th>}
                 <SortableHeader label="키워드"   col="keyword"           sortConfig={sortConfig} onSort={handleSort} className="text-left" />
                 <th className="px-3 py-3 text-left font-medium">서브키워드</th>
@@ -757,11 +778,18 @@ export function KeywordsClient({ keywords, clientId, publishRecommended = [] }: 
             </thead>
             <tbody className="divide-y divide-border/40">
               {displayed.map((kw) => (
+                <React.Fragment key={kw.id}>
                 <tr
-                  key={kw.id}
                   className="hover:bg-muted/20 transition-colors cursor-pointer"
                   onClick={() => router.push(`/keywords/${kw.id}`)}
                 >
+                  <td className="px-1 py-3 text-center" onClick={(e) => handleToggleExpand(kw.id, e)}>
+                    {expandedKw === kw.id ? (
+                      <ChevronDown className="h-3.5 w-3.5 text-muted-foreground mx-auto" />
+                    ) : (
+                      <ChevronRight className="h-3.5 w-3.5 text-muted-foreground mx-auto" />
+                    )}
+                  </td>
                   {isAllMode && (
                     <td className="px-3 py-3">
                       {kw.client_name ? <BrandBadge name={kw.client_name} /> : <span className="text-muted-foreground/40 text-xs">—</span>}
@@ -864,6 +892,58 @@ export function KeywordsClient({ keywords, clientId, publishRecommended = [] }: 
                     </div>
                   </td>
                 </tr>
+                {/* Accordion: 연결 콘텐츠 */}
+                {expandedKw === kw.id && (
+                  <tr>
+                    <td colSpan={isAllMode ? 15 : 14} className="p-0 bg-muted/10">
+                      {kwContentsLoading === kw.id ? (
+                        <div className="flex items-center justify-center py-4 text-xs text-muted-foreground gap-2">
+                          <Spinner className="h-3.5 w-3.5 animate-spin" />
+                          콘텐츠 로딩 중...
+                        </div>
+                      ) : (kwContents[kw.id] ?? []).length === 0 ? (
+                        <div className="py-4 text-center text-xs text-muted-foreground/60">
+                          연결된 콘텐츠가 없습니다
+                        </div>
+                      ) : (
+                        <div className="divide-y divide-border/20">
+                          {(kwContents[kw.id] ?? []).map((c) => (
+                            <div
+                              key={c.id}
+                              className="grid grid-cols-[auto_1fr_auto_auto_auto] gap-3 px-4 py-2 pl-10 items-center"
+                            >
+                              <FileText className="h-3 w-3 text-muted-foreground/40" />
+                              <div className="min-w-0 flex items-center gap-1.5">
+                                <span className="text-xs truncate">{c.title ?? "(제목 없음)"}</span>
+                                {c.published_url && (
+                                  <a href={c.published_url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>
+                                    <ExternalLink className="h-3 w-3 text-blue-500 shrink-0" />
+                                  </a>
+                                )}
+                              </div>
+                              <Badge variant="outline" className={`text-[10px] px-1.5 ${
+                                c.publish_status === "published" ? "bg-green-100 text-green-700 border-green-200" :
+                                c.publish_status === "tracking" ? "bg-sky-100 text-sky-700 border-sky-200" :
+                                c.publish_status === "draft" ? "bg-gray-100 text-gray-600 border-gray-200" :
+                                ""
+                              }`}>
+                                {c.publish_status === "published" ? "발행됨" :
+                                 c.publish_status === "tracking" ? "추적중" :
+                                 c.publish_status === "draft" ? "초안" :
+                                 c.publish_status}
+                              </Badge>
+                              <span className="text-[10px] text-muted-foreground">{c.word_count?.toLocaleString() ?? "—"}자</span>
+                              <span className="text-[10px] text-muted-foreground whitespace-nowrap">
+                                {new Date(c.created_at).toLocaleDateString("ko-KR")}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                )}
+                </React.Fragment>
               ))}
             </tbody>
           </table>

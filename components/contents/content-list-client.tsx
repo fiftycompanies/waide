@@ -4,9 +4,9 @@ import { useState, useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { BrandBadge } from "@/components/ui/brand-badge";
 import { Button } from "@/components/ui/button";
-import Link from "next/link";
-import { ExternalLink, FileText, Radio, ChevronDown } from "lucide-react";
+import { ExternalLink, FileText, Radio, ChevronDown, Search } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
+import { ContentDetailModal } from "@/components/contents/content-detail-modal";
 
 const FILTER_OPTIONS = [
   { label: "미발행 우선", value: "unpublished_first" },
@@ -71,9 +71,21 @@ function formatKoreanDate(dateStr: string): string {
 export function ContentListClient({ contents, isAllMode }: ContentListClientProps) {
   const [filter, setFilter] = useState("unpublished_first");
   const [showCount, setShowCount] = useState(5);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedContentId, setSelectedContentId] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
     let result = [...contents];
+
+    // 키워드 검색 필터 (제목 텍스트 매칭)
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase();
+      result = result.filter((c) =>
+        c.title?.toLowerCase().includes(q) ||
+        c.tags?.some((t) => t.toLowerCase().includes(q))
+      );
+    }
+
     switch (filter) {
       case "unpublished_first":
         result.sort((a, b) => {
@@ -97,14 +109,14 @@ export function ContentListClient({ contents, isAllMode }: ContentListClientProp
         break;
     }
     return result;
-  }, [contents, filter]);
+  }, [contents, filter, searchQuery]);
 
   const displayed = filtered.slice(0, showCount);
   const hasMore = filtered.length > showCount;
 
   return (
     <div className="space-y-4">
-      {/* Dropdown Filter */}
+      {/* Filter Bar */}
       <div className="flex items-center gap-2">
         <div className="relative">
           <select
@@ -123,6 +135,22 @@ export function ContentListClient({ contents, isAllMode }: ContentListClientProp
           </select>
           <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
         </div>
+
+        {/* 키워드 검색 */}
+        <div className="relative flex-1 max-w-xs">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setShowCount(5);
+            }}
+            placeholder="제목 검색..."
+            className="flex h-9 w-full rounded-md border border-input bg-transparent pl-8 pr-3 py-1 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          />
+        </div>
+
         <span className="text-xs text-muted-foreground">
           {filtered.length}건
         </span>
@@ -152,10 +180,10 @@ export function ContentListClient({ contents, isAllMode }: ContentListClientProp
 
             <div className="divide-y">
               {displayed.map((content) => (
-                <Link
+                <div
                   key={content.id}
-                  href={`/contents/${content.id}`}
-                  className={`grid ${isAllMode ? "grid-cols-[auto_1fr_auto_auto_auto_auto_auto]" : "grid-cols-[1fr_auto_auto_auto_auto_auto]"} gap-4 px-4 py-3 items-center hover:bg-muted/30 transition-colors`}
+                  onClick={() => setSelectedContentId(content.id)}
+                  className={`grid ${isAllMode ? "grid-cols-[auto_1fr_auto_auto_auto_auto_auto]" : "grid-cols-[1fr_auto_auto_auto_auto_auto]"} gap-4 px-4 py-3 items-center hover:bg-muted/30 transition-colors cursor-pointer`}
                 >
                   {isAllMode && (
                     <div>
@@ -217,7 +245,7 @@ export function ContentListClient({ contents, isAllMode }: ContentListClientProp
                   <span className="text-xs text-muted-foreground whitespace-nowrap">
                     {formatKoreanDate(content.created_at)}
                   </span>
-                </Link>
+                </div>
               ))}
             </div>
           </div>
@@ -237,6 +265,12 @@ export function ContentListClient({ contents, isAllMode }: ContentListClientProp
           )}
         </>
       )}
+
+      {/* 콘텐츠 상세 모달 */}
+      <ContentDetailModal
+        contentId={selectedContentId}
+        onClose={() => setSelectedContentId(null)}
+      />
     </div>
   );
 }

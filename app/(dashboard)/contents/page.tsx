@@ -27,8 +27,10 @@ import {
   getAutoPublishSettings,
   getPublications,
 } from "@/lib/actions/publish-actions";
+import { getKeywordPublishHistory } from "@/lib/actions/keyword-actions";
 import { RecommendationsSection } from "@/components/analytics/recommendations-section";
 import { AutoPublishSettingsClient } from "@/components/publish/auto-publish-settings-client";
+import { KeywordHistoryClient } from "@/components/contents/keyword-history-client";
 import Link from "next/link";
 
 const STATUS_COLORS: Record<string, string> = {
@@ -57,7 +59,7 @@ interface ContentsPageProps {
 
 export default async function ContentsPage({ searchParams }: ContentsPageProps) {
   const params = await searchParams;
-  const tab = (params.tab ?? "list") as "list" | "recommend" | "history" | "auto" | "publish";
+  const tab = (params.tab ?? "list") as "list" | "recommend" | "history" | "keyword_history" | "auto" | "publish";
 
   const [clientId, allBrands] = await Promise.all([
     getSelectedClientId(),
@@ -86,6 +88,11 @@ export default async function ContentsPage({ searchParams }: ContentsPageProps) 
         {tab === "history" && (
           <Suspense fallback={<Skeleton className="h-96" />}>
             <PublishHistoryTab clientId={clientId} />
+          </Suspense>
+        )}
+        {tab === "keyword_history" && (
+          <Suspense fallback={<Skeleton className="h-96" />}>
+            <KeywordHistoryTab clientId={clientId} />
           </Suspense>
         )}
         {tab === "auto" && (
@@ -348,7 +355,25 @@ async function PublishHistoryTab({ clientId }: { clientId: string | null }) {
   );
 }
 
-// ── Tab 4: 자동 발행 설정 ──────────────────────────────────────────────
+// ── Tab 4: 키워드 이력 ──────────────────────────────────────────────────
+async function KeywordHistoryTab({ clientId }: { clientId: string | null }) {
+  if (!clientId) {
+    return (
+      <Card className="border-dashed border-border/60">
+        <CardContent className="flex flex-col items-center justify-center py-16 text-center gap-3">
+          <Building2 className="h-8 w-8 text-muted-foreground/40" />
+          <p className="text-sm font-medium text-muted-foreground">브랜드를 먼저 선택해주세요</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const items = await getKeywordPublishHistory(clientId);
+
+  return <KeywordHistoryClient items={items} />;
+}
+
+// ── Tab 5: 자동 발행 설정 ──────────────────────────────────────────────
 async function PublishAutoTab({ clientId }: { clientId: string | null }) {
   if (!clientId) {
     return (
