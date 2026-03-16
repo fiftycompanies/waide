@@ -862,3 +862,84 @@ export async function addKeywordWithPrimary(
     return { success: false, error: String(err) };
   }
 }
+
+// ── 발행 우선 추천 키워드 ────────────────────────────────────────────────────
+
+export interface PublishRecommendedKeyword {
+  id: string;
+  keyword: string;
+  monthly_search_pc: number | null;
+  monthly_search_mo: number | null;
+  monthly_search_total: number | null;
+  competition_level: string | null;
+  rank_pc: number | null;
+  rank_mo: number | null;
+}
+
+/**
+ * 미노출 키워드 중 검색량 높은 순으로 발행 추천
+ * keyword_visibility 최신 1건 기준, 20위 밖 또는 미노출인 키워드
+ */
+export async function getPublishRecommendedKeywords(
+  clientId: string
+): Promise<PublishRecommendedKeyword[]> {
+  try {
+    const db = createAdminClient();
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: keywords } = await (db as any)
+      .from("keywords")
+      .select("id, keyword, monthly_search_pc, monthly_search_mo, monthly_search_total, competition_level")
+      .eq("client_id", clientId)
+      .in("status", ["active", "queued"])
+      .order("monthly_search_total", { ascending: false, nullsFirst: false });
+
+    if (!keywords || keywords.length === 0) return [];
+
+    const keywordIds = keywords.map((k: { id: string }) => k.id);
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: visRows } = await (db as any)
+      .from("keyword_visibility")
+      .select("keyword_id, is_exposed, rank_pc, rank_mo")
+      .eq("client_id", clientId)
+      .in("keyword_id", keywordIds)
+      .order("measured_at", { ascending: false });
+
+    // keyword_id별 최신 1건만
+    const latestVis = new Map<string, { is_exposed: boolean; rank_pc: number | null; rank_mo: number | null }>();
+    if (visRows) {
+      for (const v of visRows as { keyword_id: string; is_exposed: boolean; rank_pc: number | null; rank_mo: number | null }[]) {
+        if (!latestVis.has(v.keyword_id)) {
+          latestVis.set(v.keyword_id, { is_exposed: v.is_exposed, rank_pc: v.rank_pc, rank_mo: v.rank_mo });
+        }
+      }
+    }
+
+    const result: PublishRecommendedKeyword[] = [];
+    for (const kw of keywords as { id: string; keyword: string; monthly_search_pc: number | null; monthly_search_mo: number | null; monthly_search_total: number | null; competition_level: string | null }[]) {
+      const vis = latestVis.get(kw.id);
+      const isExposed = vis?.is_exposed ?? false;
+      const rankPc = vis?.rank_pc ?? null;
+      const rankMo = vis?.rank_mo ?? null;
+
+      if (!isExposed && (rankPc === null || rankPc > 20) && (rankMo === null || rankMo > 20)) {
+        result.push({
+          id: kw.id,
+          keyword: kw.keyword,
+          monthly_search_pc: kw.monthly_search_pc,
+          monthly_search_mo: kw.monthly_search_mo,
+          monthly_search_total: kw.monthly_search_total,
+          competition_level: kw.competition_level,
+          rank_pc: rankPc,
+          rank_mo: rankMo,
+        });
+      }
+      if (result.length >= 15) break;
+    }
+
+    return result;
+  } catch {
+    return [];
+  }
+}

@@ -16,6 +16,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import type { Keyword } from "@/lib/actions/keyword-actions";
+import type { PublishRecommendedKeyword } from "@/lib/actions/keyword-actions";
 import { createKeyword, archiveKeyword, updateKeywordStatus } from "@/lib/actions/keyword-actions";
 import { approveSuggestedKeyword, rejectSuggestedKeyword, bulkApproveSuggestedKeywords, expandNicheKeywords } from "@/lib/actions/keyword-expansion-actions";
 import { KeywordAddModal } from "@/components/keywords/keyword-add-modal";
@@ -153,6 +154,39 @@ function ChangeCell({ change }: { change: number | null }) {
     </span>
   );
 }
+
+// ── 순위 배지 (발행 추천/AI 추천 섹션용) ────────────────────────────────────
+function RankBadge({ rank }: { rank: number | null }) {
+  if (!rank || rank > 20) return (
+    <span style={{ fontSize: "11px", padding: "2px 8px", borderRadius: "4px",
+      background: "#FCEBEB", color: "#A32D2D", fontWeight: 500 }}>미노출</span>
+  );
+  if (rank <= 10) return (
+    <span style={{ fontSize: "12px", color: "#3B6D11", fontWeight: 500 }}>{rank}위</span>
+  );
+  return <span style={{ fontSize: "12px", color: "#854F0B", fontWeight: 500 }}>{rank}위</span>;
+}
+
+function CompetitionBadge({ level }: { level: string | null }) {
+  const map: Record<string, { bg: string; color: string; label: string }> = {
+    low:    { bg: "#EAF3DE", color: "#3B6D11", label: "낮음" },
+    medium: { bg: "#FAEEDA", color: "#854F0B", label: "중간" },
+    high:   { bg: "#FCEBEB", color: "#A32D2D", label: "높음" },
+  };
+  const s = map[level ?? ""] ?? { bg: "#F1EFE8", color: "#5F5E5A", label: "알 수 없음" };
+  return (
+    <span style={{ fontSize: "11px", padding: "2px 8px", borderRadius: "4px",
+      background: s.bg, color: s.color, fontWeight: 500 }}>{s.label}</span>
+  );
+}
+
+// ── 출처 라벨 ────────────────────────────────────────────────────────────────
+const SOURCE_LABELS: Record<string, string> = {
+  niche_expansion: "니치 확장",
+  brand_analysis:  "브랜드 분석",
+  manual:          "수동 입력",
+  gsc_discovery:   "GSC",
+};
 
 // ── 상대 시간 ────────────────────────────────────────────────────────────────
 function relativeTime(dateStr: string | null): string {
@@ -315,6 +349,7 @@ function DeleteConfirmDialog({ keyword, onClose }: { keyword: Keyword | null; on
 interface KeywordsClientProps {
   keywords: Keyword[];
   clientId: string | null;
+  publishRecommended?: PublishRecommendedKeyword[];
 }
 
 type FilterTab = "active" | "suggested" | "paused" | "archived" | "queued" | "refresh";
@@ -328,16 +363,21 @@ const TABS: { key: FilterTab; label: string }[] = [
   { key: "archived",  label: "보관" },
 ];
 
-export function KeywordsClient({ keywords, clientId }: KeywordsClientProps) {
+export function KeywordsClient({ keywords, clientId, publishRecommended = [] }: KeywordsClientProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [addOpen, setAddOpen] = useState(false);
   const [csvOpen, setCsvOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Keyword | null>(null);
   const [activeTab, setActiveTab] = useState<FilterTab>("active");
-  const [displayCount, setDisplayCount] = useState(20);
+  const [displayCount, setDisplayCount] = useState(5);
   const [nicheLoading, setNicheLoading] = useState(false);
   const [addModalOpen, setAddModalOpen] = useState(false);
+
+  // ── 발행 추천 / AI 추천 섹션 상태 ────────────────────────────────────────
+  const [publishVisibleCount, setPublishVisibleCount] = useState(5);
+  const [suggestedVisibleCount, setSuggestedVisibleCount] = useState(5);
+  const [dismissed, setDismissed] = useState<Set<string>>(new Set());
 
   // ── 정렬 상태 (기본: 최신화일 내림차순) ───────────────────────────────────
   const [sortConfig, setSortConfig] = useState<SortConfig>({ col: "last_tracked_at", dir: "desc" });
@@ -363,6 +403,14 @@ export function KeywordsClient({ keywords, clientId }: KeywordsClientProps) {
       ? keywords.filter((k) => k.client_id && selectedBrands.includes(k.client_id))
       : keywords,
     [keywords, isAllMode, selectedBrands]
+  );
+
+  // ── AI 추천 미등록 리스트 ──────────────────────────────────────────────
+  const suggestedList = useMemo(() =>
+    keywords
+      .filter(k => k.status === "suggested" && !dismissed.has(k.id))
+      .sort((a, b) => (b.monthly_search_total ?? 0) - (a.monthly_search_total ?? 0)),
+    [keywords, dismissed]
   );
 
   const tabFiltered = brandFiltered.filter((k) => k.status === activeTab);
@@ -437,6 +485,12 @@ export function KeywordsClient({ keywords, clientId }: KeywordsClientProps) {
     });
   }
 
+  // ── AI 추천 낙관적 승인 ────────────────────────────────────────────────
+  async function handleSuggestedApprove(id: string) {
+    setDismissed(prev => new Set(prev).add(id));
+    await approveSuggestedKeyword(id);
+  }
+
   function handleNicheExpand() {
     if (!clientId) return;
     const mainKeywords = keywords
@@ -466,6 +520,151 @@ export function KeywordsClient({ keywords, clientId }: KeywordsClientProps) {
 
   return (
     <>
+      {/* ═══ 발행 우선 추천 ═══ */}
+      {publishRecommended.length > 0 && (() => {
+        const pubVisible = publishRecommended.slice(0, publishVisibleCount);
+        const pubRemaining = publishRecommended.length - publishVisibleCount;
+        return (
+          <div style={{
+            background: "var(--card)", border: "1px solid hsl(var(--border))",
+            borderRadius: "8px", padding: "1rem 1.25rem", marginBottom: "12px",
+          }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <span style={{ fontSize: "14px", fontWeight: 500 }}>발행 우선 추천</span>
+                <span style={{
+                  fontSize: "11px", padding: "2px 8px", borderRadius: "4px", fontWeight: 500,
+                  background: "#FCEBEB", color: "#A32D2D",
+                }}>미노출 · 검색량 순</span>
+              </div>
+            </div>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+              <thead>
+                <tr>
+                  {["키워드", "검색량 (PC/MO)", "경쟁도", "네이버 순위", "구글 순위", ""].map(h => (
+                    <th key={h} style={{
+                      textAlign: "left", padding: "6px 8px", fontSize: "11px", fontWeight: 500,
+                      color: "hsl(var(--muted-foreground))",
+                      borderBottom: "1px solid hsl(var(--border))",
+                    }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {pubVisible.map(kw => (
+                  <tr key={kw.id}>
+                    <td style={{ padding: "7px 8px", borderBottom: "1px solid hsl(var(--border))", fontWeight: 500 }}>{kw.keyword}</td>
+                    <td style={{ padding: "7px 8px", borderBottom: "1px solid hsl(var(--border))", fontSize: "13px", color: "hsl(var(--muted-foreground))" }}>
+                      {kw.monthly_search_pc ?? "--"} / {kw.monthly_search_mo ?? "--"}
+                    </td>
+                    <td style={{ padding: "7px 8px", borderBottom: "1px solid hsl(var(--border))" }}>
+                      <CompetitionBadge level={kw.competition_level} />
+                    </td>
+                    <td style={{ padding: "7px 8px", borderBottom: "1px solid hsl(var(--border))" }}>
+                      <RankBadge rank={kw.rank_pc} />
+                    </td>
+                    <td style={{ padding: "7px 8px", borderBottom: "1px solid hsl(var(--border))" }}>
+                      <RankBadge rank={kw.rank_mo} />
+                    </td>
+                    <td style={{ padding: "7px 8px", borderBottom: "1px solid hsl(var(--border))", textAlign: "right" }}>
+                      <button
+                        onClick={() => router.push(`/contents?keyword=${kw.id}`)}
+                        style={{
+                          fontSize: "12px", padding: "4px 10px",
+                          background: "#185FA5", color: "#E6F1FB",
+                          border: "none", borderRadius: "6px", cursor: "pointer",
+                        }}
+                      >발행 시작</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {pubRemaining > 0 && (
+              <button onClick={() => setPublishVisibleCount(v => v + 5)} style={{
+                width: "100%", fontSize: "12px", color: "#185FA5", padding: "8px 0",
+                borderTop: "1px solid hsl(var(--border))",
+                background: "transparent", border: "none", cursor: "pointer", marginTop: "4px",
+                display: "block", textAlign: "center",
+              }}>
+                더보기 ({Math.min(pubRemaining, 5)}개 더) ↓
+              </button>
+            )}
+          </div>
+        );
+      })()}
+
+      {/* ═══ AI 추천 미등록 ═══ */}
+      {suggestedList.length > 0 && (() => {
+        const sugVisible = suggestedList.slice(0, suggestedVisibleCount);
+        const sugRemaining = suggestedList.length - suggestedVisibleCount;
+        return (
+          <div style={{
+            background: "var(--card)", border: "1px solid hsl(var(--border))",
+            borderRadius: "8px", padding: "1rem 1.25rem", marginBottom: "12px",
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
+              <span style={{ fontSize: "14px", fontWeight: 500 }}>AI 추천 키워드</span>
+              <span style={{
+                fontSize: "11px", padding: "2px 8px", borderRadius: "4px", fontWeight: 500,
+                background: "#E6F1FB", color: "#0C447C",
+              }}>미등록 · 검색량 순</span>
+            </div>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+              <thead>
+                <tr>
+                  {["키워드", "검색량 (PC/MO)", "경쟁도", "출처", ""].map(h => (
+                    <th key={h} style={{
+                      textAlign: "left", padding: "6px 8px", fontSize: "11px", fontWeight: 500,
+                      color: "hsl(var(--muted-foreground))",
+                      borderBottom: "1px solid hsl(var(--border))",
+                    }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {sugVisible.map(kw => (
+                  <tr key={kw.id}>
+                    <td style={{ padding: "7px 8px", borderBottom: "1px solid hsl(var(--border))", fontWeight: 500 }}>
+                      {kw.keyword}
+                      {kw.metadata?.content_angle && (
+                        <p style={{ fontSize: "11px", color: "hsl(var(--muted-foreground))", marginTop: "2px" }}>{kw.metadata.content_angle}</p>
+                      )}
+                    </td>
+                    <td style={{ padding: "7px 8px", borderBottom: "1px solid hsl(var(--border))", fontSize: "13px", color: "hsl(var(--muted-foreground))" }}>
+                      {kw.monthly_search_pc ?? "--"} / {kw.monthly_search_mo ?? "--"}
+                    </td>
+                    <td style={{ padding: "7px 8px", borderBottom: "1px solid hsl(var(--border))" }}>
+                      <CompetitionBadge level={kw.competition_level} />
+                    </td>
+                    <td style={{ padding: "7px 8px", borderBottom: "1px solid hsl(var(--border))", fontSize: "12px", color: "hsl(var(--muted-foreground))" }}>
+                      {SOURCE_LABELS[kw.source ?? ""] ?? kw.source ?? "--"}
+                    </td>
+                    <td style={{ padding: "7px 8px", borderBottom: "1px solid hsl(var(--border))", textAlign: "right" }}>
+                      <button onClick={() => handleSuggestedApprove(kw.id)} style={{
+                        fontSize: "11px", padding: "3px 10px",
+                        background: "#E6F1FB", color: "#0C447C",
+                        border: "1px solid #B5D4F4", borderRadius: "4px", cursor: "pointer", fontWeight: 500,
+                      }}>+ 관심 등록</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {sugRemaining > 0 && (
+              <button onClick={() => setSuggestedVisibleCount(v => v + 5)} style={{
+                width: "100%", fontSize: "12px", color: "#185FA5", padding: "8px 0",
+                borderTop: "1px solid hsl(var(--border))",
+                background: "transparent", border: "none", cursor: "pointer", marginTop: "4px",
+                display: "block", textAlign: "center",
+              }}>
+                더보기 ({Math.min(sugRemaining, 5)}개 더) ↓
+              </button>
+            )}
+          </div>
+        );
+      })()}
+
       {/* 브랜드 필터 (전체 모드) */}
       {isAllMode && brandList.length > 1 && (
         <div className="rounded-lg border border-border/50 bg-muted/20 px-3">
@@ -479,7 +678,7 @@ export function KeywordsClient({ keywords, clientId }: KeywordsClientProps) {
           {TABS.map(({ key: tab }) => (
             <button
               key={tab}
-              onClick={() => { setActiveTab(tab); setDisplayCount(20); }}
+              onClick={() => { setActiveTab(tab); setDisplayCount(5); }}
               className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
                 activeTab === tab
                   ? "bg-background text-foreground shadow-sm"
@@ -670,17 +869,12 @@ export function KeywordsClient({ keywords, clientId }: KeywordsClientProps) {
           </table>
         </div>
         {sorted.length > displayCount && (
-          <div className="flex items-center justify-between px-4 py-3 border-t border-border/40 bg-muted/20">
-            <span className="text-xs text-muted-foreground">
-              총 {sorted.length}개 중 {Math.min(displayCount, sorted.length)}개 표시
-            </span>
-            <button
-              onClick={() => setDisplayCount((c) => c + 20)}
-              className="text-xs font-medium text-violet-600 hover:text-violet-700 hover:underline"
-            >
-              더보기 (+20)
-            </button>
-          </div>
+          <button
+            onClick={() => setDisplayCount((c) => c + 5)}
+            className="w-full text-xs text-muted-foreground py-2 border-t border-border/40 bg-transparent hover:text-foreground transition-colors text-center"
+          >
+            더보기 ({Math.min(sorted.length - displayCount, 5)}개 더) ↓
+          </button>
         )}
         </>
       )}

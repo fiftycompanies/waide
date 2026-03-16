@@ -1,5 +1,5 @@
 import { getSelectedClientId, getAiMarketBrands } from "@/lib/actions/brand-actions";
-import { getKeywords } from "@/lib/actions/keyword-actions";
+import { getKeywords, getPublishRecommendedKeywords } from "@/lib/actions/keyword-actions";
 import { getKeywordStrategy } from "@/lib/actions/keyword-strategy-actions";
 import { getQuestions } from "@/lib/actions/question-actions";
 import { checkNaverAdApiAvailable } from "@/lib/actions/keyword-volume-actions";
@@ -147,6 +147,11 @@ export default async function KeywordsPage({ searchParams }: KeywordsPageProps) 
   // KPI 데이터 조회
   const kpi = await getKeywordKpi(effectiveClientId);
 
+  // 발행 우선 추천 키워드
+  const publishRecommended = effectiveClientId
+    ? await getPublishRecommendedKeywords(effectiveClientId)
+    : [];
+
   // 키워드 전략 조회 (클라이언트 선택 시만)
   const strategy = effectiveClientId ? await getKeywordStrategy(effectiveClientId) : null;
 
@@ -229,7 +234,7 @@ export default async function KeywordsPage({ searchParams }: KeywordsPageProps) 
             )}
 
             {/* 클라이언트 컴포넌트 (테이블 + 다이얼로그) */}
-            <KeywordsClient keywords={keywords} clientId={effectiveClientId} />
+            <KeywordsClient keywords={keywords} clientId={effectiveClientId} publishRecommended={publishRecommended} />
           </>
         )}
 
