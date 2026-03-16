@@ -25,6 +25,14 @@ export async function POST(request: NextRequest) {
   const brandRegion = brandInfo?.region || "미정";
   const brandDescription = brandInfo?.description || "없음";
 
+  // 추가 브랜드 데이터
+  const brandHours = brandInfo?.hours || null;
+  const brandFacilities = brandInfo?.facilities || null;
+  const brandSellingPoints = brandInfo?.selling_points || null;
+  const brandToneStyle = brandInfo?.tone_style || null;
+  const brandMenuItems = brandInfo?.menu_items || null;
+  const brandBookingUrl = brandInfo?.booking_url || null;
+
   const typeLabel =
     contentType === "blog_info"
       ? "정보형"
@@ -72,13 +80,23 @@ export async function POST(request: NextRequest) {
 10. 광고성 느낌 최소화 — 실제 경험/정보 공유 톤
 ${schemaInstruction}`;
 
+  // 추가 브랜드 정보 라인 생성
+  const extraBrandLines: string[] = [];
+  if (brandHours) extraBrandLines.push(`- 영업시간: ${typeof brandHours === 'string' ? brandHours : JSON.stringify(brandHours)}`);
+  if (brandFacilities) extraBrandLines.push(`- 편의시설: ${Array.isArray(brandFacilities) ? brandFacilities.join(", ") : String(brandFacilities)}`);
+  if (brandMenuItems) extraBrandLines.push(`- 대표 메뉴: ${Array.isArray(brandMenuItems) ? brandMenuItems.map((m: Record<string, unknown>) => m.name || m.menu || String(m)).join(", ") : String(brandMenuItems)}`);
+  if (brandSellingPoints) extraBrandLines.push(`- 고객 리뷰 강점: ${Array.isArray(brandSellingPoints) ? brandSellingPoints.join(", ") : String(brandSellingPoints)}`);
+  if (brandToneStyle) extraBrandLines.push(`- 브랜드 톤앤매너: ${String(brandToneStyle)}`);
+  if (brandBookingUrl) extraBrandLines.push(`- 예약 링크: ${String(brandBookingUrl)}`);
+  const extraBrandSection = extraBrandLines.length > 0 ? "\n" + extraBrandLines.join("\n") : "";
+
   const userPrompt = `[콘텐츠 유형] ${typeLabel}
 
 [브랜드 정보]
 - 매장명: ${brandInfo?.name || "미정"}
 - 업종: ${brandInfo?.category || "미정"}
 - 지역: ${brandRegion}
-- 특징: ${brandDescription}
+- 특징: ${brandDescription}${extraBrandSection}
 
 [브리프]
 ${brief || "없음"}

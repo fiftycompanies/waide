@@ -369,6 +369,26 @@ export function BlogPublishFlow({
             category: brandInfo.category,
             region: brandInfo.region,
             description: brandInfo.description,
+            // 분석 데이터 보강
+            ...(brandAnalysis?.basic_info && {
+              hours: (brandAnalysis.basic_info as Record<string, unknown>).business_hours ||
+                     (brandAnalysis.basic_info as Record<string, unknown>).hours || undefined,
+              facilities: (brandAnalysis.basic_info as Record<string, unknown>).facilities ||
+                          (brandAnalysis.basic_info as Record<string, unknown>).conveniences || undefined,
+              menu_items: (brandAnalysis.basic_info as Record<string, unknown>).menu_items ||
+                          (brandAnalysis.basic_info as Record<string, unknown>).menus || undefined,
+              booking_url: (brandAnalysis.basic_info as Record<string, unknown>).booking_url ||
+                           (brandAnalysis.basic_info as Record<string, unknown>).reservation_url || undefined,
+            }),
+            ...(brandAnalysis?.content_strategy && (() => {
+              const cs = brandAnalysis.content_strategy as Record<string, unknown>;
+              const brandA = cs.brand_analysis as Record<string, unknown> | undefined;
+              const reviewA = cs.review_analysis as Record<string, unknown> | undefined;
+              return {
+                tone_style: brandA?.tone || undefined,
+                selling_points: reviewA?.selling_points || undefined,
+              };
+            })()),
           },
           mainKeyword,
           subKeywords,
@@ -575,10 +595,20 @@ export function BlogPublishFlow({
               onSubAdd={addSubKeyword}
               activeKeywords={activeKeywords}
               styleRefTitles={styleRefTitles}
+              brandAnalysis={brandAnalysis}
+              onAddSubKeyword={(kw) => {
+                if (kw && !subKeywords.includes(kw)) {
+                  setSubKeywords([...subKeywords, kw]);
+                }
+              }}
             />
           )}
           {step === 2 && (
-            <StepBrief value={brief} onChange={setBrief} />
+            <StepBrief
+              value={brief}
+              onChange={setBrief}
+              brandAnalysis={brandAnalysis}
+            />
           )}
           {step === 3 && (
             <StepImages
@@ -858,6 +888,8 @@ function StepTypeKeyword({
   onSubAdd,
   activeKeywords,
   styleRefTitles,
+  brandAnalysis,
+  onAddSubKeyword,
 }: {
   contentType: ContentType;
   onContentTypeChange: (v: ContentType) => void;
@@ -870,12 +902,32 @@ function StepTypeKeyword({
   onSubAdd: () => void;
   activeKeywords: Array<{ keyword: string; id: string }>;
   styleRefTitles?: string[];
+  brandAnalysis?: BrandAnalysis | null;
+  onAddSubKeyword?: (kw: string) => void;
 }) {
   const types: { key: ContentType; label: string; desc: string }[] = [
     { key: "blog_info", label: "정보형", desc: "키워드 중심 정보 전달, 체크리스트/요약표 포함" },
     { key: "blog_review", label: "후기성", desc: "방문 경험 기반, 시간순 서술, 사진 중심" },
     { key: "blog_list", label: "소개성 (추천형)", desc: "추천 리스트, 비교표 포함, 선택 가이드" },
   ];
+
+  // 분석 추천 키워드 추출
+  const recommendedKeywords = (() => {
+    if (!brandAnalysis?.keyword_analysis) return [];
+    const ka = brandAnalysis.keyword_analysis;
+    const keywords = (ka.keywords as Array<Record<string, unknown>> | undefined) || [];
+    const high = keywords
+      .filter((k) => k.priority === "high" || k.priority === "높음")
+      .slice(0, 5);
+    return high.length > 0 ? high : keywords.slice(0, 3);
+  })();
+
+  // AI 추천 콘텐츠 방향 추출
+  const contentAngles = (() => {
+    if (!brandAnalysis?.content_strategy) return [];
+    const cs = brandAnalysis.content_strategy;
+    return ((cs.content_angles as string[] | undefined) || []).slice(0, 5);
+  })();
 
   return (
     <div className="space-y-6">
@@ -973,6 +1025,74 @@ function StepTypeKeyword({
             </p>
           </div>
         )}
+
+        {/* 분석 추천 키워드 */}
+        {recommendedKeywords.length > 0 && (
+          <div className="rounded-lg border border-blue-200 bg-blue-50/50 p-3 space-y-2">
+            <p className="text-sm font-medium text-blue-700 flex items-center gap-1.5">
+              <Sparkles className="h-3.5 w-3.5" />
+              분석 추천 키워드
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {recommendedKeywords.map((k, i) => {
+                const kObj = k as Record<string, unknown>;
+                const kwText = String(kObj.keyword || kObj.name || "");
+                if (!kwText) return null;
+                const isSelected = mainKeyword === kwText;
+                return (
+                  <button
+                    key={i}
+                    onClick={() => !isSelected && onMainChange(kwText)}
+                    className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+                      isSelected
+                        ? "bg-blue-600 text-white"
+                        : "bg-blue-100 text-blue-700 hover:bg-blue-200"
+                    }`}
+                  >
+                    <Hash className="h-3 w-3" />
+                    {kwText}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              클릭하면 메인 키워드로 설정됩니다
+            </p>
+          </div>
+        )}
+
+        {/* AI 추천 콘텐츠 방향 */}
+        {contentAngles.length > 0 && (
+          <div className="rounded-lg border border-amber-200 bg-amber-50/50 p-3 space-y-2">
+            <p className="text-sm font-medium text-amber-700 flex items-center gap-1.5">
+              <Sparkles className="h-3.5 w-3.5" />
+              AI 추천 콘텐츠 방향
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {contentAngles.map((angle, i) => {
+                const isAdded = subKeywords.includes(angle);
+                return (
+                  <button
+                    key={i}
+                    onClick={() => !isAdded && onAddSubKeyword?.(angle)}
+                    disabled={isAdded}
+                    className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+                      isAdded
+                        ? "bg-amber-200 text-amber-500 cursor-default"
+                        : "bg-amber-100 text-amber-700 hover:bg-amber-200"
+                    }`}
+                  >
+                    <Plus className="h-3 w-3" />
+                    {angle}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              클릭하면 서브 키워드로 추가됩니다
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -982,16 +1102,83 @@ function StepTypeKeyword({
 function StepBrief({
   value,
   onChange,
+  brandAnalysis,
 }: {
   value: string;
   onChange: (v: string) => void;
+  brandAnalysis?: BrandAnalysis | null;
 }) {
+  // 고객 리뷰 기반 강점 추출
+  const sellingPoints = (() => {
+    if (!brandAnalysis) return [];
+    // content_strategy.review_analysis.selling_points 또는 analysis_result.review_analysis.selling_points
+    const cs = brandAnalysis.content_strategy as Record<string, unknown> | null;
+    const ar = brandAnalysis.analysis_result as Record<string, unknown> | null;
+    const reviewFromCs = cs?.review_analysis as Record<string, unknown> | undefined;
+    const reviewFromAr = ar?.review_analysis as Record<string, unknown> | undefined;
+    const points =
+      (reviewFromCs?.selling_points as string[] | undefined) ||
+      (reviewFromAr?.selling_points as string[] | undefined) ||
+      [];
+    return points.slice(0, 5);
+  })();
+
+  // 브랜드 톤 힌트 추출
+  const toneHint = (() => {
+    if (!brandAnalysis?.content_strategy) return "";
+    const cs = brandAnalysis.content_strategy;
+    const brandA = cs.brand_analysis as Record<string, unknown> | undefined;
+    return String(brandA?.tone || "");
+  })();
+
   return (
     <div className="space-y-4">
       <h3 className="text-lg font-semibold">마케팅 포인트</h3>
       <p className="text-sm text-muted-foreground">
         콘텐츠를 작성할 포인트를 기술하세요. 해당 내용을 반영하여 AI가 원고를 작성합니다.
       </p>
+
+      {/* 브랜드 톤 힌트 */}
+      {toneHint && (
+        <div className="rounded-lg border border-purple-200 bg-purple-50/50 p-3">
+          <p className="text-sm font-medium text-purple-700 flex items-center gap-1.5">
+            <Pen className="h-3.5 w-3.5" />
+            브랜드 톤앤매너
+          </p>
+          <p className="text-sm text-purple-600 mt-1">{toneHint}</p>
+        </div>
+      )}
+
+      {/* 고객 리뷰 기반 강점 */}
+      {sellingPoints.length > 0 && (
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50/50 p-3 space-y-2">
+          <p className="text-sm font-medium text-emerald-700 flex items-center gap-1.5">
+            <Sparkles className="h-3.5 w-3.5" />
+            고객 리뷰 기반 강점
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {sellingPoints.map((point, i) => (
+              <button
+                key={i}
+                onClick={() => {
+                  const trimmed = point.trim();
+                  if (trimmed && !value.includes(trimmed)) {
+                    onChange(value ? `${value}\n${trimmed}` : trimmed);
+                  }
+                }}
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700 hover:bg-emerald-200 transition-colors"
+              >
+                <Plus className="h-3 w-3" />
+                {point}
+              </button>
+            ))}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            클릭하면 마케팅 포인트에 추가됩니다
+          </p>
+        </div>
+      )}
+
       <textarea
         value={value}
         onChange={(e) => onChange(e.target.value)}
