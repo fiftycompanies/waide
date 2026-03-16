@@ -61,7 +61,7 @@ type ContentType = "blog_info" | "blog_review" | "blog_list";
 const STEPS = [
   { label: "매장 정보", icon: Store },
   { label: "유형 · 키워드", icon: Hash },
-  { label: "브리프", icon: Pen },
+  { label: "마케팅 포인트", icon: Pen },
   { label: "이미지", icon: ImageIcon },
   { label: "제목 생성", icon: Sparkles },
   { label: "콘텐츠 생성", icon: FileText },
@@ -225,9 +225,8 @@ export function BlogPublishFlow({
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            image_data: base64,
+            image_base64: base64,
             filename: file.name,
-            content_type: file.type,
           }),
         });
         if (!washRes.ok) throw new Error("wash failed");
@@ -238,15 +237,18 @@ export function BlogPublishFlow({
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            image_data: washData.washed_data || washData.image_data || base64,
+            image_base64: washData.washed_base64 || washData.washed_data || base64,
             filename: washData.filename || file.name,
-            content_type: file.type,
+            client_id: clientId,
           }),
         });
         if (!uploadRes.ok) throw new Error("upload failed");
         const uploadData = await uploadRes.json();
-        if (uploadData.url) {
-          setSelectedImages((prev) => [...prev, uploadData.url]);
+        const imageUrl = uploadData.public_url ?? uploadData.url ?? uploadData.image_url ?? uploadData.path;
+        if (imageUrl) {
+          setSelectedImages((prev) => [...prev, imageUrl]);
+        } else {
+          console.error("Upload succeeded but no URL in response:", uploadData);
         }
       } catch (err) {
         console.error("File upload failed:", file.name, err);
@@ -891,9 +893,9 @@ function StepBrief({
 }) {
   return (
     <div className="space-y-4">
-      <h3 className="text-lg font-semibold">브리프 작성</h3>
+      <h3 className="text-lg font-semibold">마케팅 포인트</h3>
       <p className="text-sm text-muted-foreground">
-        콘텐츠 작성 방향을 기술하세요. 브랜드 분석 결과에서 자동으로 채워집니다.
+        콘텐츠를 작성할 포인트를 기술하세요. 해당 내용을 반영하여 AI가 원고를 작성합니다.
       </p>
       <textarea
         value={value}
@@ -1182,7 +1184,7 @@ function StepContentGeneration({
       {/* Summary Card */}
       <Card>
         <CardContent className="p-5 space-y-3">
-          <h3 className="text-lg font-semibold">개요 확인</h3>
+          <h3 className="text-lg font-semibold">콘텐츠 방향</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             <div className="rounded-md border px-3 py-2">
               <p className="text-xs text-muted-foreground mb-0.5">제목</p>
@@ -1214,7 +1216,7 @@ function StepContentGeneration({
           <div className="flex items-center gap-2">
             <FileCode className="h-4 w-4 text-violet-600" />
             <div>
-              <p className="text-sm font-medium">Schema.org 마크업</p>
+              <p className="text-sm font-medium">AEO 구조 반영</p>
               <p className="text-xs text-muted-foreground">구조화된 데이터 (FAQ, Article) 자동 삽입</p>
             </div>
             <Badge variant="outline" className="text-xs">SEO</Badge>
