@@ -15,6 +15,11 @@ import {
 import { CampaignPlanningClient } from "@/components/campaigns/campaign-planning-client";
 import { ContentSourceSelector } from "@/components/contents/content-source-selector";
 import { ContentsTabsWrapper } from "@/components/contents/contents-tabs-wrapper";
+import { BlogPublishFlow } from "@/components/contents/blog-publish-flow";
+import {
+  getPublishingAccounts,
+  getBrandAnalysisForPublishing,
+} from "@/lib/actions/publishing-account-actions";
 
 const PUBLISH_STATUSES = [
   { label: "전체", value: "" },
@@ -55,7 +60,7 @@ export default async function ContentsPage({ searchParams }: ContentsPageProps) 
   const params = await searchParams;
   const status = params.status ?? "";
   const generatedBy = params.by ?? "";
-  const tab = (params.tab ?? "list") as "list" | "create" | "jobs";
+  const tab = (params.tab ?? "list") as "list" | "create" | "jobs" | "publish";
 
   const [clientId, allBrands] = await Promise.all([
     getSelectedClientId(),
@@ -78,6 +83,9 @@ export default async function ContentsPage({ searchParams }: ContentsPageProps) 
             status={status}
             generatedBy={generatedBy}
           />
+        )}
+        {tab === "publish" && (
+          <ContentPublishTab clientId={clientId} />
         )}
         {tab === "create" && (
           <ContentCreateTab clientId={clientId} />
@@ -293,6 +301,47 @@ async function ContentCreateTab({ clientId }: { clientId: string | null }) {
         initialActivePool={activePool}
         initialSuggestedKeywords={suggestedKeywords}
         bestContents={bestContents}
+      />
+    </div>
+  );
+}
+
+// ── Tab: 블로그 발행 ──────────────────────────────────────────────────────────
+async function ContentPublishTab({ clientId }: { clientId: string | null }) {
+  if (!clientId) {
+    return (
+      <Card className="border-dashed border-border/60">
+        <CardContent className="flex flex-col items-center justify-center py-16 text-center gap-3">
+          <Building2 className="h-8 w-8 text-muted-foreground/40" />
+          <p className="text-sm font-medium text-muted-foreground">
+            사이드바에서 브랜드를 먼저 선택해주세요
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const [brandAnalysis, publishingAccounts, activePool] = await Promise.all([
+    getBrandAnalysisForPublishing(clientId),
+    getPublishingAccounts(clientId),
+    getActiveKeywordPool(clientId),
+  ]);
+
+  const activeKeywords = (activePool || []).map((kw) => ({
+    keyword: kw.keyword,
+    id: kw.id,
+  }));
+
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-muted-foreground">
+        브리프 작성부터 콘텐츠 생성, 발행까지 한 번에 진행합니다
+      </p>
+      <BlogPublishFlow
+        clientId={clientId}
+        brandAnalysis={brandAnalysis}
+        publishingAccounts={publishingAccounts}
+        activeKeywords={activeKeywords}
       />
     </div>
   );

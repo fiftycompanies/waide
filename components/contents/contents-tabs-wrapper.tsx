@@ -1,14 +1,15 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { FileText, Plus, Clock } from "lucide-react";
+import { FileText, Plus, Clock, Pen } from "lucide-react";
 
-type TabKey = "list" | "create" | "jobs";
+type TabKey = "list" | "create" | "jobs" | "publish";
 
 const TABS: { key: TabKey; label: string; icon: React.ElementType }[] = [
-  { key: "list",   label: "콘텐츠 목록", icon: FileText },
-  { key: "create", label: "새 콘텐츠 생성", icon: Plus },
-  { key: "jobs",   label: "작업 현황", icon: Clock },
+  { key: "list",    label: "콘텐츠 목록", icon: FileText },
+  { key: "publish", label: "블로그 발행", icon: Pen },
+  { key: "create",  label: "AI 생성", icon: Plus },
+  { key: "jobs",    label: "작업 현황", icon: Clock },
 ];
 
 interface ContentsTabsWrapperProps {
