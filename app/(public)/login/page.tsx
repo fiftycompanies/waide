@@ -119,47 +119,6 @@ function LoginForm() {
           </div>
         )}
 
-        {/* 소셜 로그인 버튼 */}
-        <div className="space-y-3 mb-6">
-          <button
-            type="button"
-            onClick={() => handleOAuth("google")}
-            disabled={isLoading}
-            className="w-full h-11 rounded-lg bg-white hover:bg-gray-50 text-gray-800 font-medium text-sm transition-colors disabled:opacity-50 flex items-center justify-center gap-3 border border-gray-200"
-          >
-            {oauthLoading === "google" ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <GoogleIcon />
-            )}
-            Google로 로그인
-          </button>
-
-          <button
-            type="button"
-            onClick={() => handleOAuth("kakao")}
-            disabled={isLoading}
-            className="w-full h-11 rounded-lg bg-[#FEE500] hover:bg-[#FDD835] text-[#3C1E1E] font-medium text-sm transition-colors disabled:opacity-50 flex items-center justify-center gap-3"
-          >
-            {oauthLoading === "kakao" ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <KakaoIcon />
-            )}
-            카카오로 로그인
-          </button>
-        </div>
-
-        {/* 구분선 */}
-        <div className="relative mb-6">
-          <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-[#2a2a2a]" />
-          </div>
-          <div className="relative flex justify-center text-xs">
-            <span className="bg-[#111111] px-3 text-[#666]">또는</span>
-          </div>
-        </div>
-
         {/* 이메일/비밀번호 폼 */}
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1.5">
@@ -212,6 +171,49 @@ function LoginForm() {
             계정이 없으신가요? 담당자에게 문의하세요.
           </p>
         </form>
+
+        {/* 구분선 */}
+        <div className="relative my-6">
+          <div className="absolute inset-0 flex items-center">
+            <div className="w-full border-t border-[#2a2a2a]" />
+          </div>
+          <div className="relative flex justify-center text-xs">
+            <span className="bg-[#111111] px-3 text-[#666]">또는</span>
+          </div>
+        </div>
+
+        {/* 소셜 로그인 버튼 */}
+        <div className="space-y-3">
+          <button
+            type="button"
+            onClick={() => handleOAuth("google")}
+            disabled={isLoading}
+            className="w-full h-11 rounded-lg bg-white hover:bg-gray-50 text-gray-800 font-medium text-sm transition-colors disabled:opacity-50 flex items-center justify-center gap-3 border border-gray-200"
+          >
+            {oauthLoading === "google" ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <GoogleIcon />
+            )}
+            Google로 로그인
+          </button>
+
+          {/* 카카오 로그인 — 숨김 처리 (삭제 금지, 핸들러 유지) */}
+          <button
+            type="button"
+            onClick={() => handleOAuth("kakao")}
+            disabled={isLoading}
+            className="w-full h-11 rounded-lg bg-[#FEE500] hover:bg-[#FDD835] text-[#3C1E1E] font-medium text-sm transition-colors disabled:opacity-50 flex items-center justify-center gap-3"
+            style={{ display: "none" }}
+          >
+            {oauthLoading === "kakao" ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <KakaoIcon />
+            )}
+            카카오로 로그인
+          </button>
+        </div>
       </div>
     </div>
   );
