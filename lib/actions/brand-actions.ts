@@ -289,14 +289,33 @@ export interface AiMarketBrand {
  * 활성 브랜드(고객사) 목록 조회.
  * clients 테이블에서 is_active=true인 고객사를 반환한다.
  * 부모(parent_id IS NULL)를 먼저, 자식을 이후에 반환한다.
+ * 고객 role은 본인 client_id만 반환.
  */
 export async function getAiMarketBrands(): Promise<AiMarketBrand[]> {
   try {
+    // 고객 역할 사용자는 본인 client_id만 조회
+    let clientFilter: string | null = null;
+    try {
+      const { getCurrentUser, isClientRole } = await import("@/lib/auth");
+      const user = await getCurrentUser();
+      if (user && isClientRole(user.role)) {
+        clientFilter = user.client_id;
+      }
+    } catch {
+      // auth 실패 → 전체 조회 (어드민 폴백)
+    }
+
     const db = createAdminClient();
-    const { data } = await db
+    let query = db
       .from("clients")
       .select("id, name, parent_id, client_type")
-      .eq("is_active", true)
+      .eq("is_active", true);
+
+    if (clientFilter) {
+      query = query.eq("id", clientFilter);
+    }
+
+    const { data } = await query
       .order("parent_id", { ascending: true, nullsFirst: true })
       .order("name");
     return (data ?? []).map((row) => ({
@@ -349,14 +368,32 @@ export interface BrandDetail {
   content_count: number;
 }
 
-/** 브랜드 전체 목록 조회 (관리용, 비활성 포함) */
+/** 브랜드 전체 목록 조회 (관리용, 비활성 포함) — 고객 role은 본인 브랜드만 */
 export async function getBrandList(): Promise<BrandDetail[]> {
   try {
+    // 고객 역할 사용자는 본인 client_id만 조회
+    let clientFilter: string | null = null;
+    try {
+      const { getCurrentUser, isClientRole } = await import("@/lib/auth");
+      const user = await getCurrentUser();
+      if (user && isClientRole(user.role)) {
+        clientFilter = user.client_id;
+      }
+    } catch {
+      // auth 실패 → 전체 조회 (어드민 폴백)
+    }
+
     const db = createAdminClient();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data } = await (db as any)
+    let query = (db as any)
       .from("clients")
-      .select("id, name, company_name, website_url, parent_id, client_type, is_active, created_at")
+      .select("id, name, company_name, website_url, parent_id, client_type, is_active, created_at");
+
+    if (clientFilter) {
+      query = query.eq("id", clientFilter);
+    }
+
+    const { data } = await query
       .order("parent_id", { ascending: true, nullsFirst: true })
       .order("name");
 

@@ -1,10 +1,11 @@
 import { Suspense } from "react";
 import { getContents } from "@/lib/actions/ops-actions";
 import { getBrandList, getSelectedClientId } from "@/lib/actions/brand-actions";
+import { getCurrentUser, isClientRole } from "@/lib/auth";
 import { Badge } from "@/components/ui/badge";
 import { ExternalLink, FileText, Radio, Building2, RefreshCw, Send } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
-import { ContentsPageHeaderWithSelector } from "@/components/ops/contents-page-header";
+import { ContentsPageHeader, ContentsPageHeaderWithSelector } from "@/components/ops/contents-page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ContentsTabsWrapper } from "@/components/contents/contents-tabs-wrapper";
@@ -60,19 +61,27 @@ export default async function ContentsPage({ searchParams }: ContentsPageProps) 
 
   const tab = (params.tab ?? "list") as "list" | "recommend" | "history" | "keyword_history" | "auto";
 
-  const [clientId, allBrands] = await Promise.all([
+  const [clientId, allBrands, currentUser] = await Promise.all([
     getSelectedClientId(),
     getBrandList(),
+    getCurrentUser(),
   ]);
   const isAllMode = !clientId;
+  const isClientUser = currentUser ? isClientRole(currentUser.role) : false;
 
-  const brands = (allBrands ?? [])
-    .filter((b) => b.is_active)
-    .map((b) => ({ id: b.id, name: b.name }));
+  const brands = isClientUser
+    ? [] // 고객 role → 셀렉터에 브랜드 목록 전달하지 않음 (셀렉터 숨김)
+    : (allBrands ?? [])
+        .filter((b) => b.is_active)
+        .map((b) => ({ id: b.id, name: b.name }));
 
   return (
     <div className="p-6 space-y-6">
-      <ContentsPageHeaderWithSelector brands={brands} />
+      {isClientUser ? (
+        <ContentsPageHeader brands={[]} />
+      ) : (
+        <ContentsPageHeaderWithSelector brands={brands} />
+      )}
       <ContentsTabsWrapper activeTab={tab}>
         {tab === "list" && (
           <Suspense fallback={<Skeleton className="h-96" />}>
