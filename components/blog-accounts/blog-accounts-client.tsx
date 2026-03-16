@@ -194,18 +194,17 @@ function AccountDialog({ clientId, account, open, onClose }: AccountDialogProps)
   );
 }
 
-// ── API 계정 연동 다이얼로그 (Tistory OAuth / WordPress API / Medium Token) ──
+// ── API 계정 연동 다이얼로그 (WordPress API / Medium Token) ──
 interface ApiAccountDialogProps {
   clientId: string;
   open: boolean;
   onClose: () => void;
-  tistoryEnabled: boolean;
 }
 
-function ApiAccountDialog({ clientId, open, onClose, tistoryEnabled }: ApiAccountDialogProps) {
+function ApiAccountDialog({ clientId, open, onClose }: ApiAccountDialogProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [platform, setPlatform] = useState<"tistory" | "wordpress" | "medium">("tistory");
+  const [platform, setPlatform] = useState<"wordpress" | "medium">("wordpress");
   const [testResult, setTestResult] = useState<{ success: boolean; info?: string; error?: string } | null>(null);
 
   // WordPress fields
@@ -222,19 +221,6 @@ function ApiAccountDialog({ clientId, open, onClose, tistoryEnabled }: ApiAccoun
     setTestResult(null);
     setWpUrl(""); setWpUsername(""); setWpPassword(""); setWpName("");
     setMediumToken(""); setMediumName("");
-  }
-
-  function handleTistoryOAuth() {
-    const tistoryClientId = process.env.NEXT_PUBLIC_TISTORY_CLIENT_ID;
-    const tistoryRedirectUri = process.env.NEXT_PUBLIC_TISTORY_REDIRECT_URI;
-
-    if (!tistoryClientId || !tistoryRedirectUri) {
-      toast.error("Tistory API 키 설정이 필요합니다.");
-      return;
-    }
-
-    const oauthUrl = `https://www.tistory.com/oauth/authorize?client_id=${tistoryClientId}&redirect_uri=${encodeURIComponent(tistoryRedirectUri)}&response_type=code&state=${clientId}`;
-    window.location.href = oauthUrl;
   }
 
   function handleTest() {
@@ -255,7 +241,6 @@ function ApiAccountDialog({ clientId, open, onClose, tistoryEnabled }: ApiAccoun
           apiKey: mediumToken,
         });
       } else {
-        toast.error("Tistory는 OAuth 연동을 사용해주세요.");
         return;
       }
 
@@ -290,8 +275,6 @@ function ApiAccountDialog({ clientId, open, onClose, tistoryEnabled }: ApiAccoun
           toast.error("Integration Token을 입력해주세요.");
           return;
         }
-        // Medium user ID 조회
-        const meResult = await testBlogConnection({ platform: "medium", apiKey: mediumToken });
         result = await createApiKeyAccount({
           clientId,
           platform: "medium",
@@ -299,7 +282,6 @@ function ApiAccountDialog({ clientId, open, onClose, tistoryEnabled }: ApiAccoun
           apiKey: mediumToken,
         });
       } else {
-        toast.error("Tistory는 OAuth 연동을 사용해주세요.");
         return;
       }
 
@@ -324,8 +306,8 @@ function ApiAccountDialog({ clientId, open, onClose, tistoryEnabled }: ApiAccoun
           {/* 플랫폼 선택 */}
           <div className="space-y-1.5">
             <Label>플랫폼 선택</Label>
-            <div className="grid grid-cols-3 gap-2">
-              {(["tistory", "wordpress", "medium"] as const).map((p) => (
+            <div className="grid grid-cols-2 gap-2">
+              {(["wordpress", "medium"] as const).map((p) => (
                 <button
                   key={p}
                   onClick={() => { setPlatform(p); setTestResult(null); }}
@@ -340,32 +322,10 @@ function ApiAccountDialog({ clientId, open, onClose, tistoryEnabled }: ApiAccoun
                 </button>
               ))}
             </div>
+            <p className="text-[11px] text-muted-foreground mt-1">
+              네이버·티스토리는 API를 지원하지 않아 수동 발행만 가능합니다.
+            </p>
           </div>
-
-          {/* Tistory OAuth */}
-          {platform === "tistory" && (
-            <div className="space-y-3">
-              {tistoryEnabled ? (
-                <Button
-                  onClick={handleTistoryOAuth}
-                  className="w-full bg-orange-500 hover:bg-orange-600"
-                >
-                  <ExternalLink className="h-4 w-4 mr-1.5" />
-                  Tistory 계정 연동하기
-                </Button>
-              ) : (
-                <div className="text-sm text-muted-foreground bg-muted/50 rounded-lg p-4">
-                  <p className="font-medium">Tistory API 키 설정이 필요합니다</p>
-                  <p className="text-xs mt-1">
-                    환경변수 TISTORY_CLIENT_ID, TISTORY_CLIENT_SECRET, TISTORY_REDIRECT_URI를 설정해주세요.
-                  </p>
-                </div>
-              )}
-              <p className="text-xs text-muted-foreground">
-                Tistory OAuth 인증 페이지로 이동하여 계정을 연동합니다.
-              </p>
-            </div>
-          )}
 
           {/* WordPress API Key */}
           {platform === "wordpress" && (
@@ -456,25 +416,21 @@ function ApiAccountDialog({ clientId, open, onClose, tistoryEnabled }: ApiAccoun
           <Button variant="outline" onClick={() => { onClose(); resetFields(); }} disabled={isPending}>
             취소
           </Button>
-          {platform !== "tistory" && (
-            <>
-              <Button
-                variant="outline"
-                onClick={handleTest}
-                disabled={isPending}
-              >
-                {isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
-                연동 테스트
-              </Button>
-              <Button
-                onClick={handleSave}
-                disabled={isPending}
-                className="bg-violet-600 hover:bg-violet-700"
-              >
-                {isPending ? "처리 중..." : "저장"}
-              </Button>
-            </>
-          )}
+          <Button
+            variant="outline"
+            onClick={handleTest}
+            disabled={isPending}
+          >
+            {isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
+            연동 테스트
+          </Button>
+          <Button
+            onClick={handleSave}
+            disabled={isPending}
+            className="bg-violet-600 hover:bg-violet-700"
+          >
+            {isPending ? "처리 중..." : "저장"}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -493,10 +449,9 @@ interface BlogAccountsClientProps {
   accounts: BlogAccount[];
   accountGrades?: AccountGrade[];
   clientId: string | null;
-  tistoryEnabled?: boolean;
 }
 
-export function BlogAccountsClient({ accounts, accountGrades = [], clientId, tistoryEnabled = false }: BlogAccountsClientProps) {
+export function BlogAccountsClient({ accounts, accountGrades = [], clientId }: BlogAccountsClientProps) {
   const isAllMode = !clientId;
   const gradeMap = new Map(accountGrades.map((g) => [g.account_id, g]));
   const router = useRouter();
@@ -619,7 +574,7 @@ export function BlogAccountsClient({ accounts, accountGrades = [], clientId, tis
         <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border/60 py-16 text-center">
           <p className="text-sm font-medium text-muted-foreground">등록된 블로그 계정이 없습니다</p>
           <p className="text-xs text-muted-foreground/70 mt-1">
-            [API 연동] 으로 Tistory/WordPress/Medium을 연결하거나, [수동 등록]으로 계정을 추가하세요.
+            [API 연동]으로 WordPress/Medium을 연결하거나, [수동 등록]으로 네이버/티스토리 계정을 추가하세요.
           </p>
         </div>
       ) : (
@@ -695,9 +650,16 @@ export function BlogAccountsClient({ accounts, accountGrades = [], clientId, tis
                     )}
                   </td>
                   <td className="px-4 py-3 text-center">
-                    <Badge variant="outline" className="text-[10px] px-1.5">
-                      {AUTH_LABELS[acc.auth_type ?? "manual"] ?? acc.auth_type}
-                    </Badge>
+                    <div className="flex flex-col items-center gap-0.5">
+                      <Badge variant="outline" className="text-[10px] px-1.5">
+                        {AUTH_LABELS[acc.auth_type ?? "manual"] ?? acc.auth_type}
+                      </Badge>
+                      {(acc.platform === "naver" || acc.platform === "tistory") && (acc.auth_type ?? "manual") === "manual" && (
+                        <Badge variant="outline" className="text-[9px] px-1 border-amber-200 bg-amber-50 text-amber-600">
+                          수동 발행
+                        </Badge>
+                      )}
+                    </div>
                   </td>
                   <td className="px-4 py-3 text-center">
                     {acc.is_default ? (
@@ -767,7 +729,7 @@ export function BlogAccountsClient({ accounts, accountGrades = [], clientId, tis
       {clientId && (
         <>
           <AccountDialog clientId={clientId} open={addOpen} onClose={() => setAddOpen(false)} />
-          <ApiAccountDialog clientId={clientId} open={apiAddOpen} onClose={() => setApiAddOpen(false)} tistoryEnabled={tistoryEnabled} />
+          <ApiAccountDialog clientId={clientId} open={apiAddOpen} onClose={() => setApiAddOpen(false)} />
         </>
       )}
       {editTarget && clientId && (
