@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Waide 대시보드 목업 v2</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', sans-serif; background: #f0f2f7; display: flex; min-height: 100vh; font-size: 14px; }
+
+  /* Sidebar */
+  .sidebar { width: 58px; background: #0f172a; display: flex; flex-direction: column; align-items: center; padding: 16px 0; gap: 8px; flex-shrink: 0; position: sticky; top: 0; height: 100vh; }
+  .sidebar-logo { width: 34px; height: 34px; background: linear-gradient(135deg,#3b82f6,#6366f1); border-radius: 9px; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 900; font-size: 15px; margin-bottom: 12px; }
+  .sidebar-icon { width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px; cursor: pointer; transition: background 0.15s; }
+  .sidebar-icon:hover { background: rgba(255,255,255,0.08); }
+  .sidebar-icon.active { background: rgba(59,130,246,0.25); }
+
+  /* Main */
+  .main { flex: 1; padding: 28px 32px; overflow-y: auto; }
+
+  /* Header */
+  .header { display: flex; align-items: center; gap: 14px; margin-bottom: 24px; }
+  .brand-icon { width: 42px; height: 42px; background: linear-gradient(135deg,#667eea,#764ba2); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0; }
+  .brand-name { font-size: 18px; font-weight: 800; color: #0f172a; }
+  .brand-sub { font-size: 11px; color: #94a3b8; margin-top: 2px; }
+  .btn-change { background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 7px 16px; font-size: 12px; color: #475569; cursor: pointer; font-weight: 500; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+  .btn-change:hover { background: #f8fafc; }
+
+  /* 블로그 발행 버튼 */
+  .btn-publish { background: linear-gradient(135deg,#6366f1,#8b5cf6); color: #fff; border: none; border-radius: 10px; padding: 9px 18px; font-size: 13px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 6px; box-shadow: 0 4px 12px rgba(99,102,241,0.35); transition: all 0.15s; white-space: nowrap; }
+  .btn-publish:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(99,102,241,0.45); }
+
+  /* Section */
+  .section-head { display: flex; align-items: center; gap: 9px; margin-bottom: 14px; }
+  .section-bar { width: 4px; height: 18px; border-radius: 2px; }
+  .section-title { font-size: 15px; font-weight: 800; color: #0f172a; }
+  .section-block { margin-bottom: 28px; }
+
+  /* Keyword bar */
+  .kw-bar { background: #fff; border-radius: 13px; padding: 13px 18px; border: 1px solid #e8ecf0; margin-bottom: 22px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; box-shadow: 0 1px 4px rgba(0,0,0,0.04); }
+  .kw-label { font-size: 12px; font-weight: 700; color: #64748b; white-space: nowrap; }
+  .kw-tags { display: flex; gap: 8px; flex-wrap: wrap; flex: 1; }
+  .kw-tag { padding: 5px 14px; border-radius: 20px; font-size: 12px; font-weight: 600; cursor: pointer; border: 1px solid #e2e8f0; background: #f1f5f9; color: #475569; transition: all 0.15s; user-select: none; }
+  .kw-tag.active { background: #0f172a; color: #fff; border-color: #0f172a; }
+  .kw-tag.primary { border-color: #f59e0b; color: #92400e; background: #fffbeb; }
+  .kw-tag.primary::before { content: '★ '; }
+  .kw-tag.primary.active { background: #f59e0b; color: #fff; border-color: #f59e0b; }
+  .kw-tag:hover:not(.active) { background: #e2e8f0; }
+  .kw-manage { font-size: 11px; color: #3b82f6; cursor: pointer; font-weight: 600; white-space: nowrap; }
+
+  /* Stat cards */
+  .stat-cards { display: flex; gap: 14px; margin-bottom: 14px; }
+  .stat-card { background: #fff; border-radius: 14px; padding: 18px 20px; border: 1px solid #e8ecf0; flex: 1; min-width: 0; box-shadow: 0 1px 4px rgba(0,0,0,0.05); }
+  .stat-card.highlight { border-color: #fbbf24; background: linear-gradient(135deg,#fffbeb,#fff); }
+  .stat-card-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px; }
+  .stat-label { font-size: 12px; color: #64748b; font-weight: 500; }
+  .stat-kw-badge { font-size: 10px; background: #fef3c7; color: #92400e; padding: 2px 7px; border-radius: 10px; font-weight: 700; }
+  .stat-delta { font-size: 11px; font-weight: 700; }
+  .stat-delta.up { color: #10b981; }
+  .stat-delta.down { color: #ef4444; }
+  .stat-delta.flat { color: #94a3b8; }
+  .stat-value { font-size: 28px; font-weight: 800; color: #0f172a; letter-spacing: -1px; line-height: 1; margin-bottom: 10px; }
+  .stat-unit { font-size: 13px; font-weight: 500; color: #94a3b8; margin-left: 2px; }
+  .stat-rank-badge { display: inline-flex; align-items: center; gap: 6px; margin-top: 6px; margin-bottom: 10px; }
+  .rank-pill { font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 20px; }
+  .rank-pill.pc { background: #eff6ff; color: #2563eb; }
+  .rank-pill.mo { background: #f0fdf4; color: #16a34a; }
+  .stat-chart-wrap { height: 52px; }
+  .stat-foot { display: flex; justify-content: space-between; margin-top: 6px; }
+  .stat-foot-label { font-size: 10px; color: #94a3b8; }
+  .stat-foot-more { font-size: 10px; color: #3b82f6; cursor: pointer; font-weight: 600; }
+
+  /* No chart placeholder */
+  .no-chart { height: 62px; display: flex; align-items: center; justify-content: center; }
+  .no-chart-inner { font-size: 11px; color: #94a3b8; background: #f8fafc; border-radius: 8px; padding: 10px 16px; text-align: center; line-height: 1.6; }
+
+  /* Table card */
+  .table-card { background: #fff; border-radius: 14px; border: 1px solid #e8ecf0; box-shadow: 0 1px 4px rgba(0,0,0,0.05); overflow: hidden; }
+  .table-head-bar { padding: 13px 20px; border-bottom: 1px solid #f1f5f9; display: flex; align-items: center; gap: 8px; }
+  .table-head-title { font-weight: 700; font-size: 13px; color: #0f172a; }
+  .expose-badge { margin-left: auto; font-size: 11px; border-radius: 20px; padding: 3px 11px; font-weight: 700; }
+  .expose-badge.naver { background: #f0fdf4; color: #16a34a; }
+  .expose-badge.google { background: #eff6ff; color: #2563eb; }
+  table { width: 100%; border-collapse: collapse; }
+  thead tr { background: #f8fafc; }
+  th { padding: 9px 16px; text-align: left; font-size: 11px; color: #64748b; font-weight: 600; border-bottom: 1px solid #f1f5f9; white-space: nowrap; }
+  td { padding: 10px 16px; border-bottom: 1px solid #f8fafc; vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: #fafbff; }
+  .kw-cell { font-size: 13px; font-weight: 600; color: #1e293b; }
+  .expose-pill { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 600; border-radius: 20px; padding: 3px 10px; border: 1px solid; }
+  .expose-pill.yes { color: #059669; background: #ecfdf5; border-color: #bbf7d0; }
+  .expose-pill.no { color: #94a3b8; background: #f8fafc; border-color: #e2e8f0; }
+  .rank-cell { font-size: 13px; font-weight: 800; }
+  .rank-top { color: #7c3aed; }
+  .rank-mid { color: #2563eb; }
+  .rank-low { color: #64748b; }
+  .rank-none { color: #cbd5e1; }
+  .url-cell { font-size: 11px; color: #3b82f6; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
+
+  /* 점유율 cell */
+  .share-bar-wrap { display: flex; align-items: center; gap: 8px; min-width: 90px; }
+  .share-bar-bg { flex: 1; height: 6px; background: #f1f5f9; border-radius: 3px; overflow: hidden; }
+  .share-bar-fill { height: 100%; border-radius: 3px; transition: width 0.3s; }
+  .share-bar-fill.naver { background: linear-gradient(90deg,#03c75a,#00a84d); }
+  .share-bar-fill.google { background: linear-gradient(90deg,#4285f4,#1a73e8); }
+  .share-pct { font-size: 12px; font-weight: 700; color: #374151; white-space: nowrap; }
+  .share-detail { font-size: 10px; color: #94a3b8; }
+
+  /* Placeholder */
+  .placeholder-card { background: #fff; border-radius: 14px; padding: 32px 24px; border: 2px dashed #e2e8f0; text-align: center; }
+  .placeholder-icon { font-size: 32px; margin-bottom: 8px; }
+  .placeholder-title { font-size: 13px; font-weight: 700; color: #64748b; }
+  .placeholder-sub { font-size: 12px; color: #94a3b8; margin-top: 6px; line-height: 1.8; }
+
+  /* Modal */
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 100; align-items: center; justify-content: center; }
+  .modal-overlay.open { display: flex; }
+  .modal { background: #fff; border-radius: 16px; padding: 28px; width: 520px; max-width: 95vw; box-shadow: 0 20px 60px rgba(0,0,0,0.2); }
+  .modal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+  .modal-title { font-size: 15px; font-weight: 800; color: #0f172a; }
+  .modal-close { background: none; border: none; font-size: 20px; cursor: pointer; color: #94a3b8; line-height: 1; }
+  .modal-chart-wrap { height: 200px; }
+
+  /* Tooltip */
+  .tooltip { position: relative; cursor: help; }
+  .tooltip:hover::after { content: attr(data-tip); position: absolute; bottom: 110%; left: 50%; transform: translateX(-50%); background: #1e293b; color: #fff; font-size: 11px; padding: 5px 10px; border-radius: 6px; white-space: nowrap; z-index: 99; }
+</style>
+</head>
+<body>
+
+<!-- Sidebar -->
+<div class="sidebar">
+  <div class="sidebar-logo">W</div>
+  <div class="sidebar-icon active" title="대시보드">🏠</div>
+  <div class="sidebar-icon" title="마케팅 분석">📊</div>
+  <div class="sidebar-icon" title="키워드">🔑</div>
+  <div class="sidebar-icon" title="콘텐츠">✍️</div>
+  <div class="sidebar-icon" title="설정">⚙️</div>
+</div>
+
+<!-- Main Content -->
+<div class="main">
+
+  <!-- Header -->
+  <div class="header">
+    <div class="brand-icon">🏡</div>
+    <div>
+      <div class="brand-name">가평 스타풀빌라</div>
+      <div class="brand-sub">마지막 수집 · 오늘 01:03 KST</div>
+    </div>
+    <button class="btn-change">업체 변경 ▾</button>
+    <button class="btn-publish" onclick="document.getElementById('publishModal').classList.add('open')">
+      ✍️ 블로그 발행
+    </button>
+  </div>
+
+  <!-- 키워드 필터 -->
+  <div class="kw-bar">
+    <span class="kw-label">🎯 메인 키워드</span>
+    <div class="kw-tags" id="kwTags">
+      <span class="kw-tag active" data-kw="all">전체</span>
+      <span class="kw-tag primary" data-kw="가평 풀빌라" title="플레이스 순위 대표 키워드">가평 풀빌라</span>
+      <span class="kw-tag" data-kw="가평 펜션">가평 펜션</span>
+      <span class="kw-tag" data-kw="북한강 글램핑">북한강 글램핑</span>
+      <span class="kw-tag" data-kw="가평 캠핑">가평 캠핑</span>
+      <span class="kw-tag" data-kw="경기도 풀빌라">경기도 풀빌라</span>
+    </div>
+    <span class="kw-manage" onclick="alert('키워드 관리 페이지로 이동')">+ 키워드 관리</span>
+  </div>
+
+  <!-- 네이버 현황 -->
+  <div class="section-block">
+    <div class="section-head">
+      <div class="section-bar" style="background:#03c75a"></div>
+      <span class="section-title">네이버 현황</span>
+    </div>
+
+    <!-- 플레이스 지표 카드 4개 -->
+    <div class="stat-cards">
+
+      <!-- 플레이스 순위 (1순위 키워드 기준) -->
+      <div class="stat-card highlight">
+        <div class="stat-card-top">
+          <div>
+            <div class="stat-label">플레이스 순위</div>
+            <div class="stat-kw-badge" style="margin-top:3px">★ 가평 풀빌라</div>
+          </div>
+          <span class="stat-delta up">▲ 2 전일</span>
+        </div>
+        <div class="stat-value">3<span class="stat-unit">위</span></div>
+        <div class="stat-rank-badge">
+          <span class="rank-pill pc">PC 3위</span>
+          <span class="rank-pill mo">모바일 2위</span>
+        </div>
+        <div class="no-chart">
+          <div class="no-chart-inner">
+            순위 이력 차트<br>
+            <span style="font-size:10px;color:#cbd5e1">(place_stats_history 축적 후 표시)</span>
+          </div>
+        </div>
+        <div class="stat-foot">
+          <span class="stat-foot-label">플레이스 순위 기준</span>
+          <span class="stat-foot-more">상세 →</span>
+        </div>
+      </div>
+
+      <!-- 방문자 리뷰수 -->
+      <div class="stat-card">
+        <div class="stat-card-top">
+          <span class="stat-label">방문자 리뷰수</span>
+          <span class="stat-delta up">▲ 4 전일</span>
+        </div>
+        <div class="stat-value">342<span class="stat-unit">개</span></div>
+        <div class="stat-chart-wrap"><canvas id="chart1"></canvas></div>
+        <div class="stat-foot">
+          <span class="stat-foot-label">최근 15일 추이</span>
+          <span class="stat-foot-more" onclick="openModal('방문자 리뷰수', chart1Data30, '#10b981')">30일 →</span>
+        </div>
+      </div>
+
+      <!-- 블로그 리뷰수 -->
+      <div class="stat-card">
+        <div class="stat-card-top">
+          <span class="stat-label">블로그 리뷰수</span>
+          <span class="stat-delta up">▲ 2 전일</span>
+        </div>
+        <div class="stat-value">128<span class="stat-unit">개</span></div>
+        <div class="stat-chart-wrap"><canvas id="chart2"></canvas></div>
+        <div class="stat-foot">
+          <span class="stat-foot-label">최근 15일 추이</span>
+          <span class="stat-foot-more" onclick="openModal('블로그 리뷰수', chart2Data30, '#3b82f6')">30일 →</span>
+        </div>
+      </div>
+
+      <!-- 저장수 -->
+      <div class="stat-card">
+        <div class="stat-card-top">
+          <span class="stat-label">저장수</span>
+          <span class="stat-delta up">▲ 15 전일</span>
+        </div>
+        <div class="stat-value">891<span class="stat-unit">개</span></div>
+        <div class="stat-chart-wrap"><canvas id="chart3"></canvas></div>
+        <div class="stat-foot">
+          <span class="stat-foot-label">최근 15일 추이</span>
+          <span class="stat-foot-more" onclick="openModal('저장수', chart3Data30, '#8b5cf6')">30일 →</span>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- 네이버 블로그 노출 테이블 -->
+    <div class="table-card">
+      <div class="table-head-bar">
+        <span>📝</span>
+        <span class="table-head-title">키워드별 블로그 노출 현황 (20위 이내)</span>
+        <span class="expose-badge naver" id="naverBadge">노출 3/5</span>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>키워드</th>
+            <th>노출 여부</th>
+            <th>순위</th>
+            <th class="tooltip" data-tip="상위 20개 결과 중 우리 콘텐츠가 차지하는 비율">점유율 <span style="color:#94a3b8">ℹ</span></th>
+            <th>노출 URL</th>
+          </tr>
+        </thead>
+        <tbody id="naverTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 구글 현황 -->
+  <div class="section-block">
+    <div class="section-head">
+      <div class="section-bar" style="background:#4285f4"></div>
+      <span class="section-title">구글 현황</span>
+    </div>
+    <div class="table-card">
+      <div class="table-head-bar">
+        <span>🔍</span>
+        <span class="table-head-title">키워드별 구글 노출 현황 (20위 이내)</span>
+        <span class="expose-badge google" id="googleBadge">노출 2/5</span>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>키워드</th>
+            <th>노출 여부</th>
+            <th>순위</th>
+            <th class="tooltip" data-tip="상위 20개 결과 중 우리 콘텐츠가 차지하는 비율">점유율 <span style="color:#94a3b8">ℹ</span></th>
+            <th>노출 URL</th>
+          </tr>
+        </thead>
+        <tbody id="googleTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 기존 서비스 -->
+  <div class="section-block">
+    <div class="section-head">
+      <div class="section-bar" style="background:#f59e0b"></div>
+      <span class="section-title">마케팅 현황</span>
+    </div>
+    <div class="placeholder-card">
+      <div class="placeholder-icon">📋</div>
+      <div class="placeholder-title">기존 서비스 카드 유지 영역</div>
+      <div class="placeholder-sub">마케팅 점수 · 추천 액션 · AEO Score · SEO 진단 · 콘텐츠 현황<br>현재 포털 컴포넌트 그대로 유지</div>
+    </div>
+  </div>
+
+</div><!-- /main -->
+
+<!-- 30일 차트 모달 -->
+<div class="modal-overlay" id="modalOverlay" onclick="closeModalBg(event)">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title" id="modalTitle">방문자 리뷰수 · 30일 추이</span>
+      <button class="modal-close" onclick="document.getElementById('modalOverlay').classList.remove('open')">✕</button>
+    </div>
+    <div class="modal-chart-wrap"><canvas id="modalChart"></canvas></div>
+  </div>
+</div>
+
+<!-- 블로그 발행 모달 -->
+<div class="modal-overlay" id="publishModal" onclick="closeModalBg(event)">
+  <div class="modal" style="width:580px">
+    <div class="modal-header">
+      <span class="modal-title">✍️ 블로그 발행</span>
+      <button class="modal-close" onclick="document.getElementById('publishModal').classList.remove('open')">✕</button>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:14px">
+
+      <div>
+        <label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:6px">타겟 키워드 선택</label>
+        <select style="width:100%;padding:9px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;color:#374151;background:#fff">
+          <option>가평 풀빌라</option><option>가평 펜션</option><option>북한강 글램핑</option>
+          <option>가평 캠핑</option><option>경기도 풀빌라</option>
+        </select>
+      </div>
+
+      <div>
+        <label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:6px">발행 채널</label>
+        <div style="display:flex;gap:8px">
+          <label style="display:flex;align-items:center;gap:6px;padding:8px 14px;border:2px solid #6366f1;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;color:#6366f1;background:#f5f3ff">
+            <input type="radio" name="channel" checked style="accent-color:#6366f1"> 네이버 블로그
+          </label>
+          <label style="display:flex;align-items:center;gap:6px;padding:8px 14px;border:1px solid #e2e8f0;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;color:#64748b">
+            <input type="radio" name="channel"> 티스토리
+          </label>
+          <label style="display:flex;align-items:center;gap:6px;padding:8px 14px;border:1px solid #e2e8f0;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;color:#64748b">
+            <input type="radio" name="channel"> 워드프레스
+          </label>
+        </div>
+      </div>
+
+      <div>
+        <label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:6px">
+          발행 완료 URL <span style="font-weight:400;color:#94a3b8">(발행 후 입력 → 순위 추적 자동 시작)</span>
+        </label>
+        <input type="url" placeholder="https://blog.naver.com/your_blog/..." style="width:100%;padding:9px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;color:#374151">
+      </div>
+
+      <div style="display:flex;align-items:center;gap:8px;padding:12px 14px;background:#f0fdf4;border-radius:8px;border:1px solid #bbf7d0">
+        <span style="font-size:16px">✅</span>
+        <span style="font-size:12px;color:#15803d;line-height:1.6">URL 저장 시 <strong>김연구원(N_SERP)</strong>이 다음 날부터 해당 URL의 순위를 매일 자동 추적합니다.</span>
+      </div>
+
+      <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:4px">
+        <button onclick="document.getElementById('publishModal').classList.remove('open')" style="padding:9px 20px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;color:#64748b;background:#fff;cursor:pointer">취소</button>
+        <button style="padding:9px 20px;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">저장 · 추적 시작</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Data ──────────────────────────────────────────────
+const naverData = [
+  { keyword:"가평 풀빌라",  exposed:true,  rank:3,  shareCount:4, shareTotal:20, url:"blog.naver.com/waide_2024..." },
+  { keyword:"가평 펜션",    exposed:true,  rank:11, shareCount:2, shareTotal:20, url:"blog.naver.com/travel_g..." },
+  { keyword:"북한강 글램핑",exposed:false, rank:null,shareCount:0, shareTotal:20, url:null },
+  { keyword:"가평 캠핑",    exposed:true,  rank:7,  shareCount:3, shareTotal:20, url:"blog.naver.com/camp_story..." },
+  { keyword:"경기도 풀빌라",exposed:false, rank:null,shareCount:0, shareTotal:20, url:null },
+];
+const googleData = [
+  { keyword:"가평 풀빌라",  exposed:true,  rank:5,  shareCount:2, shareTotal:20, url:"naverblog.com/gapyeong..." },
+  { keyword:"가평 펜션",    exposed:false, rank:null,shareCount:0, shareTotal:20, url:null },
+  { keyword:"북한강 글램핑",exposed:true,  rank:14, shareCount:1, shareTotal:20, url:"tistory.com/travel_han..." },
+  { keyword:"가평 캠핑",    exposed:false, rank:null,shareCount:0, shareTotal:20, url:null },
+  { keyword:"경기도 풀빌라",exposed:false, rank:null,shareCount:0, shareTotal:20, url:null },
+];
+
+const chart1Data15 = [310,315,318,322,325,329,332,334,336,338,339,340,341,342,342];
+const chart2Data15 = [108,110,112,114,116,118,119,120,122,124,125,126,127,128,128];
+const chart3Data15 = [820,830,840,845,850,855,860,865,868,870,875,876,880,885,891];
+const chart1Data30 = [280,283,287,290,294,297,300,303,305,307,309,310,313,315,317,319,321,323,325,327,329,332,334,336,338,339,340,341,342,342];
+const chart2Data30 = [92,93,95,96,97,98,99,100,101,102,103,104,105,106,107,108,110,112,114,116,118,119,120,122,124,125,126,127,128,128];
+const chart3Data30 = [760,765,770,775,778,782,786,790,795,800,808,814,818,820,825,828,832,836,840,845,850,855,862,867,870,875,876,880,885,891];
+
+let selectedKw = 'all';
+let modalChartInstance = null;
+
+// ── Mini Charts ───────────────────────────────────────
+function makeChart(id, data, color) {
+  const ctx = document.getElementById(id).getContext('2d');
+  return new Chart(ctx, {
+    type:'line',
+    data:{
+      labels:data.map((_,i)=>`${i+1}일`),
+      datasets:[{data,borderColor:color,borderWidth:2,pointRadius:0,tension:0.4,fill:true,
+        backgroundColor:(ctx)=>{
+          const g=ctx.chart.ctx.createLinearGradient(0,0,0,52);
+          g.addColorStop(0,color+'28'); g.addColorStop(1,color+'04'); return g;
+        }
+      }]
+    },
+    options:{responsive:true,maintainAspectRatio:false,animation:false,
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>ctx.parsed.y.toLocaleString()+'개',title:()=>''}}},
+      scales:{x:{display:false},y:{display:false}}
+    }
+  });
+}
+makeChart('chart1',chart1Data15,'#10b981');
+makeChart('chart2',chart2Data15,'#3b82f6');
+makeChart('chart3',chart3Data15,'#8b5cf6');
+
+// ── Share Bar ─────────────────────────────────────────
+function shareBarHTML(count, total, type) {
+  const pct = Math.round((count/total)*100);
+  return `<div class="share-bar-wrap">
+    <div class="share-bar-bg"><div class="share-bar-fill ${type}" style="width:${pct}%"></div></div>
+    <div>
+      <div class="share-pct">${pct}%</div>
+      <div class="share-detail">${count}/${total}</div>
+    </div>
+  </div>`;
+}
+
+// ── Table Render ──────────────────────────────────────
+function renderTable(tbodyId, data, filterKw, type) {
+  const rows = filterKw==='all' ? data : data.filter(d=>d.keyword===filterKw);
+  document.getElementById(tbodyId).innerHTML = rows.map(row=>{
+    const rankClass = !row.rank ? 'rank-none' : row.rank<=5 ? 'rank-top' : row.rank<=10 ? 'rank-mid' : 'rank-low';
+    return `<tr>
+      <td class="kw-cell">${row.keyword}</td>
+      <td><span class="expose-pill ${row.exposed?'yes':'no'}">${row.exposed?'✓ 노출됨':'미노출'}</span></td>
+      <td><span class="rank-cell ${rankClass}">${row.rank?row.rank+'위':'—'}</span></td>
+      <td>${shareBarHTML(row.shareCount, row.shareTotal, type)}</td>
+      <td>${row.url?`<span class="url-cell">${row.url}</span>`:'<span style="color:#cbd5e1;font-size:12px">—</span>'}</td>
+    </tr>`;
+  }).join('');
+}
+function updateBadge(badgeId, data, filterKw) {
+  const rows = filterKw==='all' ? data : data.filter(d=>d.keyword===filterKw);
+  document.getElementById(badgeId).textContent = `노출 ${rows.filter(d=>d.exposed).length}/${rows.length}`;
+}
+function render() {
+  renderTable('naverTableBody', naverData, selectedKw, 'naver');
+  renderTable('googleTableBody', googleData, selectedKw, 'google');
+  updateBadge('naverBadge', naverData, selectedKw);
+  updateBadge('googleBadge', googleData, selectedKw);
+}
+render();
+
+// ── Keyword Filter ─────────────────────────────────────
+document.getElementById('kwTags').addEventListener('click', e=>{
+  if (!e.target.classList.contains('kw-tag')) return;
+  document.querySelectorAll('.kw-tag').forEach(t=>t.classList.remove('active'));
+  e.target.classList.add('active');
+  selectedKw = e.target.dataset.kw;
+  render();
+});
+
+// ── 30일 Modal ─────────────────────────────────────────
+function openModal(title, data, color) {
+  document.getElementById('modalTitle').textContent = title+' · 30일 추이';
+  document.getElementById('modalOverlay').classList.add('open');
+  if (modalChartInstance) modalChartInstance.destroy();
+  const ctx = document.getElementById('modalChart').getContext('2d');
+  modalChartInstance = new Chart(ctx, {
+    type:'line',
+    data:{
+      labels:data.map((_,i)=>`${i+1}일`),
+      datasets:[{data,borderColor:color,borderWidth:2,pointRadius:3,pointBackgroundColor:color,tension:0.4,fill:true,
+        backgroundColor:(ctx)=>{const g=ctx.chart.ctx.createLinearGradient(0,0,0,200);g.addColorStop(0,color+'30');g.addColorStop(1,color+'05');return g;}
+      }]
+    },
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>ctx.parsed.y.toLocaleString()+'개',title:items=>items[0].label}}},
+      scales:{
+        x:{ticks:{font:{size:10},color:'#94a3b8'},grid:{display:false}},
+        y:{ticks:{font:{size:10},color:'#94a3b8'},grid:{color:'#f1f5f9'}}
+      }
+    }
+  });
+}
+function closeModalBg(e) {
+  if (e.target.classList.contains('modal-overlay'))
+    e.target.classList.remove('open');
+}
+</script>
+</body>
+</html>
