@@ -57,10 +57,9 @@ async function AnalyticsSection() {
   // SEO 탭 콘텐츠
   const seoContent = (
     <div className="space-y-6">
-      <KpiHeaderCards data={kpiData} />
       <div className="grid gap-5 lg:grid-cols-2">
         <SerpRankChart trend={serpData.trend} keywords={serpData.keywords} />
-        <StyleTransferWidget contents={bestContents} />
+        <StyleTransferWidget contents={bestContents} clientId={clientId ?? undefined} />
       </div>
 
       <div>
@@ -86,13 +85,16 @@ async function AnalyticsSection() {
   );
 
   return (
-    <AnalyticsTabsWrapper
-      clientId={clientId || ""}
-      aeoData={aeoData}
-      competitionData={competitionData}
-      citationData={citationData}
-      seoContent={seoContent}
-    />
+    <div className="space-y-6">
+      <KpiHeaderCards data={kpiData} />
+      <AnalyticsTabsWrapper
+        clientId={clientId || ""}
+        aeoData={aeoData}
+        competitionData={competitionData}
+        citationData={citationData}
+        seoContent={seoContent}
+      />
+    </div>
   );
 }
 
@@ -117,7 +119,7 @@ export default function AnalyticsPage() {
       <div>
         <h1 className="text-2xl font-bold tracking-tight">성과 분석</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          SEO 순위 추이 · AEO 노출 추적 · 경쟁 분석 · Citation 분석
+          SEO 순위 추이 · AEO 노출 추적
         </p>
       </div>
 

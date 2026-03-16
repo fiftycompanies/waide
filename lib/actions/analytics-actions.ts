@@ -461,19 +461,60 @@ export async function getOpsKpiCards(clientId?: string): Promise<OpsKpiCards> {
     ? Math.round((prevRanks.reduce((a, b) => a + b, 0) / prevRanks.length) * 10) / 10
     : null;
 
-  // ── 노출 점유율 (daily_visibility_summary) ──
+  // ── 노출 점유율 (keyword_visibility 직접 계산 + daily_visibility_summary fallback) ──
+  // 활성 키워드 중 당일 keyword_visibility.is_exposed=true 비율로 계산
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let visQ = (db as any)
-    .from("daily_visibility_summary")
-    .select("measured_at, weighted_visibility_pc")
-    .order("measured_at", { ascending: false })
-    .limit(14);
-  if (clientId) visQ = visQ.eq("client_id", clientId);
-  const { data: visData } = await visQ;
-  const todayVis = (visData ?? []).find((r: { measured_at: string }) => r.measured_at === todayStr);
-  const prevVis = (visData ?? []).find((r: { measured_at: string }) => r.measured_at <= lastWeekStr);
-  const weightedVisibilityPc = Number(todayVis?.weighted_visibility_pc ?? 0);
-  const prevVisibilityPc = Number(prevVis?.weighted_visibility_pc ?? 0);
+  let activeKwQ = (db as any)
+    .from("keywords")
+    .select("id", { count: "exact", head: true })
+    .eq("status", "active");
+  if (clientId) activeKwQ = activeKwQ.eq("client_id", clientId);
+  const { count: activeKwCount } = await activeKwQ;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let exposedQ = (db as any)
+    .from("keyword_visibility")
+    .select("is_exposed")
+    .eq("measured_at", todayStr);
+  if (clientId) exposedQ = exposedQ.eq("client_id", clientId);
+  const { data: exposedData } = await exposedQ;
+
+  const totalActive = activeKwCount ?? 0;
+  const exposedRows = (exposedData ?? []) as { is_exposed: boolean }[];
+  const exposedCount = exposedRows.filter((r) => r.is_exposed).length;
+
+  let weightedVisibilityPc: number;
+  let prevVisibilityPc: number;
+
+  if (totalActive > 0 && exposedRows.length > 0) {
+    // keyword_visibility 직접 계산: 노출된 키워드 수 / 전체 활성 키워드 수 * 100
+    weightedVisibilityPc = Math.round((exposedCount / totalActive) * 1000) / 10;
+
+    // 지난주 노출 점유율 (delta 계산용)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let prevExposedQ = (db as any)
+      .from("keyword_visibility")
+      .select("is_exposed")
+      .eq("measured_at", lastWeekStr);
+    if (clientId) prevExposedQ = prevExposedQ.eq("client_id", clientId);
+    const { data: prevExposedData } = await prevExposedQ;
+    const prevExposedCount = ((prevExposedData ?? []) as { is_exposed: boolean }[]).filter((r) => r.is_exposed).length;
+    prevVisibilityPc = totalActive > 0 ? Math.round((prevExposedCount / totalActive) * 1000) / 10 : 0;
+  } else {
+    // Fallback: daily_visibility_summary
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let visQ = (db as any)
+      .from("daily_visibility_summary")
+      .select("measured_at, weighted_visibility_pc")
+      .order("measured_at", { ascending: false })
+      .limit(14);
+    if (clientId) visQ = visQ.eq("client_id", clientId);
+    const { data: visData } = await visQ;
+    const todayVis = (visData ?? []).find((r: { measured_at: string }) => r.measured_at === todayStr);
+    const prevVis = (visData ?? []).find((r: { measured_at: string }) => r.measured_at <= lastWeekStr);
+    weightedVisibilityPc = Number(todayVis?.weighted_visibility_pc ?? 0);
+    prevVisibilityPc = Number(prevVis?.weighted_visibility_pc ?? 0);
+  }
 
   return {
     citationRate: thisRate,

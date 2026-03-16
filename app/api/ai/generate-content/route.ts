@@ -19,6 +19,7 @@ export async function POST(request: NextRequest) {
     imageUrls,
     title,
     addSchemaMarkup,
+    styleRefs,
   } = body;
 
   const brandRegion = brandInfo?.region || "미정";
@@ -40,6 +41,11 @@ export async function POST(request: NextRequest) {
 
 예시:
 > 📷 [이미지 추천] 캠핑장 전경을 담은 낮 시간대 와이드샷. 잔디와 데크가 함께 보이는 사진이 좋습니다 — 이런 사진을 넣어보세요.`;
+
+  const styleRefsSection =
+    styleRefs && Array.isArray(styleRefs) && styleRefs.length > 0
+      ? `\n\n[스타일 학습 참조]\n아래 콘텐츠의 문체·구조·톤을 참고하여 작성하세요:\n${styleRefs.map((t: string, i: number) => `${i + 1}. ${t}`).join("\n")}`
+      : "";
 
   const titleInstruction = title
     ? `\n제목(H1)은 반드시 "${title}"을 그대로 사용하세요. 변경하지 마세요.`
@@ -81,7 +87,7 @@ ${brief || "없음"}
 [서브 키워드] ${(subKeywords || []).join(", ")}
 ${imageSection}
 
-위 정보를 바탕으로 네이버 블로그에 발행할 ${typeLabel} 콘텐츠를 마크다운으로 작성해주세요.${titleInstruction}`;
+위 정보를 바탕으로 네이버 블로그에 발행할 ${typeLabel} 콘텐츠를 마크다운으로 작성해주세요.${titleInstruction}${styleRefsSection}`;
 
   try {
     const resp = await fetch("https://api.anthropic.com/v1/messages", {

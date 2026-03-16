@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -21,6 +22,7 @@ export function StyleTransferWidget({ contents, clientId }: StyleTransferWidgetP
   const [saved, setSaved] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [expanded, setExpanded] = useState(false);
+  const router = useRouter();
 
   function toggle(id: string) {
     setSaved(false);
@@ -33,10 +35,14 @@ export function StyleTransferWidget({ contents, clientId }: StyleTransferWidgetP
   }
 
   function handleApply() {
-    if (!clientId || selected.size === 0) return;
+    if (clientId === null || clientId === undefined || selected.size === 0) return;
     startTransition(async () => {
       const result = await saveStyleRef(clientId, Array.from(selected));
-      if (result?.id) setSaved(true);
+      if (result?.id) {
+        setSaved(true);
+        // 블로그 발행 플로우로 이동 (선택된 콘텐츠 ID를 쿼리 파라미터로 전달)
+        router.push(`/contents?tab=create&styleContentIds=${Array.from(selected).join(",")}`);
+      }
     });
   }
 
@@ -166,7 +172,7 @@ export function StyleTransferWidget({ contents, clientId }: StyleTransferWidgetP
                 )}
                 <Button
                   size="sm"
-                  disabled={selected.size === 0 || isPending || !clientId}
+                  disabled={selected.size === 0 || isPending || clientId === null || clientId === undefined}
                   onClick={handleApply}
                   className="bg-violet-600 hover:bg-violet-700 text-white"
                 >

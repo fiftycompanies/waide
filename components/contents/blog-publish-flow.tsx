@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo } from "react";
+import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -157,6 +158,30 @@ export function BlogPublishFlow({
     accountName: "",
     accountUrl: "",
   });
+
+  // Style Transfer 학습 콘텐츠
+  const searchParams = useSearchParams();
+  const styleContentIds = useMemo(() => {
+    const param = searchParams.get("styleContentIds");
+    return param ? param.split(",").filter(Boolean) : [];
+  }, [searchParams]);
+  const [styleRefTitles, setStyleRefTitles] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (styleContentIds.length === 0) return;
+    // contents 테이블에서 제목 조회
+    fetch("/api/ai/style-ref-titles", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ contentIds: styleContentIds }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.titles) setStyleRefTitles(data.titles);
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Brief auto-fill from content_strategy
   useEffect(() => {
@@ -350,6 +375,7 @@ export function BlogPublishFlow({
           imageUrls: selectedImages.length > 0 ? selectedImages : undefined,
           title: editedTitle,
           addSchemaMarkup,
+          styleRefs: styleRefTitles.length > 0 ? styleRefTitles : undefined,
         }),
       });
 
@@ -548,6 +574,7 @@ export function BlogPublishFlow({
               onSubInputChange={setSubKeywordInput}
               onSubAdd={addSubKeyword}
               activeKeywords={activeKeywords}
+              styleRefTitles={styleRefTitles}
             />
           )}
           {step === 2 && (
@@ -830,6 +857,7 @@ function StepTypeKeyword({
   onSubInputChange,
   onSubAdd,
   activeKeywords,
+  styleRefTitles,
 }: {
   contentType: ContentType;
   onContentTypeChange: (v: ContentType) => void;
@@ -841,6 +869,7 @@ function StepTypeKeyword({
   onSubInputChange: (v: string) => void;
   onSubAdd: () => void;
   activeKeywords: Array<{ keyword: string; id: string }>;
+  styleRefTitles?: string[];
 }) {
   const types: { key: ContentType; label: string; desc: string }[] = [
     { key: "blog_info", label: "정보형", desc: "키워드 중심 정보 전달, 체크리스트/요약표 포함" },
@@ -924,6 +953,26 @@ function StepTypeKeyword({
             </div>
           )}
         </div>
+
+        {/* Style Transfer 학습 콘텐츠 */}
+        {styleRefTitles && styleRefTitles.length > 0 && (
+          <div className="rounded-lg border border-violet-200 bg-violet-50/50 p-3 space-y-2">
+            <p className="text-sm font-medium text-violet-700 flex items-center gap-1.5">
+              <Sparkles className="h-3.5 w-3.5" />
+              스타일 학습 적용 중
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {styleRefTitles.map((t, i) => (
+                <Badge key={i} variant="outline" className="border-violet-200 text-violet-700 text-xs">
+                  {t}
+                </Badge>
+              ))}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              선택한 베스트 글의 문체와 구조를 참고하여 콘텐츠를 생성합니다
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );
