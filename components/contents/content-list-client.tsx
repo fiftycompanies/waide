@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { BrandBadge } from "@/components/ui/brand-badge";
 import { Button } from "@/components/ui/button";
-import { ExternalLink, FileText, Radio, ChevronDown, Search } from "lucide-react";
+import { ExternalLink, FileText, Radio, ChevronDown, Search, Plus } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ContentDetailModal } from "@/components/contents/content-detail-modal";
 
@@ -154,6 +155,14 @@ export function ContentListClient({ contents, isAllMode }: ContentListClientProp
         <span className="text-xs text-muted-foreground">
           {filtered.length}건
         </span>
+
+        <Link
+          href="/contents?tab=create"
+          className="ml-auto inline-flex items-center gap-1 rounded-md border border-input px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors whitespace-nowrap"
+        >
+          <Plus className="h-3 w-3" />
+          원고 직접 등록
+        </Link>
       </div>
 
       {/* Content table */}
@@ -163,7 +172,7 @@ export function ContentListClient({ contents, isAllMode }: ContentListClientProp
           title="콘텐츠가 없습니다"
           description="조건에 맞는 콘텐츠가 없습니다."
           actionLabel="블로그 발행"
-          actionHref="/contents?tab=publish"
+          actionHref="/contents/publish"
         />
       ) : (
         <>

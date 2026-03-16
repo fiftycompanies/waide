@@ -320,16 +320,15 @@ async function PublishHistoryTab({ clientId }: { clientId: string | null }) {
             </div>
             <div>
               {content.published_url ? (
-                <span
-                  onClick={(e) => {
-                    e.preventDefault();
-                    window.open(content.published_url!, "_blank");
-                  }}
-                  className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline cursor-pointer"
+                <a
+                  href={content.published_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline"
                 >
                   <ExternalLink className="h-3 w-3" />
                   링크
-                </span>
+                </a>
               ) : (
                 <span className="text-xs text-muted-foreground">—</span>
               )}

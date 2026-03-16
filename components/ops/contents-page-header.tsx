@@ -108,11 +108,11 @@ export function ContentsPageHeaderWithSelector({ brands }: ContentsPageHeaderWit
             </>
           )}
           <Link
-            href="/contents?tab=create"
+            href="/contents/publish"
             className="inline-flex items-center gap-1.5 rounded-md bg-violet-600 px-3 py-2 text-sm font-medium text-white hover:bg-violet-700 transition-colors"
           >
             <Plus className="h-4 w-4" />
-            원고 직접 등록
+            블로그 발행
           </Link>
         </div>
       </div>

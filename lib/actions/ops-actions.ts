@@ -265,7 +265,7 @@ export async function getContents(params?: {
   let query = (supabase as any)
     .from("contents")
     .select(
-      "id, title, word_count, publish_status, created_at, generated_by, tags, body, meta_description, content_type, client_id, keyword_id, published_url, is_tracking, peak_rank_naver, peak_rank_google, metadata, clients(name)"
+      "id, title, word_count, publish_status, created_at, published_at, generated_by, tags, body, meta_description, content_type, client_id, keyword_id, published_url, is_tracking, peak_rank_naver, peak_rank_google, metadata, clients(name)"
     )
     .order("created_at", { ascending: false })
     .limit(50);
