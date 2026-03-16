@@ -2,6 +2,8 @@ import { BrandAnalyzer } from "@/components/onboarding";
 import { OnboardingActions } from "@/components/onboarding/onboarding-actions";
 import { createAdminClient } from "@/lib/supabase/service";
 
+export const dynamic = "force-dynamic";
+
 export default async function OnboardingPage() {
   // 고객 목록 조회 (분석 연결용)
   const db = createAdminClient();

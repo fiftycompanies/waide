@@ -13,6 +13,8 @@ import {
   type BrandAnalysisRow,
 } from "@/lib/actions/analysis-brand-actions";
 
+export const dynamic = "force-dynamic";
+
 // ── Score Gauge ──────────────────────────────────────────────────────────────
 
 function ScoreGauge({ score, size = 120 }: { score: number; size?: number }) {

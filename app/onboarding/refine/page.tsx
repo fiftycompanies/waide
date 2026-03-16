@@ -3,6 +3,8 @@ import { getCurrentUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/service";
 import { OnboardingRefineClient } from "@/components/onboarding/onboarding-refine-client";
 
+export const dynamic = "force-dynamic";
+
 interface PageProps {
   searchParams: Promise<{ analysis_id?: string }>;
 }

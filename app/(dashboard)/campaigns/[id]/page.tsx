@@ -5,6 +5,8 @@ import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
+export const dynamic = "force-dynamic";
+
 const CAMPAIGN_STATUS_KO: Record<string, string> = {
   draft: "초안",
   active: "진행중",
