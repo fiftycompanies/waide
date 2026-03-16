@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { FileText, Sparkles, Clock, Settings2, Pen, Key } from "lucide-react";
+import { FileText, Sparkles, Clock, Settings2, Key } from "lucide-react";
 
 type TabKey = "list" | "recommend" | "history" | "keyword_history" | "auto" | "publish";
 
@@ -11,7 +11,6 @@ const TABS: { key: TabKey; label: string; icon: React.ElementType }[] = [
   { key: "history",         label: "발행 이력",       icon: Clock },
   { key: "keyword_history", label: "키워드 이력",     icon: Key },
   { key: "auto",            label: "자동 발행 설정",  icon: Settings2 },
-  { key: "publish",         label: "블로그 발행",     icon: Pen },
 ];
 
 interface ContentsTabsWrapperProps {

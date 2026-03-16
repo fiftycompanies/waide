@@ -7,16 +7,8 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { ContentsPageHeaderWithSelector } from "@/components/ops/contents-page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  getActiveKeywordPool,
-} from "@/lib/actions/campaign-planning-actions";
 import { ContentsTabsWrapper } from "@/components/contents/contents-tabs-wrapper";
-import { BlogPublishFlow } from "@/components/contents/blog-publish-flow";
 import { ContentListClient } from "@/components/contents/content-list-client";
-import {
-  getPublishingAccounts,
-  getBrandAnalysisForPublishing,
-} from "@/lib/actions/publishing-account-actions";
 import {
   getRecommendationsList,
   getRecommendationStats,
@@ -59,7 +51,14 @@ interface ContentsPageProps {
 
 export default async function ContentsPage({ searchParams }: ContentsPageProps) {
   const params = await searchParams;
-  const tab = (params.tab ?? "list") as "list" | "recommend" | "history" | "keyword_history" | "auto" | "publish";
+
+  // tab=publish → /contents/publish 리다이렉트 (하위 호환)
+  if (params.tab === "publish") {
+    const { redirect } = await import("next/navigation");
+    redirect("/contents/publish");
+  }
+
+  const tab = (params.tab ?? "list") as "list" | "recommend" | "history" | "keyword_history" | "auto";
 
   const [clientId, allBrands] = await Promise.all([
     getSelectedClientId(),
@@ -98,11 +97,6 @@ export default async function ContentsPage({ searchParams }: ContentsPageProps) 
         {tab === "auto" && (
           <Suspense fallback={<Skeleton className="h-96" />}>
             <PublishAutoTab clientId={clientId} />
-          </Suspense>
-        )}
-        {tab === "publish" && (
-          <Suspense fallback={<Skeleton className="h-96" />}>
-            <ContentPublishTab clientId={clientId} />
           </Suspense>
         )}
       </ContentsTabsWrapper>
@@ -173,6 +167,13 @@ function PublishReadyContents({ contents }: { contents: Array<{
 }
 
 // ── Tab 3: 발행 이력 (bug fix: null clientId guard) ─────────────────────
+function safeDate(dateStr: string | null | undefined): string {
+  if (!dateStr) return "-";
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return "-";
+  return d.toLocaleDateString("ko-KR");
+}
+
 async function PublishHistoryTab({ clientId }: { clientId: string | null }) {
   if (!clientId) {
     return (
@@ -289,7 +290,7 @@ async function PublishHistoryTab({ clientId }: { clientId: string | null }) {
                 )}
               </div>
               <span className="text-xs text-muted-foreground whitespace-nowrap">
-                {new Date(pub.published_at ?? pub.created_at).toLocaleDateString("ko-KR")}
+                {safeDate(pub.published_at ?? pub.created_at)}
               </span>
             </div>
           ))}
@@ -346,7 +347,7 @@ async function PublishHistoryTab({ clientId }: { clientId: string | null }) {
               ) : "미추적"}
             </Badge>
             <span className="text-xs text-muted-foreground whitespace-nowrap">
-              {new Date(content.published_at ?? content.created_at).toLocaleDateString("ko-KR")}
+              {safeDate(content.published_at ?? content.created_at)}
             </span>
           </Link>
         ))}
@@ -400,46 +401,6 @@ async function PublishAutoTab({ clientId }: { clientId: string | null }) {
   );
 }
 
-// ── Tab 5: 블로그 발행 ──────────────────────────────────────────────────
-async function ContentPublishTab({ clientId }: { clientId: string | null }) {
-  if (!clientId) {
-    return (
-      <Card className="border-dashed border-border/60">
-        <CardContent className="flex flex-col items-center justify-center py-16 text-center gap-3">
-          <Building2 className="h-8 w-8 text-muted-foreground/40" />
-          <p className="text-sm font-medium text-muted-foreground">
-            사이드바에서 브랜드를 먼저 선택해주세요
-          </p>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  const [brandAnalysis, publishingAccounts, activePool] = await Promise.all([
-    getBrandAnalysisForPublishing(clientId),
-    getPublishingAccounts(clientId),
-    getActiveKeywordPool(clientId),
-  ]);
-
-  const activeKeywords = (activePool || []).map((kw) => ({
-    keyword: kw.keyword,
-    id: kw.id,
-  }));
-
-  return (
-    <div className="space-y-4">
-      <p className="text-sm text-muted-foreground">
-        브리프 작성부터 콘텐츠 생성, 발행까지 한 번에 진행합니다
-      </p>
-      <BlogPublishFlow
-        clientId={clientId}
-        brandAnalysis={brandAnalysis}
-        publishingAccounts={publishingAccounts}
-        activeKeywords={activeKeywords}
-      />
-    </div>
-  );
-}
 
 // ── PublishReadyContentsClient (5+5 더보기) ──────────────────────────────
 // 이 컴포넌트는 server component에서 사용할 수 없으므로 별도 import 필요

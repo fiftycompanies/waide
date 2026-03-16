@@ -504,6 +504,7 @@ export async function getOpsSerp(
   since.setDate(since.getDate() - days);
   const sinceStr = since.toISOString().split("T")[0];
 
+  // Step 1: Get tracked keywords
   const kwQ = db
     .from("keywords")
     .select("id, keyword")
@@ -518,15 +519,17 @@ export async function getOpsSerp(
 
   const kwIds = keywords.map((k) => k.id);
 
-  const contQ = db
-    .from("contents")
-    .select("id, keyword_id")
+  // Step 2: Query keyword_visibility directly (has client_id)
+  const visQ = db
+    .from("keyword_visibility")
+    .select("keyword_id, measured_at, rank_pc, rank_mo")
     .in("keyword_id", kwIds)
-    .eq("publish_status", "published");
-  if (clientId) contQ.eq("client_id", clientId);
-  const { data: contents } = await contQ;
+    .gte("measured_at", sinceStr)
+    .order("measured_at", { ascending: true });
+  if (clientId) visQ.eq("client_id", clientId);
+  const { data: visRows } = await visQ;
 
-  if (!contents?.length) {
+  if (!visRows?.length) {
     return {
       trend: [],
       keywords: keywords.map((k) => ({
@@ -538,40 +541,27 @@ export async function getOpsSerp(
     };
   }
 
-  const contentIds = contents.map((c) => c.id);
-  const kwByContentId = Object.fromEntries(
-    contents.map((c) => [c.id, keywords.find((k) => k.id === c.keyword_id)]),
-  );
-
-  const { data: serpRows } = await db
-    .from("serp_results")
-    .select("content_id, device, rank, captured_at")
-    .in("content_id", contentIds)
-    .eq("search_platform", "NAVER_SERP")
-    .gte("captured_at", sinceStr)
-    .order("captured_at", { ascending: true });
-
   const trendMap = new Map<string, SerpDataPoint>();
   const latestMap = new Map<string, { pc: number | null; mo: number | null }>();
 
-  for (const row of serpRows ?? []) {
-    const kw = kwByContentId[row.content_id];
+  for (const row of visRows) {
+    const kw = keywords.find((k) => k.id === row.keyword_id);
     if (!kw) continue;
-    const key = `${row.captured_at}__${kw.id}`;
+    const key = `${row.measured_at}__${kw.id}`;
     const pt = trendMap.get(key) ?? {
-      date: row.captured_at,
+      date: row.measured_at,
       keyword: kw.keyword,
       keyword_id: kw.id,
       rank_pc: null,
       rank_mo: null,
     };
-    if (row.device === "PC") pt.rank_pc = row.rank;
-    if (row.device === "MO") pt.rank_mo = row.rank;
+    pt.rank_pc = row.rank_pc ?? null;
+    pt.rank_mo = row.rank_mo ?? null;
     trendMap.set(key, pt);
 
     const cur = latestMap.get(kw.id) ?? { pc: null, mo: null };
-    if (row.device === "PC") cur.pc = row.rank;
-    if (row.device === "MO") cur.mo = row.rank;
+    if (row.rank_pc !== null) cur.pc = row.rank_pc;
+    if (row.rank_mo !== null) cur.mo = row.rank_mo;
     latestMap.set(kw.id, cur);
   }
 

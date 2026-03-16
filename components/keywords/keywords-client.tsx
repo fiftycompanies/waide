@@ -588,7 +588,7 @@ export function KeywordsClient({ keywords, clientId, publishRecommended = [] }: 
                     </td>
                     <td style={{ padding: "7px 8px", borderBottom: "1px solid hsl(var(--border))", textAlign: "right" }}>
                       <button
-                        onClick={() => router.push(`/contents?keyword=${kw.id}`)}
+                        onClick={() => router.push(`/contents/publish?keywordId=${kw.id}&keywordName=${encodeURIComponent(kw.keyword)}`)}
                         style={{
                           fontSize: "12px", padding: "4px 10px",
                           background: "#185FA5", color: "#E6F1FB",

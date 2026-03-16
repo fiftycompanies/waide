@@ -52,6 +52,8 @@ interface BlogPublishFlowProps {
   brandAnalysis: BrandAnalysis | null;
   publishingAccounts: PublishingAccount[];
   activeKeywords: Array<{ keyword: string; id: string }>;
+  initialKeywordId?: string;
+  initialKeywordName?: string;
 }
 
 type ContentType = "blog_info" | "blog_review" | "blog_list";
@@ -74,6 +76,8 @@ export function BlogPublishFlow({
   brandAnalysis,
   publishingAccounts: initialAccounts,
   activeKeywords,
+  initialKeywordId,
+  initialKeywordName,
 }: BlogPublishFlowProps) {
   const [step, setStep] = useState(0);
 
@@ -93,8 +97,8 @@ export function BlogPublishFlow({
 
   // Step 1: Type + Keywords
   const [contentType, setContentType] = useState<ContentType>("blog_info");
-  const [mainKeyword, setMainKeyword] = useState("");
-  const [mainKeywordId, setMainKeywordId] = useState<string | null>(null);
+  const [mainKeyword, setMainKeyword] = useState(initialKeywordName || "");
+  const [mainKeywordId, setMainKeywordId] = useState<string | null>(initialKeywordId || null);
   const [subKeywords, setSubKeywords] = useState<string[]>([]);
   const [subKeywordInput, setSubKeywordInput] = useState("");
 
@@ -333,6 +337,22 @@ export function BlogPublishFlow({
           }
         }
       }
+      // Post-process: replace 📷 placeholders with actual image URLs
+      if (selectedImages.length > 0) {
+        let imgIdx = 0;
+        accumulated = accumulated.replace(
+          /^>\s*📷\s*\[이미지 추천\].*$/gm,
+          (match) => {
+            if (imgIdx < selectedImages.length) {
+              const url = selectedImages[imgIdx];
+              imgIdx++;
+              return `![이미지](${url})`;
+            }
+            return match;
+          }
+        );
+      }
+
       setGeneratedContent(accumulated);
     } catch (err) {
       console.error("Generation error:", err);
@@ -600,6 +620,114 @@ function fileToBase64(file: File): Promise<string> {
 }
 
 // ═══════════════════════════════════════════════════════════════
+// Keyword Combobox — 검색 + 인라인 등록
+// ═══════════════════════════════════════════════════════════════
+function KeywordCombobox({
+  value,
+  onChange,
+  activeKeywords,
+}: {
+  value: string;
+  onChange: (text: string, id?: string) => void;
+  activeKeywords: Array<{ keyword: string; id: string }>;
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Close on outside click
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    if (open) document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [open]);
+
+  const filtered = activeKeywords.filter((kw) =>
+    kw.keyword.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const exactMatch = activeKeywords.some(
+    (kw) => kw.keyword.toLowerCase() === search.toLowerCase()
+  );
+
+  return (
+    <div ref={containerRef} className="relative">
+      <label className="text-sm font-medium">메인 키워드</label>
+      <div className="relative mt-1">
+        <input
+          type="text"
+          value={open ? search : value}
+          onChange={(e) => {
+            setSearch(e.target.value);
+            if (!open) setOpen(true);
+          }}
+          onFocus={() => {
+            setSearch(value);
+            setOpen(true);
+          }}
+          placeholder="키워드를 검색하거나 입력하세요"
+          className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        />
+        {value && !open && (
+          <button
+            onClick={() => {
+              onChange("", undefined);
+              setSearch("");
+            }}
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        )}
+      </div>
+      {open && (
+        <div className="absolute z-50 mt-1 w-full max-h-52 overflow-auto rounded-md border bg-popover shadow-md">
+          {filtered.length > 0 ? (
+            filtered.map((kw) => (
+              <button
+                key={kw.id}
+                onClick={() => {
+                  onChange(kw.keyword, kw.id);
+                  setSearch("");
+                  setOpen(false);
+                }}
+                className={`flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-accent transition-colors text-left ${
+                  value === kw.keyword ? "bg-accent font-medium" : ""
+                }`}
+              >
+                <Hash className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                {kw.keyword}
+              </button>
+            ))
+          ) : (
+            <div className="px-3 py-2 text-sm text-muted-foreground">
+              일치하는 키워드가 없습니다
+            </div>
+          )}
+          {search.trim() && !exactMatch && (
+            <button
+              onClick={() => {
+                onChange(search.trim(), undefined);
+                setSearch("");
+                setOpen(false);
+              }}
+              className="flex w-full items-center gap-2 px-3 py-2 text-sm border-t hover:bg-accent transition-colors text-left text-violet-600 font-medium"
+            >
+              <Plus className="h-3 w-3 flex-shrink-0" />
+              &quot;{search.trim()}&quot; 직접 입력
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
 // Step Components
 // ═══════════════════════════════════════════════════════════════
 
@@ -707,35 +835,12 @@ function StepTypeKeyword({
 
       {/* Keywords */}
       <div className="space-y-4 border-t pt-4">
-        {/* Main Keyword Dropdown */}
-        <div>
-          <label className="text-sm font-medium">메인 키워드</label>
-          {activeKeywords.length > 0 ? (
-            <select
-              value={mainKeyword}
-              onChange={(e) => {
-                const selected = activeKeywords.find((kw) => kw.keyword === e.target.value);
-                onMainChange(e.target.value, selected?.id);
-              }}
-              className="mt-1 flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-            >
-              <option value="">키워드를 선택하세요</option>
-              {activeKeywords.map((kw) => (
-                <option key={kw.id} value={kw.keyword}>
-                  {kw.keyword}
-                </option>
-              ))}
-            </select>
-          ) : (
-            <input
-              type="text"
-              value={mainKeyword}
-              onChange={(e) => onMainChange(e.target.value)}
-              placeholder="메인 키워드를 입력하세요"
-              className="mt-1 flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-            />
-          )}
-        </div>
+        {/* Main Keyword Combobox */}
+        <KeywordCombobox
+          value={mainKeyword}
+          onChange={onMainChange}
+          activeKeywords={activeKeywords}
+        />
 
         {/* Sub Keywords */}
         <div>
@@ -1040,34 +1145,68 @@ function StepContentGeneration({
 }) {
   const typeLabel = contentType === "blog_info" ? "정보형" : contentType === "blog_review" ? "후기성" : "소개성";
 
+  // Progress bar with elapsed time
+  const [elapsed, setElapsed] = useState(0);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    if (isGenerating) {
+      setElapsed(0);
+      timerRef.current = setInterval(() => {
+        setElapsed((prev) => prev + 1);
+      }, 1000);
+    } else {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    }
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [isGenerating]);
+
+  // Estimated 45s for content generation
+  const estimatedSeconds = 45;
+  const progressPercent = isGenerating
+    ? Math.min(Math.round((elapsed / estimatedSeconds) * 100), 95)
+    : 0;
+  const elapsedMin = Math.floor(elapsed / 60);
+  const elapsedSec = elapsed % 60;
+  const elapsedLabel = elapsedMin > 0
+    ? `${elapsedMin}분 ${elapsedSec}초`
+    : `${elapsedSec}초`;
+
   return (
     <div className="space-y-4">
-      {/* Summary */}
-      <div className="rounded-lg bg-muted/50 p-4 space-y-2">
-        <h3 className="text-lg font-semibold">개요 확인</h3>
-        <div className="grid grid-cols-2 gap-2 text-sm">
-          <div>
-            <span className="text-muted-foreground">제목:</span>{" "}
-            <span className="font-medium">{title || "-"}</span>
+      {/* Summary Card */}
+      <Card>
+        <CardContent className="p-5 space-y-3">
+          <h3 className="text-lg font-semibold">개요 확인</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            <div className="rounded-md border px-3 py-2">
+              <p className="text-xs text-muted-foreground mb-0.5">제목</p>
+              <p className="text-sm font-medium truncate">{title || "-"}</p>
+            </div>
+            <div className="rounded-md border px-3 py-2">
+              <p className="text-xs text-muted-foreground mb-0.5">유형</p>
+              <p className="text-sm font-medium">{typeLabel}</p>
+            </div>
+            <div className="rounded-md border px-3 py-2">
+              <p className="text-xs text-muted-foreground mb-0.5">메인 키워드</p>
+              <p className="text-sm font-medium">{mainKeyword || "-"}</p>
+            </div>
+            <div className="rounded-md border px-3 py-2">
+              <p className="text-xs text-muted-foreground mb-0.5">서브 키워드</p>
+              <p className="text-sm font-medium truncate">{subKeywords.length > 0 ? subKeywords.join(", ") : "-"}</p>
+            </div>
+            <div className="rounded-md border px-3 py-2">
+              <p className="text-xs text-muted-foreground mb-0.5">이미지</p>
+              <p className="text-sm font-medium">{imageCount}개</p>
+            </div>
           </div>
-          <div>
-            <span className="text-muted-foreground">유형:</span>{" "}
-            <span className="font-medium">{typeLabel}</span>
-          </div>
-          <div>
-            <span className="text-muted-foreground">메인 키워드:</span>{" "}
-            <span className="font-medium">{mainKeyword || "-"}</span>
-          </div>
-          <div>
-            <span className="text-muted-foreground">서브 키워드:</span>{" "}
-            <span className="font-medium">{subKeywords.length > 0 ? subKeywords.join(", ") : "-"}</span>
-          </div>
-          <div>
-            <span className="text-muted-foreground">이미지:</span>{" "}
-            <span className="font-medium">{imageCount}개</span>
-          </div>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
 
       {/* Schema.org Toggle */}
       {!content && (
@@ -1108,14 +1247,25 @@ function StepContentGeneration({
           </Button>
         </div>
       ) : isGenerating ? (
-        <div className="flex flex-col items-center justify-center py-16 gap-4">
+        <div className="flex flex-col items-center justify-center py-12 gap-5">
           <div className="relative">
-            <Loader2 className="h-12 w-12 animate-spin text-violet-600" />
-            <Sparkles className="h-5 w-5 text-violet-400 absolute -top-1 -right-1 animate-pulse" />
+            <Loader2 className="h-10 w-10 animate-spin text-violet-600" />
+            <Sparkles className="h-4 w-4 text-violet-400 absolute -top-1 -right-1 animate-pulse" />
           </div>
-          <div className="text-center space-y-1">
-            <p className="text-sm font-medium">콘텐츠를 생성하고 있습니다...</p>
-            <p className="text-xs text-muted-foreground">잠시만 기다려주세요</p>
+          <div className="w-full max-w-md space-y-2">
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <span>콘텐츠 생성 중...</span>
+              <span>{progressPercent}%</span>
+            </div>
+            <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
+              <div
+                className="h-full rounded-full bg-violet-600 transition-all duration-1000 ease-linear"
+                style={{ width: `${progressPercent}%` }}
+              />
+            </div>
+            <p className="text-center text-xs text-muted-foreground">
+              경과 시간: {elapsedLabel}
+            </p>
           </div>
         </div>
       ) : (
