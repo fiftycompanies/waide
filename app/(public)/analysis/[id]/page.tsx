@@ -1587,6 +1587,31 @@ export default function AnalysisResultPage({
         </div>
 
         {/* ════════════════════════════════════════════════════════
+            CTA Section B-2: 블로그 자동 작성 유도
+           ════════════════════════════════════════════════════════ */}
+        <div className="mb-8">
+          <div className="rounded-2xl border border-violet-500/20 bg-gradient-to-r from-violet-500/5 to-[#10b981]/5 p-6 md:p-8">
+            <div className="flex flex-col md:flex-row items-center gap-6">
+              <div className="flex-1 text-center md:text-left">
+                <h3 className="text-lg font-bold text-white mb-2">
+                  분석 결과 기반 블로그 콘텐츠를 AI가 자동으로 작성해 드려요
+                </h3>
+                <p className="text-sm text-[#a0a0a0]">
+                  키워드 선정부터 SEO 최적화 글 작성까지, 분석에서 발견한 기회를 콘텐츠로 바로 연결하세요.
+                </p>
+              </div>
+              <button
+                onClick={handleStartProject}
+                className="shrink-0 flex items-center gap-2 px-6 py-3 rounded-xl bg-[#10b981] hover:bg-[#34d399] text-white font-semibold transition-colors"
+              >
+                <Sparkles className="h-4 w-4" />
+                블로그 작성 시작하기
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* ════════════════════════════════════════════════════════
             CTA Section C: Contact
            ════════════════════════════════════════════════════════ */}
         <div className="mb-8">

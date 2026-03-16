@@ -1,11 +1,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
   CheckCircle2,
   Loader2,
   Microscope,
+  PenLine,
   Play,
   RefreshCw,
   Target,
@@ -24,6 +26,7 @@ interface BrandAnalysisClientProps {
 }
 
 export default function BrandAnalysisClient({ clientId }: BrandAnalysisClientProps) {
+  const router = useRouter();
   const [data, setData] = useState<BrandAnalysisRow | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -348,6 +351,7 @@ export default function BrandAnalysisClient({ clientId }: BrandAnalysisClientPro
                   <th className="text-left py-2 px-3 font-medium text-muted-foreground">키워드</th>
                   <th className="text-left py-2 px-3 font-medium text-muted-foreground">의도</th>
                   <th className="text-center py-2 px-3 font-medium text-muted-foreground">우선순위</th>
+                  <th className="text-center py-2 px-3 font-medium text-muted-foreground">발행</th>
                 </tr>
               </thead>
               <tbody>
@@ -363,6 +367,15 @@ export default function BrandAnalysisClient({ clientId }: BrandAnalysisClientPro
                       }`}>
                         {kw.priority ?? "-"}
                       </span>
+                    </td>
+                    <td className="py-2 px-3 text-center">
+                      <button
+                        onClick={() => router.push(`/contents/publish?keywordName=${encodeURIComponent(kw.keyword ?? kw)}`)}
+                        className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium text-primary hover:bg-primary/10 transition-colors"
+                      >
+                        <PenLine className="h-3 w-3" />
+                        이 키워드로 발행
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -407,6 +420,27 @@ export default function BrandAnalysisClient({ clientId }: BrandAnalysisClientPro
           </div>
         </div>
       )}
+
+      {/* Section 9: CTA — 블로그 자동 작성 시작 */}
+      <div className="border border-primary/20 bg-primary/5 rounded-lg p-5 text-center space-y-3">
+        <h4 className="font-semibold text-base">분석 결과를 바탕으로 블로그 자동 작성 시작</h4>
+        <p className="text-sm text-muted-foreground">
+          {keywords[0]?.keyword
+            ? `"${keywords[0].keyword}" 등 분석된 키워드로 SEO 최적화 콘텐츠를 바로 생성해보세요.`
+            : "분석된 키워드로 SEO 최적화 콘텐츠를 바로 생성해보세요."}
+        </p>
+        <button
+          onClick={() => {
+            const kw = keywords[0]?.keyword;
+            const query = kw ? `?keywordName=${encodeURIComponent(kw)}` : "";
+            router.push(`/contents/publish${query}`);
+          }}
+          className="inline-flex items-center gap-2 px-6 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
+        >
+          <PenLine className="h-4 w-4" />
+          블로그 콘텐츠 작성하기
+        </button>
+      </div>
     </div>
   );
 }

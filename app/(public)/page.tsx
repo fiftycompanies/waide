@@ -278,13 +278,13 @@ function LandingContent() {
 
         <div className="relative mx-auto max-w-4xl px-6 text-center">
           <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold tracking-tight leading-[1.15] mb-6">
-            플레이스 무료 점검만 받으셔도,
+            우리 매장, 네이버에서
             <br />
-            <span className="waide-gradient-text">고퀄리티 홈페이지를 무료로 제작해 드립니다!</span>
+            <span className="waide-gradient-text">왜 안 보이는지 30초 만에 알려드려요</span>
           </h1>
 
-          <p className="text-lg md:text-xl text-amber-400 font-semibold max-w-xl mx-auto mb-10">
-            (선착순 20개 업체 한정 이벤트)
+          <p className="text-lg md:text-xl text-[#a0a0a0] max-w-xl mx-auto mb-10">
+            마케팅 점수 · 키워드 순위 · 개선 포인트까지 AI가 무료로 진단해 드려요
           </p>
 
           <div className="mb-6">
@@ -360,12 +360,12 @@ function LandingContent() {
 
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5 waide-stagger">
             {[
-              { icon: <BarChart3 className="h-6 w-6" />, title: "마케팅 종합 점수", desc: "6개 영역 데이터 기반 매장 진단" },
-              { icon: <Search className="h-6 w-6" />, title: "공략 키워드 분석", desc: "검색량, 경쟁도 기반 맞춤 키워드" },
-              { icon: <Star className="h-6 w-6" />, title: "리뷰 분석", desc: "고객이 뽑은 강점 TOP 5" },
-              { icon: <Smartphone className="h-6 w-6" />, title: "온라인 채널 진단", desc: "SNS, 예약, 홈페이지 완성도" },
-              { icon: <Tag className="h-6 w-6" />, title: "메뉴/가격 분석", desc: "시그니처 메뉴, 가격 포지셔닝" },
-              { icon: <TrendingUp className="h-6 w-6" />, title: "개선 포인트", desc: "점수 올리는 구체적 방법 제시" },
+              { icon: <BarChart3 className="h-6 w-6" />, title: "마케팅 종합 점수", desc: "100점 만점 기준, 6개 영역 데이터 진단" },
+              { icon: <Search className="h-6 w-6" />, title: "검색 키워드 순위", desc: "네이버·구글에서 우리 매장 몇 위인지 확인" },
+              { icon: <Star className="h-6 w-6" />, title: "리뷰 평판 분석", desc: "고객 리뷰에서 강점·약점 자동 추출" },
+              { icon: <Smartphone className="h-6 w-6" />, title: "온라인 채널 진단", desc: "홈페이지·SNS·예약 시스템 완성도 체크" },
+              { icon: <Tag className="h-6 w-6" />, title: "경쟁 매장 비교", desc: "같은 키워드 상위 매장과 격차 분석" },
+              { icon: <TrendingUp className="h-6 w-6" />, title: "맞춤 개선 액션", desc: "점수를 올리는 구체적 실행 방법 제시" },
             ].map((card) => (
               <div
                 key={card.title}
@@ -402,12 +402,12 @@ function LandingContent() {
         <div className="absolute inset-0 bg-gradient-to-t from-[#10b981]/5 to-transparent pointer-events-none" />
         <div className="relative mx-auto max-w-3xl px-6 text-center">
           <h2 className="text-2xl md:text-3xl font-bold mb-4">
-            플레이스 무료 점검만 받으셔도,
+            지금 바로 우리 매장
             <br />
-            고퀄리티 홈페이지를 무료로 제작해 드립니다!
+            마케팅 점수를 확인해 보세요
           </h2>
-          <p className="text-amber-400 font-semibold mb-8">
-            (선착순 20개 업체 한정 이벤트)
+          <p className="text-[#a0a0a0] mb-8">
+            URL 하나면 30초 만에 진단 완료 — 완전 무료
           </p>
           <HeroUrlInput compact />
         </div>

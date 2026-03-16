@@ -49,6 +49,8 @@ interface CollectedData {
   nearbyCompetitors: number;
   hashtags: string[];
   placeKeywords: string[];
+  bookmarkCount: number;
+  menuItems: Array<{ name: string; price: string }>;
 }
 
 interface KeywordItem {
@@ -249,6 +251,8 @@ async function collectPlaceDataViaEC2(placeId: string): Promise<CollectedData | 
       nearbyCompetitors: data.nearbyCompetitors ?? 0,
       hashtags: data.hashtags ?? [],
       placeKeywords: data.placeKeywords ?? data.keywords ?? [],
+      bookmarkCount: data.bookmarkCount ?? 0,
+      menuItems: data.menuItems ?? [],
     };
   } catch (e) {
     console.log(`[place-analyzer] EC2 프록시 호출 실패:`, e);
@@ -287,6 +291,8 @@ async function collectPlaceData(placeId: string): Promise<CollectedData> {
     nearbyCompetitors: 0,
     hashtags: [],
     placeKeywords: [],
+    bookmarkCount: 0,
+    menuItems: [],
   };
 
   // GraphQL API 호출 (pcmap-api.place.naver.com)
@@ -298,6 +304,8 @@ async function collectPlaceData(placeId: string): Promise<CollectedData> {
         microReviews conveniences
         coordinate { x y }
         tags { uid tag }
+        bookingUrl
+        saveCount
       }
       description
       newBusinessHours {
@@ -362,6 +370,16 @@ async function collectPlaceData(placeId: string): Promise<CollectedData> {
             .map((t: { tag?: string }) => t.tag ?? "")
             .filter((tag: string) => tag.length > 0);
           console.log(`[place-analyzer] 해시태그: ${result.hashtags.length}개 수집 → ${result.hashtags.slice(0, 5).join(", ")}`);
+        }
+
+        // 예약 URL (bookingUrl)
+        if (base.bookingUrl) {
+          result.reservationUrl = String(base.bookingUrl);
+        }
+
+        // 저장(북마크) 수 (saveCount)
+        if (base.saveCount != null) {
+          result.bookmarkCount = Number(base.saveCount) || 0;
         }
 
         console.log(`[place-analyzer] GraphQL base: name=${result.name}, reviews=${result.visitorReviewCount}, facilities=${result.facilities.length}`);
@@ -430,7 +448,13 @@ async function collectPlaceData(placeId: string): Promise<CollectedData> {
         if (!result.serviceLabels.includes("메뉴")) {
           result.serviceLabels.push("메뉴");
         }
-        console.log(`[place-analyzer] GraphQL menus: ${detail.menus.length}개`);
+        result.menuItems = detail.menus
+          .filter((m: { name?: string }) => m.name)
+          .map((m: { name: string; price?: string }) => ({
+            name: m.name,
+            price: m.price ?? "",
+          }));
+        console.log(`[place-analyzer] GraphQL menus: ${detail.menus.length}개 → menuItems ${result.menuItems.length}개 저장`);
       }
 
       // 홈페이지 URL
@@ -1734,6 +1758,9 @@ export async function runFullAnalysis(
       reservation_url: collected.reservationUrl,
       nearby_competitors: collected.nearbyCompetitors || undefined,
       region,
+      description: collected.description || undefined,
+      booking_url: collected.reservationUrl || undefined,
+      bookmark_count: collected.bookmarkCount || undefined,
     };
 
     const topKw = keywords[0];
@@ -1755,6 +1782,7 @@ export async function runFullAnalysis(
     const menuAnalysis = {
       signature_products: aiResult.brand_analysis?.signature_products ?? [],
       price_position: aiResult.brand_analysis?.price_position ?? "",
+      menus: collected.menuItems.length > 0 ? collected.menuItems : undefined,
     };
 
     const reviewAnalysis = {
@@ -2562,6 +2590,50 @@ function checkWebsiteSeo(html: string, url: string): WebsiteSeoItem[] {
     items.push({ label: "모바일 반응형 (viewport)", key: "viewport", value: "설정됨", status: "good", detail: "모바일 최적화가 설정되어 있습니다", score: 5 });
   } else {
     items.push({ label: "모바일 반응형 (viewport)", key: "viewport", value: "없음", status: "danger", detail: "viewport 메타태그가 없습니다", score: 0 });
+  }
+
+  // 8. Schema.org 구조화 데이터
+  const hasJsonLd = /<script[^>]*type\s*=\s*["']application\/ld\+json["'][^>]*>/i.test(html);
+  const hasMicrodata = /itemscope/i.test(html) && /itemtype\s*=\s*["']https?:\/\/schema\.org/i.test(html);
+  if (hasJsonLd) {
+    items.push({ label: "Schema.org 구조화 데이터", key: "schema_org", value: "JSON-LD", status: "good", detail: "JSON-LD 구조화 데이터가 있습니다", score: 5 });
+  } else if (hasMicrodata) {
+    items.push({ label: "Schema.org 구조화 데이터", key: "schema_org", value: "Microdata", status: "good", detail: "Microdata 구조화 데이터가 있습니다", score: 4 });
+  } else {
+    items.push({ label: "Schema.org 구조화 데이터", key: "schema_org", value: "없음", status: "danger", detail: "구조화 데이터가 없습니다 (검색 노출 불리)", score: 0 });
+  }
+
+  // 9. 대표 키워드 밀도 (title 텍스트를 타겟 키워드로 사용)
+  const targetKeyword = titleText.split(/[|\-–—,·]/)[0].trim();
+  if (targetKeyword && targetKeyword.length >= 2) {
+    const bodyText = extractTextFromHtml(html);
+    const bodyLen = bodyText.length;
+    if (bodyLen > 0) {
+      const kwRegex = new RegExp(targetKeyword.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
+      const kwCount = (bodyText.match(kwRegex) || []).length;
+      const density = ((kwCount * targetKeyword.length) / bodyLen) * 100;
+      if (density >= 0.5 && density <= 3) {
+        items.push({ label: "대표 키워드 밀도", key: "keyword_density", value: `${density.toFixed(1)}% (${kwCount}회)`, status: "good", detail: `"${targetKeyword}" 적정 밀도`, score: 5 });
+      } else if (density > 0 && density < 0.5) {
+        items.push({ label: "대표 키워드 밀도", key: "keyword_density", value: `${density.toFixed(1)}% (${kwCount}회)`, status: "warning", detail: `"${targetKeyword}" 밀도가 낮습니다 (0.5~3% 권장)`, score: 2 });
+      } else if (density > 3) {
+        items.push({ label: "대표 키워드 밀도", key: "keyword_density", value: `${density.toFixed(1)}% (${kwCount}회)`, status: "warning", detail: `"${targetKeyword}" 밀도가 높습니다 (키워드 스터핑 주의)`, score: 2 });
+      } else {
+        items.push({ label: "대표 키워드 밀도", key: "keyword_density", value: "0회", status: "danger", detail: `"${targetKeyword}" 본문에 포함되지 않음`, score: 0 });
+      }
+    }
+  }
+
+  // 10. NAP 일관성 (Name, Address, Phone)
+  const plainText = extractTextFromHtml(html);
+  const hasPhone = /\d{2,4}[-.\s]?\d{3,4}[-.\s]?\d{4}/.test(plainText);
+  const hasAddress = /([가-힣]+(시|도|구|군|읍|면|동|로|길)\s*\d*)/u.test(plainText) || /\d{5}/.test(plainText);
+  if (hasPhone && hasAddress) {
+    items.push({ label: "NAP 정보 (이름/주소/전화)", key: "nap_consistency", value: "주소+전화", status: "good", detail: "연락처와 주소 정보가 페이지에 있습니다", score: 5 });
+  } else if (hasPhone || hasAddress) {
+    items.push({ label: "NAP 정보 (이름/주소/전화)", key: "nap_consistency", value: hasPhone ? "전화만" : "주소만", status: "warning", detail: hasPhone ? "주소 정보가 누락되었습니다" : "전화번호가 누락되었습니다", score: 2 });
+  } else {
+    items.push({ label: "NAP 정보 (이름/주소/전화)", key: "nap_consistency", value: "없음", status: "danger", detail: "연락처/주소 정보가 페이지에 없습니다 (로컬 SEO 불리)", score: 0 });
   }
 
   return items;
