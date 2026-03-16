@@ -1,15 +1,16 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { FileText, Plus, Clock, Pen } from "lucide-react";
+import { FileText, Sparkles, Clock, Settings2, Pen } from "lucide-react";
 
-type TabKey = "list" | "create" | "jobs" | "publish";
+type TabKey = "list" | "recommend" | "history" | "auto" | "publish";
 
 const TABS: { key: TabKey; label: string; icon: React.ElementType }[] = [
-  { key: "list",    label: "콘텐츠 목록", icon: FileText },
-  { key: "publish", label: "블로그 발행", icon: Pen },
-  { key: "create",  label: "AI 생성", icon: Plus },
-  { key: "jobs",    label: "작업 현황", icon: Clock },
+  { key: "list",      label: "콘텐츠 목록",     icon: FileText },
+  { key: "recommend", label: "발행 추천",       icon: Sparkles },
+  { key: "history",   label: "발행 이력",       icon: Clock },
+  { key: "auto",      label: "자동 발행 설정",  icon: Settings2 },
+  { key: "publish",   label: "블로그 발행",     icon: Pen },
 ];
 
 interface ContentsTabsWrapperProps {
@@ -26,12 +27,12 @@ export function ContentsTabsWrapper({ activeTab, children }: ContentsTabsWrapper
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-1 border-b border-border/60 pb-0">
+      <div className="flex items-center gap-1 border-b border-border/60 pb-0 overflow-x-auto">
         {TABS.map(({ key, label, icon: Icon }) => (
           <button
             key={key}
             onClick={() => handleTabChange(key)}
-            className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+            className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
               activeTab === key
                 ? "border-violet-600 text-violet-700"
                 : "border-transparent text-muted-foreground hover:text-foreground"

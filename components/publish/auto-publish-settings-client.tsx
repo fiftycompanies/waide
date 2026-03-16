@@ -10,7 +10,8 @@ import {
   type AutoPublishSettings,
 } from "@/lib/actions/publish-actions";
 import type { BlogAccount } from "@/lib/actions/blog-account-actions";
-import { Power, Rss, FileCode, Settings2 } from "lucide-react";
+import { createPublishingAccount } from "@/lib/actions/publishing-account-actions";
+import { Power, Rss, Settings2, Plus } from "lucide-react";
 
 interface AutoPublishSettingsClientProps {
   clientId: string;
@@ -35,9 +36,31 @@ export function AutoPublishSettingsClient({
     default_blog_account_id: settings?.default_blog_account_id ?? null,
   });
 
+  const [addingPlatform, setAddingPlatform] = useState<string | null>(null);
+  const [newAccountName, setNewAccountName] = useState("");
+  const [newAccountUrl, setNewAccountUrl] = useState("");
+
   const tistoryAccounts = accounts.filter((a) => a.platform === "tistory" && a.is_active);
   const wordpressAccounts = accounts.filter((a) => a.platform === "wordpress" && a.is_active);
   const mediumAccounts = accounts.filter((a) => a.platform === "medium" && a.is_active);
+
+  async function handleAddAccount(platform: string) {
+    if (!newAccountName.trim()) return;
+    const result = await createPublishingAccount({
+      clientId,
+      platform,
+      accountName: newAccountName.trim(),
+      accountUrl: newAccountUrl.trim() || undefined,
+    });
+    if (result.success) {
+      toast.success("계정이 연동되었습니다.");
+      setAddingPlatform(null);
+      setNewAccountName("");
+      setNewAccountUrl("");
+    } else {
+      toast.error(result.error || "계정 연동에 실패했습니다.");
+    }
+  }
 
   function save(updates: Partial<AutoPublishSettings>) {
     const next = { ...state, ...updates };
@@ -96,84 +119,132 @@ export function AutoPublishSettingsClient({
         </CardHeader>
         <CardContent className="space-y-4">
           {/* Tistory */}
-          <div className="flex items-center justify-between rounded-lg border p-4">
-            <div className="flex items-center gap-3">
-              <span className="text-lg">📝</span>
-              <div>
-                <p className="text-sm font-medium">Tistory</p>
-                <p className="text-xs text-muted-foreground">
-                  {tistoryAccounts.length > 0
-                    ? `${tistoryAccounts.length}개 계정 연동됨`
-                    : "연동된 계정 없음"}
-                </p>
+          <div className="rounded-lg border p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <span className="text-lg">📝</span>
+                <div>
+                  <p className="text-sm font-medium">Tistory</p>
+                  <p className="text-xs text-muted-foreground">
+                    {tistoryAccounts.length > 0
+                      ? `${tistoryAccounts.length}개 계정 연동됨`
+                      : "연동된 계정 없음"}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                {tistoryAccounts.length === 0 && (
+                  <button
+                    onClick={() => setAddingPlatform(addingPlatform === "tistory" ? null : "tistory")}
+                    className="inline-flex items-center gap-1 text-xs text-violet-600 hover:text-violet-700 font-medium"
+                  >
+                    <Plus className="h-3 w-3" />
+                    계정 연동
+                  </button>
+                )}
+                <Switch
+                  checked={state.tistory_enabled}
+                  onCheckedChange={(v) => save({ tistory_enabled: v })}
+                  disabled={isPending || tistoryAccounts.length === 0}
+                />
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              {tistoryAccounts.length === 0 && (
-                <Badge variant="outline" className="text-xs text-amber-600 border-amber-200">
-                  계정 필요
-                </Badge>
-              )}
-              <Switch
-                checked={state.tistory_enabled}
-                onCheckedChange={(v) => save({ tistory_enabled: v })}
-                disabled={isPending || tistoryAccounts.length === 0}
+            {addingPlatform === "tistory" && (
+              <AddAccountInline
+                onAdd={() => handleAddAccount("tistory")}
+                onCancel={() => { setAddingPlatform(null); setNewAccountName(""); setNewAccountUrl(""); }}
+                name={newAccountName}
+                url={newAccountUrl}
+                onNameChange={setNewAccountName}
+                onUrlChange={setNewAccountUrl}
               />
-            </div>
+            )}
           </div>
 
           {/* WordPress */}
-          <div className="flex items-center justify-between rounded-lg border p-4">
-            <div className="flex items-center gap-3">
-              <span className="text-lg">🌐</span>
-              <div>
-                <p className="text-sm font-medium">WordPress</p>
-                <p className="text-xs text-muted-foreground">
-                  {wordpressAccounts.length > 0
-                    ? `${wordpressAccounts.length}개 계정 연동됨`
-                    : "연동된 계정 없음"}
-                </p>
+          <div className="rounded-lg border p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <span className="text-lg">🌐</span>
+                <div>
+                  <p className="text-sm font-medium">WordPress</p>
+                  <p className="text-xs text-muted-foreground">
+                    {wordpressAccounts.length > 0
+                      ? `${wordpressAccounts.length}개 계정 연동됨`
+                      : "연동된 계정 없음"}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                {wordpressAccounts.length === 0 && (
+                  <button
+                    onClick={() => setAddingPlatform(addingPlatform === "wordpress" ? null : "wordpress")}
+                    className="inline-flex items-center gap-1 text-xs text-violet-600 hover:text-violet-700 font-medium"
+                  >
+                    <Plus className="h-3 w-3" />
+                    계정 연동
+                  </button>
+                )}
+                <Switch
+                  checked={state.wordpress_enabled}
+                  onCheckedChange={(v) => save({ wordpress_enabled: v })}
+                  disabled={isPending || wordpressAccounts.length === 0}
+                />
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              {wordpressAccounts.length === 0 && (
-                <Badge variant="outline" className="text-xs text-amber-600 border-amber-200">
-                  계정 필요
-                </Badge>
-              )}
-              <Switch
-                checked={state.wordpress_enabled}
-                onCheckedChange={(v) => save({ wordpress_enabled: v })}
-                disabled={isPending || wordpressAccounts.length === 0}
+            {addingPlatform === "wordpress" && (
+              <AddAccountInline
+                onAdd={() => handleAddAccount("wordpress")}
+                onCancel={() => { setAddingPlatform(null); setNewAccountName(""); setNewAccountUrl(""); }}
+                name={newAccountName}
+                url={newAccountUrl}
+                onNameChange={setNewAccountName}
+                onUrlChange={setNewAccountUrl}
               />
-            </div>
+            )}
           </div>
 
           {/* Medium */}
-          <div className="flex items-center justify-between rounded-lg border p-4">
-            <div className="flex items-center gap-3">
-              <span className="text-lg">✍️</span>
-              <div>
-                <p className="text-sm font-medium">Medium</p>
-                <p className="text-xs text-muted-foreground">
-                  {mediumAccounts.length > 0
-                    ? `${mediumAccounts.length}개 계정 연동됨`
-                    : "연동된 계정 없음"}
-                </p>
+          <div className="rounded-lg border p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <span className="text-lg">✍️</span>
+                <div>
+                  <p className="text-sm font-medium">Medium</p>
+                  <p className="text-xs text-muted-foreground">
+                    {mediumAccounts.length > 0
+                      ? `${mediumAccounts.length}개 계정 연동됨`
+                      : "연동된 계정 없음"}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                {mediumAccounts.length === 0 && (
+                  <button
+                    onClick={() => setAddingPlatform(addingPlatform === "medium" ? null : "medium")}
+                    className="inline-flex items-center gap-1 text-xs text-violet-600 hover:text-violet-700 font-medium"
+                  >
+                    <Plus className="h-3 w-3" />
+                    계정 연동
+                  </button>
+                )}
+                <Switch
+                  checked={state.medium_enabled}
+                  onCheckedChange={(v) => save({ medium_enabled: v })}
+                  disabled={isPending || mediumAccounts.length === 0}
+                />
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              {mediumAccounts.length === 0 && (
-                <Badge variant="outline" className="text-xs text-amber-600 border-amber-200">
-                  계정 필요
-                </Badge>
-              )}
-              <Switch
-                checked={state.medium_enabled}
-                onCheckedChange={(v) => save({ medium_enabled: v })}
-                disabled={isPending || mediumAccounts.length === 0}
+            {addingPlatform === "medium" && (
+              <AddAccountInline
+                onAdd={() => handleAddAccount("medium")}
+                onCancel={() => { setAddingPlatform(null); setNewAccountName(""); setNewAccountUrl(""); }}
+                name={newAccountName}
+                url={newAccountUrl}
+                onNameChange={setNewAccountName}
+                onUrlChange={setNewAccountUrl}
               />
-            </div>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -214,25 +285,58 @@ export function AutoPublishSettingsClient({
               disabled={isPending}
             />
           </div>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div>
-                <p className="text-sm font-medium">Schema.org 마크업</p>
-                <p className="text-xs text-muted-foreground">구조화된 데이터 (FAQ, Article 등) 자동 삽입</p>
-              </div>
-              <Badge variant="outline" className="text-xs">
-                <FileCode className="h-3 w-3 mr-1" />
-                SEO
-              </Badge>
-            </div>
-            <Switch
-              checked={state.add_schema_markup}
-              onCheckedChange={(v) => save({ add_schema_markup: v })}
-              disabled={isPending}
-            />
-          </div>
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+function AddAccountInline({
+  onAdd,
+  onCancel,
+  name,
+  url,
+  onNameChange,
+  onUrlChange,
+}: {
+  onAdd: () => void;
+  onCancel: () => void;
+  name: string;
+  url: string;
+  onNameChange: (v: string) => void;
+  onUrlChange: (v: string) => void;
+}) {
+  return (
+    <div className="border-t pt-3 space-y-2">
+      <input
+        type="text"
+        value={name}
+        onChange={(e) => onNameChange(e.target.value)}
+        placeholder="계정명 (예: 내 블로그)"
+        className="flex h-8 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+      />
+      <input
+        type="text"
+        value={url}
+        onChange={(e) => onUrlChange(e.target.value)}
+        placeholder="블로그 URL (선택)"
+        className="flex h-8 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+      />
+      <div className="flex gap-2">
+        <button
+          onClick={onAdd}
+          disabled={!name.trim()}
+          className="px-3 py-1 text-xs font-medium rounded-md bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-50 transition-colors"
+        >
+          연동
+        </button>
+        <button
+          onClick={onCancel}
+          className="px-3 py-1 text-xs font-medium rounded-md border border-border hover:bg-muted transition-colors"
+        >
+          취소
+        </button>
+      </div>
     </div>
   );
 }

@@ -18,6 +18,7 @@ export async function POST(request: NextRequest) {
     subKeywords,
     imageUrls,
     title,
+    addSchemaMarkup,
   } = body;
 
   const typeLabel =
@@ -41,6 +42,13 @@ export async function POST(request: NextRequest) {
     ? `\n제목(H1)은 반드시 "${title}"을 그대로 사용하세요. 변경하지 마세요.`
     : "\n제목(H1)부터 시작하세요.";
 
+  const schemaInstruction = addSchemaMarkup
+    ? `11. 콘텐츠 마지막에 JSON-LD Schema.org 마크업을 <script type="application/ld+json"> 태그로 포함하세요.
+    - Article 스키마 (headline, author, datePublished)
+    - FAQ 스키마 (본문에서 Q&A 형식의 내용이 있으면 추출)
+    - LocalBusiness 스키마 (매장명, 업종이 있으면 포함)`
+    : `11. JSON-LD Schema.org 마크업 포함하지 않기 (별도 처리)`;
+
   const systemPrompt = `당신은 네이버 블로그 SEO에 최적화된 콘텐츠 전문 작가입니다.
 반드시 아래 규칙을 지켜 작성하세요:
 1. 해요체(~해요, ~이에요, ~있어요) 사용 — 해요체 비율 90% 이상
@@ -53,7 +61,7 @@ export async function POST(request: NextRequest) {
 8. 해시태그 5~10개 (#키워드 형식)
 9. 결론 섹션에 요약 포함
 10. 광고성 느낌 최소화 — 실제 경험/정보 공유 톤
-11. JSON-LD Schema.org 마크업 포함하지 않기 (별도 처리)`;
+${schemaInstruction}`;
 
   const userPrompt = `[콘텐츠 유형] ${typeLabel}
 

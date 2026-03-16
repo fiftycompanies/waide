@@ -21,6 +21,7 @@ import {
   X,
   Upload,
   RefreshCw,
+  FileCode,
 } from "lucide-react";
 import {
   createPublishingAccount,
@@ -118,6 +119,7 @@ export function BlogPublishFlow({
   const [savedContentId, setSavedContentId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [addSchemaMarkup, setAddSchemaMarkup] = useState(true);
 
   // Step 6: Publish + Track
   const [publishingAccounts, setPublishingAccounts] = useState(initialAccounts);
@@ -302,6 +304,7 @@ export function BlogPublishFlow({
           subKeywords,
           imageUrls: selectedImages.length > 0 ? selectedImages : undefined,
           title: editedTitle,
+          addSchemaMarkup,
         }),
       });
 
@@ -525,6 +528,8 @@ export function BlogPublishFlow({
               mainKeyword={mainKeyword}
               subKeywords={subKeywords}
               imageCount={selectedImages.length}
+              addSchemaMarkup={addSchemaMarkup}
+              onSchemaMarkupChange={setAddSchemaMarkup}
               onGenerate={handleGenerate}
               onContentChange={setGeneratedContent}
               onCopy={handleCopy}
@@ -1009,6 +1014,8 @@ function StepContentGeneration({
   mainKeyword,
   subKeywords,
   imageCount,
+  addSchemaMarkup,
+  onSchemaMarkupChange,
   onGenerate,
   onContentChange,
   onCopy,
@@ -1024,6 +1031,8 @@ function StepContentGeneration({
   mainKeyword: string;
   subKeywords: string[];
   imageCount: number;
+  addSchemaMarkup: boolean;
+  onSchemaMarkupChange: (v: boolean) => void;
   onGenerate: () => void;
   onContentChange: (v: string) => void;
   onCopy: () => void;
@@ -1059,6 +1068,32 @@ function StepContentGeneration({
           </div>
         </div>
       </div>
+
+      {/* Schema.org Toggle */}
+      {!content && (
+        <div className="flex items-center justify-between rounded-lg border p-3">
+          <div className="flex items-center gap-2">
+            <FileCode className="h-4 w-4 text-violet-600" />
+            <div>
+              <p className="text-sm font-medium">Schema.org 마크업</p>
+              <p className="text-xs text-muted-foreground">구조화된 데이터 (FAQ, Article) 자동 삽입</p>
+            </div>
+            <Badge variant="outline" className="text-xs">SEO</Badge>
+          </div>
+          <button
+            onClick={() => onSchemaMarkupChange(!addSchemaMarkup)}
+            className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+              addSchemaMarkup ? "bg-violet-600" : "bg-gray-200"
+            }`}
+          >
+            <span
+              className={`inline-block h-4 w-4 rounded-full bg-white transition-transform ${
+                addSchemaMarkup ? "translate-x-4" : "translate-x-0.5"
+              }`}
+            />
+          </button>
+        </div>
+      )}
 
       {/* Generate or Result */}
       {!content && !isGenerating ? (
