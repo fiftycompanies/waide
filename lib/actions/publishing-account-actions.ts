@@ -110,10 +110,12 @@ export async function saveGeneratedContent(payload: {
   tags?: string[];
   publishingAccountId?: string;
   imageUrls?: string[];
+  publishedUrl?: string;
 }): Promise<{ success: boolean; contentId?: string; error?: string }> {
   const db = createAdminClient();
 
   const wordCount = payload.body.replace(/\s/g, "").length;
+  const hasPublishedUrl = !!payload.publishedUrl?.trim();
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await (db as any)
@@ -127,7 +129,9 @@ export async function saveGeneratedContent(payload: {
       content_type: payload.contentType,
       meta_description: payload.metaDescription || null,
       tags: payload.tags || [],
-      publish_status: "draft",
+      publish_status: hasPublishedUrl ? "tracking" : "draft",
+      published_url: hasPublishedUrl ? payload.publishedUrl!.trim() : null,
+      is_tracking: hasPublishedUrl,
       generated_by: "human",
       word_count: wordCount,
       publishing_account_id: payload.publishingAccountId || null,

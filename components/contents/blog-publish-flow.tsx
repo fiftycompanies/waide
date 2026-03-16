@@ -266,6 +266,7 @@ export function BlogPublishFlow({
       metaDescription: metaDescription || undefined,
       publishingAccountId: selectedAccountId || undefined,
       imageUrls: selectedImages.length > 0 ? selectedImages : undefined,
+      publishedUrl: publishUrl || undefined,
     });
 
     if (result.success && result.contentId) {

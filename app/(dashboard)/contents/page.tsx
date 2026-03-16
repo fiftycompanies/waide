@@ -26,6 +26,7 @@ const PUBLISH_STATUSES = [
   { label: "Draft", value: "draft" },
   { label: "Review", value: "review" },
   { label: "Approved", value: "approved" },
+  { label: "Tracking", value: "tracking" },
   { label: "Published", value: "published" },
   { label: "Rejected", value: "rejected" },
 ];
@@ -40,9 +41,20 @@ const STATUS_COLORS: Record<string, string> = {
   draft: "bg-gray-100 text-gray-600 border-gray-200",
   review: "bg-yellow-100 text-yellow-700 border-yellow-200",
   approved: "bg-blue-100 text-blue-700 border-blue-200",
+  tracking: "bg-sky-100 text-sky-700 border-sky-200",
   published: "bg-green-100 text-green-700 border-green-200",
   rejected: "bg-red-100 text-red-700 border-red-200",
   archived: "bg-gray-100 text-gray-500 border-gray-200",
+};
+
+const STATUS_LABELS: Record<string, string> = {
+  draft: "초안",
+  review: "검토",
+  approved: "승인",
+  tracking: "추적중",
+  published: "발행됨",
+  rejected: "반려",
+  archived: "보관",
 };
 
 const JOB_STATUS_COLORS: Record<string, string> = {
@@ -51,6 +63,18 @@ const JOB_STATUS_COLORS: Record<string, string> = {
   DONE: "bg-green-100 text-green-700 border-green-200",
   FAILED: "bg-red-100 text-red-700 border-red-200",
 };
+
+function formatKoreanDate(dateStr: string): string {
+  const d = new Date(dateStr);
+  const month = d.getMonth() + 1;
+  const day = d.getDate();
+  const hours = d.getHours();
+  const minutes = d.getMinutes();
+  const ampm = hours < 12 ? "오전" : "오후";
+  const h12 = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
+  const mm = minutes.toString().padStart(2, "0");
+  return `${month}월 ${day}일 ${ampm} ${h12}:${mm}`;
+}
 
 interface ContentsPageProps {
   searchParams: Promise<{ status?: string; by?: string; tab?: string }>;
@@ -246,16 +270,11 @@ async function ContentListTab({
                   variant="outline"
                   className={`text-xs ${STATUS_COLORS[content.publish_status] ?? ""}`}
                 >
-                  {content.publish_status}
+                  {STATUS_LABELS[content.publish_status] ?? content.publish_status}
                 </Badge>
 
                 <span className="text-xs text-muted-foreground whitespace-nowrap">
-                  {new Date(content.created_at).toLocaleString("ko-KR", {
-                    month: "short",
-                    day: "numeric",
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
+                  {formatKoreanDate(content.created_at)}
                 </span>
               </Link>
             ))}
