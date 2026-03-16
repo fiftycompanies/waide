@@ -106,6 +106,7 @@ export async function saveGeneratedContent(payload: {
   mainKeyword: string;
   subKeywords: string[];
   contentType: string;
+  keywordId?: string;
   metaDescription?: string;
   tags?: string[];
   publishingAccountId?: string;
@@ -117,6 +118,12 @@ export async function saveGeneratedContent(payload: {
   const wordCount = payload.body.replace(/\s/g, "").length;
   const hasPublishedUrl = !!payload.publishedUrl?.trim();
 
+  // main_keyword/sub_keywords는 DB 컬럼이 아니므로 metadata에 저장
+  const meta: Record<string, unknown> = {};
+  if (payload.imageUrls?.length) meta.selected_images = payload.imageUrls;
+  if (payload.mainKeyword) meta.main_keyword = payload.mainKeyword;
+  if (payload.subKeywords?.length) meta.sub_keywords = payload.subKeywords;
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await (db as any)
     .from("contents")
@@ -124,8 +131,7 @@ export async function saveGeneratedContent(payload: {
       client_id: payload.clientId,
       title: payload.title,
       body: payload.body,
-      main_keyword: payload.mainKeyword,
-      sub_keywords: payload.subKeywords,
+      keyword_id: payload.keywordId || null,
       content_type: payload.contentType,
       meta_description: payload.metaDescription || null,
       tags: payload.tags || [],
@@ -135,9 +141,7 @@ export async function saveGeneratedContent(payload: {
       generated_by: "human",
       word_count: wordCount,
       publishing_account_id: payload.publishingAccountId || null,
-      metadata: payload.imageUrls?.length
-        ? { selected_images: payload.imageUrls }
-        : null,
+      metadata: Object.keys(meta).length > 0 ? meta : null,
     })
     .select("id")
     .single();

@@ -62,7 +62,7 @@
 
 -- contents
 --   content_type: 'blog_list','blog_review','blog_info','aeo_qa','aeo_list','aeo_entity','single','list','review','info'
---   publish_status: 'draft','review','approved','published','rejected','archived'
+--   publish_status: 'draft','review','approved','published','rejected','archived','tracking'
 
 -- cron_logs
 --   status: 'running','success','failed'

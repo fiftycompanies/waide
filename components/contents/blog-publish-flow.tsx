@@ -89,6 +89,7 @@ export function BlogPublishFlow({
   const [crawledImages, setCrawledImages] = useState<CrawledImage[]>([]);
   const [imageLoading, setImageLoading] = useState(false);
   const [mainKeyword, setMainKeyword] = useState("");
+  const [mainKeywordId, setMainKeywordId] = useState<string | null>(null);
   const [subKeywords, setSubKeywords] = useState<string[]>([]);
   const [subKeywordInput, setSubKeywordInput] = useState("");
   const [generatedContent, setGeneratedContent] = useState("");
@@ -263,6 +264,7 @@ export function BlogPublishFlow({
       mainKeyword,
       subKeywords,
       contentType,
+      keywordId: mainKeywordId || undefined,
       metaDescription: metaDescription || undefined,
       publishingAccountId: selectedAccountId || undefined,
       imageUrls: selectedImages.length > 0 ? selectedImages : undefined,
@@ -383,7 +385,10 @@ export function BlogPublishFlow({
           {step === 4 && (
             <StepKeywords
               mainKeyword={mainKeyword}
-              onMainChange={setMainKeyword}
+              onMainChange={(text, id) => {
+                setMainKeyword(text);
+                setMainKeywordId(id ?? null);
+              }}
               subKeywords={subKeywords}
               onSubRemove={(kw) =>
                 setSubKeywords(subKeywords.filter((k) => k !== kw))
@@ -696,7 +701,7 @@ function StepKeywords({
   activeKeywords,
 }: {
   mainKeyword: string;
-  onMainChange: (v: string) => void;
+  onMainChange: (text: string, id?: string) => void;
   subKeywords: string[];
   onSubRemove: (kw: string) => void;
   subInput: string;
@@ -725,7 +730,7 @@ function StepKeywords({
                 key={kw.id}
                 onClick={() => {
                   if (!mainKeyword) {
-                    onMainChange(kw.keyword);
+                    onMainChange(kw.keyword, kw.id);
                   }
                 }}
                 className="text-xs px-2 py-1 rounded-md bg-muted hover:bg-muted/80 text-muted-foreground transition-colors"
