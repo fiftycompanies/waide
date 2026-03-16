@@ -154,3 +154,30 @@ export async function saveGeneratedContent(payload: {
   revalidatePath("/contents");
   return { success: true, contentId: data?.id };
 }
+
+/** 콘텐츠 추적 시작 (발행 URL + 추적 상태 업데이트) */
+export async function updateContentForTracking(payload: {
+  contentId: string;
+  publishingAccountId?: string;
+  publishedUrl: string;
+}): Promise<{ success: boolean; error?: string }> {
+  const db = createAdminClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (db as any)
+    .from("contents")
+    .update({
+      publishing_account_id: payload.publishingAccountId || null,
+      published_url: payload.publishedUrl.trim(),
+      publish_status: "tracking",
+      is_tracking: true,
+    })
+    .eq("id", payload.contentId);
+
+  if (error) {
+    console.error("[publishing-account-actions] updateContentForTracking:", error);
+    return { success: false, error: error.message };
+  }
+
+  revalidatePath("/contents");
+  return { success: true };
+}

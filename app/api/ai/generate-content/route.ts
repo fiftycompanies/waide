@@ -17,6 +17,7 @@ export async function POST(request: NextRequest) {
     mainKeyword,
     subKeywords,
     imageUrls,
+    title,
   } = body;
 
   const typeLabel =
@@ -26,10 +27,19 @@ export async function POST(request: NextRequest) {
         ? "후기성"
         : "소개성";
 
-  const imageSection =
-    imageUrls?.length > 0
-      ? `\n\n사용할 이미지:\n${(imageUrls as string[]).map((u: string, i: number) => `${i + 1}. ${u}`).join("\n")}\n본문 중간중간에 이미지를 자연스럽게 배치해주세요.`
-      : "";
+  const hasImages = imageUrls?.length > 0;
+
+  const imageSection = hasImages
+    ? `\n\n사용할 이미지:\n${(imageUrls as string[]).map((u: string, i: number) => `${i + 1}. ${u}`).join("\n")}\n각 H2 섹션 직후에 이미지를 ![설명](url) 형식으로 자연스럽게 배치해주세요.`
+    : `\n\n이미지가 없습니다. 각 H2 섹션 직후에 아래 형식의 이미지 플레이스홀더를 1개씩 삽입해주세요:
+> 📷 [이미지 추천] {맥락에 맞는 이미지 설명 1~2줄} — 이런 사진을 넣어보세요.
+
+예시:
+> 📷 [이미지 추천] 캠핑장 전경을 담은 낮 시간대 와이드샷. 잔디와 데크가 함께 보이는 사진이 좋습니다 — 이런 사진을 넣어보세요.`;
+
+  const titleInstruction = title
+    ? `\n제목(H1)은 반드시 "${title}"을 그대로 사용하세요. 변경하지 마세요.`
+    : "\n제목(H1)부터 시작하세요.";
 
   const systemPrompt = `당신은 네이버 블로그 SEO에 최적화된 콘텐츠 전문 작가입니다.
 반드시 아래 규칙을 지켜 작성하세요:
@@ -60,8 +70,7 @@ ${brief || "없음"}
 [서브 키워드] ${(subKeywords || []).join(", ")}
 ${imageSection}
 
-위 정보를 바탕으로 네이버 블로그에 발행할 ${typeLabel} 콘텐츠를 마크다운으로 작성해주세요.
-제목(H1)부터 시작하세요.`;
+위 정보를 바탕으로 네이버 블로그에 발행할 ${typeLabel} 콘텐츠를 마크다운으로 작성해주세요.${titleInstruction}`;
 
   try {
     const resp = await fetch("https://api.anthropic.com/v1/messages", {
