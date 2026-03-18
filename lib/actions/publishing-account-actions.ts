@@ -79,7 +79,7 @@ export async function getBrandAnalysisForPublishing(clientId: string) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await (db as any)
     .from("brand_analyses")
-    .select("id, basic_info, content_strategy, keyword_analysis, analysis_result, place_id")
+    .select("id, basic_info, content_strategy, keyword_analysis, analysis_result, place_id, input_url, url_type")
     .eq("client_id", clientId)
     .eq("status", "completed")
     .order("analyzed_at", { ascending: false })
@@ -113,6 +113,8 @@ export async function getBrandAnalysisForPublishing(clientId: string) {
       keyword_analysis: null,
       analysis_result: null,
       place_id: (bp.place_id as string) || null,
+      input_url: null,
+      url_type: null,
     } as BrandAnalysisForPublishing;
   }
 
@@ -125,6 +127,8 @@ export async function getBrandAnalysisForPublishing(clientId: string) {
       keyword_analysis: null,
       analysis_result: null,
       place_id: null,
+      input_url: null,
+      url_type: null,
     } as BrandAnalysisForPublishing;
   }
 
@@ -138,6 +142,8 @@ type BrandAnalysisForPublishing = {
   keyword_analysis: Record<string, unknown> | null;
   analysis_result: Record<string, unknown> | null;
   place_id: string | null;
+  input_url: string | null;
+  url_type: string | null;
 };
 
 /** 콘텐츠 생성 후 DB 저장 */

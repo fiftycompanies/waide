@@ -39,6 +39,8 @@ interface BrandAnalysis {
   keyword_analysis: Record<string, unknown> | null;
   analysis_result: Record<string, unknown> | null;
   place_id: string | null;
+  input_url: string | null;
+  url_type: string | null;
 }
 
 interface CrawledImage {
@@ -86,12 +88,27 @@ export function BlogPublishFlow({
   const [brandInfo, setBrandInfo] = useState(() => {
     const bi = brandAnalysis?.basic_info || {};
     const placeId = brandAnalysis?.place_id;
+    const inputUrl = brandAnalysis?.input_url || "";
+    const urlType = brandAnalysis?.url_type || "";
+
+    // 네이버 플레이스 URL: input_url이 네이버 URL이면 그대로 사용, 아니면 place_id로 구성
+    const isNaverInput = inputUrl.includes("naver.com") || inputUrl.includes("place.naver");
+    const naverPlaceUrl = isNaverInput
+      ? inputUrl
+      : placeId
+        ? `https://m.place.naver.com/restaurant/${placeId}/home`
+        : (bi.naver_place_url as string) || (bi.place_url as string) || "";
+
+    // 홈페이지 URL: input_url이 웹사이트 분석이면 그대로 사용, 아니면 basic_info에서 추출
+    const isWebsiteInput = urlType === "website" || (!isNaverInput && inputUrl && !inputUrl.includes("naver.com"));
+    const homepage = isWebsiteInput
+      ? inputUrl
+      : (bi.homepage_url as string) || (bi.homepage as string) || (bi.website as string) || (bi.website_url as string) || "";
+
     return {
       name: (bi.name as string) || "",
-      naverPlaceUrl: placeId
-        ? `https://m.place.naver.com/restaurant/${placeId}/home`
-        : (bi.naver_place_url as string) || (bi.place_url as string) || "",
-      homepage: (bi.homepage_url as string) || (bi.homepage as string) || (bi.website as string) || (bi.website_url as string) || "",
+      naverPlaceUrl,
+      homepage,
       category: (bi.category as string) || "",
       region: (bi.region as string) || (bi.address as string) || "",
       description: "",
