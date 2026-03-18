@@ -80,10 +80,10 @@ export interface ConsultationStats {
 }
 
 // ═══════════════════════════════════════════
-// 상태 라벨
+// 상태 라벨 (내부 전용 — "use server" 파일에서는 상수 export 금지)
 // ═══════════════════════════════════════════
 
-export const CONSULT_STATUS_CONFIG: Record<string, { label: string; color: string }> = {
+const CONSULT_STATUS_CONFIG: Record<string, { label: string; color: string }> = {
   pending: { label: "대기", color: "text-red-600" },
   contacted: { label: "연락완료", color: "text-orange-600" },
   consulting: { label: "상담중", color: "text-yellow-700" },

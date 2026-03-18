@@ -11,7 +11,6 @@ import {
   assignConsultationAgent,
   updateConsultationFollowUp,
   getConsultationAgentsList,
-  CONSULT_STATUS_CONFIG,
 } from "@/lib/actions/consultation-crm-actions";
 import type { ConsultationDetail, ConsultationNote } from "@/lib/actions/consultation-crm-actions";
 
