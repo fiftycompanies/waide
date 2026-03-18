@@ -11,6 +11,7 @@ import {
   Coins,
   DollarSign,
   FileEdit,
+  FilePlus,
   Globe,
   Home,
   Key,
@@ -124,7 +125,8 @@ const crmNavItems: NavItem[] = [
 // ═══ 어드민: 홈페이지 ═══
 const homepageNavItems: NavItem[] = [
   { title: "홈페이지 프로젝트", url: "/homepage",           icon: Globe,          roles: ALL_ADMIN },
-  { title: "상담 신청",         url: "/homepage/inquiries", icon: MessageSquare,  roles: ALL_ADMIN },
+  { title: "제작 신청",         url: "/homepage/requests",  icon: FilePlus,       roles: ADMIN_ONLY },
+  { title: "상담 문의",         url: "/homepage/inquiries", icon: MessageSquare,  roles: [...ALL_ADMIN, ...CLIENT_ROLES] },
 ];
 
 // ═══ 어드민: 리소스 ═══
@@ -147,14 +149,15 @@ const settingsNavItems: NavItem[] = [
 
 // ═══ 고객 메뉴 (어드민 경로 공유) ═══
 const clientNavItems: NavItem[] = [
-  { title: "대시보드",      url: "/dashboard",      icon: Home,        roles: CLIENT_ROLES },
-  { title: "홈페이지",      url: "/homepage",       icon: Globe,       roles: CLIENT_ROLES },
-  { title: "키워드 관리",   url: "/keywords",       icon: Key,         roles: CLIENT_ROLES },
-  { title: "블로그 발행",   url: "/contents",       icon: FileEdit,    roles: CLIENT_ROLES },
-  { title: "성과 분석",     url: "/analytics",      icon: BarChart3,   roles: CLIENT_ROLES },
-  { title: "브랜드 분석",   url: "/brand-analysis", icon: Microscope,  roles: CLIENT_ROLES },
-  { title: "블로그 계정",   url: "/blog-accounts",  icon: Smartphone,  roles: CLIENT_ROLES },
-  { title: "설정",          url: "/settings",       icon: Settings,    roles: CLIENT_ROLES },
+  { title: "대시보드",      url: "/dashboard",           icon: Home,           roles: CLIENT_ROLES },
+  { title: "홈페이지",      url: "/homepage",            icon: Globe,          roles: CLIENT_ROLES },
+  { title: "상담 문의",     url: "/homepage/inquiries",  icon: MessageSquare,  roles: CLIENT_ROLES },
+  { title: "키워드 관리",   url: "/keywords",            icon: Key,            roles: CLIENT_ROLES },
+  { title: "블로그 발행",   url: "/contents",            icon: FileEdit,       roles: CLIENT_ROLES },
+  { title: "성과 분석",     url: "/analytics",           icon: BarChart3,      roles: CLIENT_ROLES },
+  { title: "브랜드 분석",   url: "/brand-analysis",      icon: Microscope,     roles: CLIENT_ROLES },
+  { title: "블로그 계정",   url: "/blog-accounts",       icon: Smartphone,     roles: CLIENT_ROLES },
+  { title: "설정",          url: "/settings",            icon: Settings,       roles: CLIENT_ROLES },
 ];
 
 // ── 역할 라벨 매핑 ────────────────────────────────────────────────────────

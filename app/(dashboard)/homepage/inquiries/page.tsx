@@ -8,7 +8,6 @@ import {
   Phone,
   User,
 } from "lucide-react";
-import { createAdminClient } from "@/lib/supabase/service";
 import {
   updateInquiryStatus,
   type HomepageInquiry,
@@ -27,6 +26,33 @@ const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
 
 const STATUS_OPTIONS: InquiryStatus[] = ["new", "contacted", "consulting", "contracted", "lost"];
 
+// ── Client role detection ──────────────────────────────────────────────────
+
+function useClientInfo() {
+  const [info, setInfo] = useState<{ isClient: boolean; clientId: string | null }>({
+    isClient: false,
+    clientId: null,
+  });
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/api/auth/me");
+        if (res.ok) {
+          const data = await res.json();
+          if (data.role === "client_owner" || data.role === "client_member") {
+            setInfo({ isClient: true, clientId: data.client_id ?? null });
+          }
+        }
+      } catch {
+        // 어드민 폴백
+      }
+    })();
+  }, []);
+
+  return info;
+}
+
 // ── Main Page ───────────────────────────────────────────────────────────────
 
 export default function AllInquiriesPage() {
@@ -34,25 +60,32 @@ export default function AllInquiriesPage() {
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<InquiryStatus | "all">("all");
   const [isPending, startTransition] = useTransition();
+  const { isClient, clientId } = useClientInfo();
 
   useEffect(() => {
     loadInquiries();
-  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clientId]);
 
   const loadInquiries = async () => {
     try {
-      const res = await fetch("/api/homepage/inquiries");
+      // 고객인 경우 client_id 필터 추가
+      const url = clientId
+        ? `/api/homepage/inquiries?client_id=${clientId}`
+        : "/api/homepage/inquiries";
+      const res = await fetch(url);
       if (res.ok) {
         const data = await res.json();
         setInquiries(data);
       }
     } catch {
-      // Fallback: 직접 서버 액션으로 로드 불가 (전체 프로젝트 걸쳐야 하므로)
+      // ignore
     }
     setLoading(false);
   };
 
   const handleStatusChange = (inquiryId: string, newStatus: InquiryStatus) => {
+    if (isClient) return; // 고객은 상태 변경 불가
     startTransition(async () => {
       const result = await updateInquiryStatus(inquiryId, newStatus);
       if (result.success) {
@@ -90,9 +123,14 @@ export default function AllInquiriesPage() {
     <div className="p-6 space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">상담 신청 관리</h1>
+        <h1 className="text-2xl font-bold tracking-tight">
+          {isClient ? "상담 문의" : "상담 신청 관리"}
+        </h1>
         <p className="text-sm text-muted-foreground mt-1">
-          전체 홈페이지에서 접수된 상담 신청을 관리합니다
+          {isClient
+            ? "내 홈페이지에서 접수된 상담 문의를 확인합니다"
+            : "전체 홈페이지에서 접수된 상담 신청을 관리합니다"
+          }
         </p>
       </div>
 
@@ -136,15 +174,23 @@ export default function AllInquiriesPage() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <select
-                      value={inq.status}
-                      onChange={(e) => handleStatusChange(inq.id, e.target.value as InquiryStatus)}
-                      className={`px-2 py-1 rounded text-xs font-medium border-0 ${config.color}`}
-                    >
-                      {STATUS_OPTIONS.map((s) => (
-                        <option key={s} value={s}>{STATUS_CONFIG[s].label}</option>
-                      ))}
-                    </select>
+                    {isClient ? (
+                      // 고객: 읽기 전용 상태 뱃지
+                      <span className={`px-2 py-1 rounded text-xs font-medium ${config.color}`}>
+                        {config.label}
+                      </span>
+                    ) : (
+                      // 어드민: 상태 변경 가능
+                      <select
+                        value={inq.status}
+                        onChange={(e) => handleStatusChange(inq.id, e.target.value as InquiryStatus)}
+                        className={`px-2 py-1 rounded text-xs font-medium border-0 ${config.color}`}
+                      >
+                        {STATUS_OPTIONS.map((s) => (
+                          <option key={s} value={s}>{STATUS_CONFIG[s].label}</option>
+                        ))}
+                      </select>
+                    )}
                   </div>
                 </div>
 
@@ -152,7 +198,7 @@ export default function AllInquiriesPage() {
                   {inq.space_type && <span>{inq.space_type}</span>}
                   {inq.area_pyeong && <span>{inq.area_pyeong}평</span>}
                   {inq.budget_range && <span>{inq.budget_range}</span>}
-                  {inq.project_name && (
+                  {!isClient && inq.project_name && (
                     <Link
                       href={`/homepage/${inq.project_id}`}
                       className="text-primary hover:underline"
@@ -182,7 +228,9 @@ export default function AllInquiriesPage() {
       ) : (
         <div className="text-center py-16 text-muted-foreground">
           <MessageSquare className="h-10 w-10 mx-auto mb-3 opacity-40" />
-          <p className="text-sm">상담 신청이 없습니다</p>
+          <p className="text-sm">
+            {isClient ? "아직 상담 문의가 없습니다" : "상담 신청이 없습니다"}
+          </p>
         </div>
       )}
     </div>

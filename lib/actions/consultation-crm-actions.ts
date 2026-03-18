@@ -16,6 +16,7 @@ export interface ConsultationFilters {
   search?: string;
   dateFrom?: string;
   dateTo?: string;
+  channel?: string;
   page?: number;
   pageSize?: number;
 }
@@ -119,6 +120,9 @@ export async function getConsultationList(filters: ConsultationFilters = {}): Pr
   }
   if (filters.assignedTo) {
     query = query.eq("assigned_to", filters.assignedTo);
+  }
+  if (filters.channel) {
+    query = query.eq("channel", filters.channel);
   }
   if (filters.dateFrom) {
     query = query.gte("created_at", filters.dateFrom);
@@ -483,14 +487,20 @@ export async function updateConsultationFollowUp(
 // 8. 통계
 // ═══════════════════════════════════════════
 
-export async function getConsultationStats(): Promise<ConsultationStats> {
+export async function getConsultationStats(channel?: string): Promise<ConsultationStats> {
   try {
     const db = createAdminClient();
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: all, error } = await (db as any)
+    let query = (db as any)
       .from("consultation_requests")
       .select("status, created_at, last_activity_at");
+
+    if (channel) {
+      query = query.eq("channel", channel);
+    }
+
+    const { data: all, error } = await query;
 
     if (error) {
       console.error("getConsultationStats error:", error);

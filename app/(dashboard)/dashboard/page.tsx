@@ -23,8 +23,9 @@ import {
   type BrandSummaryStats,
 } from "@/lib/actions/analytics-actions";
 import { getSelectedClientId, getSelectedBrandInfo } from "@/lib/actions/brand-actions";
+import { getCurrentUser, isClientRole } from "@/lib/auth";
 import { getBrandAnalysisKpi, type BrandAnalysisKpi } from "@/lib/actions/analysis-brand-actions";
-import { BrandInfoCard } from "@/components/dashboard/brand-info-card";
+import { BrandInfoCard, ClientCtaBanner } from "@/components/dashboard/brand-info-card";
 import { VisibilityTrendChart } from "@/components/dashboard/visibility-trend-chart";
 import { KeywordDonutChart } from "@/components/dashboard/keyword-donut-chart";
 import { SerpRankChart } from "@/components/analytics/serp-rank-chart";
@@ -442,11 +443,14 @@ async function DashboardSection() {
   const clientId = (await getSelectedClientId()) ?? undefined;
   const isAllMode = !clientId;
 
-  const [bizData, seoData, brandInfo] = await Promise.all([
+  const [bizData, seoData, brandInfo, currentUser] = await Promise.all([
     isAllMode ? getBusinessDashboardData() : Promise.resolve(null),
     fetchSeoData(clientId),
     clientId ? getSelectedBrandInfo(clientId) : Promise.resolve(null),
+    getCurrentUser(),
   ]);
+
+  const isClient = currentUser ? isClientRole(currentUser.role) : false;
 
   const { kpi, trend, distribution, activities, accounts, serpTrend, serpKeywords, brandSummary, analysisKpi } = seoData;
 
@@ -473,6 +477,14 @@ async function DashboardSection() {
     <div className="space-y-8">
       {/* ── 브랜드 정보 카드 (개별 브랜드 모드) ── */}
       {!isAllMode && brandInfo && <BrandInfoCard brand={brandInfo} />}
+
+      {/* ── 고객 CTA 배너 (고객 역할만) ── */}
+      {isClient && brandInfo && (
+        <ClientCtaBanner
+          homepageStatus={brandInfo.homepage_status}
+          homepageUrl={brandInfo.homepage_url}
+        />
+      )}
 
       {/* ── B2B 비즈니스 KPI (전체 모드에서만) ── */}
       {isAllMode && bizData && <BusinessKpiSection data={bizData} />}

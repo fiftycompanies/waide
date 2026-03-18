@@ -647,6 +647,8 @@ export interface SelectedBrandInfo {
   created_at: string;
   has_brand_persona: boolean;
   has_brand_analysis: boolean;
+  homepage_status: "none" | "in_progress" | "live";
+  homepage_url: string | null;
 }
 
 export async function getSelectedBrandInfo(
@@ -702,6 +704,36 @@ export async function getSelectedBrandInfo(
       // ignore
     }
 
+    // 홈페이지 프로젝트 상태 조회
+    let homepageStatus: "none" | "in_progress" | "live" = "none";
+    let homepageUrl: string | null = null;
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: hpProjects } = await (db as any)
+        .from("homepage_projects")
+        .select("id, status, vercel_deployment_url, subdomain")
+        .eq("client_id", clientId)
+        .order("created_at", { ascending: false });
+
+      if (hpProjects && hpProjects.length > 0) {
+        const liveProject = hpProjects.find((p: { status: string }) => p.status === "live");
+        if (liveProject) {
+          homepageStatus = "live";
+          homepageUrl = liveProject.vercel_deployment_url || (liveProject.subdomain ? `https://${liveProject.subdomain}` : null);
+        } else {
+          // collecting, building, preview 등 진행 중 상태
+          const inProgressProject = hpProjects.find((p: { status: string }) =>
+            ["collecting", "building", "preview"].includes(p.status)
+          );
+          if (inProgressProject) {
+            homepageStatus = "in_progress";
+          }
+        }
+      }
+    } catch {
+      // ignore
+    }
+
     return {
       id: data.id,
       name: data.name,
@@ -714,6 +746,8 @@ export async function getSelectedBrandInfo(
       created_at: data.created_at,
       has_brand_persona: !!data.brand_persona,
       has_brand_analysis: hasBrandAnalysis,
+      homepage_status: homepageStatus,
+      homepage_url: homepageUrl,
     };
   } catch {
     return null;
