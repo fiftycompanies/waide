@@ -1263,7 +1263,9 @@ async function calculateMarketingScore(
       breakdownMap[group].score += r.score;
       breakdownMap[group].max += r.maxScore;
       const itemLabel = ITEM_LABELS[r.item] ?? r.item;
-      breakdownMap[group].details.push(`${itemLabel}: ${r.label}`);
+      // parseDeficientItems()가 파싱할 수 있도록 "label: score/max(상태)" 형식으로 저장
+      const status = (r.score >= r.maxScore * 0.8) ? "양호" : (r.score >= r.maxScore * 0.5) ? "보통" : "부족";
+      breakdownMap[group].details.push(`${itemLabel}: ${r.score}/${r.maxScore}(${status})`);
     }
 
     const improvements: string[] = [];

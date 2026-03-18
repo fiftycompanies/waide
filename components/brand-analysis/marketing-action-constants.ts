@@ -153,9 +153,11 @@ export interface DeficientItem extends MarketingAction {
  * score_breakdown의 6개 영역 details를 파싱하여
  * "부족" 상태인 항목만 추출한다.
  *
- * details 문자열 예시:
- *   "visitor_review_count: 5/10(부족), blog_review_count: 3/5(양호), ..."
- *   "방문자 리뷰: 5/10(부족), 블로그 리뷰: 3/5(양호), ..."
+ * details 문자열 형식:
+ *   형식 A (신규): "방문자 리뷰: 3/8(부족) / 블로그 리뷰: 4/7(양호)"
+ *   형식 B (레거시): "방문자 리뷰: 부족 / 블로그 리뷰: 양호"
+ *
+ * 두 형식 모두 지원하여 기존 DB 데이터와 호환.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function parseDeficientItems(scoreBreakdown: Record<string, any> | undefined | null): DeficientItem[] {
@@ -184,6 +186,9 @@ export function parseDeficientItems(scoreBreakdown: Record<string, any> | undefi
     "구글 SEO": "google_seo",
   };
 
+  // "부족"으로 판별할 상태 키워드 목록
+  const DEFICIENT_STATUSES = new Set(["부족", "미노출", "기준 없음"]);
+
   for (const area of Object.values(scoreBreakdown)) {
     if (!area || typeof area !== "object") continue;
     const detailStr = (area as { details?: string; detail?: string }).details
@@ -191,40 +196,46 @@ export function parseDeficientItems(scoreBreakdown: Record<string, any> | undefi
       || "";
     if (!detailStr) continue;
 
-    // "key: score/max(상태)" 패턴 파싱
-    const pattern = /([\w가-힣_\s]+?):\s*(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)\s*\(([^)]+)\)/g;
-    let match;
-    while ((match = pattern.exec(detailStr)) !== null) {
-      const rawKey = match[1].trim();
-      const currentScore = parseFloat(match[2]);
-      const maxScore = parseFloat(match[3]);
-      const status = match[4].trim();
+    // 형식 A: "key: score/max(상태)" 패턴 파싱
+    const patternA = /([\w가-힣_\s]+?):\s*(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)\s*\(([^)]+)\)/g;
+    let matchA;
+    let hasPatternAMatch = false;
+    while ((matchA = patternA.exec(detailStr)) !== null) {
+      hasPatternAMatch = true;
+      const rawKey = matchA[1].trim();
+      const currentScore = parseFloat(matchA[2]);
+      const maxScore = parseFloat(matchA[3]);
+      const status = matchA[4].trim();
 
-      // "부족" 상태만
-      if (status !== "부족") continue;
+      if (!DEFICIENT_STATUSES.has(status)) continue;
 
-      // 한글이면 역매핑, 영문이면 그대로
       const itemKey = REVERSE_LABEL_MAP[rawKey] || rawKey;
+      addDeficientItem(deficient, itemKey, currentScore, maxScore);
+    }
 
-      const actionDef = ACTION_MAP.get(itemKey);
-      if (!actionDef) continue;
+    // 형식 B (레거시): "key: 상태" — 형식 A가 매칭되지 않은 경우에만 시도
+    if (!hasPatternAMatch) {
+      // " / " 또는 ", " 로 분리
+      const segments = detailStr.split(/\s*[/,]\s*/);
+      for (const seg of segments) {
+        const trimmed = seg.trim();
+        if (!trimmed) continue;
 
-      // 중복 방지 (image_count와 image_count_basic은 같은 카테고리)
-      if (itemKey === "image_count_basic" && deficient.some((d) => d.item === "image_count")) {
-        continue;
+        // "label: status" 패턴
+        const matchB = trimmed.match(/^([\w가-힣_\s]+?):\s*(.+)$/);
+        if (!matchB) continue;
+
+        const rawKey = matchB[1].trim();
+        const statusText = matchB[2].trim();
+
+        if (!DEFICIENT_STATUSES.has(statusText)) continue;
+
+        const itemKey = REVERSE_LABEL_MAP[rawKey] || rawKey;
+        // 레거시 데이터에는 개별 점수가 없으므로 area의 score/max를 기반으로 추정
+        const areaScore = (area as { score?: number }).score ?? 0;
+        const areaMax = (area as { max?: number }).max ?? 10;
+        addDeficientItem(deficient, itemKey, areaScore, areaMax);
       }
-      if (itemKey === "image_count" && deficient.some((d) => d.item === "image_count_basic")) {
-        // 기존 image_count_basic을 image_count로 교체
-        const idx = deficient.findIndex((d) => d.item === "image_count_basic");
-        if (idx >= 0) deficient.splice(idx, 1);
-      }
-
-      deficient.push({
-        ...actionDef,
-        potentialScore: maxScore - currentScore,
-        currentScore,
-        maxScore,
-      });
     }
   }
 
@@ -235,4 +246,34 @@ export function parseDeficientItems(scoreBreakdown: Record<string, any> | undefi
   });
 
   return deficient;
+}
+
+/** 부족 항목을 deficient 배열에 추가 (중복/image 교체 로직 포함) */
+function addDeficientItem(
+  deficient: DeficientItem[],
+  itemKey: string,
+  currentScore: number,
+  maxScore: number,
+): void {
+  const actionDef = ACTION_MAP.get(itemKey);
+  if (!actionDef) return;
+
+  // 중복 방지 (image_count와 image_count_basic은 같은 카테고리)
+  if (itemKey === "image_count_basic" && deficient.some((d) => d.item === "image_count")) {
+    return;
+  }
+  if (itemKey === "image_count" && deficient.some((d) => d.item === "image_count_basic")) {
+    const idx = deficient.findIndex((d) => d.item === "image_count_basic");
+    if (idx >= 0) deficient.splice(idx, 1);
+  }
+
+  // 같은 item이 이미 추가되어 있으면 스킵
+  if (deficient.some((d) => d.item === itemKey)) return;
+
+  deficient.push({
+    ...actionDef,
+    potentialScore: maxScore - currentScore,
+    currentScore,
+    maxScore,
+  });
 }
