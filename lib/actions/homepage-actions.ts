@@ -2,6 +2,7 @@
 
 import { createAdminClient } from "@/lib/supabase/service";
 import { revalidatePath } from "next/cache";
+import { getCurrentUser, isClientRole } from "@/lib/auth";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -157,6 +158,9 @@ export async function createHomepageProject(payload: {
   projectName: string;
   templateId?: string;
 }): Promise<{ success: boolean; id?: string; error?: string }> {
+  const user = await getCurrentUser();
+  if (user && isClientRole(user.role)) return { success: false, error: "권한이 없습니다." };
+
   const db = createAdminClient();
 
   const { data, error } = await db
@@ -192,6 +196,9 @@ export async function updateHomepageProject(
     last_deployed_at: string;
   }>,
 ): Promise<{ success: boolean; error?: string }> {
+  const user = await getCurrentUser();
+  if (user && isClientRole(user.role)) return { success: false, error: "권한이 없습니다." };
+
   const db = createAdminClient();
 
   const { error } = await db
@@ -209,6 +216,9 @@ export async function updateHomepageProject(
 export async function deleteHomepageProject(
   projectId: string,
 ): Promise<{ success: boolean; error?: string }> {
+  const user = await getCurrentUser();
+  if (user && isClientRole(user.role)) return { success: false, error: "권한이 없습니다." };
+
   const db = createAdminClient();
 
   const { error } = await db
@@ -245,6 +255,9 @@ export async function upsertHomepageMaterial(
   projectId: string,
   payload: Omit<HomepageMaterial, "id" | "project_id" | "created_at" | "updated_at">,
 ): Promise<{ success: boolean; error?: string }> {
+  const user = await getCurrentUser();
+  if (user && isClientRole(user.role)) return { success: false, error: "권한이 없습니다." };
+
   const db = createAdminClient();
 
   // Check existing
@@ -296,6 +309,9 @@ export async function createHomepagePortfolio(
   projectId: string,
   payload: Omit<HomepagePortfolio, "id" | "project_id" | "created_at">,
 ): Promise<{ success: boolean; id?: string; error?: string }> {
+  const user = await getCurrentUser();
+  if (user && isClientRole(user.role)) return { success: false, error: "권한이 없습니다." };
+
   const db = createAdminClient();
 
   const { data, error } = await db
@@ -314,6 +330,9 @@ export async function updateHomepagePortfolio(
   portfolioId: string,
   updates: Partial<Omit<HomepagePortfolio, "id" | "project_id" | "created_at">>,
 ): Promise<{ success: boolean; error?: string }> {
+  const user = await getCurrentUser();
+  if (user && isClientRole(user.role)) return { success: false, error: "권한이 없습니다." };
+
   const db = createAdminClient();
 
   const { data: portfolio } = await db
@@ -336,6 +355,9 @@ export async function updateHomepagePortfolio(
 export async function deleteHomepagePortfolio(
   portfolioId: string,
 ): Promise<{ success: boolean; error?: string }> {
+  const user = await getCurrentUser();
+  if (user && isClientRole(user.role)) return { success: false, error: "권한이 없습니다." };
+
   const db = createAdminClient();
 
   const { data: portfolio } = await db
@@ -378,6 +400,9 @@ export async function createHomepageReview(
   projectId: string,
   payload: Omit<HomepageReview, "id" | "project_id" | "created_at">,
 ): Promise<{ success: boolean; error?: string }> {
+  const user = await getCurrentUser();
+  if (user && isClientRole(user.role)) return { success: false, error: "권한이 없습니다." };
+
   const db = createAdminClient();
 
   const { error } = await db
@@ -393,6 +418,9 @@ export async function createHomepageReview(
 export async function deleteHomepageReview(
   reviewId: string,
 ): Promise<{ success: boolean; error?: string }> {
+  const user = await getCurrentUser();
+  if (user && isClientRole(user.role)) return { success: false, error: "권한이 없습니다." };
+
   const db = createAdminClient();
 
   const { data: review } = await db
@@ -504,6 +532,27 @@ export interface HomepageDashboardStats {
   total_inquiries: number;
   new_inquiries: number;
 }
+
+// ── Client Homepage (브랜드 계정 전용 조회) ─────────────────────────────────
+
+export async function getClientHomepage(clientId: string): Promise<HomepageProject | null> {
+  const db = createAdminClient();
+
+  const { data, error } = await db
+    .from("homepage_projects")
+    .select("*, clients(name)")
+    .eq("client_id", clientId)
+    .order("created_at", { ascending: false })
+    .limit(1);
+
+  if (error || !data || data.length === 0) return null;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const p = data[0] as any;
+  return { ...p, client_name: p.clients?.name ?? null, clients: undefined };
+}
+
+// ── Dashboard Stats ────────────────────────────────────────────────────────
 
 export async function getHomepageDashboardStats(): Promise<HomepageDashboardStats> {
   const db = createAdminClient();

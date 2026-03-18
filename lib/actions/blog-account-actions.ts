@@ -126,6 +126,108 @@ export async function deleteBlogAccount(
   return { success: true };
 }
 
+// ── 홈페이지 블로그 상태 / 등록 ────────────────────────────────────────────────
+
+export interface HomepageBlogStatus {
+  hasHomepage: boolean;
+  isLive: boolean;
+  blogConnected: boolean;
+  subdomain: string | null;
+  deploymentUrl: string | null;
+  projectId: string | null;
+}
+
+/** 클라이언트의 홈페이지 블로그 연결 상태 조회 */
+export async function getHomepageBlogStatus(
+  clientId: string | null
+): Promise<HomepageBlogStatus> {
+  const empty: HomepageBlogStatus = {
+    hasHomepage: false,
+    isLive: false,
+    blogConnected: false,
+    subdomain: null,
+    deploymentUrl: null,
+    projectId: null,
+  };
+
+  if (!clientId) return empty;
+
+  const db = createAdminClient();
+
+  // homepage_projects에서 해당 브랜드의 최신 프로젝트 조회
+  const { data: project } = await db
+    .from("homepage_projects")
+    .select("id, status, subdomain, vercel_deployment_url, blog_config")
+    .eq("client_id", clientId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (!project) return empty;
+
+  const isLive = project.status === "live";
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const blogConfig = (project.blog_config ?? {}) as any;
+  const blogEnabled = blogConfig.blog_enabled === true;
+
+  // publishing_accounts에서 homepage 플랫폼 등록 여부 확인
+  const { data: pubAccount } = await db
+    .from("publishing_accounts")
+    .select("id")
+    .eq("client_id", clientId)
+    .eq("platform", "homepage")
+    .maybeSingle();
+
+  return {
+    hasHomepage: true,
+    isLive,
+    blogConnected: blogEnabled && !!pubAccount,
+    subdomain: project.subdomain,
+    deploymentUrl: project.vercel_deployment_url,
+    projectId: project.id,
+  };
+}
+
+/** 홈페이지 블로그를 발행 계정으로 등록 */
+export async function registerHomepageBlogAccount(
+  clientId: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const db = createAdminClient();
+
+    // 프로젝트 조회
+    const { data: project } = await db
+      .from("homepage_projects")
+      .select("id, subdomain, status")
+      .eq("client_id", clientId)
+      .eq("status", "live")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (!project || !project.subdomain) {
+      return { success: false, error: "라이브 상태의 홈페이지가 없습니다." };
+    }
+
+    // HomepagePublisher를 통해 등록
+    const { HomepagePublisher } = await import("@/lib/homepage/publishing");
+    const publisher = new HomepagePublisher(db);
+    await publisher.registerHomepagePlatform(
+      clientId,
+      project.id,
+      project.subdomain
+    );
+
+    revalidatePath("/blog-accounts");
+    return { success: true };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "등록 실패",
+    };
+  }
+}
+
 // ── 콘텐츠에 계정 연결 ────────────────────────────────────────────────────────
 
 export async function linkContentBlogAccount(

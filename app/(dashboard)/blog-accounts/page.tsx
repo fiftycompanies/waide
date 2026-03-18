@@ -1,5 +1,5 @@
 import { getSelectedClientId, getAiMarketBrands } from "@/lib/actions/brand-actions";
-import { getBlogAccounts } from "@/lib/actions/blog-account-actions";
+import { getBlogAccounts, getHomepageBlogStatus } from "@/lib/actions/blog-account-actions";
 import { getAccountGrades } from "@/lib/actions/recommendation-actions";
 import { BlogAccountsClient } from "@/components/blog-accounts/blog-accounts-client";
 
@@ -14,9 +14,10 @@ export default async function BlogAccountsPage() {
   const selectedBrand = brands.find((b) => b.id === selectedClientId);
   const isAllMode = !selectedClientId;
 
-  const [accounts, accountGrades] = await Promise.all([
+  const [accounts, accountGrades, homepageBlogStatus] = await Promise.all([
     getBlogAccounts(selectedClientId),
     getAccountGrades(selectedClientId),
+    getHomepageBlogStatus(selectedClientId),
   ]);
 
   return (
@@ -37,6 +38,7 @@ export default async function BlogAccountsPage() {
         accounts={accounts}
         accountGrades={accountGrades}
         clientId={selectedClientId}
+        homepageBlogStatus={homepageBlogStatus}
       />
     </div>
   );

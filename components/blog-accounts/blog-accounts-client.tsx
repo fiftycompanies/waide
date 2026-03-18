@@ -2,7 +2,7 @@
 
 import { useState, useTransition, useMemo, useEffect } from "react";
 import { toast } from "sonner";
-import { Plus, Trash2, ToggleLeft, ToggleRight, Pencil, Star, Loader2, CheckCircle2, XCircle, ExternalLink } from "lucide-react";
+import { Plus, Trash2, ToggleLeft, ToggleRight, Pencil, Star, Loader2, CheckCircle2, XCircle, ExternalLink, Globe } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -14,11 +14,12 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import type { BlogAccount } from "@/lib/actions/blog-account-actions";
+import type { BlogAccount, HomepageBlogStatus } from "@/lib/actions/blog-account-actions";
 import {
   createBlogAccount,
   updateBlogAccount,
   deleteBlogAccount,
+  registerHomepageBlogAccount,
 } from "@/lib/actions/blog-account-actions";
 import {
   testBlogConnection,
@@ -449,9 +450,10 @@ interface BlogAccountsClientProps {
   accounts: BlogAccount[];
   accountGrades?: AccountGrade[];
   clientId: string | null;
+  homepageBlogStatus?: HomepageBlogStatus;
 }
 
-export function BlogAccountsClient({ accounts, accountGrades = [], clientId }: BlogAccountsClientProps) {
+export function BlogAccountsClient({ accounts, accountGrades = [], clientId, homepageBlogStatus }: BlogAccountsClientProps) {
   const isAllMode = !clientId;
   const gradeMap = new Map(accountGrades.map((g) => [g.account_id, g]));
   const router = useRouter();
@@ -534,8 +536,73 @@ export function BlogAccountsClient({ accounts, accountGrades = [], clientId }: B
     });
   }
 
+  function handleConnectHomepageBlog() {
+    if (!clientId) return;
+    startTransition(async () => {
+      const result = await registerHomepageBlogAccount(clientId);
+      if (result.success) {
+        toast.success("홈페이지 블로그가 연결되었습니다.");
+        router.refresh();
+      } else {
+        toast.error(result.error ?? "연결 실패");
+      }
+    });
+  }
+
   return (
     <>
+      {/* 홈페이지 블로그 카드 */}
+      {homepageBlogStatus?.hasHomepage && homepageBlogStatus.isLive && !isAllMode && (
+        <div className="rounded-lg border border-violet-200 bg-gradient-to-r from-violet-50 to-indigo-50 p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-lg bg-violet-100 flex items-center justify-center">
+                <Globe className="h-5 w-5 text-violet-600" />
+              </div>
+              <div>
+                <p className="font-medium text-sm">홈페이지 블로그</p>
+                <p className="text-xs text-muted-foreground">
+                  {homepageBlogStatus.subdomain
+                    ? `${homepageBlogStatus.subdomain}.waide.kr/blog`
+                    : "홈페이지 블로그"}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              {homepageBlogStatus.blogConnected ? (
+                <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 text-xs">
+                  자동 발행 활성화됨
+                </Badge>
+              ) : (
+                <Button
+                  size="sm"
+                  onClick={handleConnectHomepageBlog}
+                  disabled={isPending}
+                  className="gap-1.5 h-8 bg-violet-600 hover:bg-violet-700"
+                >
+                  {isPending ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <ExternalLink className="h-3.5 w-3.5" />
+                  )}
+                  연결
+                </Button>
+              )}
+              {homepageBlogStatus.deploymentUrl && (
+                <a
+                  href={`${homepageBlogStatus.deploymentUrl}/blog`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-violet-600 hover:text-violet-800"
+                >
+                  <ExternalLink className="h-4 w-4" />
+                </a>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 브랜드 필터 */}
       {isAllMode && brandList.length > 1 && (
         <div className="rounded-lg border border-border/50 bg-muted/20 px-3">

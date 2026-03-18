@@ -151,6 +151,7 @@ const settingsNavItems: NavItem[] = [
 // ═══ 고객 메뉴 (어드민 경로 공유) ═══
 const clientNavItems: NavItem[] = [
   { title: "대시보드",      url: "/dashboard",      icon: Home,        roles: CLIENT_ROLES },
+  { title: "홈페이지",      url: "/homepage",       icon: Globe,       roles: CLIENT_ROLES },
   { title: "키워드 관리",   url: "/keywords",       icon: Key,         roles: CLIENT_ROLES },
   { title: "블로그 발행",   url: "/contents",       icon: FileEdit,    roles: CLIENT_ROLES },
   { title: "성과 분석",     url: "/analytics",      icon: BarChart3,   roles: CLIENT_ROLES },

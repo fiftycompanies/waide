@@ -145,14 +145,36 @@ async function isValidAdminSession(token: string): Promise<boolean> {
 }
 /* ═══════════════════════════ END DEPRECATED ══════════════════════════════ */
 
+// ── 클라이언트 역할 ─────────────────────────────────────────────────────────
+const CLIENT_ROLES = ["client_owner", "client_member"];
+
 export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
+  const method = request.method;
   const response = NextResponse.next();
 
   const isProtected = PROTECTED_ROUTES.some((r) => pathname.startsWith(r));
   const isPortal = PORTAL_ROUTES.some((r) => pathname.startsWith(r));
   const isAuth = AUTH_ROUTES.some((r) => pathname.startsWith(r));
   const isPublic = PUBLIC_ROUTES.some((r) => pathname.startsWith(r));
+
+  // ─── 0. 클라이언트의 홈페이지 mutation API 차단 ──────────────
+  if (
+    pathname.startsWith("/api/homepage") &&
+    method !== "GET" &&
+    isPublic
+  ) {
+    const supabaseUser = await getSupabaseUser(request, response);
+    if (supabaseUser) {
+      const role = await getSupabaseUserRole(supabaseUser.id);
+      if (role && CLIENT_ROLES.includes(role)) {
+        return NextResponse.json(
+          { error: "권한이 없습니다." },
+          { status: 403 }
+        );
+      }
+    }
+  }
 
   // ─── 1. 퍼블릭 라우트 → 통과 ─────────────────────────────────
   if (isPublic) {

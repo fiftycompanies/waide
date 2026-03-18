@@ -59,29 +59,44 @@ export async function executeScheduledPosts(
 }
 
 /**
- * 수동 발행
+ * 수동 발행 (실패 시 최대 3회 재시도)
  */
 export async function publishPost(
   projectId: string,
   contentId: string
 ): Promise<ActionResult<{ publicationId: string; blogUrl: string }>> {
-  try {
-    const supabase = createAdminClient();
-    const publisher = new HomepagePublisher(supabase);
-    const result = await publisher.publishToHomepage(contentId, projectId);
+  const MAX_RETRIES = 3;
+  let lastError: unknown;
 
-    revalidatePath(`/homepage/${projectId}`);
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const supabase = createAdminClient();
+      const publisher = new HomepagePublisher(supabase);
+      const result = await publisher.publishToHomepage(contentId, projectId);
 
-    return {
-      success: true,
-      data: result,
-    };
-  } catch (error) {
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : '발행에 실패했습니다.',
-    };
+      revalidatePath(`/homepage/${projectId}`);
+
+      return {
+        success: true,
+        data: result,
+      };
+    } catch (error) {
+      lastError = error;
+      console.warn(
+        `[publishing-actions] publishPost 시도 ${attempt}/${MAX_RETRIES} 실패:`,
+        error instanceof Error ? error.message : error
+      );
+      if (attempt < MAX_RETRIES) {
+        // 재시도 전 대기 (1초, 2초)
+        await new Promise((r) => setTimeout(r, attempt * 1000));
+      }
+    }
   }
+
+  return {
+    success: false,
+    error: lastError instanceof Error ? lastError.message : '발행에 실패했습니다. (3회 재시도 후)',
+  };
 }
 
 /**
