@@ -175,25 +175,25 @@ export async function runAnalysisAgentChain(
     return null;
   }
 
-  // 3. 결과를 brand_analyses에 저장 — 기존 데이터 보존 필수
+  // 3. 결과를 brand_analyses.content_strategy에 병합 저장 — 기존 데이터 보존 필수
   try {
-    // 먼저 기존 analysis_result를 SELECT
+    // 먼저 기존 content_strategy를 SELECT
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: existing } = await (db as any)
       .from("brand_analyses")
-      .select("analysis_result")
+      .select("content_strategy")
       .eq("id", params.analysisId)
       .single();
 
-    const existingResult = (existing?.analysis_result as Record<string, unknown>) || {};
+    const existingStrategy = (existing?.content_strategy as Record<string, unknown>) || {};
 
-    // 기존 데이터에 에이전트 결과만 추가 (spread로 보존)
+    // 기존 content_strategy에 에이전트 결과 병합
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (db as any)
       .from("brand_analyses")
       .update({
-        analysis_result: {
-          ...existingResult,
+        content_strategy: {
+          ...existingStrategy,
           competitor_analysis: chainResults.results?.competitor_analysis?.data || null,
           competitor_raw_data: competitors.length > 0 ? competitors : null,
           seo_comments: chainResults.results?.seo_comments?.data || null,

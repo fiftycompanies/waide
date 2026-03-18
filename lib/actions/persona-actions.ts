@@ -246,7 +246,7 @@ export async function regeneratePersona(
   // 최신 분석 결과에서 데이터 추출
   const { data: analysis } = await db
     .from("brand_analyses")
-    .select("id, basic_info, keyword_analysis, score_breakdown, marketing_score, seo_audit, keyword_rankings, analysis_result")
+    .select("id, basic_info, keyword_analysis, content_strategy, marketing_score, seo_audit, keyword_rankings")
     .eq("client_id", clientId)
     .order("created_at", { ascending: false })
     .limit(1)
@@ -299,7 +299,9 @@ export async function regeneratePersona(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const keywordAnalysis = (analysis.keyword_analysis as any) || {};
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const scoreBreakdown = (analysis.score_breakdown as any) || {};
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const contentStrategy = (analysis.content_strategy as any) || {};
+  const scoreBreakdown = contentStrategy.score_breakdown || {};
 
   try {
     const { runAgent } = await import("@/lib/agent-runner");
@@ -390,6 +392,9 @@ export interface BrandAnalysisPageData {
     score_breakdown?: Record<string, unknown>;
     keyword_analysis?: Record<string, unknown>;
     analysis_result?: Record<string, unknown>;
+    content_strategy?: Record<string, unknown>;
+    seo_audit?: Record<string, unknown>;
+    keyword_rankings?: Record<string, unknown>[];
   } | null;
   activeKeywords: string[];
 }
@@ -411,7 +416,7 @@ export async function getBrandAnalysisPageData(
   // 2. brand_analyses 테이블: 최신 완료 분석 1건
   const { data: analysisRows } = await db
     .from("brand_analyses")
-    .select("basic_info, marketing_score, score_breakdown, keyword_analysis, analysis_result")
+    .select("basic_info, marketing_score, keyword_analysis, content_strategy, seo_audit, keyword_rankings")
     .eq("client_id", clientId)
     .in("status", ["completed", "converted"])
     .order("analyzed_at", { ascending: false })
@@ -429,6 +434,9 @@ export async function getBrandAnalysisPageData(
 
   const activeKeywords = (kwRows ?? []).map((k: { keyword: string }) => k.keyword);
 
+  // content_strategy에서 score_breakdown과 improvements 추출
+  const cs = analysisRow?.content_strategy ?? {};
+
   return {
     client: {
       id: client.id,
@@ -442,9 +450,16 @@ export async function getBrandAnalysisPageData(
       ? {
           marketing_score: analysisRow.marketing_score ?? undefined,
           basic_info: analysisRow.basic_info ?? undefined,
-          score_breakdown: analysisRow.score_breakdown ?? undefined,
+          score_breakdown: cs.score_breakdown ?? undefined,
           keyword_analysis: analysisRow.keyword_analysis ?? undefined,
-          analysis_result: analysisRow.analysis_result ?? undefined,
+          analysis_result: {
+            improvement_plan: cs.improvement_plan ?? cs.improvements ?? undefined,
+            seo_comments: cs.seo_comments ?? cs.brand_analysis ?? undefined,
+            competitor_analysis: cs.competitor_analysis ?? undefined,
+          },
+          content_strategy: cs,
+          seo_audit: analysisRow.seo_audit ?? undefined,
+          keyword_rankings: analysisRow.keyword_rankings ?? undefined,
         }
       : null,
     activeKeywords,
