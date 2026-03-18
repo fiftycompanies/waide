@@ -8,13 +8,17 @@ import {
   ChevronDown,
   ChevronUp,
   Edit3,
+  ExternalLink,
   Loader2,
-
+  MessageSquare,
+  Phone,
   Plus,
   RefreshCw,
   Save,
+  Sparkles,
   Store,
   Target,
+  TrendingUp,
   X,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -29,6 +33,7 @@ import {
   type EnhancedBrandPersona,
   type BrandPersona,
 } from "@/lib/actions/persona-actions";
+import { parseDeficientItems, type DeficientItem } from "./marketing-action-constants";
 
 // ── 점수 breakdown 소비자 친화적 레이블 ───────────────────────────────────────
 
@@ -51,7 +56,8 @@ interface Props {
 
 export default function BrandAnalysisClient({ data }: Props) {
   const router = useRouter();
-  const { client, persona: initialPersona, analysis, activeKeywords: initialActiveKeywords } = data;
+  const { client, persona: initialPersona, analysis, activeKeywords: initialActiveKeywords, analysisId, userRole, userName, userPhone, userEmail } = data;
+  const isClientUser = userRole === "client_owner" || userRole === "client_member";
 
   // ── State ──
   const [persona, setPersona] = useState<EnhancedBrandPersona | null>(initialPersona);
@@ -74,6 +80,11 @@ export default function BrandAnalysisClient({ data }: Props) {
 
   // Keyword activation
   const [togglingKeywords, setTogglingKeywords] = useState<Set<string>>(new Set());
+
+  // 상담 모달
+  const [consultModalOpen, setConsultModalOpen] = useState(false);
+  const [consultItems, setConsultItems] = useState<string[]>([]);
+  const [selectedProItems, setSelectedProItems] = useState<Set<string>>(new Set());
 
   // Section collapse
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
@@ -261,6 +272,11 @@ export default function BrandAnalysisClient({ data }: Props) {
   const scorePct = marketingScore != null ? Math.round((marketingScore / TOTAL_MAX) * 100) : 0;
   const scoreColor = scorePct >= 70 ? "text-emerald-600" : scorePct >= 40 ? "text-amber-600" : "text-red-500";
 
+  // 부족 항목 파싱 (원본 sbRaw 사용 — 번역 전 영문 키 기반)
+  const deficientItems = parseDeficientItems(sbRaw);
+  const proItems = deficientItems.filter((d) => d.category === "pro");
+  const selfItems = deficientItems.filter((d) => d.category === "self");
+
   // improvement_plan extraction
   const improvementPlan = ar.improvement_plan;
   const hasImprovements = improvementPlan &&
@@ -406,20 +422,165 @@ export default function BrandAnalysisClient({ data }: Props) {
         </div>
       )}
 
-      {/* ═══ 섹션 C: 개선 포인트 (조건부) ═══ */}
-      {hasImprovements && (
-        <div className="border rounded-lg p-4 space-y-3">
+      {/* ═══ 섹션 C: 마케팅 개선 추천 ═══ */}
+      {(deficientItems.length > 0 || hasImprovements) && (
+        <div className="border rounded-lg p-4 space-y-4">
           <SectionHeader
             id="improvements"
-            title="개선 포인트"
-            icon={<AlertTriangle className="h-4 w-4 text-amber-500" />}
+            title="마케팅 개선 추천"
+            icon={<Sparkles className="h-4 w-4 text-amber-500" />}
           />
           {!collapsedSections.has("improvements") && (
-            <div className="space-y-3 pt-2">
-              {renderImprovements(improvementPlan)}
+            <div className="space-y-5 pt-2">
+              {/* 전문 마케팅 추천 (pro) */}
+              {proItems.length > 0 && (
+                <div className="space-y-3">
+                  <h4 className="text-sm font-semibold flex items-center gap-1.5">
+                    <TrendingUp className="h-4 w-4 text-primary" />
+                    전문 마케팅 추천
+                  </h4>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {proItems.map((item) => (
+                      <div
+                        key={item.item}
+                        className="border rounded-lg p-3 hover:border-primary/30 transition-colors"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            {isClientUser && (
+                              <label className="flex items-center gap-2 cursor-pointer mb-1">
+                                <input
+                                  type="checkbox"
+                                  checked={selectedProItems.has(item.item)}
+                                  onChange={() => {
+                                    setSelectedProItems((prev) => {
+                                      const next = new Set(prev);
+                                      if (next.has(item.item)) next.delete(item.item);
+                                      else next.add(item.item);
+                                      return next;
+                                    });
+                                  }}
+                                  className="h-3.5 w-3.5 rounded border-gray-300 text-primary focus:ring-primary"
+                                />
+                                <span className="text-sm font-medium">{item.label}</span>
+                              </label>
+                            )}
+                            {!isClientUser && (
+                              <span className="text-sm font-medium">{item.label}</span>
+                            )}
+                            <p className="text-xs text-muted-foreground mt-0.5">{item.description}</p>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className="px-1.5 py-0.5 rounded bg-primary/10 text-primary text-xs font-medium whitespace-nowrap">
+                              +{item.potentialScore}점
+                            </span>
+                            {isClientUser && (
+                              <button
+                                onClick={() => {
+                                  setConsultItems([item.label]);
+                                  setConsultModalOpen(true);
+                                }}
+                                className="px-2 py-1 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors whitespace-nowrap"
+                              >
+                                상담 신청
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  {/* 일괄 상담 신청 */}
+                  {isClientUser && selectedProItems.size > 0 && (
+                    <div className="flex justify-end">
+                      <button
+                        onClick={() => {
+                          const labels = proItems
+                            .filter((p) => selectedProItems.has(p.item))
+                            .map((p) => p.label);
+                          setConsultItems(labels);
+                          setConsultModalOpen(true);
+                        }}
+                        className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
+                      >
+                        <MessageSquare className="h-4 w-4" />
+                        선택 항목 일괄 상담 ({selectedProItems.size}건)
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {proItems.length === 0 && deficientItems.length === 0 && (
+                <div className="text-center py-4">
+                  <CheckCircle2 className="h-8 w-8 text-emerald-500 mx-auto mb-2" />
+                  <p className="text-sm text-muted-foreground">모든 항목이 양호합니다</p>
+                </div>
+              )}
+
+              {/* 직접 해결 가이드 (self) */}
+              {selfItems.length > 0 && (
+                <div className="space-y-2">
+                  <h4 className="text-sm font-semibold flex items-center gap-1.5">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                    직접 해결 가이드
+                  </h4>
+                  <div className="space-y-1.5">
+                    {selfItems.map((item) => (
+                      <div
+                        key={item.item}
+                        className="flex items-center gap-3 p-2.5 rounded-lg bg-muted/30 border"
+                      >
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium">{item.label}</span>
+                            <span className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 text-xs font-medium">
+                              +{item.potentialScore}점
+                            </span>
+                          </div>
+                          {item.selfGuide && (
+                            <p className="text-xs text-muted-foreground mt-0.5">{item.selfGuide}</p>
+                          )}
+                        </div>
+                        <ExternalLink className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* 구분선 + AI 전략 제안 */}
+              {hasImprovements && (
+                <>
+                  {deficientItems.length > 0 && <hr className="border-dashed" />}
+                  <div className="space-y-3">
+                    <h4 className="text-sm font-semibold flex items-center gap-1.5">
+                      <AlertTriangle className="h-4 w-4 text-amber-500" />
+                      AI 전략 제안
+                    </h4>
+                    {renderImprovements(improvementPlan)}
+                  </div>
+                </>
+              )}
             </div>
           )}
         </div>
+      )}
+
+      {/* 상담 모달 */}
+      {consultModalOpen && analysisId && (
+        <DashboardConsultModal
+          analysisId={analysisId}
+          items={consultItems}
+          userName={userName}
+          userPhone={userPhone}
+          userEmail={userEmail}
+          onClose={() => {
+            setConsultModalOpen(false);
+            setConsultItems([]);
+            setSelectedProItems(new Set());
+          }}
+        />
       )}
 
       {/* ═══ 섹션 D: 키워드 분석 ═══ */}
@@ -931,6 +1092,156 @@ function AiInferredCard({ title, confirmed, onSave, isSaving, fields, listFields
           )}
         </div>
       ))}
+    </div>
+  );
+}
+
+// ── Dashboard Consult Modal ──
+
+function DashboardConsultModal({
+  analysisId,
+  items,
+  userName,
+  userPhone,
+  userEmail,
+  onClose,
+}: {
+  analysisId: string;
+  items: string[];
+  userName: string;
+  userPhone: string;
+  userEmail: string;
+  onClose: () => void;
+}) {
+  const [name, setName] = useState(userName);
+  const [phone, setPhone] = useState(userPhone);
+  const [email, setEmail] = useState(userEmail);
+  const [extraMessage, setExtraMessage] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async () => {
+    if (!name.trim() || !phone.trim()) {
+      toast.error("이름과 전화번호는 필수입니다.");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const itemsText = items.length > 0 ? `[관심 항목] ${items.join(", ")}` : "";
+      const message = [itemsText, extraMessage].filter(Boolean).join("\n");
+
+      const res = await fetch("/api/consultation", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          analysisId,
+          contactName: name.trim(),
+          contactPhone: phone.trim(),
+          contactEmail: email.trim() || undefined,
+          message: message || undefined,
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "상담 신청 실패");
+      }
+
+      toast.success("상담 신청이 접수되었습니다. 담당자가 곧 연락드립니다.");
+      onClose();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "상담 신청 중 오류가 발생했습니다.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="bg-background rounded-xl shadow-xl w-full max-w-md mx-4 p-6 space-y-4 animate-in fade-in zoom-in-95 duration-200">
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-bold flex items-center gap-2">
+            <Phone className="h-5 w-5 text-primary" />
+            상담 신청
+          </h3>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        {items.length > 0 && (
+          <div className="bg-muted/50 rounded-lg p-3">
+            <p className="text-xs text-muted-foreground mb-1.5">관심 항목</p>
+            <div className="flex flex-wrap gap-1.5">
+              {items.map((item, i) => (
+                <span key={i} className="px-2 py-0.5 rounded-full bg-primary/10 text-primary text-xs font-medium">
+                  {item}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="space-y-3">
+          <div>
+            <label className="text-xs text-muted-foreground">이름 *</label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="w-full mt-1 px-3 py-2 border rounded-lg text-sm bg-background"
+              placeholder="홍길동"
+            />
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground">전화번호 *</label>
+            <input
+              type="tel"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              className="w-full mt-1 px-3 py-2 border rounded-lg text-sm bg-background"
+              placeholder="010-0000-0000"
+            />
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground">이메일 (선택)</label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full mt-1 px-3 py-2 border rounded-lg text-sm bg-background"
+              placeholder="example@email.com"
+            />
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground">추가 메시지 (선택)</label>
+            <textarea
+              value={extraMessage}
+              onChange={(e) => setExtraMessage(e.target.value)}
+              className="w-full mt-1 px-3 py-2 border rounded-lg text-sm bg-background resize-none"
+              rows={3}
+              placeholder="궁금한 점이나 요청 사항을 입력하세요"
+            />
+          </div>
+        </div>
+
+        <div className="flex gap-2 pt-2">
+          <button
+            onClick={onClose}
+            className="flex-1 px-4 py-2.5 rounded-lg border text-sm font-medium hover:bg-muted transition-colors"
+          >
+            취소
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={submitting || !name.trim() || !phone.trim()}
+            className="flex-1 px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+          >
+            {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageSquare className="h-4 w-4" />}
+            {submitting ? "접수 중..." : "상담 신청"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

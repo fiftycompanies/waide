@@ -49,6 +49,13 @@ export default async function BrandAnalysisPage() {
 
   const data = await getBrandAnalysisPageData(clientId);
 
+  if (data) {
+    data.userRole = currentUser.role;
+    data.userName = currentUser.name || currentUser.email || "";
+    data.userPhone = currentUser.phone || "";
+    data.userEmail = currentUser.email || "";
+  }
+
   if (!data) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center">

@@ -402,6 +402,12 @@ export interface BrandAnalysisPageData {
     keyword_rankings?: Record<string, unknown>[];
   } | null;
   activeKeywords: string[];
+  // 상담 신청 + CTA 표시용
+  analysisId: string | null;
+  userRole: string;
+  userName: string;
+  userPhone: string;
+  userEmail: string;
 }
 
 export async function getBrandAnalysisPageData(
@@ -421,7 +427,7 @@ export async function getBrandAnalysisPageData(
   // 2. brand_analyses 테이블: 최신 완료 분석 1건
   const { data: analysisRows } = await db
     .from("brand_analyses")
-    .select("basic_info, marketing_score, keyword_analysis, content_strategy, seo_audit, keyword_rankings")
+    .select("id, basic_info, marketing_score, keyword_analysis, content_strategy, seo_audit, keyword_rankings")
     .eq("client_id", clientId)
     .in("status", ["completed", "converted"])
     .order("analyzed_at", { ascending: false })
@@ -468,6 +474,12 @@ export async function getBrandAnalysisPageData(
         }
       : null,
     activeKeywords,
+    analysisId: analysisRow?.id ?? null,
+    // user 정보는 page.tsx에서 주입
+    userRole: "",
+    userName: "",
+    userPhone: "",
+    userEmail: "",
   };
 }
 
