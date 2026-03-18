@@ -210,10 +210,10 @@ export default function ClientsPage() {
   const counts = data?.counts || { all: 0, active: 0, onboarding: 0, atRisk: 0, churned: 0 };
 
   return (
-    <div className="space-y-6">
+    <div className="p-6 space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold">고객 포트폴리오</h1>
+        <h1 className="text-2xl font-bold tracking-tight">고객 포트폴리오</h1>
         <p className="text-sm text-muted-foreground mt-1">
           전체 고객 현황과 건강 상태를 한눈에 확인합니다
         </p>

@@ -43,9 +43,9 @@ export default function RevenuePage() {
   const maxPlanMrr = Math.max(...planDistribution.map((p) => p.mrr), 1);
 
   return (
-    <div className="space-y-6">
+    <div className="p-6 space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">매출 현황</h1>
+        <h1 className="text-2xl font-bold tracking-tight">매출 현황</h1>
         <p className="text-sm text-muted-foreground mt-1">
           MRR, ARR 및 플랜별 매출 분포를 확인합니다
         </p>

@@ -34,7 +34,7 @@ export default function ContentDetailPage({
   params: Promise<{ id: string }>;
 }) {
   return (
-    <div className="p-6">
+    <div className="p-6 space-y-6">
       <Suspense
         fallback={
           <div className="space-y-4">

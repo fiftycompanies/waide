@@ -51,10 +51,10 @@ export default function HomepageTemplatesPage() {
   const [selected, setSelected] = useState<string | null>(null);
 
   return (
-    <div className="space-y-6">
+    <div className="p-6 space-y-6">
       <div>
-        <h2 className="text-lg font-semibold text-gray-900">템플릿 관리</h2>
-        <p className="mt-1 text-sm text-gray-500">
+        <h1 className="text-2xl font-bold tracking-tight">템플릿 관리</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
           홈페이지 프로젝트에 적용 가능한 템플릿 3종입니다. 프로젝트 생성 시 선택하거나, 프로젝트 상세에서 변경할 수 있습니다.
         </p>
       </div>

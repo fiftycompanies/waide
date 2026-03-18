@@ -420,7 +420,7 @@ export default function HomepageDetailPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="p-6 space-y-6">
       {/* Header */}
       <div className="flex items-center gap-3">
         <Link href="/homepage" className="p-2 rounded-lg hover:bg-muted transition-colors">
@@ -428,7 +428,7 @@ export default function HomepageDetailPage() {
         </Link>
         <div className="flex-1">
           <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold">{project.project_name}</h1>
+            <h1 className="text-2xl font-bold tracking-tight">{project.project_name}</h1>
             {(() => {
               const s = STATUS_CONFIG[project.status];
               return s ? (

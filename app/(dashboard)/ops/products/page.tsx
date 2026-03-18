@@ -318,11 +318,11 @@ export default function ProductsPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="p-6 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">상품 관리</h1>
+          <h1 className="text-2xl font-bold tracking-tight">상품 관리</h1>
           <p className="text-sm text-muted-foreground mt-1">
             서비스 패키지를 등록하고 관리합니다
           </p>

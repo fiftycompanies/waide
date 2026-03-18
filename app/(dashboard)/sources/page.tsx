@@ -9,7 +9,7 @@ export default async function SourcesPage() {
   const sources = await getContentSources(clientId);
 
   return (
-    <div className="p-6 max-w-5xl mx-auto">
+    <div className="p-6 space-y-6 max-w-5xl">
       <SourcesClient sources={sources} clientId={clientId} />
     </div>
   );

@@ -13,7 +13,6 @@ import {
   ToggleLeft,
   ToggleRight,
   User,
-  UserCog,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -160,10 +159,7 @@ export default function AccountDetailPage() {
           <ArrowLeft className="h-4 w-4" />
         </button>
         <div className="flex-1">
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <UserCog className="h-6 w-6" />
-            계정 상세
-          </h1>
+          <h1 className="text-2xl font-bold tracking-tight">계정 상세</h1>
           <p className="text-sm text-muted-foreground mt-0.5">{user.email}</p>
         </div>
         <span

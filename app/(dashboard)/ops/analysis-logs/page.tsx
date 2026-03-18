@@ -203,7 +203,7 @@ export default function AnalysisLogsPage() {
   const pageCount = Math.ceil(total / 20);
 
   return (
-    <div className="space-y-6">
+    <div className="p-6 space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">분석 로그</h1>
         <p className="text-sm text-muted-foreground mt-1">브랜드 분석 이력 및 영업 파이프라인 관리</p>

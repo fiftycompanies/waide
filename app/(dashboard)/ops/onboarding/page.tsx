@@ -80,9 +80,9 @@ export default function OnboardingPage() {
   const pendingCount = clients.filter((c) => !c.checklist.some((i) => i.done)).length;
 
   return (
-    <div className="space-y-6">
+    <div className="p-6 space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">온보딩 현황</h1>
+        <h1 className="text-2xl font-bold tracking-tight">온보딩 현황</h1>
         <p className="text-sm text-muted-foreground mt-1">
           신규 고객의 온보딩 진행 상태를 관리합니다
         </p>

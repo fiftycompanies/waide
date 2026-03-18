@@ -1550,7 +1550,7 @@ export default function ClientDetailPage() {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="p-6 space-y-6">
       {/* Header */}
       <Breadcrumb items={[
         { label: "고객 포트폴리오", href: "/clients" },
@@ -1558,7 +1558,7 @@ export default function ClientDetailPage() {
       ]} />
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">{client.brand_name}</h1>
+          <h1 className="text-2xl font-bold tracking-tight">{client.brand_name}</h1>
           <div className="flex items-center gap-3 mt-1">
             {client.subscription && (
               <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${

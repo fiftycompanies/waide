@@ -192,11 +192,11 @@ export default function HomepagePage() {
   });
 
   return (
-    <div className="space-y-6">
+    <div className="p-6 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">홈페이지 프로젝트</h1>
+          <h1 className="text-2xl font-bold tracking-tight">홈페이지 프로젝트</h1>
           <p className="text-sm text-muted-foreground mt-1">
             인테리어 업체 홈페이지를 생성하고 관리합니다
           </p>

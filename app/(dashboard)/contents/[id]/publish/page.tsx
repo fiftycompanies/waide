@@ -27,7 +27,7 @@ async function PublishContent({ id }: { id: string }) {
         ]}
       />
       <div>
-        <h1 className="text-xl font-bold">콘텐츠 발행</h1>
+        <h1 className="text-2xl font-bold tracking-tight">콘텐츠 발행</h1>
         <p className="text-sm text-muted-foreground mt-1">
           {content.title}
         </p>
@@ -43,7 +43,7 @@ export default function PublishPage({
   params: Promise<{ id: string }>;
 }) {
   return (
-    <div className="p-6">
+    <div className="p-6 space-y-6">
       <Suspense
         fallback={
           <div className="space-y-4">

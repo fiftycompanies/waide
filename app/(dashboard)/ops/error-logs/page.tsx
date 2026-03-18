@@ -131,7 +131,7 @@ export default function ErrorLogsPage() {
   };
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="p-6 space-y-6">
       {/* 헤더 */}
       <div className="flex items-center justify-between">
         <div>

@@ -219,11 +219,11 @@ export default function SalesAgentsPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="p-6 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">영업사원 관리</h1>
+          <h1 className="text-2xl font-bold tracking-tight">영업사원 관리</h1>
           <p className="text-sm text-muted-foreground mt-1">
             영업사원별 추적 링크 생성 및 성과 모니터링
           </p>

@@ -65,7 +65,7 @@ export default function NewHomepageProjectPage() {
   };
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
+    <div className="p-6 space-y-6 max-w-2xl mx-auto">
       {/* Header */}
       <div className="flex items-center gap-3">
         <Link
@@ -75,7 +75,7 @@ export default function NewHomepageProjectPage() {
           <ArrowLeft className="h-4 w-4" />
         </Link>
         <div>
-          <h1 className="text-2xl font-bold">새 홈페이지 프로젝트</h1>
+          <h1 className="text-2xl font-bold tracking-tight">새 홈페이지 프로젝트</h1>
           <p className="text-sm text-muted-foreground mt-1">
             인테리어 업체의 홈페이지를 생성합니다
           </p>

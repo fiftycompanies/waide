@@ -10,7 +10,6 @@ import {
   ShieldCheck,
   ToggleLeft,
   ToggleRight,
-  UserCog,
   Users,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -112,10 +111,7 @@ export default function AccountsManagementPage() {
     <div className="p-6 space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold flex items-center gap-2">
-          <UserCog className="h-6 w-6" />
-          계정 관리
-        </h1>
+        <h1 className="text-2xl font-bold tracking-tight">계정 관리</h1>
         <p className="text-sm text-muted-foreground mt-1">
           포털 가입 계정을 관리합니다. 비밀번호 초기화, 계정 비활성화 등의 작업을 할 수 있습니다.
         </p>

@@ -42,9 +42,9 @@ export default function ChurnPage() {
   const mediumRisk = atRiskClients.filter((c) => c.severity === "medium");
 
   return (
-    <div className="space-y-6">
+    <div className="p-6 space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">이탈 관리</h1>
+        <h1 className="text-2xl font-bold tracking-tight">이탈 관리</h1>
         <p className="text-sm text-muted-foreground mt-1">
           At Risk 고객을 조기 식별하고 이탈을 방지합니다
         </p>

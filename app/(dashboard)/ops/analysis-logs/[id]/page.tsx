@@ -516,14 +516,14 @@ export default function AnalysisLogDetailPage() {
   const activityCount = detail.notes.length + detail.consultations.length;
 
   return (
-    <div className="space-y-6">
+    <div className="p-6 space-y-6">
       {/* Back + Title */}
       <Breadcrumb items={[
         { label: "분석 로그", href: "/ops/analysis-logs" },
         { label: detail.place_name },
       ]} />
       <div className="flex items-center gap-3">
-        <h1 className="text-2xl font-bold">{detail.place_name}</h1>
+        <h1 className="text-2xl font-bold tracking-tight">{detail.place_name}</h1>
         <span className="text-sm text-muted-foreground">{detail.category}</span>
       </div>
 

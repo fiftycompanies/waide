@@ -87,10 +87,10 @@ export default function AllInquiriesPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="p-6 space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold">상담 신청 관리</h1>
+        <h1 className="text-2xl font-bold tracking-tight">상담 신청 관리</h1>
         <p className="text-sm text-muted-foreground mt-1">
           전체 홈페이지에서 접수된 상담 신청을 관리합니다
         </p>
