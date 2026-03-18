@@ -106,21 +106,21 @@ test.describe("랜딩 페이지", () => {
     }
   });
 
-  test("TC-PUB-006: CTA buttons visible (phone, kakao, consultation)", async ({ page }) => {
+  test("TC-PUB-006: CTA buttons visible on landing page", async ({ page }) => {
     await page.goto("/");
     await page.waitForTimeout(2000);
 
-    // 랜딩 페이지의 하단 CTA 영역 또는 네비게이션에서 상담 관련 링크/버튼 확인
-    // 페이지가 충분히 스크롤되어야 보이는 경우도 있으므로 페이지 전체 확인
+    // 랜딩 페이지의 주요 CTA 확인
+    // 1. Hero 섹션: "무료 플레이스 점검 받기" 버튼
+    const heroBtn = page.getByRole("button", { name: /무료.*점검|분석/i }).first();
+    await expect(heroBtn).toBeVisible({ timeout: 5000 });
+
+    // 2. 하단 CTA 섹션: 두 번째 URL 입력 폼 존재
     const pageContent = await page.content();
+    const hasBottomCTA =
+      pageContent.includes("마케팅 점수를 확인해 보세요") ||
+      pageContent.includes("내 매장도 분석해보기");
 
-    // 전화, 카카오톡, 상담 관련 텍스트가 페이지에 존재하는지 확인
-    // 랜딩 페이지에 직접 CTA가 없을 수 있으므로 기본 요소 확인
-    const hasPhoneLink = pageContent.includes("tel:") || pageContent.includes("전화");
-    const hasKakaoLink = pageContent.includes("카카오") || pageContent.includes("kakao");
-    const hasConsultation = pageContent.includes("상담") || pageContent.includes("문의");
-
-    // 최소 하나 이상의 CTA가 존재해야 함
-    expect(hasPhoneLink || hasKakaoLink || hasConsultation).toBeTruthy();
+    expect(hasBottomCTA).toBeTruthy();
   });
 });

@@ -123,6 +123,17 @@ test.describe("분석 로딩 페이지", () => {
   });
 
   test("TC-LOAD-004: 120 second timeout shows error message", async ({ page }) => {
+    // setTimeout 오버라이드를 페이지 로드 전에 주입 (120초 → 2초 단축)
+    await page.addInitScript(() => {
+      const origSetTimeout = window.setTimeout;
+      window.setTimeout = function (fn: TimerHandler, delay?: number, ...args: unknown[]) {
+        if (delay && delay >= 100000) {
+          return origSetTimeout(fn as (...args: unknown[]) => void, 2000, ...args);
+        }
+        return origSetTimeout(fn as (...args: unknown[]) => void, delay, ...args);
+      } as typeof setTimeout;
+    });
+
     // POST /api/analyze 모킹
     await page.route("**/api/analyze", (route) => {
       if (route.request().method() === "POST") {
@@ -146,20 +157,6 @@ test.describe("분석 로딩 페이지", () => {
     });
 
     await page.goto(LOADING_URL);
-
-    // 타임아웃 에러 메시지 표시 대기 (페이지 내부에서 120초 setTimeout)
-    // 테스트 속도를 위해 페이지의 setTimeout을 오버라이드
-    await page.evaluate(() => {
-      // 기존 setTimeout을 빠르게 트리거
-      const origSetTimeout = window.setTimeout;
-      window.setTimeout = function (fn: TimerHandler, delay?: number, ...args: unknown[]) {
-        // 120초(120000ms) 타임아웃을 2초로 단축
-        if (delay && delay >= 100000) {
-          return origSetTimeout(fn as (...args: unknown[]) => void, 2000, ...args);
-        }
-        return origSetTimeout(fn as (...args: unknown[]) => void, delay, ...args);
-      } as typeof setTimeout;
-    });
 
     // 에러 메시지 표시 확인 (시간이 초과되었어요 등)
     const errorMessage = page.locator("text=/시간.*초과|타임아웃|timeout|분석 실패/i");
