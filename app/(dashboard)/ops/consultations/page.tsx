@@ -147,6 +147,7 @@ export default function ConsultationsPage() {
   const [agents, setAgents] = useState<Array<{ ref_code: string; name: string }>>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   // Filters
   const [statusFilter, setStatusFilter] = useState("");
@@ -157,24 +158,31 @@ export default function ConsultationsPage() {
 
   const fetchData = useCallback(async () => {
     setLoading(true);
-    const filters: ConsultationFilters = { page, pageSize: 20 };
-    if (statusFilter) filters.status = statusFilter;
-    if (agentFilter) filters.assignedTo = agentFilter;
-    if (search) filters.search = search;
-    if (period === "7d") filters.dateFrom = new Date(Date.now() - 7 * 86400000).toISOString().split("T")[0];
-    if (period === "30d") filters.dateFrom = new Date(Date.now() - 30 * 86400000).toISOString().split("T")[0];
+    setError(null);
+    try {
+      const filters: ConsultationFilters = { page, pageSize: 20 };
+      if (statusFilter) filters.status = statusFilter;
+      if (agentFilter) filters.assignedTo = agentFilter;
+      if (search) filters.search = search;
+      if (period === "7d") filters.dateFrom = new Date(Date.now() - 7 * 86400000).toISOString().split("T")[0];
+      if (period === "30d") filters.dateFrom = new Date(Date.now() - 30 * 86400000).toISOString().split("T")[0];
 
-    const [listResult, statsResult, agentsList] = await Promise.all([
-      getConsultationList(filters),
-      getConsultationStats(),
-      getConsultationAgentsList(),
-    ]);
+      const [listResult, statsResult, agentsList] = await Promise.all([
+        getConsultationList(filters),
+        getConsultationStats(),
+        getConsultationAgentsList(),
+      ]);
 
-    setItems(listResult.data);
-    setTotal(listResult.total);
-    setStats(statsResult);
-    setAgents(agentsList);
-    setLoading(false);
+      setItems(listResult.data);
+      setTotal(listResult.total);
+      setStats(statsResult);
+      setAgents(agentsList);
+    } catch (err) {
+      console.error("fetchData error:", err);
+      setError("데이터를 불러오는 중 오류가 발생했습니다.");
+    } finally {
+      setLoading(false);
+    }
   }, [page, statusFilter, agentFilter, search, period]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
@@ -292,6 +300,11 @@ export default function ConsultationsPage() {
             <tbody>
               {loading ? (
                 <tr><td colSpan={8} className="py-12 text-center text-muted-foreground">로딩 중...</td></tr>
+              ) : error ? (
+                <tr><td colSpan={8} className="py-12 text-center">
+                  <p className="text-red-500 mb-2">{error}</p>
+                  <button onClick={fetchData} className="text-sm text-blue-600 hover:underline">다시 시도</button>
+                </td></tr>
               ) : items.length === 0 ? (
                 <tr><td colSpan={8} className="py-12 text-center text-muted-foreground">상담 신청이 없습니다</td></tr>
               ) : (
