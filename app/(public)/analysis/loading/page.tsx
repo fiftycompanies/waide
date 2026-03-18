@@ -111,7 +111,7 @@ function LoadingContent() {
 
   if (!url && !existingId) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
+      <div className="flex items-center justify-center flex-1">
         <p className="text-[#666666]">URL이 필요합니다.</p>
       </div>
     );
@@ -142,7 +142,7 @@ function LoadingContent() {
     };
 
     return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center px-6">
+      <div className="flex flex-col items-center justify-center flex-1 text-center px-6">
         <div className="w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center mb-6">
           <span className="text-3xl">!</span>
         </div>
@@ -169,7 +169,7 @@ function LoadingContent() {
   const StepIcon = STEPS[currentStep]?.icon ?? Sparkles;
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-[60vh] px-6 relative overflow-hidden">
+    <div className="flex flex-col items-center justify-center flex-1 px-6 relative overflow-hidden">
       {/* Subtle grid background */}
       <div className="absolute inset-0 waide-grid-bg opacity-30 pointer-events-none" />
 
@@ -233,7 +233,7 @@ export default function AnalysisLoadingPage() {
   return (
     <Suspense
       fallback={
-        <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="flex items-center justify-center flex-1">
           <div className="h-8 w-8 border-2 border-[#10b981]/30 border-t-[#10b981] rounded-full animate-spin" />
         </div>
       }

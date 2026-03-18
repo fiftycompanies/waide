@@ -7,7 +7,7 @@ export default function PublicLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="waide-dark min-h-screen">
+    <div className="waide-dark min-h-screen flex flex-col">
       {/* Navigation */}
       <header className="fixed top-0 left-0 right-0 z-50 border-b border-[#2a2a2a]/60 bg-[#0a0a0a]/80 backdrop-blur-xl">
         <div className="mx-auto max-w-7xl px-6 py-3.5">
@@ -26,7 +26,7 @@ export default function PublicLayout({
       </header>
 
       {/* Content */}
-      <main className="pt-[57px]">{children}</main>
+      <main className="pt-[57px] flex-1 flex flex-col">{children}</main>
 
       {/* Footer */}
       <footer className="border-t border-[#2a2a2a] py-8">

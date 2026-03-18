@@ -113,8 +113,11 @@ async function getSupabaseUser(request: NextRequest, response: NextResponse) {
   }
 }
 
-// ── role 기반 리다이렉트 대상 결정 (모든 역할 → /dashboard) ──────────────
-function getRedirectByRole(_role: string | null): string {
+// ── role 기반 리다이렉트 대상 결정 ──────────────────────────────────────
+function getRedirectByRole(role: string | null): string {
+  if (role === "client_owner" || role === "client_member") {
+    return "/portal";
+  }
   return "/dashboard";
 }
 
@@ -164,17 +167,29 @@ export async function middleware(request: NextRequest) {
     return response;
   }
 
-  // ─── 2. 포털 라우트 → /dashboard (또는 동등 경로)로 리다이렉트 ──
-  //     포털 완전 제거 — 모든 /portal/* 경로를 어드민 경로로 전환
+  // ─── 2. 포털 라우트 → 인증 필요 (client_owner/client_member 전용) ──
   if (isPortal) {
-    const url = request.nextUrl.clone();
-    if (pathname === "/portal" || pathname === "/portal/") {
-      url.pathname = "/dashboard";
-    } else {
-      // /portal/keywords → /keywords, /portal/contents → /contents 등
-      url.pathname = pathname.replace(/^\/portal/, "");
+    const supabaseUser = await getSupabaseUser(request, response);
+    if (supabaseUser) {
+      const role = await getSupabaseUserRole(supabaseUser.id);
+      // 어드민 역할 → /dashboard로 리다이렉트
+      if (role && ADMIN_ALLOWED_ROLES.includes(role)) {
+        const url = request.nextUrl.clone();
+        if (pathname === "/portal" || pathname === "/portal/") {
+          url.pathname = "/dashboard";
+        } else {
+          url.pathname = pathname.replace(/^\/portal/, "");
+        }
+        return NextResponse.redirect(url);
+      }
+      // client 역할 또는 기타 → 포털 통과
+      return response;
     }
-    return NextResponse.redirect(url);
+    // 미인증 → /login
+    const loginUrl = request.nextUrl.clone();
+    loginUrl.pathname = "/login";
+    loginUrl.searchParams.set("redirect", pathname);
+    return NextResponse.redirect(loginUrl);
   }
 
   // ─── 3. 보호 라우트 (어드민 + 고객 공용) ─────────────────────
@@ -183,10 +198,24 @@ export async function middleware(request: NextRequest) {
     const supabaseUser = await getSupabaseUser(request, response);
     if (supabaseUser) {
       const role = await getSupabaseUserRole(supabaseUser.id);
-      // 유효 어드민 역할만 통과 (client_owner/client_member는 /login으로)
+
+      // /onboarding 라우트: 모든 인증된 사용자 허용 (회원가입 직후 client_owner 포함)
+      if (pathname.startsWith("/onboarding")) {
+        return response;
+      }
+
+      // 유효 어드민 역할만 통과
       if (role && ADMIN_ALLOWED_ROLES.includes(role)) {
         return response;
       }
+
+      // client_owner/client_member → /portal 리다이렉트
+      if (role && (role === "client_owner" || role === "client_member")) {
+        const portalUrl = request.nextUrl.clone();
+        portalUrl.pathname = "/portal";
+        return NextResponse.redirect(portalUrl);
+      }
+
       // role 없음 또는 유효하지 않음 → fail-closed (/login)
       const loginUrl = request.nextUrl.clone();
       loginUrl.pathname = "/login";
