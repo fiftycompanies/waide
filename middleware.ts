@@ -29,6 +29,7 @@ const ADMIN_PROTECTED_ROUTES = [
   "/clients",
   "/accounts",
   "/brand-analysis",
+  "/homepage",
 ];
 
 // ── 포털 보호 라우트 ────────────────────────────────────────────────────
@@ -43,6 +44,8 @@ const PUBLIC_ROUTES = [
   "/api/analyze",
   "/api/consultation",
   "/api/cron",
+  "/api/internal",
+  "/api/homepage",
   "/invite",
   "/auth",
   "/api/auth",
@@ -181,8 +184,8 @@ export async function middleware(request: NextRequest) {
     const supabaseUser = await getSupabaseUser(request, response);
     if (supabaseUser) {
       const role = await getSupabaseUserRole(supabaseUser.id);
-      // 유효 역할 → 통과 (어드민 + 고객 모두)
-      if (role && ALL_VALID_ROLES.includes(role)) {
+      // 유효 어드민 역할만 통과 (client_owner/client_member는 /login으로)
+      if (role && ADMIN_ALLOWED_ROLES.includes(role)) {
         return response;
       }
       // role 없음 또는 유효하지 않음 → fail-closed (/login)
