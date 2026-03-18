@@ -582,7 +582,7 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
   - Server Actions: dashboard-actions.ts, client-portfolio-actions.ts, revenue-actions.ts
   - At Risk 자동감지: 점수하락≥15, 포털 미접속≥30일, 계약만료≤30일, 키워드하락≥50%
 - Vercel 프로덕션 배포 + 인증 버그픽스 (2026-02-27)
-  - Vercel 배포 URL: https://web-five-gold-12.vercel.app
+  - Vercel 배포 URL: https://waide.vercel.app
   - clients.brand_name → name 별칭 (PostgREST `brand_name:name`) 17개 파일 수정
   - 통합 로그인: 탭 제거, 단일 폼 (아이디=어드민, 이메일=고객 자동 구분)
   - 어드민↔포털 리디렉트 루프 방지 (middleware 크로스 인증 차단)
@@ -1018,7 +1018,7 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 - Workspace: 2d716b35-407e-45bf-8941-60bce627d249
 - 캠핏 client_id: d9af5297-de7c-4353-96ea-78ba0bb59f0c
 - 어드민: admin / admin1234
-- **Vercel 배포 URL**: https://web-five-gold-12.vercel.app (프로덕션)
+- **Vercel 배포 URL**: https://waide.vercel.app (프로덕션)
 - **Vercel 프로젝트**: fiftycompanies-projects/web, 리전: icn1 (서울)
 - agents/.env: NSERP_EC2_URL, NSERP_EC2_SECRET, SUPABASE_URL/KEY, ANTHROPIC_API_KEY, SLACK_BOT_TOKEN, TAVILY_API_KEY
 - apps/web/.env.local: SUPABASE URLs, NAVER_AD_API_KEY/SECRET_KEY/CUSTOMER_ID, ANTHROPIC_API_KEY, SERPER_API_KEY, RESEND_API_KEY, CRON_SECRET, REPORT_FROM_EMAIL, PERPLEXITY_API_KEY, OPENAI_SESSION_COOKIE, GOOGLE_SESSION_COOKIE, PROXY_URL
