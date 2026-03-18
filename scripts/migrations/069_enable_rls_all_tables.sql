@@ -187,28 +187,36 @@ CREATE POLICY "auth_subscriptions_own" ON subscriptions
     )
   );
 
--- notifications: 자기 알림만 조회/수정
+-- notifications: 자기 client_id 알림만 조회/수정
 DROP POLICY IF EXISTS "auth_notifications_own" ON notifications;
 CREATE POLICY "auth_notifications_own" ON notifications
   FOR ALL
   TO authenticated
   USING (
-    user_id = auth.uid()
+    client_id IN (
+      SELECT client_id FROM users WHERE id = auth.uid() AND client_id IS NOT NULL
+    )
   )
   WITH CHECK (
-    user_id = auth.uid()
+    client_id IN (
+      SELECT client_id FROM users WHERE id = auth.uid() AND client_id IS NOT NULL
+    )
   );
 
--- notification_settings: 자기 설정만 조회/수정
+-- notification_settings: 자기 client_id 설정만 조회/수정
 DROP POLICY IF EXISTS "auth_notification_settings_own" ON notification_settings;
 CREATE POLICY "auth_notification_settings_own" ON notification_settings
   FOR ALL
   TO authenticated
   USING (
-    user_id = auth.uid()
+    client_id IN (
+      SELECT client_id FROM users WHERE id = auth.uid() AND client_id IS NOT NULL
+    )
   )
   WITH CHECK (
-    user_id = auth.uid()
+    client_id IN (
+      SELECT client_id FROM users WHERE id = auth.uid() AND client_id IS NOT NULL
+    )
   );
 
 -- questions: 자기 client_id 질문만 조회
