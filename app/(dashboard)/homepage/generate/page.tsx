@@ -1,16 +1,11 @@
-import { getCurrentUser, isAdmin } from "@/lib/auth";
-import { redirect } from "next/navigation";
+import { requireAdminSession } from "@/lib/auth/admin-session";
 import { getAiMarketBrands } from "@/lib/actions/brand-actions";
 import { GeneratePipelineForm } from "@/components/homepage/generate-pipeline-form";
 
 export const dynamic = "force-dynamic";
 
 export default async function HomepageGeneratePage() {
-  const user = await getCurrentUser();
-
-  if (!user || !isAdmin(user.role)) {
-    redirect("/homepage");
-  }
+  await requireAdminSession();
 
   const brands = await getAiMarketBrands();
 
