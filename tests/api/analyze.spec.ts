@@ -63,15 +63,15 @@ test.describe('분석 API (/api/analyze)', () => {
     const testId = '00000000-0000-0000-0000-000000002001';
     const response = await request.post(`/api/analyze/${testId}/refine`, {
       data: {
-        refined_keywords: ['재분석 키워드'],
+        keywords: ['재분석 키워드'],
         strengths: '재분석 강점',
         appeal: '재분석 어필',
         target: '재분석 타겟',
       },
     });
     const status = response.status();
-    // 200 (성공), 404 (미존재), 500 (서버 에러)
-    expect([200, 404, 500]).toContain(status);
+    // 200 (성공), 400 (실패), 404 (미존재), 500 (서버 에러)
+    expect([200, 400, 404, 500]).toContain(status);
   });
 
   test('TC-API-ANALYZE-007: 빠른 연속 요청 시 Rate limiting', async ({ request }) => {

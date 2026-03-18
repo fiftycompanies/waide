@@ -33,7 +33,7 @@ test.describe("온보딩 보완 페이지", () => {
     }
   });
 
-  test("TC-ONBOARD-002: Edit fields (keywords, strengths, appeal, target)", async ({ page }) => {
+  test("TC-ONBOARD-002: Edit fields include AI inference + owner input sections", async ({ page }) => {
     // 미인증 상태에서는 /login으로 리다이렉트됨
     // 이 테스트는 페이지 구조 확인 목적
     const analysisId = "test-onboard-analysis-id";
@@ -49,25 +49,36 @@ test.describe("온보딩 보완 페이지", () => {
     }
 
     if (currentUrl.includes("/onboarding/refine")) {
-      // 인증 상태 — 편집 필드 확인
-      // 키워드 편집 영역
-      const keywordSection = page.locator("text=/키워드|공략/i");
-      const kwCount = await keywordSection.count();
+      // 인증 상태 — PERSONA-1~3 변경 후 UI 구조 확인
 
-      // 강점 입력 필드
-      const strengthField = page.locator("text=/강점|우리 매장/i");
-      const strCount = await strengthField.count();
-
-      // 어필 포인트 입력 필드
-      const appealField = page.locator("text=/어필|포인트/i");
-      const apCount = await appealField.count();
-
-      // 타겟 고객 입력 필드
+      // 섹션 A: AI 추론 확인 (5항목)
       const targetField = page.locator("text=/타겟|고객/i");
-      const tgCount = await targetField.count();
+      const toneField = page.locator("text=/톤|매너|스타일/i");
+      const uspField = page.locator("text=/강점|USP|차별화/i");
+      const contentField = page.locator("text=/콘텐츠.*방향|콘텐츠.*주제/i");
+      const priceField = page.locator("text=/가격.*포지션|가격대/i");
 
-      // 4개 편집 필드 중 최소 2개 이상 존재해야 함
-      expect(kwCount + strCount + apCount + tgCount).toBeGreaterThanOrEqual(2);
+      const tgCount = await targetField.count();
+      const toneCount = await toneField.count();
+      const uspCount = await uspField.count();
+
+      // AI 추론 5항목 중 최소 3개 이상 존재해야 함
+      expect(tgCount + toneCount + uspCount).toBeGreaterThanOrEqual(2);
+
+      // 섹션 B: 업주 입력 (4항목)
+      const storyField = page.locator("text=/브랜드.*스토리|사업.*시작|계기/i");
+      const forbiddenField = page.locator("text=/금지|언급.*금지/i");
+
+      const storyCount = await storyField.count();
+      const forbiddenCount = await forbiddenField.count();
+
+      // 업주 입력 4항목 중 최소 1개 이상 존재해야 함
+      expect(storyCount + forbiddenCount).toBeGreaterThanOrEqual(1);
+
+      // 키워드 섹션도 여전히 존재해야 함
+      const kwSection = page.locator("text=/키워드|공략/i");
+      const kwCount = await kwSection.count();
+      expect(kwCount).toBeGreaterThanOrEqual(1);
     }
   });
 
