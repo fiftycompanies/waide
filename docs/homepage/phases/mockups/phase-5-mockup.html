@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Phase 5: 배포 파이프라인 시각화 — waide-mkt 홈페이지 서비스</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, 'Pretendard', sans-serif; background: #0f172a; color: #e2e8f0; padding: 40px; line-height: 1.6; }
+  .nav { display: flex; gap: 16px; align-items: center; margin-bottom: 40px; font-size: 13px; }
+  .nav a { color: #64748b; text-decoration: none; }
+  .nav a:hover { color: #38bdf8; }
+  .nav .sep { color: #334155; }
+  .nav .current { color: #38bdf8; font-weight: 600; }
+  h1 { font-size: 28px; margin-bottom: 8px; color: #fff; }
+  .subtitle { color: #94a3b8; margin-bottom: 40px; font-size: 14px; }
+  .section-title { font-size: 18px; font-weight: 700; color: #fff; margin: 40px 0 20px; display: flex; align-items: center; gap: 10px; }
+  .section-title .badge { background: #1e3a5f; color: #38bdf8; font-size: 11px; padding: 3px 10px; border-radius: 20px; }
+
+  /* Pipeline */
+  .pipeline { background: #1e293b; border: 1px solid #334155; border-radius: 16px; padding: 40px; margin-bottom: 32px; }
+  .pipeline-row { display: flex; align-items: center; justify-content: center; gap: 0; flex-wrap: wrap; }
+  .pipeline-step { background: #0f172a; border: 2px solid #334155; border-radius: 12px; padding: 20px; width: 160px; text-align: center; position: relative; transition: all 0.3s; }
+  .pipeline-step:hover { border-color: #38bdf8; }
+  .pipeline-step .step-icon { font-size: 28px; margin-bottom: 8px; }
+  .pipeline-step h4 { font-size: 13px; color: #fff; margin-bottom: 4px; }
+  .pipeline-step p { font-size: 11px; color: #64748b; }
+  .pipeline-step.active { border-color: #22c55e; box-shadow: 0 0 20px rgba(34,197,94,0.15); }
+  .pipeline-step.error { border-color: #ef4444; box-shadow: 0 0 20px rgba(239,68,68,0.15); }
+  .pipeline-arrow { width: 48px; display: flex; align-items: center; justify-content: center; color: #475569; font-size: 20px; }
+
+  /* Status Flow */
+  .status-flow { background: #1e293b; border: 1px solid #334155; border-radius: 16px; padding: 32px; margin-bottom: 32px; }
+  .status-nodes { display: flex; flex-wrap: wrap; gap: 16px; justify-content: center; align-items: center; }
+  .status-node { padding: 12px 20px; border-radius: 10px; font-size: 13px; font-weight: 600; text-align: center; min-width: 120px; }
+  .status-node.collecting { background: #fef9c3; color: #92400e; }
+  .status-node.building { background: #dbeafe; color: #1e40af; }
+  .status-node.build-failed { background: #fecaca; color: #991b1b; }
+  .status-node.preview { background: #f3e8ff; color: #6b21a8; }
+  .status-node.live { background: #dcfce7; color: #166534; }
+  .status-node.suspended { background: #f1f5f9; color: #475569; }
+  .status-arrow { color: #475569; font-size: 16px; }
+
+  /* Vercel API Cards */
+  .api-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 32px; }
+  .api-card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 20px; }
+  .api-card h4 { font-size: 14px; color: #fff; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+  .api-card .method { font-size: 10px; padding: 2px 8px; border-radius: 4px; font-weight: 700; }
+  .api-card .method.post { background: #22c55e20; color: #22c55e; }
+  .api-card .method.get { background: #38bdf820; color: #38bdf8; }
+  .api-card .method.patch { background: #f59e0b20; color: #f59e0b; }
+  .api-card .method.delete { background: #ef444420; color: #ef4444; }
+  .api-card .endpoint { font-family: 'SF Mono', monospace; font-size: 12px; color: #94a3b8; margin-bottom: 8px; background: #0f172a; padding: 8px 12px; border-radius: 6px; }
+  .api-card p { font-size: 12px; color: #64748b; }
+
+  /* Deploy Monitor */
+  .monitor { background: #1e293b; border: 1px solid #334155; border-radius: 16px; overflow: hidden; margin-bottom: 32px; }
+  .monitor-header { padding: 16px 24px; border-bottom: 1px solid #334155; display: flex; justify-content: space-between; align-items: center; }
+  .monitor-header h3 { font-size: 16px; color: #fff; }
+  .monitor-status { display: flex; align-items: center; gap: 8px; }
+  .monitor-dot { width: 8px; height: 8px; border-radius: 50%; }
+  .monitor-dot.building { background: #3b82f6; animation: pulse 1.5s infinite; }
+  .monitor-dot.success { background: #22c55e; }
+  .monitor-dot.error { background: #ef4444; }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+  .monitor-label { font-size: 12px; color: #94a3b8; }
+
+  .deploy-log { padding: 20px 24px; font-family: 'SF Mono', monospace; font-size: 12px; line-height: 2; color: #94a3b8; max-height: 300px; overflow-y: auto; }
+  .log-time { color: #475569; }
+  .log-info { color: #38bdf8; }
+  .log-success { color: #22c55e; }
+  .log-warn { color: #f59e0b; }
+  .log-error { color: #ef4444; }
+
+  /* Env Vars */
+  .env-section { background: #1e293b; border: 1px solid #334155; border-radius: 16px; padding: 24px; margin-bottom: 32px; }
+  .env-table { width: 100%; font-size: 12px; }
+  .env-table th { text-align: left; padding: 8px 12px; color: #64748b; border-bottom: 1px solid #334155; font-weight: 600; }
+  .env-table td { padding: 8px 12px; border-bottom: 1px solid #0f172a; }
+  .env-table .key { font-family: 'SF Mono', monospace; color: #38bdf8; }
+  .env-table .value { font-family: 'SF Mono', monospace; color: #94a3b8; }
+  .env-table .env-badge { font-size: 10px; padding: 2px 6px; border-radius: 4px; }
+  .env-table .env-prod { background: #22c55e20; color: #22c55e; }
+  .env-table .env-prev { background: #f59e0b20; color: #f59e0b; }
+
+  @media (max-width: 768px) {
+    body { padding: 20px; }
+    .pipeline-row { flex-direction: column; }
+    .pipeline-arrow { transform: rotate(90deg); }
+    .api-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="nav">
+  <a href="index.html">Phase 목업 인덱스</a>
+  <span class="sep">/</span>
+  <span class="current">Phase 5: 배포 파이프라인</span>
+</div>
+
+<h1>Phase 5: 빌드/배포 파이프라인</h1>
+<p class="subtitle">Vercel API 기반 자동 빌드/배포 + 서브도메인 설정 — 예상 소요 2일</p>
+
+<!-- Pipeline Flow -->
+<div class="section-title">배포 파이프라인 <span class="badge">Vercel API</span></div>
+<div class="pipeline">
+  <div class="pipeline-row">
+    <div class="pipeline-step">
+      <div class="step-icon">📋</div>
+      <h4>자료 수집 완료</h4>
+      <p>materials 데이터 준비</p>
+    </div>
+    <div class="pipeline-arrow">&#8594;</div>
+    <div class="pipeline-step">
+      <div class="step-icon">🔧</div>
+      <h4>프로젝트 생성</h4>
+      <p>Vercel API 호출</p>
+    </div>
+    <div class="pipeline-arrow">&#8594;</div>
+    <div class="pipeline-step">
+      <div class="step-icon">🔑</div>
+      <h4>환경변수 설정</h4>
+      <p>SUPABASE, PROJECT_ID</p>
+    </div>
+    <div class="pipeline-arrow">&#8594;</div>
+    <div class="pipeline-step active">
+      <div class="step-icon">🔨</div>
+      <h4>빌드 트리거</h4>
+      <p>Next.js SSG 빌드</p>
+    </div>
+    <div class="pipeline-arrow">&#8594;</div>
+    <div class="pipeline-step">
+      <div class="step-icon">🌐</div>
+      <h4>도메인 연결</h4>
+      <p>{subdomain}.waide.kr</p>
+    </div>
+    <div class="pipeline-arrow">&#8594;</div>
+    <div class="pipeline-step">
+      <div class="step-icon">&#10003;</div>
+      <h4>라이브</h4>
+      <p>SSL 자동 발급</p>
+    </div>
+  </div>
+</div>
+
+<!-- Status Flow -->
+<div class="section-title">프로젝트 상태 전이 <span class="badge">상태 머신</span></div>
+<div class="status-flow">
+  <div class="status-nodes">
+    <div class="status-node collecting">수집중</div>
+    <span class="status-arrow">&#8594;</span>
+    <div class="status-node building">빌드중</div>
+    <span class="status-arrow">&#8594;</span>
+    <div class="status-node preview">프리뷰</div>
+    <span class="status-arrow">&#8594;</span>
+    <div class="status-node live">라이브</div>
+    <span class="status-arrow">&#8594;</span>
+    <div class="status-node suspended">중단</div>
+  </div>
+  <div style="text-align: center; margin-top: 16px;">
+    <div class="status-node build-failed" style="display: inline-block;">빌드 실패</div>
+    <span style="color: #64748b; font-size: 12px; margin-left: 12px;">&#8592; 빌드 에러 시 분기</span>
+  </div>
+</div>
+
+<!-- Vercel API Endpoints -->
+<div class="section-title">Vercel API 엔드포인트 <span class="badge">REST API</span></div>
+<div class="api-grid">
+  <div class="api-card">
+    <h4><span class="method post">POST</span> 프로젝트 생성</h4>
+    <div class="endpoint">/v10/projects</div>
+    <p>Vercel에 새 프로젝트를 생성하고 Git 레포지토리를 연결합니다.</p>
+  </div>
+  <div class="api-card">
+    <h4><span class="method post">POST</span> 환경변수 설정</h4>
+    <div class="endpoint">/v10/projects/{id}/env</div>
+    <p>SUPABASE_URL, PROJECT_ID 등 환경변수를 자동 주입합니다.</p>
+  </div>
+  <div class="api-card">
+    <h4><span class="method post">POST</span> 배포 트리거</h4>
+    <div class="endpoint">/v13/deployments</div>
+    <p>소스 코드를 업로드하고 빌드/배포를 트리거합니다.</p>
+  </div>
+  <div class="api-card">
+    <h4><span class="method post">POST</span> 도메인 연결</h4>
+    <div class="endpoint">/v10/projects/{id}/domains</div>
+    <p>{subdomain}.waide.kr 도메인을 프로젝트에 연결합니다.</p>
+  </div>
+  <div class="api-card">
+    <h4><span class="method get">GET</span> 배포 상태 조회</h4>
+    <div class="endpoint">/v13/deployments/{id}</div>
+    <p>배포 진행 상태를 실시간으로 조회합니다.</p>
+  </div>
+  <div class="api-card">
+    <h4><span class="method post">POST</span> 프로모트 (라이브 전환)</h4>
+    <div class="endpoint">/v10/projects/{id}/promote</div>
+    <p>프리뷰 배포를 프로덕션으로 프로모트합니다.</p>
+  </div>
+</div>
+
+<!-- Deploy Monitor -->
+<div class="section-title">배포 모니터링 <span class="badge">실시간</span></div>
+<div class="monitor">
+  <div class="monitor-header">
+    <h3>gangnam-interior — 배포 #47</h3>
+    <div class="monitor-status">
+      <span class="monitor-dot building"></span>
+      <span class="monitor-label">빌드 중 (73%)</span>
+    </div>
+  </div>
+  <div class="deploy-log">
+<span class="log-time">[14:30:01]</span> <span class="log-info">배포 시작 — 트리거: 수동 (어드민)</span>
+<span class="log-time">[14:30:02]</span> <span class="log-info">환경변수 주입 완료 (6개)</span>
+<span class="log-time">[14:30:05]</span> <span class="log-info">의존성 설치 중... npm install</span>
+<span class="log-time">[14:30:18]</span> <span class="log-success">의존성 설치 완료 (13.2s)</span>
+<span class="log-time">[14:30:19]</span> <span class="log-info">Next.js 빌드 시작...</span>
+<span class="log-time">[14:30:22]</span> <span class="log-info">Supabase 데이터 fetch: homepage_projects</span>
+<span class="log-time">[14:30:23]</span> <span class="log-info">Supabase 데이터 fetch: homepage_materials</span>
+<span class="log-time">[14:30:24]</span> <span class="log-info">Supabase 데이터 fetch: homepage_portfolios (12건)</span>
+<span class="log-time">[14:30:25]</span> <span class="log-info">Supabase 데이터 fetch: homepage_reviews (8건)</span>
+<span class="log-time">[14:30:26]</span> <span class="log-info">Supabase 데이터 fetch: contents (24건)</span>
+<span class="log-time">[14:30:30]</span> <span class="log-info">정적 페이지 생성 중... (/, /portfolio/*, /blog/*)</span>
+<span class="log-time">[14:30:42]</span> <span class="log-success">정적 페이지 생성 완료 (42개 페이지)</span>
+<span class="log-time">[14:30:43]</span> <span class="log-info">sitemap.xml 생성 완료</span>
+<span class="log-time">[14:30:44]</span> <span class="log-warn">빌드 최적화 진행 중...</span>
+  </div>
+</div>
+
+<!-- Environment Variables -->
+<div class="section-title">환경변수 자동 주입 <span class="badge">프로젝트별</span></div>
+<div class="env-section">
+  <table class="env-table">
+    <thead>
+      <tr><th>키</th><th>값 (예시)</th><th>환경</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="key">SUPABASE_URL</td>
+        <td class="value">https://xxx.supabase.co</td>
+        <td><span class="env-badge env-prod">production</span> <span class="env-badge env-prev">preview</span></td>
+      </tr>
+      <tr>
+        <td class="key">SUPABASE_ANON_KEY</td>
+        <td class="value">eyJhbGci...***</td>
+        <td><span class="env-badge env-prod">production</span> <span class="env-badge env-prev">preview</span></td>
+      </tr>
+      <tr>
+        <td class="key">SUPABASE_SERVICE_ROLE_KEY</td>
+        <td class="value">eyJhbGci...***</td>
+        <td><span class="env-badge env-prod">production</span></td>
+      </tr>
+      <tr>
+        <td class="key">PROJECT_ID</td>
+        <td class="value">550e8400-e29b-41d4-a716-...</td>
+        <td><span class="env-badge env-prod">production</span> <span class="env-badge env-prev">preview</span></td>
+      </tr>
+      <tr>
+        <td class="key">CLIENT_ID</td>
+        <td class="value">6ba7b810-9dad-11d1-80b4-...</td>
+        <td><span class="env-badge env-prod">production</span> <span class="env-badge env-prev">preview</span></td>
+      </tr>
+      <tr>
+        <td class="key">SUBDOMAIN</td>
+        <td class="value">gangnam-interior</td>
+        <td><span class="env-badge env-prod">production</span></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+</body>
+</html>

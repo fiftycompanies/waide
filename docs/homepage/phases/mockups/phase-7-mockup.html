@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Phase 7: 템플릿 B, C 비교 목업 — waide-mkt 홈페이지 서비스</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, 'Pretendard', sans-serif; background: #0f172a; color: #e2e8f0; padding: 40px; line-height: 1.6; }
+  .nav { display: flex; gap: 16px; align-items: center; margin-bottom: 40px; font-size: 13px; }
+  .nav a { color: #64748b; text-decoration: none; }
+  .nav a:hover { color: #38bdf8; }
+  .nav .sep { color: #334155; }
+  .nav .current { color: #38bdf8; font-weight: 600; }
+  h1 { font-size: 28px; margin-bottom: 8px; color: #fff; }
+  .subtitle { color: #94a3b8; margin-bottom: 40px; font-size: 14px; }
+  .section-title { font-size: 18px; font-weight: 700; color: #fff; margin: 40px 0 20px; display: flex; align-items: center; gap: 10px; }
+  .section-title .badge { background: #1e3a5f; color: #38bdf8; font-size: 11px; padding: 3px 10px; border-radius: 20px; }
+
+  /* Template Comparison */
+  .template-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin-bottom: 48px; }
+  .template-card { border-radius: 16px; overflow: hidden; border: 2px solid #334155; transition: all 0.3s; }
+  .template-card:hover { border-color: #38bdf8; transform: translateY(-4px); box-shadow: 0 12px 40px rgba(0,0,0,0.3); }
+  .template-card.current { border-color: #22c55e; }
+  .template-card .tag { position: absolute; top: 12px; right: 12px; font-size: 10px; padding: 3px 10px; border-radius: 20px; font-weight: 700; z-index: 2; }
+  .template-card .tag.done { background: #22c55e; color: #fff; }
+  .template-card .tag.new { background: #38bdf8; color: #0f172a; }
+
+  /* Template A: Modern Minimal */
+  .tmpl-a-hero { background: #fff; position: relative; height: 260px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; overflow: hidden; }
+  .tmpl-a-hero::before { content: ''; position: absolute; inset: 0; background: linear-gradient(135deg, #f8fafc, #e2e8f0); }
+  .tmpl-a-hero .content { position: relative; z-index: 1; padding: 20px; }
+  .tmpl-a-hero h3 { font-size: 22px; color: #0f172a; font-weight: 700; margin-bottom: 8px; }
+  .tmpl-a-hero p { font-size: 12px; color: #64748b; margin-bottom: 16px; }
+  .tmpl-a-hero .btn { display: inline-block; padding: 8px 20px; background: #2563eb; color: #fff; border-radius: 8px; font-size: 12px; font-weight: 600; }
+  .tmpl-a-nav { background: #fff; border-bottom: 1px solid #e2e8f0; padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; }
+  .tmpl-a-nav .logo { font-size: 14px; font-weight: 700; color: #0f172a; }
+  .tmpl-a-nav .menu { display: flex; gap: 12px; font-size: 11px; color: #64748b; }
+  .tmpl-a-stats { background: #f8fafc; display: grid; grid-template-columns: repeat(4, 1fr); padding: 16px; }
+  .tmpl-a-stat { text-align: center; }
+  .tmpl-a-stat .num { font-size: 18px; font-weight: 800; color: #2563eb; }
+  .tmpl-a-stat .label { font-size: 9px; color: #94a3b8; }
+
+  /* Template B: Natural Wood */
+  .tmpl-b-hero { background: #FEFCF9; position: relative; height: 260px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; overflow: hidden; }
+  .tmpl-b-hero::before { content: ''; position: absolute; inset: 0; background: linear-gradient(135deg, #FEFCF9, #F5ECD7); }
+  .tmpl-b-hero .content { position: relative; z-index: 1; padding: 20px; }
+  .tmpl-b-hero h3 { font-size: 20px; color: #3D2B1F; font-weight: 700; margin-bottom: 8px; font-family: 'Georgia', serif; line-height: 1.4; }
+  .tmpl-b-hero p { font-size: 12px; color: #8B7355; margin-bottom: 16px; }
+  .tmpl-b-hero .btn { display: inline-block; padding: 8px 20px; background: #8B6914; color: #fff; border-radius: 24px; font-size: 12px; font-weight: 600; }
+  .tmpl-b-nav { background: #FEFCF9; border-bottom: 1px solid #E8DCC8; padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; }
+  .tmpl-b-nav .logo { font-size: 14px; font-weight: 700; color: #3D2B1F; font-family: 'Georgia', serif; }
+  .tmpl-b-nav .menu { display: flex; gap: 12px; font-size: 11px; color: #8B7355; }
+  .tmpl-b-stats { background: #F5ECD7; display: grid; grid-template-columns: repeat(4, 1fr); padding: 16px; }
+  .tmpl-b-stat { text-align: center; }
+  .tmpl-b-stat .num { font-size: 18px; font-weight: 800; color: #8B6914; }
+  .tmpl-b-stat .label { font-size: 9px; color: #8B7355; }
+
+  /* Template C: Premium Dark */
+  .tmpl-c-hero { background: #0A0A0A; position: relative; height: 260px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; overflow: hidden; }
+  .tmpl-c-hero::before { content: ''; position: absolute; inset: 0; background: linear-gradient(135deg, #0A0A0A, #1A1A1A); }
+  .tmpl-c-hero .content { position: relative; z-index: 1; padding: 20px; }
+  .tmpl-c-hero h3 { font-size: 20px; color: #F5F0EB; font-weight: 700; margin-bottom: 8px; font-family: 'Georgia', serif; letter-spacing: 2px; }
+  .tmpl-c-hero p { font-size: 12px; color: #888; margin-bottom: 16px; }
+  .tmpl-c-hero .btn { display: inline-block; padding: 8px 20px; background: transparent; border: 1px solid #C9A96E; color: #C9A96E; border-radius: 0; font-size: 12px; font-weight: 600; letter-spacing: 1px; }
+  .tmpl-c-nav { background: #0A0A0A; border-bottom: 1px solid #222; padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; }
+  .tmpl-c-nav .logo { font-size: 14px; font-weight: 700; color: #C9A96E; font-family: 'Georgia', serif; letter-spacing: 2px; }
+  .tmpl-c-nav .menu { display: flex; gap: 12px; font-size: 11px; color: #666; }
+  .tmpl-c-stats { background: #111; display: grid; grid-template-columns: repeat(4, 1fr); padding: 16px; }
+  .tmpl-c-stat { text-align: center; }
+  .tmpl-c-stat .num { font-size: 18px; font-weight: 800; color: #C9A96E; }
+  .tmpl-c-stat .label { font-size: 9px; color: #666; }
+
+  /* Template Info */
+  .template-info { padding: 16px; background: #1e293b; }
+  .template-info h4 { font-size: 15px; color: #fff; margin-bottom: 8px; }
+  .template-info .desc { font-size: 12px; color: #94a3b8; margin-bottom: 12px; }
+  .template-info .specs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .template-info .spec { font-size: 11px; }
+  .template-info .spec-label { color: #64748b; }
+  .template-info .spec-value { color: #e2e8f0; font-weight: 500; }
+
+  /* Color Palettes */
+  .palette-row { display: flex; gap: 6px; margin-top: 12px; }
+  .palette-swatch { width: 24px; height: 24px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.1); }
+
+  /* Comparison Table */
+  .compare-table { width: 100%; border-collapse: collapse; margin-bottom: 32px; font-size: 13px; }
+  .compare-table th { background: #1e293b; padding: 12px 16px; color: #94a3b8; text-align: left; border-bottom: 2px solid #334155; font-weight: 600; }
+  .compare-table td { padding: 12px 16px; border-bottom: 1px solid #1e293b; color: #cbd5e1; }
+  .compare-table tr:hover { background: #1e293b40; }
+  .compare-table .feature { color: #94a3b8; font-weight: 500; }
+
+  /* Shared Components */
+  .shared-section { background: #1e293b; border: 1px solid #334155; border-radius: 16px; padding: 24px; margin-bottom: 32px; }
+  .shared-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .shared-card { background: #0f172a; border: 1px solid #334155; border-radius: 10px; padding: 16px; }
+  .shared-card h4 { font-size: 13px; color: #22c55e; margin-bottom: 6px; display: flex; align-items: center; gap: 6px; }
+  .shared-card p { font-size: 12px; color: #64748b; }
+  .shared-card .file { font-family: 'SF Mono', monospace; font-size: 11px; color: #94a3b8; margin-top: 6px; }
+  .independent-card h4 { color: #f59e0b; }
+
+  @media (max-width: 768px) {
+    body { padding: 20px; }
+    .template-grid { grid-template-columns: 1fr; }
+    .shared-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="nav">
+  <a href="index.html">Phase 목업 인덱스</a>
+  <span class="sep">/</span>
+  <span class="current">Phase 7: 템플릿 B, C</span>
+</div>
+
+<h1>Phase 7: 템플릿 B, C (내추럴 우드 / 프리미엄 다크)</h1>
+<p class="subtitle">3종 템플릿 비교 미리보기 — 예상 소요 3일</p>
+
+<!-- Template Comparison -->
+<div class="section-title">템플릿 3종 미리보기 <span class="badge">실제 비율</span></div>
+<div class="template-grid">
+  <!-- Template A -->
+  <div class="template-card current" style="position: relative;">
+    <span class="tag done" style="position: absolute;">구현 완료</span>
+    <div class="tmpl-a-nav">
+      <div class="logo">강남인테리어</div>
+      <div class="menu"><span>포트폴리오</span><span>블로그</span><span>상담</span></div>
+    </div>
+    <div class="tmpl-a-hero">
+      <div class="content">
+        <h3>강남 프리미엄 인테리어</h3>
+        <p>10년 경력 | 150건 시공 | 평점 4.9</p>
+        <span class="btn">무료 상담 신청</span>
+      </div>
+    </div>
+    <div class="tmpl-a-stats">
+      <div class="tmpl-a-stat"><div class="num">10+</div><div class="label">년 경력</div></div>
+      <div class="tmpl-a-stat"><div class="num">150+</div><div class="label">시공 완료</div></div>
+      <div class="tmpl-a-stat"><div class="num">4.9</div><div class="label">평균 평점</div></div>
+      <div class="tmpl-a-stat"><div class="num">98%</div><div class="label">만족도</div></div>
+    </div>
+    <div class="template-info">
+      <h4>A: 모던 미니멀</h4>
+      <div class="desc">깔끔하고 전문적인 느낌. 20-30대 타겟.</div>
+      <div class="specs">
+        <div class="spec"><span class="spec-label">폰트: </span><span class="spec-value">Pretendard</span></div>
+        <div class="spec"><span class="spec-label">히어로: </span><span class="spec-value">이미지 슬라이더</span></div>
+        <div class="spec"><span class="spec-label">갤러리: </span><span class="spec-value">3열 필터 그리드</span></div>
+        <div class="spec"><span class="spec-label">톤: </span><span class="spec-value">전문적, 깔끔</span></div>
+      </div>
+      <div class="palette-row">
+        <div class="palette-swatch" style="background: #ffffff;"></div>
+        <div class="palette-swatch" style="background: #2563eb;"></div>
+        <div class="palette-swatch" style="background: #0f172a;"></div>
+        <div class="palette-swatch" style="background: #f8fafc;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Template B -->
+  <div class="template-card" style="position: relative;">
+    <span class="tag new" style="position: absolute;">신규</span>
+    <div class="tmpl-b-nav">
+      <div class="logo">마포우드인테리어</div>
+      <div class="menu"><span>시공사례</span><span>이야기</span><span>문의</span></div>
+    </div>
+    <div class="tmpl-b-hero">
+      <div class="content">
+        <h3>따뜻한 공간,<br>행복한 시작</h3>
+        <p>자연의 따뜻함을 담은 인테리어</p>
+        <span class="btn">상담 예약하기</span>
+      </div>
+    </div>
+    <div class="tmpl-b-stats">
+      <div class="tmpl-b-stat"><div class="num">8+</div><div class="label">년 경력</div></div>
+      <div class="tmpl-b-stat"><div class="num">120+</div><div class="label">시공 완료</div></div>
+      <div class="tmpl-b-stat"><div class="num">4.8</div><div class="label">평균 평점</div></div>
+      <div class="tmpl-b-stat"><div class="num">96%</div><div class="label">만족도</div></div>
+    </div>
+    <div class="template-info">
+      <h4>B: 내추럴 우드</h4>
+      <div class="desc">따뜻하고 감성적인 느낌. 신혼/가족 타겟.</div>
+      <div class="specs">
+        <div class="spec"><span class="spec-label">폰트: </span><span class="spec-value">Noto Serif KR</span></div>
+        <div class="spec"><span class="spec-label">히어로: </span><span class="spec-value">대형 감성 사진</span></div>
+        <div class="spec"><span class="spec-label">갤러리: </span><span class="spec-value">2열 카드</span></div>
+        <div class="spec"><span class="spec-label">톤: </span><span class="spec-value">따뜻한, 감성적</span></div>
+      </div>
+      <div class="palette-row">
+        <div class="palette-swatch" style="background: #FEFCF9;"></div>
+        <div class="palette-swatch" style="background: #8B6914;"></div>
+        <div class="palette-swatch" style="background: #6B7B3A;"></div>
+        <div class="palette-swatch" style="background: #F5ECD7;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Template C -->
+  <div class="template-card" style="position: relative;">
+    <span class="tag new" style="position: absolute;">신규</span>
+    <div class="tmpl-c-nav">
+      <div class="logo">SEOCHO PREMIUM</div>
+      <div class="menu"><span>WORKS</span><span>JOURNAL</span><span>CONTACT</span></div>
+    </div>
+    <div class="tmpl-c-hero">
+      <div class="content">
+        <h3>PREMIUM<br>INTERIOR DESIGN</h3>
+        <p>Exclusive craftsmanship for your space</p>
+        <span class="btn">CONSULTATION</span>
+      </div>
+    </div>
+    <div class="tmpl-c-stats">
+      <div class="tmpl-c-stat"><div class="num">15+</div><div class="label">YEARS</div></div>
+      <div class="tmpl-c-stat"><div class="num">200+</div><div class="label">PROJECTS</div></div>
+      <div class="tmpl-c-stat"><div class="num">5.0</div><div class="label">RATING</div></div>
+      <div class="tmpl-c-stat"><div class="num">99%</div><div class="label">SATISFACTION</div></div>
+    </div>
+    <div class="template-info">
+      <h4>C: 프리미엄 다크</h4>
+      <div class="desc">고급스러운 프리미엄 느낌. 40-50대 고소득층 타겟.</div>
+      <div class="specs">
+        <div class="spec"><span class="spec-label">폰트: </span><span class="spec-value">Playfair Display</span></div>
+        <div class="spec"><span class="spec-label">히어로: </span><span class="spec-value">풀스크린 비디오</span></div>
+        <div class="spec"><span class="spec-label">갤러리: </span><span class="spec-value">풀스크린 라이트박스</span></div>
+        <div class="spec"><span class="spec-label">톤: </span><span class="spec-value">고급, 프리미엄</span></div>
+      </div>
+      <div class="palette-row">
+        <div class="palette-swatch" style="background: #0A0A0A;"></div>
+        <div class="palette-swatch" style="background: #C9A96E;"></div>
+        <div class="palette-swatch" style="background: #F5F0EB;"></div>
+        <div class="palette-swatch" style="background: #1A1A1A;"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Shared vs Independent -->
+<div class="section-title">공유 vs 독립 컴포넌트 <span class="badge">아키텍처</span></div>
+<div class="shared-section">
+  <div class="shared-grid">
+    <div class="shared-card">
+      <h4>공유: data/config.ts</h4>
+      <p>getHomepageConfig() — 모든 템플릿이 동일한 Supabase 데이터 fetch 함수를 공유</p>
+      <div class="file">templates/shared/data/config.ts</div>
+    </div>
+    <div class="shared-card">
+      <h4>공유: JsonLd.tsx</h4>
+      <p>LocalBusiness, FAQPage, BreadcrumbList JSON-LD 컴포넌트 공유</p>
+      <div class="file">templates/shared/components/JsonLd.tsx</div>
+    </div>
+    <div class="shared-card">
+      <h4>공유: inquiry/route.ts</h4>
+      <p>POST /api/inquiry — homepage_inquiries INSERT 로직 공유</p>
+      <div class="file">templates/shared/api/inquiry/route.ts</div>
+    </div>
+    <div class="shared-card">
+      <h4>공유: types/index.ts</h4>
+      <p>CompanyConfig, Portfolio, Review 등 공통 타입 정의</p>
+      <div class="file">templates/shared/types/index.ts</div>
+    </div>
+    <div class="shared-card independent-card">
+      <h4>독립: globals.css</h4>
+      <p>각 템플릿별 CSS 변수, 색상, 타이포그래피 완전 독립</p>
+      <div class="file">templates/{template}/app/globals.css</div>
+    </div>
+    <div class="shared-card independent-card">
+      <h4>독립: components/home/*</h4>
+      <p>Hero, Portfolio, Reviews 등 섹션 컴포넌트 UI/UX 완전 독립</p>
+      <div class="file">templates/{template}/components/home/*.tsx</div>
+    </div>
+  </div>
+</div>
+
+<!-- Comparison Table -->
+<div class="section-title">기능 비교표 <span class="badge">상세</span></div>
+<table class="compare-table">
+  <thead>
+    <tr><th class="feature">기능</th><th>A: 모던 미니멀</th><th>B: 내추럴 우드</th><th>C: 프리미엄 다크</th></tr>
+  </thead>
+  <tbody>
+    <tr><td class="feature">배경색</td><td>#FFFFFF</td><td>#FEFCF9</td><td>#0A0A0A</td></tr>
+    <tr><td class="feature">포인트색</td><td>#2563EB (블루)</td><td>#8B6914 (우드브라운)</td><td>#C9A96E (골드)</td></tr>
+    <tr><td class="feature">제목 폰트</td><td>Pretendard Bold</td><td>Noto Serif KR</td><td>Playfair Display</td></tr>
+    <tr><td class="feature">히어로 유형</td><td>이미지 슬라이더</td><td>대형 감성 사진</td><td>풀스크린 비디오</td></tr>
+    <tr><td class="feature">갤러리 레이아웃</td><td>3열 필터 그리드</td><td>2열 카드</td><td>풀스크린 라이트박스</td></tr>
+    <tr><td class="feature">네비게이션</td><td>고정 상단 바</td><td>스크롤 시 축소</td><td>투명 → 다크 전환</td></tr>
+    <tr><td class="feature">애니메이션</td><td>페이드인 + 스케일</td><td>패럴랙스 스크롤</td><td>시네마틱 트랜지션</td></tr>
+    <tr><td class="feature">CTA 스타일</td><td>둥근 버튼 (블루)</td><td>라운드 버튼 (브라운)</td><td>각진 버튼 (골드 보더)</td></tr>
+    <tr><td class="feature">타겟 고객</td><td>20-30대</td><td>신혼/가족</td><td>40-50대 고소득</td></tr>
+    <tr><td class="feature">추천 업종</td><td>범용 인테리어</td><td>감성/내추럴 인테리어</td><td>프리미엄 인테리어</td></tr>
+  </tbody>
+</table>
+
+</body>
+</html>

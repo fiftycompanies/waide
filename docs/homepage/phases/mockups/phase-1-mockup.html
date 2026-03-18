@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Phase 1: DB 스키마 ER 다이어그램 — waide-mkt 홈페이지 서비스</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, 'Pretendard', sans-serif; background: #0f172a; color: #e2e8f0; padding: 40px; line-height: 1.6; }
+  .nav { display: flex; gap: 16px; align-items: center; margin-bottom: 40px; font-size: 13px; }
+  .nav a { color: #64748b; text-decoration: none; }
+  .nav a:hover { color: #38bdf8; }
+  .nav .sep { color: #334155; }
+  .nav .current { color: #38bdf8; font-weight: 600; }
+  h1 { font-size: 28px; margin-bottom: 8px; color: #fff; }
+  .subtitle { color: #94a3b8; margin-bottom: 40px; font-size: 14px; }
+  .section-title { font-size: 18px; font-weight: 700; color: #fff; margin: 40px 0 20px; display: flex; align-items: center; gap: 10px; }
+  .section-title .badge { background: #1e3a5f; color: #38bdf8; font-size: 11px; padding: 3px 10px; border-radius: 20px; }
+
+  /* ER Diagram */
+  .er-container { display: flex; flex-wrap: wrap; gap: 24px; justify-content: center; padding: 32px; background: #1e293b; border: 1px solid #334155; border-radius: 16px; margin-bottom: 32px; }
+
+  .er-table { background: #0f172a; border: 2px solid #334155; border-radius: 12px; width: 260px; overflow: hidden; transition: all 0.3s; }
+  .er-table:hover { border-color: #38bdf8; box-shadow: 0 0 20px rgba(56,189,248,0.15); }
+  .er-table.new { border-color: #22d3ee; }
+  .er-table.existing { border-color: #475569; }
+
+  .er-header { padding: 12px 16px; font-weight: 700; font-size: 14px; display: flex; justify-content: space-between; align-items: center; }
+  .er-table.new .er-header { background: linear-gradient(135deg, #164e63, #0e4429); color: #5eead4; }
+  .er-table.existing .er-header { background: #1e293b; color: #94a3b8; }
+  .er-header .tag { font-size: 9px; padding: 2px 6px; border-radius: 4px; font-weight: 600; }
+  .er-table.new .er-header .tag { background: #22d3ee20; color: #22d3ee; }
+  .er-table.existing .er-header .tag { background: #47556920; color: #64748b; }
+
+  .er-columns { padding: 8px 0; }
+  .er-col { display: flex; align-items: center; padding: 4px 16px; font-size: 12px; color: #94a3b8; gap: 8px; }
+  .er-col:hover { background: #1e293b40; }
+  .er-col .icon { font-size: 10px; width: 16px; text-align: center; }
+  .er-col .pk { color: #eab308; }
+  .er-col .fk { color: #a78bfa; }
+  .er-col .col-name { flex: 1; color: #cbd5e1; font-family: 'SF Mono', monospace; font-size: 11px; }
+  .er-col .col-type { color: #64748b; font-size: 10px; font-family: 'SF Mono', monospace; }
+  .er-col.primary .col-name { color: #fbbf24; }
+  .er-col.foreign .col-name { color: #c4b5fd; }
+
+  .er-divider { height: 1px; background: #1e293b; margin: 4px 16px; }
+
+  /* Relations */
+  .relations-section { background: #1e293b; border: 1px solid #334155; border-radius: 16px; padding: 24px; margin-bottom: 32px; }
+  .relation-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+  .relation-item { display: flex; align-items: center; gap: 12px; padding: 10px 16px; background: #0f172a; border: 1px solid #334155; border-radius: 8px; font-size: 13px; }
+  .relation-item .from { color: #38bdf8; font-weight: 600; font-family: 'SF Mono', monospace; font-size: 12px; }
+  .relation-item .arrow { color: #475569; font-size: 16px; }
+  .relation-item .to { color: #a78bfa; font-weight: 600; font-family: 'SF Mono', monospace; font-size: 12px; }
+  .relation-item .type { color: #64748b; font-size: 11px; margin-left: auto; }
+
+  /* Migration SQL Preview */
+  .sql-preview { background: #0f172a; border: 1px solid #334155; border-radius: 12px; overflow: hidden; margin-bottom: 32px; }
+  .sql-header { padding: 12px 20px; background: #1e293b; font-size: 13px; font-weight: 600; color: #94a3b8; display: flex; justify-content: space-between; }
+  .sql-body { padding: 20px; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 12px; color: #cbd5e1; line-height: 1.8; overflow-x: auto; white-space: pre; }
+  .sql-keyword { color: #c084fc; }
+  .sql-type { color: #38bdf8; }
+  .sql-string { color: #86efac; }
+  .sql-comment { color: #475569; }
+
+  /* Stats */
+  .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 32px; }
+  .stat-card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 20px; text-align: center; }
+  .stat-value { font-size: 32px; font-weight: 800; }
+  .stat-value.cyan { color: #22d3ee; }
+  .stat-value.purple { color: #a78bfa; }
+  .stat-value.yellow { color: #fbbf24; }
+  .stat-value.green { color: #22c55e; }
+  .stat-label { font-size: 12px; color: #64748b; margin-top: 4px; }
+
+  /* RLS Section */
+  .rls-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
+  .rls-card { background: #0f172a; border: 1px solid #334155; border-radius: 10px; padding: 16px; }
+  .rls-card h4 { font-size: 13px; color: #38bdf8; margin-bottom: 8px; }
+  .rls-card p { font-size: 12px; color: #94a3b8; line-height: 1.6; }
+  .rls-card .policy { font-family: 'SF Mono', monospace; font-size: 11px; color: #86efac; background: #1e293b; padding: 8px 12px; border-radius: 6px; margin-top: 8px; }
+
+  @media (max-width: 768px) {
+    body { padding: 20px; }
+    .er-container { flex-direction: column; align-items: center; }
+    .stats-row { grid-template-columns: repeat(2, 1fr); }
+    .relation-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="nav">
+  <a href="index.html">Phase 목업 인덱스</a>
+  <span class="sep">/</span>
+  <span class="current">Phase 1: DB 스키마 확장</span>
+</div>
+
+<h1>Phase 1: DB 스키마 확장</h1>
+<p class="subtitle">5개 신규 테이블 생성 + 기존 테이블 확장 — 예상 소요 1일</p>
+
+<!-- Stats -->
+<div class="stats-row">
+  <div class="stat-card">
+    <div class="stat-value cyan">5</div>
+    <div class="stat-label">신규 테이블</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value purple">3</div>
+    <div class="stat-label">기존 테이블 확장</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value yellow">7</div>
+    <div class="stat-label">인덱스</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value green">6</div>
+    <div class="stat-label">RLS 정책</div>
+  </div>
+</div>
+
+<!-- ER Diagram -->
+<div class="section-title">ER 다이어그램 <span class="badge">신규 + 기존 테이블</span></div>
+<div class="er-container">
+  <!-- Existing: clients -->
+  <div class="er-table existing">
+    <div class="er-header">clients <span class="tag">기존</span></div>
+    <div class="er-columns">
+      <div class="er-col primary"><span class="icon pk">PK</span><span class="col-name">id</span><span class="col-type">UUID</span></div>
+      <div class="er-col"><span class="icon">-</span><span class="col-name">workspace_id</span><span class="col-type">UUID</span></div>
+      <div class="er-col"><span class="icon">-</span><span class="col-name">company_name</span><span class="col-type">TEXT</span></div>
+      <div class="er-divider"></div>
+      <div class="er-col"><span class="icon" style="color:#22d3ee">+</span><span class="col-name" style="color:#5eead4">brand_persona.interior_profile</span><span class="col-type">JSONB</span></div>
+    </div>
+  </div>
+
+  <!-- Existing: keywords -->
+  <div class="er-table existing">
+    <div class="er-header">keywords <span class="tag">기존</span></div>
+    <div class="er-columns">
+      <div class="er-col primary"><span class="icon pk">PK</span><span class="col-name">id</span><span class="col-type">UUID</span></div>
+      <div class="er-col foreign"><span class="icon fk">FK</span><span class="col-name">client_id</span><span class="col-type">UUID</span></div>
+      <div class="er-col"><span class="icon">-</span><span class="col-name">keyword</span><span class="col-type">TEXT</span></div>
+      <div class="er-col"><span class="icon">-</span><span class="col-name">source</span><span class="col-type">TEXT</span></div>
+      <div class="er-divider"></div>
+      <div class="er-col"><span class="icon" style="color:#22d3ee">+</span><span class="col-name" style="color:#5eead4">metadata.blog_type</span><span class="col-type">JSONB</span></div>
+    </div>
+  </div>
+
+  <!-- Existing: contents -->
+  <div class="er-table existing">
+    <div class="er-header">contents <span class="tag">기존</span></div>
+    <div class="er-columns">
+      <div class="er-col primary"><span class="icon pk">PK</span><span class="col-name">id</span><span class="col-type">UUID</span></div>
+      <div class="er-col foreign"><span class="icon fk">FK</span><span class="col-name">client_id</span><span class="col-type">UUID</span></div>
+      <div class="er-col"><span class="icon">-</span><span class="col-name">title</span><span class="col-type">TEXT</span></div>
+      <div class="er-divider"></div>
+      <div class="er-col"><span class="icon" style="color:#22d3ee">+</span><span class="col-name" style="color:#5eead4">content_type: hp_blog_*</span><span class="col-type">CHECK</span></div>
+    </div>
+  </div>
+
+  <!-- New: homepage_projects -->
+  <div class="er-table new">
+    <div class="er-header">homepage_projects <span class="tag">NEW</span></div>
+    <div class="er-columns">
+      <div class="er-col primary"><span class="icon pk">PK</span><span class="col-name">id</span><span class="col-type">UUID</span></div>
+      <div class="er-col foreign"><span class="icon fk">FK</span><span class="col-name">client_id</span><span class="col-type">UUID</span></div>
+      <div class="er-col"><span class="icon">-</span><span class="col-name">project_name</span><span class="col-type">TEXT</span></div>
+      <div class="er-col"><span class="icon">-</span><span class="col-name">template_id</span><span class="col-type">TEXT</span></div>
+      <div class="er-col"><span class="icon">-</span><span class="col-name">status</span><span class="col-type">TEXT</span></div>
+      <div class="er-col"><span class="icon">-</span><span class="col-name">subdomain</span><span class="col-type">TEXT</span></div>
+      <div class="er-col"><span class="icon">-</span><span class="col-name">theme_config</span><span class="col-type">JSONB</span></div>
+      <div class="er-col"><span class="icon">-</span><span class="col-name">seo_config</span><span class="col-type">JSONB</span></div>
+      <div class="er-col"><span class="icon">-</span><span class="col-name">blog_config</span><span class="col-type">JSONB</span></div>
+    </div>
+  </div>
+
+  <!-- New: homepage_materials -->
+  <div class="er-table new">
+    <div class="er-header">homepage_materials <span class="tag">NEW</span></div>
+    <div class="er-columns">
+      <div class="er-col primary"><span class="icon pk">PK</span><span class="col-name">id</span><span class="col-type">UUID</span></div>
+      <div class="er-col foreign"><span class="icon fk">FK</span><span class="col-name">project_id</span><span class="col-type">UUID</span></div>
+      <div class="er-col"><span class="icon">-</span><span class="col-name">company_name</span><span class="col-type">TEXT</span></div>
+      <div class="er-col"><span class="icon">-</span><span class="col-name">phone</span><span class="col-type">TEXT</span></div>
+      <div class="er-col"><span class="icon">-</span><span class="col-name">address</span><span class="col-type">TEXT</span></div>
+      <div class="er-col"><span class="icon">-</span><span class="col-name">service_regions</span><span class="col-type">TEXT[]</span></div>
+      <div class="er-col"><span class="icon">-</span><span class="col-name">faq_items</span><span class="col-type">JSONB</span></div>
+    </div>
+  </div>
+
+  <!-- New: homepage_portfolios -->
+  <div class="er-table new">
+    <div class="er-header">homepage_portfolios <span class="tag">NEW</span></div>
+    <div class="er-columns">
+      <div class="er-col primary"><span class="icon pk">PK</span><span class="col-name">id</span><span class="col-type">UUID</span></div>
+      <div class="er-col foreign"><span class="icon fk">FK</span><span class="col-name">project_id</span><span class="col-type">UUID</span></div>
+      <div class="er-col"><span class="icon">-</span><span class="col-name">title</span><span class="col-type">TEXT</span></div>
+      <div class="er-col"><span class="icon">-</span><span class="col-name">space_type</span><span class="col-type">TEXT</span></div>
+      <div class="er-col"><span class="icon">-</span><span class="col-name">image_urls</span><span class="col-type">TEXT[]</span></div>
+      <div class="er-col"><span class="icon">-</span><span class="col-name">before_image_url</span><span class="col-type">TEXT</span></div>
+      <div class="er-col"><span class="icon">-</span><span class="col-name">after_image_url</span><span class="col-type">TEXT</span></div>
+    </div>
+  </div>
+
+  <!-- New: homepage_reviews -->
+  <div class="er-table new">
+    <div class="er-header">homepage_reviews <span class="tag">NEW</span></div>
+    <div class="er-columns">
+      <div class="er-col primary"><span class="icon pk">PK</span><span class="col-name">id</span><span class="col-type">UUID</span></div>
+      <div class="er-col foreign"><span class="icon fk">FK</span><span class="col-name">project_id</span><span class="col-type">UUID</span></div>
+      <div class="er-col"><span class="icon">-</span><span class="col-name">customer_name</span><span class="col-type">TEXT</span></div>
+      <div class="er-col"><span class="icon">-</span><span class="col-name">rating</span><span class="col-type">INT (1~5)</span></div>
+      <div class="er-col"><span class="icon">-</span><span class="col-name">content</span><span class="col-type">TEXT</span></div>
+      <div class="er-col"><span class="icon">-</span><span class="col-name">source</span><span class="col-type">TEXT</span></div>
+    </div>
+  </div>
+
+  <!-- New: homepage_inquiries -->
+  <div class="er-table new">
+    <div class="er-header">homepage_inquiries <span class="tag">NEW</span></div>
+    <div class="er-columns">
+      <div class="er-col primary"><span class="icon pk">PK</span><span class="col-name">id</span><span class="col-type">UUID</span></div>
+      <div class="er-col foreign"><span class="icon fk">FK</span><span class="col-name">project_id</span><span class="col-type">UUID</span></div>
+      <div class="er-col foreign"><span class="icon fk">FK</span><span class="col-name">client_id</span><span class="col-type">UUID</span></div>
+      <div class="er-col"><span class="icon">-</span><span class="col-name">name</span><span class="col-type">TEXT</span></div>
+      <div class="er-col"><span class="icon">-</span><span class="col-name">phone</span><span class="col-type">TEXT</span></div>
+      <div class="er-col"><span class="icon">-</span><span class="col-name">status</span><span class="col-type">TEXT</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- Relations -->
+<div class="section-title">테이블 관계 <span class="badge">FK 참조</span></div>
+<div class="relations-section">
+  <div class="relation-grid">
+    <div class="relation-item">
+      <span class="from">homepage_projects</span>
+      <span class="arrow">N:1</span>
+      <span class="to">clients</span>
+      <span class="type">CASCADE</span>
+    </div>
+    <div class="relation-item">
+      <span class="from">homepage_materials</span>
+      <span class="arrow">1:1</span>
+      <span class="to">homepage_projects</span>
+      <span class="type">CASCADE</span>
+    </div>
+    <div class="relation-item">
+      <span class="from">homepage_portfolios</span>
+      <span class="arrow">N:1</span>
+      <span class="to">homepage_projects</span>
+      <span class="type">CASCADE</span>
+    </div>
+    <div class="relation-item">
+      <span class="from">homepage_reviews</span>
+      <span class="arrow">N:1</span>
+      <span class="to">homepage_projects</span>
+      <span class="type">CASCADE</span>
+    </div>
+    <div class="relation-item">
+      <span class="from">homepage_inquiries</span>
+      <span class="arrow">N:1</span>
+      <span class="to">homepage_projects</span>
+      <span class="type">CASCADE</span>
+    </div>
+    <div class="relation-item">
+      <span class="from">homepage_inquiries</span>
+      <span class="arrow">N:1</span>
+      <span class="to">clients</span>
+      <span class="type">SET NULL</span>
+    </div>
+  </div>
+</div>
+
+<!-- RLS Policies -->
+<div class="section-title">RLS 정책 <span class="badge">Row Level Security</span></div>
+<div class="rls-grid">
+  <div class="rls-card">
+    <h4>workspace_members_can_view</h4>
+    <p>워크스페이스 멤버만 홈페이지 프로젝트를 조회할 수 있습니다.</p>
+    <div class="policy">SELECT: client_id IN (workspace_members WHERE user_id = auth.uid())</div>
+  </div>
+  <div class="rls-card">
+    <h4>workspace_members_can_manage</h4>
+    <p>owner, admin, member 역할의 워크스페이스 멤버만 프로젝트를 관리할 수 있습니다.</p>
+    <div class="policy">ALL: role IN ('owner', 'admin', 'member')</div>
+  </div>
+  <div class="rls-card">
+    <h4>anyone_can_insert_inquiry</h4>
+    <p>홈페이지 방문자(비인증)도 상담 신청을 접수할 수 있습니다.</p>
+    <div class="policy">INSERT: WITH CHECK (true) -- anon 허용</div>
+  </div>
+  <div class="rls-card">
+    <h4>public_read_homepage_assets</h4>
+    <p>포트폴리오 이미지, 로고 등 홈페이지 에셋은 공개 읽기가 가능합니다.</p>
+    <div class="policy">SELECT: bucket_id = 'homepage-assets'</div>
+  </div>
+</div>
+
+<!-- Migration SQL Preview -->
+<div class="section-title">마이그레이션 SQL 미리보기</div>
+<div class="sql-preview">
+  <div class="sql-header">
+    <span>20260317000001_create_homepage_tables.sql</span>
+    <span style="color:#22c55e">migration</span>
+  </div>
+  <div class="sql-body"><span class="sql-comment">-- Phase 1: 홈페이지 서비스 DB 스키마 확장</span>
+<span class="sql-comment">-- 5개 신규 테이블 + 기존 CHECK 제약 확장</span>
+
+<span class="sql-keyword">CREATE TABLE</span> homepage_projects (
+  id <span class="sql-type">UUID PRIMARY KEY</span> <span class="sql-keyword">DEFAULT</span> gen_random_uuid(),
+  client_id <span class="sql-type">UUID NOT NULL</span> <span class="sql-keyword">REFERENCES</span> clients(id) <span class="sql-keyword">ON DELETE CASCADE</span>,
+  project_name <span class="sql-type">TEXT NOT NULL</span>,
+  template_id <span class="sql-type">TEXT NOT NULL</span> <span class="sql-keyword">DEFAULT</span> <span class="sql-string">'modern-minimal'</span>,
+  status <span class="sql-type">TEXT NOT NULL</span> <span class="sql-keyword">DEFAULT</span> <span class="sql-string">'collecting'</span>,
+  subdomain <span class="sql-type">TEXT UNIQUE</span>,
+  theme_config <span class="sql-type">JSONB NOT NULL</span> <span class="sql-keyword">DEFAULT</span> <span class="sql-string">'{}'</span>,
+  seo_config <span class="sql-type">JSONB NOT NULL</span> <span class="sql-keyword">DEFAULT</span> <span class="sql-string">'{}'</span>,
+  ...
+);
+
+<span class="sql-keyword">CREATE INDEX</span> idx_hp_projects_client <span class="sql-keyword">ON</span> homepage_projects(client_id);
+<span class="sql-keyword">CREATE INDEX</span> idx_hp_projects_status <span class="sql-keyword">ON</span> homepage_projects(status);</div>
+</div>
+
+</body>
+</html>

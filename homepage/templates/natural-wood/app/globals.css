@@ -1,0 +1,81 @@
+@import "tailwindcss";
+
+:root {
+  /* Natural Wood 테마 컬러 */
+  --primary: #8B6914;
+  --primary-dark: #725510;
+  --primary-light: #A07D2E;
+  --secondary: #6B7B3A;
+  --secondary-dark: #566530;
+  --accent: #D4956A;
+  --bg: #FEFCF9;
+  --bg-soft: #FAF6F0;
+  --bg-muted: #F3EDE3;
+  --text: #2C2417;
+  --text-secondary: #5C5040;
+  --text-muted: #9C8E78;
+  --border: #E8DFD1;
+  --border-light: #F0EAE0;
+  --surface: #FFFFFF;
+
+  /* 폰트 */
+  --font-heading: "Noto Serif KR", serif;
+  --font-body: "Noto Sans KR", sans-serif;
+}
+
+@theme inline {
+  --color-primary: var(--primary);
+  --color-primary-dark: var(--primary-dark);
+  --color-primary-light: var(--primary-light);
+  --color-secondary: var(--secondary);
+  --color-secondary-dark: var(--secondary-dark);
+  --color-accent: var(--accent);
+  --color-bg: var(--bg);
+  --color-bg-soft: var(--bg-soft);
+  --color-bg-muted: var(--bg-muted);
+  --color-text: var(--text);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-muted: var(--text-muted);
+  --color-border: var(--border);
+  --color-border-light: var(--border-light);
+  --color-surface: var(--surface);
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading);
+}
+
+/* 섹션 간격 */
+.section-padding {
+  @apply py-20 md:py-28;
+}
+
+/* 컨테이너 */
+.container-narrow {
+  @apply max-w-5xl mx-auto px-4 sm:px-6 lg:px-8;
+}
+
+.container-wide {
+  @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
+}
+
+/* 그라데이션 오버레이 */
+.gradient-overlay {
+  background: linear-gradient(to bottom, rgba(44, 36, 23, 0.4), rgba(44, 36, 23, 0.1));
+}
+
+/* organic shapes */
+.organic-shape {
+  border-radius: 1.5rem;
+}

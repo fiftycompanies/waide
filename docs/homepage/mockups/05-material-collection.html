@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>자료 수집 폼 — /homepage/[id]/collect</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, 'Pretendard', sans-serif; background: #f8fafc; color: #0f172a; }
+
+  .container { max-width: 800px; margin: 0 auto; padding: 40px 24px; }
+
+  .header { margin-bottom: 40px; }
+  .header h1 { font-size: 24px; font-weight: 700; margin-bottom: 4px; }
+  .header p { color: #64748b; font-size: 14px; }
+
+  /* Stepper */
+  .stepper { display: flex; align-items: center; margin-bottom: 48px; }
+  .step { display: flex; align-items: center; gap: 10px; flex: 1; }
+  .step-number { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; border: 2px solid #e2e8f0; color: #94a3b8; background: #fff; }
+  .step.active .step-number { background: #2563eb; color: #fff; border-color: #2563eb; }
+  .step.done .step-number { background: #22c55e; color: #fff; border-color: #22c55e; }
+  .step-label { font-size: 13px; color: #94a3b8; }
+  .step.active .step-label { color: #0f172a; font-weight: 600; }
+  .step.done .step-label { color: #22c55e; }
+  .step-line { flex: 1; height: 2px; background: #e2e8f0; margin: 0 8px; }
+  .step-line.done { background: #22c55e; }
+
+  /* Form */
+  .form-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 32px; margin-bottom: 24px; }
+  .form-title { font-size: 18px; font-weight: 600; margin-bottom: 4px; }
+  .form-desc { font-size: 13px; color: #64748b; margin-bottom: 24px; }
+
+  .form-group { margin-bottom: 20px; }
+  .form-label { display: block; font-size: 13px; font-weight: 600; color: #334155; margin-bottom: 6px; }
+  .form-label .required { color: #ef4444; margin-left: 2px; }
+  .form-input { width: 100%; padding: 10px 14px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 14px; outline: none; transition: border-color 0.15s; }
+  .form-input:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
+  .form-input::placeholder { color: #94a3b8; }
+  textarea.form-input { min-height: 100px; resize: vertical; }
+  .form-hint { font-size: 11px; color: #94a3b8; margin-top: 4px; }
+
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+
+  /* Tag Input */
+  .tag-input { display: flex; flex-wrap: wrap; gap: 8px; padding: 8px 12px; border: 1px solid #e2e8f0; border-radius: 8px; min-height: 42px; align-items: center; }
+  .tag { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; background: #eff6ff; color: #2563eb; border-radius: 6px; font-size: 12px; font-weight: 500; }
+  .tag .remove { cursor: pointer; color: #93c5fd; font-weight: 700; }
+  .tag-input input { border: none; outline: none; font-size: 13px; flex: 1; min-width: 100px; }
+
+  /* Upload Area */
+  .upload-area { border: 2px dashed #e2e8f0; border-radius: 12px; padding: 40px; text-align: center; cursor: pointer; transition: all 0.2s; }
+  .upload-area:hover { border-color: #2563eb; background: #f8fafc; }
+  .upload-icon { font-size: 36px; margin-bottom: 8px; }
+  .upload-text { font-size: 14px; color: #64748b; }
+  .upload-text strong { color: #2563eb; }
+  .upload-hint { font-size: 12px; color: #94a3b8; margin-top: 4px; }
+
+  .uploaded-files { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 16px; }
+  .uploaded-file { border-radius: 8px; overflow: hidden; position: relative; }
+  .uploaded-file .thumb { width: 100%; height: 100px; background: linear-gradient(135deg, #e2e8f0, #cbd5e1); display: flex; align-items: center; justify-content: center; font-size: 24px; }
+  .uploaded-file .name { padding: 6px 8px; font-size: 11px; color: #64748b; background: #f8fafc; }
+  .uploaded-file .remove-file { position: absolute; top: 4px; right: 4px; width: 20px; height: 20px; border-radius: 50%; background: rgba(0,0,0,0.5); color: #fff; font-size: 12px; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+
+  /* Buttons */
+  .form-actions { display: flex; justify-content: space-between; margin-top: 32px; }
+  .btn { padding: 12px 24px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; border: 1px solid #e2e8f0; background: #fff; color: #334155; }
+  .btn:hover { background: #f8fafc; }
+  .btn-primary { background: #2563eb; color: #fff; border-color: #2563eb; }
+  .btn-primary:hover { background: #1d4ed8; }
+  .btn-disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* Select Input */
+  select.form-input { cursor: pointer; appearance: none; background-image: url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' stroke='%2394a3b8' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; }
+
+  /* Checkbox group */
+  .checkbox-group { display: flex; flex-wrap: wrap; gap: 12px; }
+  .checkbox-item { display: flex; align-items: center; gap: 6px; padding: 8px 16px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; cursor: pointer; font-size: 13px; transition: all 0.15s; }
+  .checkbox-item:hover { border-color: #2563eb; }
+  .checkbox-item.selected { background: #eff6ff; border-color: #2563eb; color: #2563eb; font-weight: 600; }
+  .checkbox-item input { display: none; }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <div class="header">
+    <h1>📄 자료 수집 — 강남인테리어 홈페이지</h1>
+    <p>홈페이지 제작에 필요한 업체 정보를 단계별로 수집합니다</p>
+  </div>
+
+  <!-- Stepper -->
+  <div class="stepper">
+    <div class="step done">
+      <div class="step-number">✓</div>
+      <span class="step-label">기본 정보</span>
+    </div>
+    <div class="step-line done"></div>
+    <div class="step done">
+      <div class="step-number">✓</div>
+      <span class="step-label">서비스 정보</span>
+    </div>
+    <div class="step-line done"></div>
+    <div class="step active">
+      <div class="step-number">3</div>
+      <span class="step-label">포트폴리오</span>
+    </div>
+    <div class="step-line"></div>
+    <div class="step">
+      <div class="step-number">4</div>
+      <span class="step-label">고객 후기</span>
+    </div>
+    <div class="step-line"></div>
+    <div class="step">
+      <div class="step-number">5</div>
+      <span class="step-label">디자인 선택</span>
+    </div>
+  </div>
+
+  <!-- Step 1: 기본 정보 (완료) - 참조용 표시 -->
+  <div style="margin-bottom:16px;padding:16px 20px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;display:flex;justify-content:space-between;align-items:center;">
+    <div>
+      <strong style="color:#16a34a;font-size:14px;">✅ Step 1: 기본 정보 — 완료</strong>
+      <p style="font-size:12px;color:#64748b;margin-top:2px;">OO인테리어 · 김인테리어 · 010-1234-5678</p>
+    </div>
+    <button class="btn" style="font-size:12px;padding:6px 12px;">수정</button>
+  </div>
+
+  <div style="margin-bottom:16px;padding:16px 20px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;display:flex;justify-content:space-between;align-items:center;">
+    <div>
+      <strong style="color:#16a34a;font-size:14px;">✅ Step 2: 서비스 정보 — 완료</strong>
+      <p style="font-size:12px;color:#64748b;margin-top:2px;">강남구, 서초구 · 아파트 인테리어, 리모델링 · 모던, 미니멀</p>
+    </div>
+    <button class="btn" style="font-size:12px;padding:6px 12px;">수정</button>
+  </div>
+
+  <!-- Step 3: 포트폴리오 (현재 활성) -->
+  <div class="form-card">
+    <div class="form-title">Step 3: 포트폴리오 / 시공 사례</div>
+    <div class="form-desc">대표 시공 사례를 등록해주세요. 최소 3건 이상 권장합니다.</div>
+
+    <div class="form-group">
+      <label class="form-label">프로젝트명 <span class="required">*</span></label>
+      <input type="text" class="form-input" placeholder="예: 강남 30평 아파트 모던 인테리어">
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">공간 유형 <span class="required">*</span></label>
+        <select class="form-input">
+          <option value="">선택하세요</option>
+          <option>거실</option>
+          <option>주방</option>
+          <option>침실</option>
+          <option>욕실</option>
+          <option selected>전체 (올수리)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">면적 (평수)</label>
+        <input type="text" class="form-input" placeholder="예: 30" value="30">
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">디자인 스타일</label>
+        <select class="form-input">
+          <option>모던</option>
+          <option>미니멀</option>
+          <option>내추럴</option>
+          <option>클래식</option>
+          <option>북유럽</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">시공 비용 (만원)</label>
+        <input type="text" class="form-input" placeholder="예: 5000" value="5000">
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">시공 설명</label>
+      <textarea class="form-input" placeholder="시공 과정이나 특징을 설명해주세요">30평 아파트 전체 올수리를 진행했습니다. 거실은 오픈형 구조로 변경하고, 주방은 아일랜드 식탁을 설치하여 공간 활용을 극대화했습니다.</textarea>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">시공 사진 업로드 <span class="required">*</span></label>
+      <div class="upload-area">
+        <div class="upload-icon">📸</div>
+        <div class="upload-text">사진을 드래그하거나 <strong>클릭하여 업로드</strong></div>
+        <div class="upload-hint">JPG, PNG, WEBP · 최대 10MB · 최대 20장</div>
+      </div>
+      <div class="uploaded-files">
+        <div class="uploaded-file">
+          <div class="thumb">🏠</div>
+          <div class="name">거실_전경.jpg</div>
+          <button class="remove-file">✕</button>
+        </div>
+        <div class="uploaded-file">
+          <div class="thumb" style="background:linear-gradient(135deg,#fecaca,#fde68a)">🍳</div>
+          <div class="name">주방_아일랜드.jpg</div>
+          <button class="remove-file">✕</button>
+        </div>
+        <div class="uploaded-file">
+          <div class="thumb" style="background:linear-gradient(135deg,#bfdbfe,#c7d2fe)">🚿</div>
+          <div class="name">욕실_시공후.jpg</div>
+          <button class="remove-file">✕</button>
+        </div>
+      </div>
+      <div class="form-hint">Before/After 사진이 있으면 별도로 업로드해주세요</div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Before/After 사진 (선택)</label>
+      <div class="upload-area" style="padding:24px">
+        <div class="upload-text">Before/After 비교 사진 <strong>업로드</strong></div>
+        <div class="upload-hint">시공 전/후 사진을 짝으로 업로드해주세요</div>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">BEST 사례로 설정</label>
+      <div class="checkbox-group">
+        <label class="checkbox-item selected"><input type="checkbox" checked>⭐ BEST 시공 사례</label>
+        <label class="checkbox-item"><input type="checkbox">메인 히어로 이미지 사용</label>
+      </div>
+      <div class="form-hint">BEST 사례는 홈페이지 상단에 우선 노출됩니다</div>
+    </div>
+  </div>
+
+  <!-- Actions -->
+  <div class="form-actions">
+    <button class="btn">← 이전: 서비스 정보</button>
+    <div style="display:flex;gap:12px;">
+      <button class="btn">저장하고 사례 추가</button>
+      <button class="btn btn-primary">다음: 고객 후기 →</button>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

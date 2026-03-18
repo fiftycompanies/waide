@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Phase 2: 어드민 UI 목업 — waide-mkt 홈페이지 서비스</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, 'Pretendard', sans-serif; background: #f8fafc; color: #0f172a; }
+  .nav-top { display: flex; gap: 16px; align-items: center; padding: 16px 32px; font-size: 13px; background: #0f172a; color: #e2e8f0; }
+  .nav-top a { color: #64748b; text-decoration: none; }
+  .nav-top a:hover { color: #38bdf8; }
+  .nav-top .sep { color: #334155; }
+  .nav-top .current { color: #38bdf8; font-weight: 600; }
+
+  /* Admin Layout */
+  .admin-layout { display: flex; min-height: calc(100vh - 48px); }
+
+  /* Sidebar */
+  .sidebar { width: 240px; background: #0f172a; color: #e2e8f0; padding: 20px 0; flex-shrink: 0; }
+  .sidebar-section { padding: 0 16px; margin-bottom: 24px; }
+  .sidebar-label { font-size: 10px; color: #475569; text-transform: uppercase; letter-spacing: 1.5px; padding: 0 12px; margin-bottom: 8px; }
+  .sidebar-item { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 8px; font-size: 13px; color: #94a3b8; cursor: pointer; transition: all 0.15s; margin-bottom: 2px; }
+  .sidebar-item:hover { background: #1e293b; color: #e2e8f0; }
+  .sidebar-item.active { background: #2563eb; color: #fff; }
+  .sidebar-item .icon { width: 18px; text-align: center; font-size: 14px; }
+  .sidebar-item .badge-count { margin-left: auto; background: #ef4444; color: #fff; font-size: 10px; padding: 1px 6px; border-radius: 10px; }
+  .sidebar-divider { height: 1px; background: #1e293b; margin: 16px; }
+  .sidebar-item.new-tag::after { content: 'NEW'; font-size: 9px; background: #22d3ee; color: #0f172a; padding: 1px 5px; border-radius: 4px; margin-left: auto; font-weight: 700; }
+
+  /* Main Content */
+  .main-content { flex: 1; padding: 32px; overflow-y: auto; }
+
+  /* Page Header */
+  .page-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 32px; }
+  .page-header h1 { font-size: 28px; font-weight: 700; }
+  .page-header p { color: #64748b; font-size: 14px; margin-top: 4px; }
+  .btn-primary { background: #2563eb; color: #fff; border: none; padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px; }
+
+  /* Stats Cards */
+  .stats-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; margin-bottom: 32px; }
+  .stat-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; text-align: center; cursor: pointer; transition: all 0.2s; }
+  .stat-card:hover { border-color: #2563eb; box-shadow: 0 2px 8px rgba(37,99,235,0.1); }
+  .stat-card.active { border-color: #2563eb; background: #eff6ff; }
+  .stat-label { font-size: 13px; color: #64748b; margin-bottom: 8px; }
+  .stat-value { font-size: 28px; font-weight: 700; color: #0f172a; }
+  .stat-card.active .stat-value { color: #2563eb; }
+
+  /* Filter Tabs */
+  .filter-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+  .filter-tabs { display: flex; gap: 8px; }
+  .filter-tab { padding: 6px 16px; border-radius: 20px; font-size: 13px; border: 1px solid #e2e8f0; background: #fff; color: #64748b; cursor: pointer; }
+  .filter-tab.active { background: #0f172a; color: #fff; border-color: #0f172a; }
+  .search-input { padding: 8px 16px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 13px; width: 240px; outline: none; }
+
+  /* Project Cards */
+  .project-list { display: flex; flex-direction: column; gap: 16px; }
+  .project-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 24px; transition: all 0.2s; cursor: pointer; }
+  .project-card:hover { border-color: #94a3b8; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+  .project-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; }
+  .project-title { font-size: 18px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+  .project-company { font-size: 13px; color: #64748b; margin-top: 2px; }
+
+  .badge { padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+  .badge-live { background: #dcfce7; color: #16a34a; }
+  .badge-collecting { background: #fef9c3; color: #ca8a04; }
+  .badge-building { background: #dbeafe; color: #2563eb; }
+  .badge-preview { background: #f3e8ff; color: #9333ea; }
+
+  .project-meta { display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px; }
+  .meta-label { font-size: 11px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+  .meta-value { font-size: 15px; font-weight: 600; color: #334155; }
+
+  .project-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 16px; padding-top: 16px; border-top: 1px solid #f1f5f9; }
+  .project-date { font-size: 12px; color: #94a3b8; }
+  .project-actions { display: flex; gap: 12px; }
+  .action-link { font-size: 13px; color: #2563eb; text-decoration: none; font-weight: 500; cursor: pointer; }
+
+  /* Tabs */
+  .tab-section { margin-top: 48px; border-top: 2px solid #e2e8f0; padding-top: 32px; }
+  .tab-header { display: flex; gap: 0; border-bottom: 2px solid #e2e8f0; margin-bottom: 24px; }
+  .tab-item { padding: 12px 24px; font-size: 14px; color: #64748b; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -2px; font-weight: 500; }
+  .tab-item.active { color: #2563eb; border-bottom-color: #2563eb; font-weight: 600; }
+
+  /* Detail Section */
+  .detail-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 24px; }
+  .detail-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; }
+  .detail-card h3 { font-size: 16px; font-weight: 600; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+  .info-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #f1f5f9; font-size: 14px; }
+  .info-label { color: #64748b; }
+  .info-value { font-weight: 500; }
+
+  /* Step Progress */
+  .step-progress { display: flex; align-items: center; gap: 0; margin: 32px 0; }
+  .step { flex: 1; text-align: center; position: relative; }
+  .step-circle { width: 36px; height: 36px; border-radius: 50%; border: 2px solid #e2e8f0; display: flex; align-items: center; justify-content: center; margin: 0 auto 8px; font-size: 13px; font-weight: 600; color: #94a3b8; background: #fff; }
+  .step.done .step-circle { background: #22c55e; border-color: #22c55e; color: #fff; }
+  .step.current .step-circle { background: #2563eb; border-color: #2563eb; color: #fff; }
+  .step-label { font-size: 11px; color: #94a3b8; }
+  .step.done .step-label { color: #22c55e; }
+  .step.current .step-label { color: #2563eb; font-weight: 600; }
+  .step-line { flex: 0 0 60px; height: 2px; background: #e2e8f0; }
+  .step-line.done { background: #22c55e; }
+
+  @media (max-width: 768px) {
+    .admin-layout { flex-direction: column; }
+    .sidebar { width: 100%; }
+    .stats-row { grid-template-columns: repeat(2, 1fr); }
+    .project-meta { grid-template-columns: repeat(2, 1fr); }
+    .detail-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="nav-top">
+  <a href="index.html">Phase 목업 인덱스</a>
+  <span class="sep">/</span>
+  <span class="current">Phase 2: 어드민 UI</span>
+</div>
+
+<div class="admin-layout">
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-label">메인</div>
+      <div class="sidebar-item"><span class="icon">📊</span> 대시보드</div>
+      <div class="sidebar-item"><span class="icon">🏢</span> 브랜드</div>
+      <div class="sidebar-item"><span class="icon">🔑</span> 키워드</div>
+      <div class="sidebar-item"><span class="icon">📝</span> 콘텐츠</div>
+      <div class="sidebar-item"><span class="icon">📤</span> 발행</div>
+      <div class="sidebar-item"><span class="icon">📈</span> 분석</div>
+    </div>
+    <div class="sidebar-divider"></div>
+    <div class="sidebar-section">
+      <div class="sidebar-label">홈페이지</div>
+      <div class="sidebar-item active new-tag"><span class="icon">🌐</span> 프로젝트</div>
+      <div class="sidebar-item new-tag"><span class="icon">💬</span> 상담 신청 <span class="badge-count">3</span></div>
+    </div>
+    <div class="sidebar-divider"></div>
+    <div class="sidebar-section">
+      <div class="sidebar-label">시스템</div>
+      <div class="sidebar-item"><span class="icon">⚙️</span> 설정</div>
+      <div class="sidebar-item"><span class="icon">👥</span> 팀</div>
+    </div>
+  </div>
+
+  <!-- Main Content -->
+  <div class="main-content">
+    <!-- Page Header -->
+    <div class="page-header">
+      <div>
+        <h1>홈페이지 프로젝트</h1>
+        <p>인테리어 업체 홈페이지를 생성하고 관리합니다</p>
+      </div>
+      <button class="btn-primary">+ 새 프로젝트</button>
+    </div>
+
+    <!-- Stats Cards -->
+    <div class="stats-row">
+      <div class="stat-card active">
+        <div class="stat-label">전체 프로젝트</div>
+        <div class="stat-value">12</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">수집중</div>
+        <div class="stat-value">3</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">빌드중</div>
+        <div class="stat-value">1</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">프리뷰</div>
+        <div class="stat-value">2</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">라이브</div>
+        <div class="stat-value">6</div>
+      </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="filter-row">
+      <div class="filter-tabs">
+        <div class="filter-tab active">전체</div>
+        <div class="filter-tab">수집중</div>
+        <div class="filter-tab">빌드중</div>
+        <div class="filter-tab">프리뷰</div>
+        <div class="filter-tab">라이브</div>
+        <div class="filter-tab">중단</div>
+      </div>
+      <input type="text" class="search-input" placeholder="프로젝트명 또는 업체명 검색...">
+    </div>
+
+    <!-- Project List -->
+    <div class="project-list">
+      <div class="project-card">
+        <div class="project-top">
+          <div>
+            <div class="project-title">강남인테리어 홈페이지 <span class="badge badge-live">라이브</span></div>
+            <div class="project-company">강남인테리어 디자인</div>
+          </div>
+        </div>
+        <div class="project-meta">
+          <div><div class="meta-label">템플릿</div><div class="meta-value">모던 미니멀</div></div>
+          <div><div class="meta-label">서브도메인</div><div class="meta-value">gangnam.waide.kr</div></div>
+          <div><div class="meta-label">월 방문수</div><div class="meta-value">1,247</div></div>
+          <div><div class="meta-label">상담 접수</div><div class="meta-value">23건</div></div>
+        </div>
+        <div class="project-footer">
+          <div class="project-date">마지막 배포: 2026-03-15 14:30</div>
+          <div class="project-actions">
+            <span class="action-link">프리뷰</span>
+            <span class="action-link">상세</span>
+            <span class="action-link">재배포</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="project-card">
+        <div class="project-top">
+          <div>
+            <div class="project-title">서초 프리미엄 홈 <span class="badge badge-preview">프리뷰</span></div>
+            <div class="project-company">서초프리미엄인테리어</div>
+          </div>
+        </div>
+        <div class="project-meta">
+          <div><div class="meta-label">템플릿</div><div class="meta-value">프리미엄 다크</div></div>
+          <div><div class="meta-label">서브도메인</div><div class="meta-value">seocho-premium.waide.kr</div></div>
+          <div><div class="meta-label">월 방문수</div><div class="meta-value">-</div></div>
+          <div><div class="meta-label">상담 접수</div><div class="meta-value">-</div></div>
+        </div>
+        <div class="project-footer">
+          <div class="project-date">생성일: 2026-03-14</div>
+          <div class="project-actions">
+            <span class="action-link">프리뷰</span>
+            <span class="action-link">상세</span>
+            <span class="action-link" style="color:#16a34a">라이브 전환</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="project-card">
+        <div class="project-top">
+          <div>
+            <div class="project-title">마포 우드인테리어 <span class="badge badge-collecting">수집중</span></div>
+            <div class="project-company">마포우드인테리어</div>
+          </div>
+        </div>
+        <div class="project-meta">
+          <div><div class="meta-label">템플릿</div><div class="meta-value">내추럴 우드</div></div>
+          <div><div class="meta-label">서브도메인</div><div class="meta-value">mapo-wood.waide.kr</div></div>
+          <div><div class="meta-label">수집 진행률</div><div class="meta-value">60%</div></div>
+          <div><div class="meta-label">상담 접수</div><div class="meta-value">-</div></div>
+        </div>
+        <div class="project-footer">
+          <div class="project-date">생성일: 2026-03-16</div>
+          <div class="project-actions">
+            <span class="action-link">자료 수집</span>
+            <span class="action-link">상세</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Project Detail Section -->
+    <div class="tab-section">
+      <h2 style="font-size: 22px; font-weight: 700; margin-bottom: 24px;">프로젝트 상세 — 강남인테리어 홈페이지</h2>
+
+      <!-- Tabs -->
+      <div class="tab-header">
+        <div class="tab-item active">개요</div>
+        <div class="tab-item">자료</div>
+        <div class="tab-item">포트폴리오</div>
+        <div class="tab-item">후기</div>
+        <div class="tab-item">상담 (23)</div>
+        <div class="tab-item">블로그</div>
+        <div class="tab-item">설정</div>
+      </div>
+
+      <!-- Detail Grid -->
+      <div class="detail-grid">
+        <div>
+          <div class="detail-card" style="margin-bottom: 20px;">
+            <h3>프로젝트 정보</h3>
+            <div class="info-row"><span class="info-label">상태</span><span class="info-value"><span class="badge badge-live">라이브</span></span></div>
+            <div class="info-row"><span class="info-label">서브도메인</span><span class="info-value">gangnam.waide.kr</span></div>
+            <div class="info-row"><span class="info-label">템플릿</span><span class="info-value">모던 미니멀 (A)</span></div>
+            <div class="info-row"><span class="info-label">마지막 배포</span><span class="info-value">2026-03-15 14:30</span></div>
+            <div class="info-row"><span class="info-label">블로그 글</span><span class="info-value">24개</span></div>
+            <div class="info-row"><span class="info-label">포트폴리오</span><span class="info-value">12개</span></div>
+          </div>
+
+          <!-- Step Progress (for collecting status) -->
+          <div class="detail-card">
+            <h3>자료 수집 진행률 (수집중 프로젝트)</h3>
+            <div class="step-progress">
+              <div class="step done">
+                <div class="step-circle">1</div>
+                <div class="step-label">기본정보</div>
+              </div>
+              <div class="step-line done"></div>
+              <div class="step done">
+                <div class="step-circle">2</div>
+                <div class="step-label">서비스</div>
+              </div>
+              <div class="step-line done"></div>
+              <div class="step current">
+                <div class="step-circle">3</div>
+                <div class="step-label">포트폴리오</div>
+              </div>
+              <div class="step-line"></div>
+              <div class="step">
+                <div class="step-circle">4</div>
+                <div class="step-label">후기/SNS</div>
+              </div>
+              <div class="step-line"></div>
+              <div class="step">
+                <div class="step-circle">5</div>
+                <div class="step-label">디자인</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div class="detail-card" style="margin-bottom: 20px;">
+            <h3>빠른 작업</h3>
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+              <button class="btn-primary" style="width: 100%; justify-content: center;">프리뷰 열기</button>
+              <button style="width: 100%; padding: 10px; border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; font-size: 14px; cursor: pointer; font-weight: 500;">재배포</button>
+              <button style="width: 100%; padding: 10px; border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; font-size: 14px; cursor: pointer; font-weight: 500;">도메인 설정</button>
+              <button style="width: 100%; padding: 10px; border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; font-size: 14px; cursor: pointer; font-weight: 500;">SEO 설정</button>
+            </div>
+          </div>
+
+          <div class="detail-card">
+            <h3>이번 달 통계</h3>
+            <div class="info-row"><span class="info-label">방문수</span><span class="info-value" style="color: #2563eb; font-weight: 700;">1,247</span></div>
+            <div class="info-row"><span class="info-label">상담 접수</span><span class="info-value" style="color: #16a34a; font-weight: 700;">23건</span></div>
+            <div class="info-row"><span class="info-label">전환율</span><span class="info-value" style="color: #9333ea; font-weight: 700;">1.8%</span></div>
+            <div class="info-row" style="border: none;"><span class="info-label">블로그 발행</span><span class="info-value">8개</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

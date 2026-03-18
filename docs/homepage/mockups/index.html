@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>홈페이지 서비스 목업 — waide-mkt 통합</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, 'Pretendard', sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; }
+
+  .container { max-width: 1000px; margin: 0 auto; padding: 60px 32px; }
+
+  .header { text-align: center; margin-bottom: 64px; }
+  .header .badge { display: inline-block; padding: 6px 16px; background: #1e293b; border: 1px solid #334155; border-radius: 20px; font-size: 12px; color: #94a3b8; margin-bottom: 16px; }
+  .header h1 { font-size: 40px; font-weight: 800; color: #fff; margin-bottom: 12px; line-height: 1.2; }
+  .header h1 span { background: linear-gradient(135deg, #38bdf8, #818cf8); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+  .header p { font-size: 16px; color: #94a3b8; max-width: 600px; margin: 0 auto; line-height: 1.7; }
+
+  .section-label { font-size: 12px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 20px; }
+
+  .mockup-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; margin-bottom: 48px; }
+
+  .mockup-card { background: #1e293b; border: 1px solid #334155; border-radius: 16px; padding: 28px; text-decoration: none; color: inherit; transition: all 0.3s; display: flex; gap: 20px; }
+  .mockup-card:hover { border-color: #2563eb; transform: translateY(-2px); box-shadow: 0 8px 32px rgba(37,99,235,0.15); }
+
+  .mockup-icon { width: 52px; height: 52px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 24px; flex-shrink: 0; }
+  .mockup-content { }
+  .mockup-num { font-size: 11px; color: #64748b; font-weight: 600; margin-bottom: 4px; }
+  .mockup-title { font-size: 17px; font-weight: 700; color: #fff; margin-bottom: 6px; }
+  .mockup-desc { font-size: 13px; color: #94a3b8; line-height: 1.5; }
+  .mockup-tags { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+  .mockup-tag { font-size: 10px; padding: 3px 8px; background: #334155; border-radius: 4px; color: #64748b; }
+  .mockup-tag.done { background: #052e16; color: #22c55e; }
+  .mockup-tag.plan { background: #1e1b4b; color: #818cf8; }
+
+  .phase-section { margin-bottom: 48px; }
+
+  .status-bar { display: flex; gap: 24px; justify-content: center; margin-top: 64px; padding-top: 32px; border-top: 1px solid #1e293b; }
+  .status-item { text-align: center; }
+  .status-num { font-size: 32px; font-weight: 800; }
+  .status-num.blue { color: #38bdf8; }
+  .status-num.green { color: #22c55e; }
+  .status-num.purple { color: #818cf8; }
+  .status-label { font-size: 12px; color: #64748b; margin-top: 4px; }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <div class="header">
+    <div class="badge">waide-mkt × Homepage Service</div>
+    <h1>인테리어 홈페이지 서비스<br><span>통합 목업 가이드</span></h1>
+    <p>waide-mkt(ai-marketer)에 통합되는 인테리어 업체 홈페이지 서비스의 어드민 UI, 워크플로우, 템플릿 목업 모음입니다.</p>
+  </div>
+
+  <!-- 시스템 아키텍처 -->
+  <div class="phase-section">
+    <div class="section-label">시스템 아키텍처</div>
+    <div class="mockup-grid" style="grid-template-columns:1fr">
+      <a href="01-integration-overview.html" class="mockup-card">
+        <div class="mockup-icon" style="background:#1e3a5f">🏗️</div>
+        <div class="mockup-content">
+          <div class="mockup-num">01</div>
+          <div class="mockup-title">통합 아키텍처 Overview</div>
+          <div class="mockup-desc">waide-mkt 전체 시스템 통합 흐름, 데이터 파이프라인, 기존 기능 ↔ 신규 서비스 매핑, 9개 통합 포인트 현황</div>
+          <div class="mockup-tags">
+            <span class="mockup-tag done">Phase 1~4 완료</span>
+            <span class="mockup-tag plan">Phase 5~7 진행 중</span>
+          </div>
+        </div>
+      </a>
+    </div>
+  </div>
+
+  <!-- 어드민 UI -->
+  <div class="phase-section">
+    <div class="section-label">어드민 대시보드 UI</div>
+    <div class="mockup-grid">
+      <a href="02-admin-sidebar.html" class="mockup-card">
+        <div class="mockup-icon" style="background:#312e81">📋</div>
+        <div class="mockup-content">
+          <div class="mockup-num">02</div>
+          <div class="mockup-title">사이드바 메뉴 통합</div>
+          <div class="mockup-desc">기존 어드민 사이드바에 "홈페이지" 메뉴 그룹 추가, 역할별 접근 권한 테이블</div>
+          <div class="mockup-tags">
+            <span class="mockup-tag done">구현 완료</span>
+          </div>
+        </div>
+      </a>
+
+      <a href="03-project-list.html" class="mockup-card">
+        <div class="mockup-icon" style="background:#1e3a5f">🌐</div>
+        <div class="mockup-content">
+          <div class="mockup-num">03</div>
+          <div class="mockup-title">프로젝트 목록 페이지</div>
+          <div class="mockup-desc">통계 카드, 상태 필터, 프로젝트 카드 목록, 상태별 배지 시스템</div>
+          <div class="mockup-tags">
+            <span class="mockup-tag done">구현 완료</span>
+          </div>
+        </div>
+      </a>
+
+      <a href="04-project-detail.html" class="mockup-card">
+        <div class="mockup-icon" style="background:#3b1c5a">📊</div>
+        <div class="mockup-content">
+          <div class="mockup-num">04</div>
+          <div class="mockup-title">프로젝트 상세 (5탭)</div>
+          <div class="mockup-desc">개요/자료/포트폴리오/후기/상담 탭 구성, 빠른 작업 버튼, 탭 전환 동작</div>
+          <div class="mockup-tags">
+            <span class="mockup-tag done">구현 완료</span>
+          </div>
+        </div>
+      </a>
+
+      <a href="05-material-collection.html" class="mockup-card">
+        <div class="mockup-icon" style="background:#1a3636">📄</div>
+        <div class="mockup-content">
+          <div class="mockup-num">05</div>
+          <div class="mockup-title">자료 수집 폼 (5단계)</div>
+          <div class="mockup-desc">스텝 프로그레스, 기본정보/서비스/포트폴리오/후기/디자인 5단계 폼</div>
+          <div class="mockup-tags">
+            <span class="mockup-tag done">구현 완료</span>
+          </div>
+        </div>
+      </a>
+
+      <a href="06-inquiry-management.html" class="mockup-card">
+        <div class="mockup-icon" style="background:#4a1d1d">💬</div>
+        <div class="mockup-content">
+          <div class="mockup-num">06</div>
+          <div class="mockup-title">상담 신청 관리</div>
+          <div class="mockup-desc">통합 상담 목록, 필터, 상세 슬라이드 패널, 타임라인, 상태 관리</div>
+          <div class="mockup-tags">
+            <span class="mockup-tag done">구현 완료</span>
+          </div>
+        </div>
+      </a>
+
+      <a href="07-keyword-generation.html" class="mockup-card">
+        <div class="mockup-icon" style="background:#1e3a2a">🔑</div>
+        <div class="mockup-content">
+          <div class="mockup-num">07</div>
+          <div class="mockup-title">키워드 자동 생성</div>
+          <div class="mockup-desc">132지역 × 124키워드 매트릭스, 생성 설정, 카테고리별 결과, 진행률</div>
+          <div class="mockup-tags">
+            <span class="mockup-tag done">액션 구현</span>
+          </div>
+        </div>
+      </a>
+    </div>
+  </div>
+
+  <!-- 템플릿 & 배포 -->
+  <div class="phase-section">
+    <div class="section-label">템플릿 & 배포</div>
+    <div class="mockup-grid">
+      <a href="08-template-preview.html" class="mockup-card">
+        <div class="mockup-icon" style="background:#3d2e1e">🖼️</div>
+        <div class="mockup-content">
+          <div class="mockup-num">08</div>
+          <div class="mockup-title">템플릿 3종 비교</div>
+          <div class="mockup-desc">Modern Minimal / Natural Wood / Premium Dark 미리보기, 색상 팔레트, 기능 비교표</div>
+          <div class="mockup-tags">
+            <span class="mockup-tag done">A 구현 완료</span>
+            <span class="mockup-tag plan">B,C Phase 7</span>
+          </div>
+        </div>
+      </a>
+
+      <a href="09-deploy-flow.html" class="mockup-card">
+        <div class="mockup-icon" style="background:#1e2a4a">☁️</div>
+        <div class="mockup-content">
+          <div class="mockup-num">09</div>
+          <div class="mockup-title">Vercel 배포 플로우</div>
+          <div class="mockup-desc">배포 요청 → Vercel API → 빌드 → 웹훅 → 서브도메인 → 라이브 전환 파이프라인</div>
+          <div class="mockup-tags">
+            <span class="mockup-tag plan">Phase 5</span>
+          </div>
+        </div>
+      </a>
+    </div>
+  </div>
+
+  <!-- Status Bar -->
+  <div class="status-bar">
+    <div class="status-item">
+      <div class="status-num green">9</div>
+      <div class="status-label">목업 페이지</div>
+    </div>
+    <div class="status-item">
+      <div class="status-num blue">5</div>
+      <div class="status-label">신규 DB 테이블</div>
+    </div>
+    <div class="status-item">
+      <div class="status-num purple">3</div>
+      <div class="status-label">템플릿</div>
+    </div>
+    <div class="status-item">
+      <div class="status-num green">4/7</div>
+      <div class="status-label">Phase 완료</div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

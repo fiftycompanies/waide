@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>통합 아키텍처 Overview — waide-mkt 홈페이지 서비스</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, 'Pretendard', sans-serif; background: #0f172a; color: #e2e8f0; padding: 40px; line-height: 1.6; }
+  h1 { font-size: 28px; margin-bottom: 8px; color: #fff; }
+  .subtitle { color: #94a3b8; margin-bottom: 40px; font-size: 14px; }
+  .diagram { display: flex; flex-direction: column; align-items: center; gap: 24px; }
+  .main-box { border: 2px solid #334155; border-radius: 16px; padding: 32px; width: 100%; max-width: 1100px; background: #1e293b; }
+  .main-box-title { font-size: 18px; font-weight: 700; color: #38bdf8; margin-bottom: 24px; text-align: center; }
+  .flow-row { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; margin-bottom: 32px; }
+  .flow-card { background: #0f172a; border: 1px solid #475569; border-radius: 12px; padding: 20px; width: 220px; text-align: center; position: relative; }
+  .flow-card.new { border-color: #22d3ee; box-shadow: 0 0 16px rgba(34,211,238,0.15); }
+  .flow-card .badge { position: absolute; top: -10px; right: -10px; background: #22d3ee; color: #0f172a; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 999px; }
+  .flow-card h3 { font-size: 16px; margin-bottom: 6px; color: #f1f5f9; }
+  .flow-card p { font-size: 12px; color: #94a3b8; }
+  .flow-arrow { display: flex; align-items: center; justify-content: center; color: #475569; font-size: 24px; }
+  .db-section { background: #172032; border: 1px dashed #334155; border-radius: 12px; padding: 24px; margin-bottom: 32px; }
+  .db-title { font-size: 14px; font-weight: 600; color: #a78bfa; margin-bottom: 16px; }
+  .db-grid { display: flex; gap: 32px; flex-wrap: wrap; }
+  .db-col h4 { font-size: 13px; color: #64748b; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; }
+  .db-col ul { list-style: none; }
+  .db-col ul li { font-size: 13px; padding: 4px 0; color: #94a3b8; }
+  .db-col ul li::before { content: "○ "; color: #475569; }
+  .db-col.new ul li::before { content: "● "; color: #22d3ee; }
+  .frontend-row { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; margin-bottom: 24px; }
+  .fe-card { background: #0f172a; border: 1px solid #475569; border-radius: 8px; padding: 16px 24px; text-align: center; }
+  .fe-card.new { border-color: #22d3ee; }
+  .fe-card h4 { font-size: 14px; color: #e2e8f0; }
+  .fe-card p { font-size: 11px; color: #64748b; }
+  .deploy-box { background: linear-gradient(135deg, #7c3aed20, #2563eb20); border: 1px solid #7c3aed; border-radius: 12px; padding: 24px; text-align: center; width: 300px; }
+  .deploy-box h3 { color: #a78bfa; font-size: 16px; }
+  .deploy-box p { color: #94a3b8; font-size: 13px; }
+  .arrow-down { text-align: center; color: #475569; font-size: 28px; line-height: 1; }
+  .table-section { margin-top: 48px; max-width: 1100px; margin-left: auto; margin-right: auto; }
+  .table-section h2 { font-size: 20px; color: #fff; margin-bottom: 16px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  thead th { background: #1e293b; color: #94a3b8; padding: 12px 16px; text-align: left; border-bottom: 2px solid #334155; font-weight: 600; }
+  tbody td { padding: 12px 16px; border-bottom: 1px solid #1e293b; color: #cbd5e1; }
+  tbody tr:hover { background: #1e293b40; }
+  .status-done { color: #22c55e; }
+  .status-schema { color: #eab308; }
+  .status-todo { color: #64748b; }
+  .legend { display: flex; gap: 24px; margin-top: 12px; font-size: 12px; color: #64748b; }
+  .legend span { display: flex; align-items: center; gap: 6px; }
+  .legend .dot { width: 8px; height: 8px; border-radius: 50%; }
+</style>
+</head>
+<body>
+<h1>통합 아키텍처 Overview</h1>
+<p class="subtitle">waide-mkt(ai-marketer)에 인테리어 홈페이지 서비스를 통합하는 전체 시스템 흐름</p>
+
+<div class="diagram">
+  <!-- Main System Box -->
+  <div class="main-box">
+    <div class="main-box-title">waide-mkt (ai-marketer)</div>
+
+    <!-- Pipeline Flow -->
+    <div class="flow-row">
+      <div class="flow-card">
+        <h3>🔍 브랜드 분석</h3>
+        <p>기존 API 재사용<br>/api/analyze</p>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-card">
+        <h3>🔑 키워드 생성</h3>
+        <p>신규 액션 추가<br>132지역 × 124키워드</p>
+        <span class="badge">확장</span>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-card new">
+        <h3>🌐 홈페이지 빌드</h3>
+        <p>신규 서비스<br>Vercel 배포</p>
+        <span class="badge">NEW</span>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-card">
+        <h3>📝 블로그 발행</h3>
+        <p>기존 + 확장<br>hp_blog 타입 추가</p>
+        <span class="badge">확장</span>
+      </div>
+    </div>
+
+    <!-- Database Section -->
+    <div class="db-section">
+      <div class="db-title">Supabase PostgreSQL (공유 DB)</div>
+      <div class="db-grid">
+        <div class="db-col">
+          <h4>기존 테이블 (변경 없음)</h4>
+          <ul>
+            <li>clients</li>
+            <li>keywords</li>
+            <li>contents</li>
+            <li>publications</li>
+            <li>publishing_accounts</li>
+            <li>brand_analyses</li>
+            <li>keyword_visibility</li>
+            <li>serp_results</li>
+            <li>aeo_scores</li>
+            <li>jobs</li>
+          </ul>
+        </div>
+        <div class="db-col new">
+          <h4>신규 테이블 (5개)</h4>
+          <ul>
+            <li>homepage_projects</li>
+            <li>homepage_materials</li>
+            <li>homepage_portfolios</li>
+            <li>homepage_reviews</li>
+            <li>homepage_inquiries</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Frontend Row -->
+    <div class="frontend-row">
+      <div class="fe-card">
+        <h4>📊 어드민 대시보드</h4>
+        <p>기존 + 홈페이지 메뉴 추가</p>
+      </div>
+      <div class="fe-card">
+        <h4>👤 고객 포털</h4>
+        <p>기존 유지</p>
+      </div>
+      <div class="fe-card new">
+        <h4>🌐 홈페이지 프리뷰</h4>
+        <p>신규 — 3종 템플릿</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="arrow-down">▼</div>
+
+  <!-- Deploy Box -->
+  <div class="deploy-box">
+    <h3>☁️ Vercel 배포</h3>
+    <p>{업체명}.waide.kr<br>생성된 홈페이지 서빙</p>
+  </div>
+</div>
+
+<!-- Integration Points Table -->
+<div class="table-section">
+  <h2>통합 포인트 요약</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>통합 영역</th>
+        <th>기존 시스템</th>
+        <th>신규/확장</th>
+        <th>상태</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>1</td>
+        <td>브랜드 분석 → 홈페이지</td>
+        <td>/api/analyze</td>
+        <td>interior_profile JSONB 확장</td>
+        <td class="status-done">✅ 스키마 설계 완료</td>
+      </tr>
+      <tr>
+        <td>2</td>
+        <td>키워드 자동생성</td>
+        <td>keywords 테이블</td>
+        <td>source: homepage_seo/blog_target</td>
+        <td class="status-done">✅ 액션 구현 완료</td>
+      </tr>
+      <tr>
+        <td>3</td>
+        <td>어드민 사이드바</td>
+        <td>app-sidebar.tsx</td>
+        <td>"홈페이지" 메뉴 그룹 추가</td>
+        <td class="status-done">✅ 구현 완료</td>
+      </tr>
+      <tr>
+        <td>4</td>
+        <td>클라이언트 상세 탭</td>
+        <td>10탭 구조</td>
+        <td>11번째 "홈페이지" 탭</td>
+        <td class="status-todo">🔲 미구현</td>
+      </tr>
+      <tr>
+        <td>5</td>
+        <td>콘텐츠 타입 확장</td>
+        <td>content_type CHECK</td>
+        <td>hp_blog_info, hp_blog_review 추가</td>
+        <td class="status-todo">🔲 Phase 6</td>
+      </tr>
+      <tr>
+        <td>6</td>
+        <td>발행 플랫폼 확장</td>
+        <td>publishing_accounts</td>
+        <td>platform: 'homepage' 추가</td>
+        <td class="status-todo">🔲 Phase 6</td>
+      </tr>
+      <tr>
+        <td>7</td>
+        <td>Vercel 배포 파이프라인</td>
+        <td>없음</td>
+        <td>Vercel API 연동</td>
+        <td class="status-todo">🔲 Phase 5</td>
+      </tr>
+      <tr>
+        <td>8</td>
+        <td>블로그 스케줄러 확장</td>
+        <td>/api/cron/scheduled-publish</td>
+        <td>홈페이지 블로그 스케줄 추가</td>
+        <td class="status-todo">🔲 Phase 6</td>
+      </tr>
+      <tr>
+        <td>9</td>
+        <td>리포트 확장</td>
+        <td>월간 PDF</td>
+        <td>홈페이지 방문/상담 섹션 추가</td>
+        <td class="status-todo">🔲 미구현</td>
+      </tr>
+    </tbody>
+  </table>
+  <div class="legend">
+    <span><span class="dot" style="background:#22c55e"></span> 구현 완료</span>
+    <span><span class="dot" style="background:#eab308"></span> 스키마 설계</span>
+    <span><span class="dot" style="background:#64748b"></span> 미구현</span>
+  </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>키워드 자동 생성 — 홈페이지 SEO/블로그</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, 'Pretendard', sans-serif; background: #f8fafc; color: #0f172a; padding: 32px; }
+
+  .page-header { margin-bottom: 32px; }
+  .page-header h1 { font-size: 28px; font-weight: 700; margin-bottom: 4px; }
+  .page-header p { color: #64748b; font-size: 14px; }
+
+  .layout { display: grid; grid-template-columns: 320px 1fr; gap: 24px; }
+
+  /* Left Panel - Config */
+  .config-panel { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 24px; height: fit-content; position: sticky; top: 32px; }
+  .config-title { font-size: 16px; font-weight: 600; margin-bottom: 20px; display: flex; align-items: center; gap: 8px; }
+  .config-group { margin-bottom: 20px; }
+  .config-label { font-size: 12px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+
+  .region-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { padding: 5px 12px; border-radius: 20px; font-size: 12px; border: 1px solid #e2e8f0; background: #fff; cursor: pointer; transition: all 0.15s; }
+  .chip:hover { border-color: #2563eb; }
+  .chip.selected { background: #2563eb; color: #fff; border-color: #2563eb; }
+  .chip.disabled { opacity: 0.3; cursor: not-allowed; }
+
+  .keyword-count { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; }
+  .kw-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: #f8fafc; border-radius: 8px; }
+  .kw-type { font-size: 13px; color: #475569; }
+  .kw-num { font-size: 14px; font-weight: 700; color: #2563eb; }
+
+  .total-row { padding: 12px; background: #eff6ff; border-radius: 8px; text-align: center; margin-top: 16px; }
+  .total-label { font-size: 12px; color: #64748b; }
+  .total-value { font-size: 28px; font-weight: 700; color: #2563eb; }
+
+  .btn-generate { width: 100%; padding: 14px; background: #2563eb; color: #fff; border: none; border-radius: 10px; font-size: 15px; font-weight: 700; cursor: pointer; margin-top: 16px; transition: background 0.15s; }
+  .btn-generate:hover { background: #1d4ed8; }
+
+  /* Right Panel - Results */
+  .results-panel { }
+
+  .category-section { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; margin-bottom: 16px; overflow: hidden; }
+  .category-header { padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
+  .category-header:hover { background: #f8fafc; }
+  .category-title { font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+  .category-count { font-size: 12px; color: #64748b; background: #f1f5f9; padding: 2px 10px; border-radius: 10px; }
+  .category-badge { font-size: 11px; padding: 3px 10px; border-radius: 6px; font-weight: 600; }
+  .badge-seo { background: #dbeafe; color: #2563eb; }
+  .badge-blog { background: #dcfce7; color: #16a34a; }
+  .badge-aeo { background: #f3e8ff; color: #9333ea; }
+
+  .category-body { border-top: 1px solid #f1f5f9; padding: 16px 20px; }
+  .keyword-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+  .keyword-tag { padding: 6px 14px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 13px; color: #334155; display: flex; align-items: center; gap: 6px; }
+  .keyword-tag .vol { font-size: 10px; color: #94a3b8; }
+  .keyword-tag.high-vol { border-color: #22c55e; background: #f0fdf4; }
+
+  /* Matrix Preview */
+  .matrix-preview { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; margin-bottom: 16px; }
+  .matrix-title { font-size: 15px; font-weight: 600; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+  .matrix-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .matrix-table th { background: #f8fafc; padding: 10px 12px; text-align: left; color: #64748b; font-weight: 600; border: 1px solid #e2e8f0; }
+  .matrix-table td { padding: 8px 12px; border: 1px solid #f1f5f9; color: #475569; }
+  .matrix-table td.generated { background: #eff6ff; color: #2563eb; font-weight: 500; }
+  .region-col { font-weight: 600; color: #0f172a; background: #f8fafc; }
+  .matrix-note { font-size: 11px; color: #94a3b8; margin-top: 12px; text-align: center; }
+
+  /* Progress */
+  .progress-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; margin-bottom: 16px; }
+  .progress-title { font-size: 14px; font-weight: 600; margin-bottom: 12px; }
+  .progress-bar-wrap { height: 8px; background: #e2e8f0; border-radius: 4px; overflow: hidden; margin-bottom: 8px; }
+  .progress-bar { height: 100%; border-radius: 4px; background: linear-gradient(90deg, #2563eb, #7c3aed); transition: width 0.5s; }
+  .progress-detail { display: flex; justify-content: space-between; font-size: 12px; color: #64748b; }
+</style>
+</head>
+<body>
+
+<div class="page-header">
+  <h1>🔑 키워드 자동 생성</h1>
+  <p>홈페이지 SEO 키워드와 블로그 타겟 키워드를 자동으로 생성합니다 — 132지역 × 124키워드 매트릭스</p>
+</div>
+
+<div class="layout">
+  <!-- Left: Config -->
+  <div class="config-panel">
+    <div class="config-title">⚙️ 생성 설정</div>
+
+    <div class="config-group">
+      <div class="config-label">프로젝트</div>
+      <div style="padding:10px 14px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;font-size:14px;font-weight:500;">강남인테리어 홈페이지</div>
+    </div>
+
+    <div class="config-group">
+      <div class="config-label">시공 지역 (선택됨: 3)</div>
+      <div class="region-chips">
+        <span class="chip selected">강남구</span>
+        <span class="chip selected">서초구</span>
+        <span class="chip selected">송파구</span>
+        <span class="chip">강동구</span>
+        <span class="chip">용산구</span>
+        <span class="chip">마포구</span>
+        <span class="chip">성동구</span>
+        <span class="chip disabled">+125</span>
+      </div>
+    </div>
+
+    <div class="config-group">
+      <div class="config-label">키워드 카테고리</div>
+      <div class="region-chips">
+        <span class="chip selected">핵심 키워드</span>
+        <span class="chip selected">건물 유형</span>
+        <span class="chip selected">정보 블로그</span>
+        <span class="chip selected">후기 블로그</span>
+        <span class="chip selected">AEO 키워드</span>
+      </div>
+    </div>
+
+    <div class="config-group">
+      <div class="config-label">생성 예상</div>
+      <div class="keyword-count">
+        <div class="kw-row"><span class="kw-type">🔑 핵심 SEO</span><span class="kw-num">87개</span></div>
+        <div class="kw-row"><span class="kw-type">🏢 건물 유형</span><span class="kw-num">45개</span></div>
+        <div class="kw-row"><span class="kw-type">📝 정보 블로그</span><span class="kw-num">120개</span></div>
+        <div class="kw-row"><span class="kw-type">⭐ 후기 블로그</span><span class="kw-num">60개</span></div>
+        <div class="kw-row"><span class="kw-type">🤖 AEO</span><span class="kw-num">60개</span></div>
+      </div>
+      <div class="total-row">
+        <div class="total-label">총 생성 키워드</div>
+        <div class="total-value">372</div>
+      </div>
+    </div>
+
+    <button class="btn-generate">🚀 키워드 생성 시작</button>
+  </div>
+
+  <!-- Right: Results -->
+  <div class="results-panel">
+
+    <!-- Progress -->
+    <div class="progress-card">
+      <div class="progress-title">생성 진행률</div>
+      <div class="progress-bar-wrap">
+        <div class="progress-bar" style="width:75%"></div>
+      </div>
+      <div class="progress-detail">
+        <span>279 / 372 키워드 생성됨</span>
+        <span>75%</span>
+      </div>
+    </div>
+
+    <!-- Matrix Preview -->
+    <div class="matrix-preview">
+      <div class="matrix-title">📊 지역 × 키워드 매트릭스 미리보기</div>
+      <table class="matrix-table">
+        <thead>
+          <tr>
+            <th>지역</th>
+            <th>인테리어</th>
+            <th>리모델링</th>
+            <th>인테리어 업체</th>
+            <th>시공 비용</th>
+            <th>아파트 인테리어</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="region-col">강남구</td>
+            <td class="generated">강남 인테리어</td>
+            <td class="generated">강남 리모델링</td>
+            <td class="generated">강남 인테리어 업체</td>
+            <td class="generated">강남 시공 비용</td>
+            <td class="generated">강남 아파트 인테리어</td>
+          </tr>
+          <tr>
+            <td class="region-col">서초구</td>
+            <td class="generated">서초 인테리어</td>
+            <td class="generated">서초 리모델링</td>
+            <td class="generated">서초 인테리어 업체</td>
+            <td class="generated">서초 시공 비용</td>
+            <td class="generated">서초 아파트 인테리어</td>
+          </tr>
+          <tr>
+            <td class="region-col">송파구</td>
+            <td class="generated">송파 인테리어</td>
+            <td class="generated">송파 리모델링</td>
+            <td class="generated">송파 인테리어 업체</td>
+            <td>송파 시공 비용</td>
+            <td>송파 아파트 인테리어</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="matrix-note">전체: 132개 지역 × 124개 키워드 = 최대 16,368개 조합 가능 (선택 지역만 생성)</div>
+    </div>
+
+    <!-- Category: Core SEO -->
+    <div class="category-section">
+      <div class="category-header">
+        <div class="category-title">🔑 핵심 SEO 키워드 <span class="category-count">87개</span></div>
+        <span class="category-badge badge-seo">homepage_seo</span>
+      </div>
+      <div class="category-body">
+        <div class="keyword-grid">
+          <span class="keyword-tag high-vol">강남 인테리어 <span class="vol">vol:8,100</span></span>
+          <span class="keyword-tag high-vol">강남 리모델링 <span class="vol">vol:5,400</span></span>
+          <span class="keyword-tag">강남 인테리어 업체 <span class="vol">vol:2,900</span></span>
+          <span class="keyword-tag">강남 인테리어 비용 <span class="vol">vol:1,600</span></span>
+          <span class="keyword-tag">서초 인테리어 <span class="vol">vol:3,200</span></span>
+          <span class="keyword-tag">서초 리모델링 <span class="vol">vol:2,100</span></span>
+          <span class="keyword-tag">송파 인테리어 <span class="vol">vol:2,800</span></span>
+          <span class="keyword-tag">강남 아파트 인테리어</span>
+          <span class="keyword-tag">강남 전체 인테리어</span>
+          <span class="keyword-tag">서초 인테리어 업체</span>
+          <span class="keyword-tag" style="color:#94a3b8">+77 more...</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Category: Blog Info -->
+    <div class="category-section">
+      <div class="category-header">
+        <div class="category-title">📝 정보 블로그 키워드 <span class="category-count">120개</span></div>
+        <span class="category-badge badge-blog">blog_target</span>
+      </div>
+      <div class="category-body">
+        <div class="keyword-grid">
+          <span class="keyword-tag">강남 인테리어 비용 가이드</span>
+          <span class="keyword-tag">30평 아파트 인테리어 견적</span>
+          <span class="keyword-tag">인테리어 업체 선택 방법</span>
+          <span class="keyword-tag">강남 아파트 리모델링 후기</span>
+          <span class="keyword-tag">인테리어 시공 기간 얼마나</span>
+          <span class="keyword-tag">주방 리모델링 비용 정리</span>
+          <span class="keyword-tag">욕실 인테리어 트렌드 2026</span>
+          <span class="keyword-tag" style="color:#94a3b8">+113 more...</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Category: AEO -->
+    <div class="category-section">
+      <div class="category-header">
+        <div class="category-title">🤖 AEO 키워드 <span class="category-count">60개</span></div>
+        <span class="category-badge badge-aeo">aeo_target</span>
+      </div>
+      <div class="category-body">
+        <div class="keyword-grid">
+          <span class="keyword-tag">강남에서 인테리어 잘하는 곳</span>
+          <span class="keyword-tag">30평 아파트 인테리어 얼마</span>
+          <span class="keyword-tag">인테리어 업체 고르는 법</span>
+          <span class="keyword-tag">강남 인테리어 추천 업체</span>
+          <span class="keyword-tag">리모델링 vs 인테리어 차이</span>
+          <span class="keyword-tag" style="color:#94a3b8">+55 more...</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

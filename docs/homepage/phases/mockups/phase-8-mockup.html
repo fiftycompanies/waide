@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Phase 8: 대시보드 + 리포트 목업 — waide-mkt 홈페이지 서비스</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, 'Pretendard', sans-serif; background: #f8fafc; color: #0f172a; }
+  .nav-top { display: flex; gap: 16px; align-items: center; padding: 16px 32px; font-size: 13px; background: #0f172a; color: #e2e8f0; }
+  .nav-top a { color: #64748b; text-decoration: none; }
+  .nav-top a:hover { color: #38bdf8; }
+  .nav-top .sep { color: #334155; }
+  .nav-top .current { color: #38bdf8; font-weight: 600; }
+
+  .container { max-width: 1200px; margin: 0 auto; padding: 32px; }
+  .page-header { margin-bottom: 32px; }
+  .page-header h1 { font-size: 28px; font-weight: 700; margin-bottom: 4px; }
+  .page-header p { color: #64748b; font-size: 14px; }
+  .section-title { font-size: 18px; font-weight: 700; margin: 40px 0 20px; display: flex; align-items: center; gap: 10px; }
+  .section-title .badge { background: #eff6ff; color: #2563eb; font-size: 11px; padding: 3px 10px; border-radius: 20px; font-weight: 600; }
+
+  /* KPI Cards */
+  .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 32px; }
+  .kpi-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 24px; }
+  .kpi-card .kpi-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .kpi-card .kpi-label { font-size: 13px; color: #64748b; }
+  .kpi-card .kpi-icon { width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 16px; }
+  .kpi-card .kpi-value { font-size: 32px; font-weight: 800; color: #0f172a; }
+  .kpi-card .kpi-change { display: flex; align-items: center; gap: 4px; font-size: 12px; margin-top: 8px; }
+  .kpi-card .kpi-change.up { color: #16a34a; }
+  .kpi-card .kpi-change.down { color: #dc2626; }
+
+  /* Charts */
+  .chart-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 20px; margin-bottom: 32px; }
+  .chart-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 24px; }
+  .chart-card h3 { font-size: 16px; font-weight: 600; margin-bottom: 20px; }
+
+  /* Line Chart Mock */
+  .line-chart { position: relative; height: 200px; border-bottom: 1px solid #e2e8f0; border-left: 1px solid #e2e8f0; }
+  .chart-line { position: absolute; bottom: 0; left: 0; right: 0; height: 100%; }
+  .chart-svg { width: 100%; height: 100%; }
+  .y-labels { position: absolute; left: -36px; top: 0; bottom: 0; display: flex; flex-direction: column; justify-content: space-between; font-size: 10px; color: #94a3b8; }
+  .x-labels { display: flex; justify-content: space-between; margin-top: 8px; font-size: 10px; color: #94a3b8; }
+
+  /* Pie Chart Mock */
+  .pie-chart { width: 160px; height: 160px; border-radius: 50%; margin: 0 auto 20px; position: relative; }
+  .pie-chart-bg { width: 100%; height: 100%; border-radius: 50%; background: conic-gradient(
+    #22c55e 0deg 130deg,
+    #3b82f6 130deg 230deg,
+    #f59e0b 230deg 300deg,
+    #ef4444 300deg 330deg,
+    #94a3b8 330deg 360deg
+  ); }
+  .pie-center { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 80px; height: 80px; background: #fff; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .pie-center .total { font-size: 20px; font-weight: 800; }
+  .pie-center .label { font-size: 10px; color: #64748b; }
+  .pie-legend { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #64748b; }
+  .legend-dot { width: 8px; height: 8px; border-radius: 50%; }
+
+  /* Bar Chart Mock */
+  .bar-chart { display: flex; align-items: flex-end; gap: 8px; height: 150px; padding-top: 20px; }
+  .bar-item { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .bar { width: 100%; border-radius: 4px 4px 0 0; transition: height 0.5s; }
+  .bar-label { font-size: 10px; color: #94a3b8; }
+  .bar-value { font-size: 10px; font-weight: 600; color: #334155; }
+
+  /* Tables */
+  .data-table { width: 100%; font-size: 13px; border-collapse: collapse; }
+  .data-table th { text-align: left; padding: 10px 16px; color: #64748b; border-bottom: 2px solid #e2e8f0; font-weight: 600; font-size: 12px; }
+  .data-table td { padding: 12px 16px; border-bottom: 1px solid #f1f5f9; }
+  .data-table tr:hover { background: #f8fafc; }
+  .rank { width: 24px; height: 24px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; }
+  .rank-1 { background: #fef9c3; color: #92400e; }
+  .rank-2 { background: #f1f5f9; color: #475569; }
+  .rank-3 { background: #fce4c8; color: #9a3412; }
+
+  /* Notification Section */
+  .notif-section { background: #0f172a; border-radius: 16px; padding: 32px; margin-bottom: 32px; color: #e2e8f0; }
+  .notif-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .notif-card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 20px; }
+  .notif-card h4 { font-size: 15px; color: #fff; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+  .notif-card .notif-example { background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 12px; margin-top: 12px; }
+
+  /* Slack Mock */
+  .slack-msg { font-size: 12px; }
+  .slack-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .slack-avatar { width: 24px; height: 24px; background: #7c3aed; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 12px; color: #fff; }
+  .slack-name { font-weight: 600; color: #fff; font-size: 13px; }
+  .slack-time { color: #475569; font-size: 10px; }
+  .slack-body { background: #1e293b; border-left: 3px solid #2563eb; padding: 12px; border-radius: 0 8px 8px 0; }
+  .slack-title { font-weight: 600; color: #38bdf8; margin-bottom: 8px; }
+  .slack-field { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-bottom: 8px; }
+  .slack-field-item { }
+  .slack-field-label { font-size: 10px; color: #64748b; }
+  .slack-field-value { font-size: 12px; color: #e2e8f0; }
+  .slack-btn { display: inline-block; padding: 4px 12px; background: #2563eb; color: #fff; border-radius: 4px; font-size: 11px; font-weight: 600; margin-top: 8px; }
+
+  /* Email Mock */
+  .email-mock { background: #fff; border-radius: 8px; padding: 16px; color: #0f172a; font-size: 12px; }
+  .email-from { color: #64748b; margin-bottom: 8px; }
+  .email-subject { font-weight: 700; font-size: 14px; margin-bottom: 12px; }
+  .email-body { color: #334155; line-height: 1.8; }
+  .email-cta { display: inline-block; padding: 8px 20px; background: #2563eb; color: #fff; border-radius: 6px; font-size: 12px; font-weight: 600; margin-top: 12px; text-decoration: none; }
+
+  /* Report Section */
+  .report-section { margin-bottom: 32px; }
+  .report-preview { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; max-width: 600px; margin: 0 auto; box-shadow: 0 4px 24px rgba(0,0,0,0.08); }
+  .report-cover { background: linear-gradient(135deg, #0f172a, #1e3a5f); padding: 40px 32px; color: #fff; text-align: center; }
+  .report-cover h2 { font-size: 24px; font-weight: 700; margin-bottom: 8px; }
+  .report-cover p { color: #94a3b8; font-size: 13px; }
+  .report-page { padding: 24px 32px; border-bottom: 1px solid #f1f5f9; }
+  .report-page h3 { font-size: 16px; font-weight: 700; margin-bottom: 16px; color: #0f172a; display: flex; align-items: center; gap: 8px; }
+  .report-page .new-badge { font-size: 9px; background: #2563eb; color: #fff; padding: 2px 6px; border-radius: 4px; font-weight: 700; }
+  .report-metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 16px; }
+  .report-metric { text-align: center; padding: 12px; background: #f8fafc; border-radius: 8px; }
+  .report-metric .value { font-size: 20px; font-weight: 800; color: #2563eb; }
+  .report-metric .label { font-size: 10px; color: #64748b; margin-top: 2px; }
+
+  @media (max-width: 768px) {
+    .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+    .chart-grid { grid-template-columns: 1fr; }
+    .notif-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="nav-top">
+  <a href="index.html">Phase 목업 인덱스</a>
+  <span class="sep">/</span>
+  <span class="current">Phase 8: 모니터링 & 리포트</span>
+</div>
+
+<div class="container">
+  <div class="page-header">
+    <h1>Phase 8: 모니터링 & 리포트</h1>
+    <p>홈페이지 방문/상담 통계 대시보드 + 월간 리포트 + 알림 시스템 — 예상 소요 2일</p>
+  </div>
+
+  <!-- KPI Cards -->
+  <div class="section-title">KPI 대시보드 <span class="badge">실시간</span></div>
+  <div class="kpi-grid">
+    <div class="kpi-card">
+      <div class="kpi-header">
+        <span class="kpi-label">이번 달 방문수</span>
+        <div class="kpi-icon" style="background: #eff6ff;">👁</div>
+      </div>
+      <div class="kpi-value">1,247</div>
+      <div class="kpi-change up">+23.5% 전월 대비</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-header">
+        <span class="kpi-label">상담 접수</span>
+        <div class="kpi-icon" style="background: #f0fdf4;">💬</div>
+      </div>
+      <div class="kpi-value">23</div>
+      <div class="kpi-change up">+15.0% 전월 대비</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-header">
+        <span class="kpi-label">전환율</span>
+        <div class="kpi-icon" style="background: #faf5ff;">📈</div>
+      </div>
+      <div class="kpi-value">1.8%</div>
+      <div class="kpi-change down">-0.2% 전월 대비</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-header">
+        <span class="kpi-label">블로그 발행</span>
+        <div class="kpi-icon" style="background: #fffbeb;">📝</div>
+      </div>
+      <div class="kpi-value">8</div>
+      <div class="kpi-change up">목표 달성</div>
+    </div>
+  </div>
+
+  <!-- Charts -->
+  <div class="chart-grid">
+    <!-- Visitors Chart -->
+    <div class="chart-card">
+      <h3>일별 방문수 추이 (최근 30일)</h3>
+      <div class="line-chart">
+        <div class="y-labels">
+          <span>60</span>
+          <span>45</span>
+          <span>30</span>
+          <span>15</span>
+          <span>0</span>
+        </div>
+        <svg class="chart-svg" viewBox="0 0 400 200" preserveAspectRatio="none">
+          <defs>
+            <linearGradient id="lineGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#2563eb" stop-opacity="0.3"/>
+              <stop offset="100%" stop-color="#2563eb" stop-opacity="0"/>
+            </linearGradient>
+          </defs>
+          <path d="M0,180 L13,170 L26,165 L39,160 L52,150 L65,155 L78,140 L91,135 L104,130 L117,120 L130,125 L143,110 L156,105 L169,100 L182,90 L195,95 L208,80 L221,75 L234,70 L247,65 L260,60 L273,55 L286,50 L299,45 L312,40 L325,35 L338,30 L351,25 L364,30 L377,20 L400,15" fill="none" stroke="#2563eb" stroke-width="2"/>
+          <path d="M0,180 L13,170 L26,165 L39,160 L52,150 L65,155 L78,140 L91,135 L104,130 L117,120 L130,125 L143,110 L156,105 L169,100 L182,90 L195,95 L208,80 L221,75 L234,70 L247,65 L260,60 L273,55 L286,50 L299,45 L312,40 L325,35 L338,30 L351,25 L364,30 L377,20 L400,15 L400,200 L0,200 Z" fill="url(#lineGrad)"/>
+        </svg>
+      </div>
+      <div class="x-labels">
+        <span>3/1</span><span>3/5</span><span>3/10</span><span>3/15</span><span>3/17</span>
+      </div>
+    </div>
+
+    <!-- Inquiry Status Pie -->
+    <div class="chart-card">
+      <h3>상담 상태 분포</h3>
+      <div class="pie-chart">
+        <div class="pie-chart-bg"></div>
+        <div class="pie-center">
+          <div class="total">23</div>
+          <div class="label">건</div>
+        </div>
+      </div>
+      <div class="pie-legend">
+        <div class="legend-item"><div class="legend-dot" style="background:#22c55e"></div> 계약 (8)</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#3b82f6"></div> 상담중 (6)</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#f59e0b"></div> 연락완료 (5)</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#ef4444"></div> 이탈 (2)</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#94a3b8"></div> 신규 (2)</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Referrer Bar Chart + Top Pages -->
+  <div class="chart-grid">
+    <div class="chart-card">
+      <h3>인기 페이지 TOP 5</h3>
+      <table class="data-table">
+        <thead>
+          <tr><th>#</th><th>페이지</th><th>조회수</th><th>비율</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><span class="rank rank-1">1</span></td><td>/</td><td><strong>487</strong></td><td>39.1%</td></tr>
+          <tr><td><span class="rank rank-2">2</span></td><td>/portfolio</td><td><strong>234</strong></td><td>18.8%</td></tr>
+          <tr><td><span class="rank rank-3">3</span></td><td>/blog/강남-인테리어-비용</td><td><strong>156</strong></td><td>12.5%</td></tr>
+          <tr><td><span class="rank">4</span></td><td>/contact</td><td><strong>128</strong></td><td>10.3%</td></tr>
+          <tr><td><span class="rank">5</span></td><td>/blog/30평-시공-후기</td><td><strong>98</strong></td><td>7.9%</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="chart-card">
+      <h3>유입 경로 분석</h3>
+      <div class="bar-chart">
+        <div class="bar-item">
+          <div class="bar-value">42%</div>
+          <div class="bar" style="height: 126px; background: #22c55e;"></div>
+          <div class="bar-label">네이버</div>
+        </div>
+        <div class="bar-item">
+          <div class="bar-value">28%</div>
+          <div class="bar" style="height: 84px; background: #3b82f6;"></div>
+          <div class="bar-label">구글</div>
+        </div>
+        <div class="bar-item">
+          <div class="bar-value">15%</div>
+          <div class="bar" style="height: 45px; background: #f59e0b;"></div>
+          <div class="bar-label">직접</div>
+        </div>
+        <div class="bar-item">
+          <div class="bar-value">10%</div>
+          <div class="bar" style="height: 30px; background: #a78bfa;"></div>
+          <div class="bar-label">SNS</div>
+        </div>
+        <div class="bar-item">
+          <div class="bar-value">5%</div>
+          <div class="bar" style="height: 15px; background: #94a3b8;"></div>
+          <div class="bar-label">기타</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Notification System -->
+  <div class="section-title">알림 시스템 <span class="badge">Slack + 이메일</span></div>
+  <div class="notif-section">
+    <div class="notif-grid">
+      <!-- Slack -->
+      <div class="notif-card">
+        <h4>Slack 알림</h4>
+        <p style="font-size: 12px; color: #94a3b8; margin-bottom: 12px;">새 상담 신청 시 지정된 Slack 채널에 실시간 알림을 발송합니다.</p>
+        <div class="notif-example">
+          <div class="slack-msg">
+            <div class="slack-header">
+              <div class="slack-avatar">W</div>
+              <span class="slack-name">waide-bot</span>
+              <span class="slack-time">오늘 14:32</span>
+            </div>
+            <div class="slack-body">
+              <div class="slack-title">새 상담 신청 -- 강남인테리어 홈페이지</div>
+              <div class="slack-field">
+                <div class="slack-field-item"><div class="slack-field-label">고객명</div><div class="slack-field-value">김민수</div></div>
+                <div class="slack-field-item"><div class="slack-field-label">연락처</div><div class="slack-field-value">010-1234-5678</div></div>
+                <div class="slack-field-item"><div class="slack-field-label">공간유형</div><div class="slack-field-value">아파트</div></div>
+                <div class="slack-field-item"><div class="slack-field-label">평수</div><div class="slack-field-value">30평</div></div>
+              </div>
+              <div class="slack-field-item" style="margin-bottom: 8px;">
+                <div class="slack-field-label">예산</div><div class="slack-field-value">3,000~5,000만원</div>
+              </div>
+              <span class="slack-btn">상세 보기</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Email -->
+      <div class="notif-card">
+        <h4>이메일 알림</h4>
+        <p style="font-size: 12px; color: #94a3b8; margin-bottom: 12px;">담당자 이메일로 새 상담 접수 알림을 발송합니다. (Resend API)</p>
+        <div class="notif-example">
+          <div class="email-mock">
+            <div class="email-from">waide 홈페이지 &lt;noreply@waide.kr&gt;</div>
+            <div class="email-subject">[새 상담] 김민수 -- 강남인테리어 홈페이지</div>
+            <div class="email-body">
+              안녕하세요, 새 상담 신청이 접수되었습니다.<br><br>
+              <strong>고객:</strong> 김민수 (010-1234-5678)<br>
+              <strong>유형:</strong> 아파트 30평<br>
+              <strong>예산:</strong> 3,000~5,000만원<br><br>
+              <a class="email-cta">어드민에서 확인</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Monthly Report -->
+  <div class="section-title">월간 리포트 확장 <span class="badge">PDF</span></div>
+  <div class="report-section">
+    <div class="report-preview">
+      <div class="report-cover">
+        <h2>강남인테리어 월간 리포트</h2>
+        <p>2026년 3월 | waide 홈페이지 서비스</p>
+      </div>
+      <div class="report-page">
+        <h3>SEO 성과 <span style="font-size: 11px; color: #64748b;">(기존 섹션)</span></h3>
+        <p style="font-size: 13px; color: #64748b;">키워드 순위, 블로그 조회수, AEO 점수...</p>
+      </div>
+      <div class="report-page" style="background: #f0f9ff;">
+        <h3>홈페이지 성과 <span class="new-badge">NEW</span></h3>
+        <div class="report-metrics">
+          <div class="report-metric">
+            <div class="value">1,247</div>
+            <div class="label">방문수</div>
+          </div>
+          <div class="report-metric">
+            <div class="value">23건</div>
+            <div class="label">상담 접수</div>
+          </div>
+          <div class="report-metric">
+            <div class="value">1.8%</div>
+            <div class="label">전환율</div>
+          </div>
+        </div>
+        <div style="font-size: 12px; color: #64748b; line-height: 1.8;">
+          - 인기 페이지: / (39%), /portfolio (19%), /blog (13%)<br>
+          - 유입 경로: 네이버 42%, 구글 28%, 직접 15%<br>
+          - 블로그 발행: 정보성 4건 + 후기성 4건 = 8건<br>
+          - 상담 현황: 계약 8건, 상담중 6건, 이탈 2건
+        </div>
+      </div>
+      <div class="report-page">
+        <h3>다음 달 계획</h3>
+        <p style="font-size: 13px; color: #64748b;">블로그 8건 발행 예정, 포트폴리오 3건 추가...</p>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>

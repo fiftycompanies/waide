@@ -43,3 +43,12 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# homepage 서빙 앱 빌드 산출물
+homepage/*/node_modules/
+homepage/*/.next/
+homepage/*/.vercel/
+homepage/*/out/
+homepage/templates/*/node_modules/
+homepage/templates/*/.next/
+homepage/templates/*/.vercel/

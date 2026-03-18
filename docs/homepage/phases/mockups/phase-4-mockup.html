@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Phase 4: 템플릿 A 컴포넌트 목업 — waide-mkt 홈페이지 서비스</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, 'Pretendard', sans-serif; background: #fff; color: #0f172a; }
+  .nav-top { display: flex; gap: 16px; align-items: center; padding: 16px 32px; font-size: 13px; background: #0f172a; color: #e2e8f0; }
+  .nav-top a { color: #64748b; text-decoration: none; }
+  .nav-top a:hover { color: #38bdf8; }
+  .nav-top .sep { color: #334155; }
+  .nav-top .current { color: #38bdf8; font-weight: 600; }
+
+  /* Component Showcase */
+  .showcase-header { background: #0f172a; color: #fff; padding: 40px 32px 24px; }
+  .showcase-header h1 { font-size: 28px; margin-bottom: 8px; }
+  .showcase-header p { color: #94a3b8; font-size: 14px; margin-bottom: 24px; }
+  .component-tabs { display: flex; gap: 4px; flex-wrap: wrap; }
+  .comp-tab { padding: 8px 16px; border-radius: 8px 8px 0 0; font-size: 12px; cursor: pointer; font-weight: 500; }
+  .comp-tab.active { background: #fff; color: #0f172a; }
+  .comp-tab:not(.active) { background: #1e293b; color: #64748b; }
+
+  .component-preview { border: 2px solid #e2e8f0; margin: 0 32px 32px; border-radius: 0 12px 12px 12px; overflow: hidden; }
+  .comp-label { background: #f8fafc; border-bottom: 1px solid #e2e8f0; padding: 12px 20px; display: flex; justify-content: space-between; font-size: 12px; color: #64748b; }
+  .comp-label strong { color: #0f172a; }
+
+  /* Hero Section */
+  .hero-mock { position: relative; height: 480px; overflow: hidden; background: linear-gradient(135deg, #1e293b, #334155); }
+  .hero-bg { position: absolute; inset: 0; opacity: 0.3; background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect fill="%23475569" width="100" height="100"/><rect fill="%23334155" x="20" y="10" width="60" height="80" rx="4"/></svg>') center/cover; }
+  .hero-overlay { position: absolute; inset: 0; background: linear-gradient(to bottom, rgba(0,0,0,0.5), rgba(0,0,0,0.3)); }
+  .hero-content { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; text-align: center; color: #fff; padding: 40px; }
+  .hero-content h2 { font-size: 40px; font-weight: 800; margin-bottom: 16px; line-height: 1.3; }
+  .hero-content p { font-size: 18px; color: rgba(255,255,255,0.8); max-width: 600px; margin-bottom: 32px; }
+  .hero-btns { display: flex; gap: 12px; }
+  .hero-btn { padding: 14px 32px; border-radius: 10px; font-size: 15px; font-weight: 600; cursor: pointer; border: none; }
+  .hero-btn.primary { background: #2563eb; color: #fff; }
+  .hero-btn.outline { background: transparent; border: 2px solid rgba(255,255,255,0.5); color: #fff; }
+
+  /* Stats Section */
+  .stats-mock { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; background: #f8fafc; }
+  .stat-item { padding: 32px; text-align: center; border-right: 1px solid #e2e8f0; }
+  .stat-item:last-child { border-right: none; }
+  .stat-number { font-size: 36px; font-weight: 800; color: #2563eb; margin-bottom: 4px; }
+  .stat-text { font-size: 14px; color: #64748b; }
+
+  /* Portfolio Grid */
+  .portfolio-mock { padding: 48px 32px; }
+  .portfolio-mock h3 { font-size: 28px; font-weight: 700; text-align: center; margin-bottom: 8px; }
+  .portfolio-mock .sub { font-size: 14px; color: #64748b; text-align: center; margin-bottom: 24px; }
+  .portfolio-filters { display: flex; justify-content: center; gap: 8px; margin-bottom: 24px; }
+  .pf-filter { padding: 6px 16px; border-radius: 20px; font-size: 13px; border: 1px solid #e2e8f0; background: #fff; color: #64748b; cursor: pointer; }
+  .pf-filter.active { background: #0f172a; color: #fff; border-color: #0f172a; }
+  .portfolio-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .pf-card { border-radius: 12px; overflow: hidden; position: relative; aspect-ratio: 4/3; cursor: pointer; }
+  .pf-card .pf-img { width: 100%; height: 100%; object-fit: cover; }
+  .pf-card-placeholder { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 48px; }
+  .pf-overlay { position: absolute; inset: 0; background: linear-gradient(to top, rgba(0,0,0,0.7), transparent); opacity: 0; transition: opacity 0.3s; display: flex; flex-direction: column; justify-content: flex-end; padding: 20px; color: #fff; }
+  .pf-card:hover .pf-overlay { opacity: 1; }
+  .pf-overlay h4 { font-size: 16px; margin-bottom: 4px; }
+  .pf-overlay p { font-size: 12px; color: rgba(255,255,255,0.7); }
+
+  /* Before/After */
+  .ba-mock { padding: 48px 32px; background: #f8fafc; }
+  .ba-mock h3 { font-size: 28px; font-weight: 700; text-align: center; margin-bottom: 32px; }
+  .ba-slider { max-width: 700px; margin: 0 auto; position: relative; aspect-ratio: 16/9; border-radius: 16px; overflow: hidden; }
+  .ba-side { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 700; }
+  .ba-before { background: #94a3b8; color: #fff; clip-path: inset(0 50% 0 0); }
+  .ba-after { background: #2563eb; color: #fff; }
+  .ba-divider { position: absolute; top: 0; bottom: 0; left: 50%; width: 3px; background: #fff; z-index: 2; }
+  .ba-handle { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 40px; height: 40px; background: #fff; border-radius: 50%; z-index: 3; display: flex; align-items: center; justify-content: center; font-size: 16px; box-shadow: 0 2px 12px rgba(0,0,0,0.3); }
+  .ba-label { position: absolute; top: 16px; padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 600; z-index: 2; }
+  .ba-label.before { left: 16px; background: rgba(0,0,0,0.5); color: #fff; }
+  .ba-label.after { right: 16px; background: rgba(0,0,0,0.5); color: #fff; }
+
+  /* Reviews */
+  .reviews-mock { padding: 48px 32px; }
+  .reviews-mock h3 { font-size: 28px; font-weight: 700; text-align: center; margin-bottom: 32px; }
+  .reviews-carousel { display: flex; gap: 20px; overflow-x: hidden; }
+  .review-card { min-width: 300px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 24px; }
+  .review-stars { color: #eab308; font-size: 16px; margin-bottom: 12px; }
+  .review-text { font-size: 14px; color: #334155; line-height: 1.7; margin-bottom: 16px; }
+  .review-author { font-size: 13px; color: #64748b; }
+  .review-author strong { color: #0f172a; }
+
+  /* CTA */
+  .cta-mock { padding: 48px 32px; background: #0f172a; color: #fff; text-align: center; }
+  .cta-mock h3 { font-size: 28px; font-weight: 700; margin-bottom: 8px; }
+  .cta-mock p { color: #94a3b8; margin-bottom: 32px; }
+  .cta-form { max-width: 500px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .cta-input { padding: 12px 16px; border-radius: 8px; border: 1px solid #334155; background: #1e293b; color: #fff; font-size: 14px; }
+  .cta-input.full { grid-column: 1 / -1; }
+  .cta-submit { grid-column: 1 / -1; padding: 14px; background: #2563eb; color: #fff; border: none; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; }
+
+  /* File Structure */
+  .file-section { padding: 32px; background: #0f172a; color: #e2e8f0; }
+  .file-section h3 { font-size: 18px; color: #fff; margin-bottom: 16px; }
+  .file-tree { font-family: 'SF Mono', monospace; font-size: 12px; line-height: 2; color: #94a3b8; }
+  .file-tree .dir { color: #38bdf8; }
+  .file-tree .file { color: #94a3b8; }
+  .file-tree .highlight { color: #22c55e; }
+  .file-tree .comment { color: #475569; }
+
+  @media (max-width: 768px) {
+    .stats-mock { grid-template-columns: repeat(2, 1fr); }
+    .portfolio-grid { grid-template-columns: 1fr; }
+    .cta-form { grid-template-columns: 1fr; }
+    .hero-content h2 { font-size: 28px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="nav-top">
+  <a href="index.html">Phase 목업 인덱스</a>
+  <span class="sep">/</span>
+  <span class="current">Phase 4: 템플릿 A 컴포넌트</span>
+</div>
+
+<!-- Showcase Header -->
+<div class="showcase-header">
+  <h1>Phase 4: 모던 미니멀 템플릿 (A)</h1>
+  <p>인테리어 홈페이지 템플릿의 12개 핵심 컴포넌트 미리보기 — 예상 소요 5일</p>
+  <div class="component-tabs">
+    <div class="comp-tab active">Hero</div>
+    <div class="comp-tab">Stats</div>
+    <div class="comp-tab">Portfolio</div>
+    <div class="comp-tab">Before/After</div>
+    <div class="comp-tab">Reviews</div>
+    <div class="comp-tab">CTA</div>
+    <div class="comp-tab">Blog</div>
+    <div class="comp-tab">FAQ</div>
+    <div class="comp-tab">Nav</div>
+    <div class="comp-tab">Footer</div>
+  </div>
+</div>
+
+<!-- Hero Component -->
+<div class="component-preview">
+  <div class="comp-label"><strong>Hero.tsx</strong><span>components/home/Hero.tsx</span></div>
+  <div class="hero-mock">
+    <div class="hero-bg"></div>
+    <div class="hero-overlay"></div>
+    <div class="hero-content">
+      <h2>강남 프리미엄 인테리어<br>당신의 공간을 바꿉니다</h2>
+      <p>10년 경력의 전문가가 설계부터 시공까지 원스톱으로 진행합니다. 150건 이상의 시공 경험으로 신뢰할 수 있는 인테리어를 약속합니다.</p>
+      <div class="hero-btns">
+        <button class="hero-btn primary">무료 상담 신청</button>
+        <button class="hero-btn outline">시공 사례 보기</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Stats Component -->
+<div class="component-preview" style="margin-top: 24px;">
+  <div class="comp-label"><strong>Stats.tsx</strong><span>components/home/Stats.tsx</span></div>
+  <div class="stats-mock">
+    <div class="stat-item">
+      <div class="stat-number">10+</div>
+      <div class="stat-text">년 경력</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-number">150+</div>
+      <div class="stat-text">시공 완료</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-number">4.9</div>
+      <div class="stat-text">평균 평점</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-number">98%</div>
+      <div class="stat-text">고객 만족도</div>
+    </div>
+  </div>
+</div>
+
+<!-- Portfolio Component -->
+<div class="component-preview" style="margin-top: 24px;">
+  <div class="comp-label"><strong>Portfolio.tsx</strong><span>components/home/Portfolio.tsx — 3열 필터링 그리드</span></div>
+  <div class="portfolio-mock">
+    <h3>시공 사례</h3>
+    <p class="sub">다양한 공간을 새롭게 변화시킨 인테리어 사례를 만나보세요</p>
+    <div class="portfolio-filters">
+      <div class="pf-filter active">전체</div>
+      <div class="pf-filter">거실</div>
+      <div class="pf-filter">주방</div>
+      <div class="pf-filter">침실</div>
+      <div class="pf-filter">욕실</div>
+      <div class="pf-filter">원룸</div>
+    </div>
+    <div class="portfolio-grid">
+      <div class="pf-card" style="background: #e8d5b7;">
+        <div class="pf-card-placeholder">🏠</div>
+        <div class="pf-overlay">
+          <h4>30평 모던 아파트</h4>
+          <p>거실 | 모던 | 강남구</p>
+        </div>
+      </div>
+      <div class="pf-card" style="background: #d4c4a8;">
+        <div class="pf-card-placeholder">🍳</div>
+        <div class="pf-overlay">
+          <h4>주방 리모델링</h4>
+          <p>주방 | 미니멀 | 서초구</p>
+        </div>
+      </div>
+      <div class="pf-card" style="background: #c9d6e3;">
+        <div class="pf-card-placeholder">🛏️</div>
+        <div class="pf-overlay">
+          <h4>20평 침실 인테리어</h4>
+          <p>침실 | 북유럽 | 송파구</p>
+        </div>
+      </div>
+      <div class="pf-card" style="background: #b8c9d9;">
+        <div class="pf-card-placeholder">🚿</div>
+        <div class="pf-overlay">
+          <h4>욕실 전체 리모델링</h4>
+          <p>욕실 | 호텔식 | 강남구</p>
+        </div>
+      </div>
+      <div class="pf-card" style="background: #ddd5c8;">
+        <div class="pf-card-placeholder">🏗️</div>
+        <div class="pf-overlay">
+          <h4>40평 올수리</h4>
+          <p>전체 | 클래식 | 서초구</p>
+        </div>
+      </div>
+      <div class="pf-card" style="background: #d0c4b0;">
+        <div class="pf-card-placeholder">📐</div>
+        <div class="pf-overlay">
+          <h4>원룸 셀프 디자인</h4>
+          <p>원룸 | 미니멀 | 마포구</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Before/After Component -->
+<div class="component-preview" style="margin-top: 24px;">
+  <div class="comp-label"><strong>BeforeAfter.tsx</strong><span>components/home/BeforeAfter.tsx — 드래그 슬라이더</span></div>
+  <div class="ba-mock">
+    <h3>Before & After</h3>
+    <div class="ba-slider">
+      <div class="ba-side ba-after">AFTER (시공 후)</div>
+      <div class="ba-side ba-before">BEFORE (시공 전)</div>
+      <div class="ba-divider"></div>
+      <div class="ba-handle">&#x2194;</div>
+      <span class="ba-label before">BEFORE</span>
+      <span class="ba-label after">AFTER</span>
+    </div>
+  </div>
+</div>
+
+<!-- Reviews Component -->
+<div class="component-preview" style="margin-top: 24px;">
+  <div class="comp-label"><strong>Reviews.tsx</strong><span>components/home/Reviews.tsx — 캐러셀</span></div>
+  <div class="reviews-mock">
+    <h3>고객 후기</h3>
+    <div class="reviews-carousel">
+      <div class="review-card">
+        <div class="review-stars">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
+        <div class="review-text">"처음부터 끝까지 꼼꼼하게 신경써주셔서 정말 만족합니다. 특히 주방 리모델링 결과가 놀라웠어요. 주변에 적극 추천하고 있습니다."</div>
+        <div class="review-author"><strong>김OO</strong> | 30평 아파트 올수리</div>
+      </div>
+      <div class="review-card">
+        <div class="review-stars">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
+        <div class="review-text">"견적부터 투명하게 알려주시고, 시공 과정도 실시간으로 공유해주셔서 신뢰가 갔습니다. 결과물도 기대 이상이에요!"</div>
+        <div class="review-author"><strong>이OO</strong> | 25평 빌라 인테리어</div>
+      </div>
+      <div class="review-card">
+        <div class="review-stars">&#9733;&#9733;&#9733;&#9733;&#9734;</div>
+        <div class="review-text">"디자인 감각이 뛰어나시고, 소통도 원활해서 스트레스 없이 인테리어를 진행할 수 있었습니다. A/S도 빠르게 대응해주세요."</div>
+        <div class="review-author"><strong>박OO</strong> | 신혼집 인테리어</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Contact CTA Component -->
+<div class="component-preview" style="margin-top: 24px;">
+  <div class="comp-label"><strong>ContactCTA.tsx</strong><span>components/home/ContactCTA.tsx — 상담 폼</span></div>
+  <div class="cta-mock">
+    <h3>무료 상담 신청</h3>
+    <p>편하게 문의해주세요. 24시간 이내에 연락드리겠습니다.</p>
+    <div class="cta-form">
+      <input class="cta-input" placeholder="이름" />
+      <input class="cta-input" placeholder="연락처" />
+      <input class="cta-input" placeholder="평수 (예: 30평)" />
+      <select class="cta-input">
+        <option>공간 유형 선택</option>
+        <option>아파트</option>
+        <option>빌라</option>
+        <option>오피스텔</option>
+        <option>주택</option>
+      </select>
+      <select class="cta-input full">
+        <option>예산 범위 선택</option>
+        <option>1,000만원 이하</option>
+        <option>1,000~3,000만원</option>
+        <option>3,000~5,000만원</option>
+        <option>5,000만원 이상</option>
+      </select>
+      <textarea class="cta-input full" placeholder="문의 내용 (선택)" rows="3" style="resize: none;"></textarea>
+      <button class="cta-submit">상담 신청하기</button>
+    </div>
+  </div>
+</div>
+
+<!-- File Structure -->
+<div class="file-section" style="margin: 32px;">
+  <h3>파일 구조 — templates/modern-minimal/</h3>
+  <div class="file-tree">
+    <span class="dir">app/</span><br>
+    &nbsp;&nbsp;<span class="file">layout.tsx</span> <span class="comment">-- metadata, JSON-LD, 폰트 로딩</span><br>
+    &nbsp;&nbsp;<span class="file">page.tsx</span> <span class="comment">-- 메인 홈 (12개 섹션 조합)</span><br>
+    &nbsp;&nbsp;<span class="file">sitemap.ts</span> <span class="comment">-- 동적 사이트맵</span><br>
+    &nbsp;&nbsp;<span class="dir">portfolio/[slug]/</span><span class="file">page.tsx</span><br>
+    &nbsp;&nbsp;<span class="dir">blog/</span><span class="file">page.tsx</span> + <span class="dir">[slug]/</span><span class="file">page.tsx</span><br>
+    &nbsp;&nbsp;<span class="dir">contact/</span><span class="file">page.tsx</span><br>
+    &nbsp;&nbsp;<span class="dir">api/inquiry/</span><span class="file">route.ts</span> <span class="comment">-- POST 상담 접수</span><br>
+    <br>
+    <span class="dir">components/</span><br>
+    &nbsp;&nbsp;<span class="dir">home/</span><br>
+    &nbsp;&nbsp;&nbsp;&nbsp;<span class="highlight">Hero.tsx</span> <span class="highlight">Stats.tsx</span> <span class="highlight">Portfolio.tsx</span><br>
+    &nbsp;&nbsp;&nbsp;&nbsp;<span class="highlight">BeforeAfter.tsx</span> <span class="highlight">Services.tsx</span> <span class="highlight">Process.tsx</span><br>
+    &nbsp;&nbsp;&nbsp;&nbsp;<span class="highlight">Reviews.tsx</span> <span class="highlight">Blog.tsx</span> <span class="highlight">FAQ.tsx</span> <span class="highlight">ContactCTA.tsx</span><br>
+    &nbsp;&nbsp;<span class="dir">layout/</span><br>
+    &nbsp;&nbsp;&nbsp;&nbsp;<span class="file">Nav.tsx</span> <span class="file">Footer.tsx</span> <span class="file">FloatingCTA.tsx</span><br>
+    &nbsp;&nbsp;<span class="dir">shared/</span><br>
+    &nbsp;&nbsp;&nbsp;&nbsp;<span class="file">JsonLd.tsx</span> <span class="file">Breadcrumb.tsx</span><br>
+    <br>
+    <span class="dir">data/</span><br>
+    &nbsp;&nbsp;<span class="file">config.ts</span> <span class="comment">-- getHomepageConfig() Supabase fetch</span>
+  </div>
+</div>
+
+</body>
+</html>

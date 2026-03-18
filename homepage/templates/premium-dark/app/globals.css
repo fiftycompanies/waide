@@ -1,0 +1,91 @@
+@import "tailwindcss";
+
+:root {
+  /* Premium Dark 테마 컬러 */
+  --primary: #C9A96E;
+  --primary-dark: #B8944D;
+  --primary-light: #D4B87E;
+  --secondary: #8B7355;
+  --secondary-dark: #756244;
+  --accent: #C9A96E;
+  --bg: #0A0A0A;
+  --bg-soft: #111111;
+  --bg-muted: #1A1A1A;
+  --surface: #1A1A1A;
+  --surface-light: #252525;
+  --text: #F5F0EB;
+  --text-secondary: #A89B8C;
+  --text-muted: #6B6159;
+  --border: #2A2520;
+  --border-light: #1F1C18;
+
+  /* 폰트 */
+  --font-heading: "Playfair Display", "Noto Serif KR", serif;
+  --font-body: "Inter", "Noto Sans KR", sans-serif;
+}
+
+@theme inline {
+  --color-primary: var(--primary);
+  --color-primary-dark: var(--primary-dark);
+  --color-primary-light: var(--primary-light);
+  --color-secondary: var(--secondary);
+  --color-secondary-dark: var(--secondary-dark);
+  --color-accent: var(--accent);
+  --color-bg: var(--bg);
+  --color-bg-soft: var(--bg-soft);
+  --color-bg-muted: var(--bg-muted);
+  --color-surface: var(--surface);
+  --color-surface-light: var(--surface-light);
+  --color-text: var(--text);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-muted: var(--text-muted);
+  --color-border: var(--border);
+  --color-border-light: var(--border-light);
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading);
+}
+
+/* 섹션 간격 */
+.section-padding {
+  @apply py-24 md:py-32;
+}
+
+/* 컨테이너 */
+.container-narrow {
+  @apply max-w-5xl mx-auto px-4 sm:px-6 lg:px-8;
+}
+
+.container-wide {
+  @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
+}
+
+/* Gold accent line */
+.gold-line {
+  width: 40px;
+  height: 1px;
+  background: linear-gradient(90deg, var(--primary), transparent);
+}
+
+/* Cinematic gradient */
+.cinematic-overlay {
+  background: linear-gradient(to bottom, rgba(10, 10, 10, 0.7), rgba(10, 10, 10, 0.3), rgba(10, 10, 10, 0.9));
+}
+
+/* Selection */
+::selection {
+  background: var(--primary);
+  color: var(--bg);
+}

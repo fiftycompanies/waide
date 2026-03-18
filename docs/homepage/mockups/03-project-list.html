@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>홈페이지 프로젝트 목록 — /homepage</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, 'Pretendard', sans-serif; background: #f8fafc; padding: 32px; color: #0f172a; }
+
+  .page-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 32px; }
+  .page-header h1 { font-size: 28px; font-weight: 700; }
+  .page-header p { color: #64748b; font-size: 14px; margin-top: 4px; }
+  .btn-primary { background: #2563eb; color: #fff; border: none; padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px; }
+  .btn-primary:hover { background: #1d4ed8; }
+
+  /* Stats Cards */
+  .stats-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; margin-bottom: 32px; }
+  .stat-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; text-align: center; cursor: pointer; transition: all 0.2s; }
+  .stat-card:hover { border-color: #2563eb; box-shadow: 0 2px 8px rgba(37,99,235,0.1); }
+  .stat-card.active { border-color: #2563eb; background: #eff6ff; }
+  .stat-label { font-size: 13px; color: #64748b; margin-bottom: 8px; }
+  .stat-value { font-size: 28px; font-weight: 700; color: #0f172a; }
+  .stat-card.active .stat-value { color: #2563eb; }
+
+  /* Filters */
+  .filter-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+  .filter-tabs { display: flex; gap: 8px; }
+  .filter-tab { padding: 6px 16px; border-radius: 20px; font-size: 13px; border: 1px solid #e2e8f0; background: #fff; color: #64748b; cursor: pointer; }
+  .filter-tab.active { background: #0f172a; color: #fff; border-color: #0f172a; }
+  .search-input { padding: 8px 16px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 13px; width: 240px; outline: none; }
+  .search-input:focus { border-color: #2563eb; }
+
+  /* Project Cards */
+  .project-list { display: flex; flex-direction: column; gap: 16px; }
+  .project-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 24px; transition: all 0.2s; cursor: pointer; }
+  .project-card:hover { border-color: #94a3b8; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+  .project-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; }
+  .project-title { font-size: 18px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+  .project-company { font-size: 13px; color: #64748b; margin-top: 2px; }
+
+  .badge { padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+  .badge-live { background: #dcfce7; color: #16a34a; }
+  .badge-collecting { background: #fef9c3; color: #ca8a04; }
+  .badge-building { background: #dbeafe; color: #2563eb; }
+  .badge-preview { background: #f3e8ff; color: #9333ea; }
+  .badge-suspended { background: #f1f5f9; color: #64748b; }
+
+  .project-meta { display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px; }
+  .meta-item { }
+  .meta-label { font-size: 11px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+  .meta-value { font-size: 15px; font-weight: 600; color: #334155; }
+
+  .project-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 16px; padding-top: 16px; border-top: 1px solid #f1f5f9; }
+  .project-date { font-size: 12px; color: #94a3b8; }
+  .project-actions { display: flex; gap: 12px; }
+  .action-link { font-size: 13px; color: #2563eb; text-decoration: none; font-weight: 500; }
+  .action-link:hover { text-decoration: underline; }
+  .action-link.primary { display: flex; align-items: center; gap: 4px; }
+</style>
+</head>
+<body>
+
+<div class="page-header">
+  <div>
+    <h1>홈페이지 프로젝트</h1>
+    <p>인테리어 업체 홈페이지를 생성하고 관리합니다</p>
+  </div>
+  <button class="btn-primary">+ 새 프로젝트</button>
+</div>
+
+<!-- Stats Cards -->
+<div class="stats-row">
+  <div class="stat-card active">
+    <div class="stat-label">전체 프로젝트</div>
+    <div class="stat-value">12</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">라이브</div>
+    <div class="stat-value">5</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">자료 수집</div>
+    <div class="stat-value">3</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">빌드 중</div>
+    <div class="stat-value">2</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">신규 상담</div>
+    <div class="stat-value" style="color:#ef4444">8</div>
+  </div>
+</div>
+
+<!-- Filters -->
+<div class="filter-row">
+  <div class="filter-tabs">
+    <span class="filter-tab active">전체</span>
+    <span class="filter-tab">자료 수집</span>
+    <span class="filter-tab">빌드 중</span>
+    <span class="filter-tab">프리뷰</span>
+    <span class="filter-tab">라이브</span>
+  </div>
+  <input type="text" class="search-input" placeholder="🔍 프로젝트 검색...">
+</div>
+
+<!-- Project Cards -->
+<div class="project-list">
+  <!-- Card 1: Live -->
+  <div class="project-card">
+    <div class="project-top">
+      <div>
+        <div class="project-title">🌐 강남인테리어 홈페이지</div>
+        <div class="project-company">OO인테리어</div>
+      </div>
+      <span class="badge badge-live">✅ 라이브</span>
+    </div>
+    <div class="project-meta">
+      <div class="meta-item">
+        <div class="meta-label">템플릿</div>
+        <div class="meta-value">modern-minimal</div>
+      </div>
+      <div class="meta-item">
+        <div class="meta-label">방문수</div>
+        <div class="meta-value">1,234</div>
+      </div>
+      <div class="meta-item">
+        <div class="meta-label">상담</div>
+        <div class="meta-value">12건</div>
+      </div>
+      <div class="meta-item">
+        <div class="meta-label">서브도메인</div>
+        <div class="meta-value">gangnam-interior</div>
+      </div>
+    </div>
+    <div class="project-footer">
+      <span class="project-date">생성: 2026.03.15</span>
+      <div class="project-actions">
+        <a href="#" class="action-link">🔗 프리뷰</a>
+        <a href="#" class="action-link primary">상세보기 →</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Card 2: Collecting -->
+  <div class="project-card">
+    <div class="project-top">
+      <div>
+        <div class="project-title">🌐 서초리모델링 홈페이지</div>
+        <div class="project-company">△△인테리어</div>
+      </div>
+      <span class="badge badge-collecting">🟡 자료 수집</span>
+    </div>
+    <div class="project-meta">
+      <div class="meta-item">
+        <div class="meta-label">템플릿</div>
+        <div class="meta-value">natural-wood</div>
+      </div>
+      <div class="meta-item">
+        <div class="meta-label">방문수</div>
+        <div class="meta-value" style="color:#94a3b8">—</div>
+      </div>
+      <div class="meta-item">
+        <div class="meta-label">상담</div>
+        <div class="meta-value" style="color:#94a3b8">0건</div>
+      </div>
+      <div class="meta-item">
+        <div class="meta-label">서브도메인</div>
+        <div class="meta-value" style="color:#94a3b8">—</div>
+      </div>
+    </div>
+    <div class="project-footer">
+      <span class="project-date">생성: 2026.03.17</span>
+      <div class="project-actions">
+        <a href="#" class="action-link primary">상세보기 →</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Card 3: Building -->
+  <div class="project-card">
+    <div class="project-top">
+      <div>
+        <div class="project-title">🌐 프리미엄 다크 시공사례</div>
+        <div class="project-company">☐☐디자인</div>
+      </div>
+      <span class="badge badge-building">🔵 빌드 중</span>
+    </div>
+    <div class="project-meta">
+      <div class="meta-item">
+        <div class="meta-label">템플릿</div>
+        <div class="meta-value">premium-dark</div>
+      </div>
+      <div class="meta-item">
+        <div class="meta-label">방문수</div>
+        <div class="meta-value" style="color:#94a3b8">—</div>
+      </div>
+      <div class="meta-item">
+        <div class="meta-label">상담</div>
+        <div class="meta-value" style="color:#94a3b8">0건</div>
+      </div>
+      <div class="meta-item">
+        <div class="meta-label">서브도메인</div>
+        <div class="meta-value">premium-design</div>
+      </div>
+    </div>
+    <div class="project-footer">
+      <span class="project-date">생성: 2026.03.16</span>
+      <div class="project-actions">
+        <a href="#" class="action-link primary">상세보기 →</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Badge Legend -->
+<div style="margin-top: 32px; padding: 20px; background: #fff; border-radius: 12px; border: 1px solid #e2e8f0;">
+  <h3 style="font-size: 14px; color: #64748b; margin-bottom: 12px;">상태별 배지 색상</h3>
+  <div style="display: flex; gap: 24px; flex-wrap: wrap;">
+    <span class="badge badge-collecting" style="font-size:13px">🟡 자료 수집</span>
+    <span class="badge badge-building" style="font-size:13px">🔵 빌드 중</span>
+    <span class="badge badge-preview" style="font-size:13px">🟣 프리뷰</span>
+    <span class="badge badge-live" style="font-size:13px">🟢 라이브</span>
+    <span class="badge badge-suspended" style="font-size:13px">⚫ 중단</span>
+  </div>
+  <p style="margin-top: 12px; font-size: 12px; color: #94a3b8;">구현 파일: <code style="background:#f1f5f9;padding:2px 6px;border-radius:4px">app/(dashboard)/homepage/page.tsx</code></p>
+</div>
+
+</body>
+</html>

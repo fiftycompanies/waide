@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Phase 6: 블로그 대량발행 시각화 — waide-mkt 홈페이지 서비스</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, 'Pretendard', sans-serif; background: #0f172a; color: #e2e8f0; padding: 40px; line-height: 1.6; }
+  .nav { display: flex; gap: 16px; align-items: center; margin-bottom: 40px; font-size: 13px; }
+  .nav a { color: #64748b; text-decoration: none; }
+  .nav a:hover { color: #38bdf8; }
+  .nav .sep { color: #334155; }
+  .nav .current { color: #38bdf8; font-weight: 600; }
+  h1 { font-size: 28px; margin-bottom: 8px; color: #fff; }
+  .subtitle { color: #94a3b8; margin-bottom: 40px; font-size: 14px; }
+  .section-title { font-size: 18px; font-weight: 700; color: #fff; margin: 40px 0 20px; display: flex; align-items: center; gap: 10px; }
+  .section-title .badge { background: #1e3a5f; color: #38bdf8; font-size: 11px; padding: 3px 10px; border-radius: 20px; }
+
+  /* Pipeline Flow */
+  .flow-container { background: #1e293b; border: 1px solid #334155; border-radius: 16px; padding: 32px; margin-bottom: 32px; }
+  .flow-horizontal { display: flex; align-items: stretch; gap: 0; overflow-x: auto; }
+  .flow-stage { flex: 1; min-width: 180px; text-align: center; padding: 20px 16px; position: relative; }
+  .flow-stage::after { content: ''; position: absolute; right: 0; top: 50%; transform: translateY(-50%); width: 0; height: 0; border-top: 10px solid transparent; border-bottom: 10px solid transparent; border-left: 10px solid #334155; }
+  .flow-stage:last-child::after { display: none; }
+  .flow-stage-icon { width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 22px; margin: 0 auto 12px; }
+  .flow-stage h4 { font-size: 14px; color: #fff; margin-bottom: 4px; }
+  .flow-stage p { font-size: 11px; color: #64748b; }
+  .flow-stage .sub-items { margin-top: 12px; text-align: left; }
+  .flow-stage .sub-item { font-size: 11px; color: #94a3b8; padding: 3px 0; display: flex; align-items: center; gap: 6px; }
+  .flow-stage .sub-item::before { content: ''; width: 4px; height: 4px; border-radius: 50%; background: #475569; flex-shrink: 0; }
+
+  /* Content Type Cards */
+  .type-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 32px; }
+  .type-card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 24px; }
+  .type-card h4 { font-size: 15px; color: #fff; margin-bottom: 4px; }
+  .type-card .type-badge { display: inline-block; font-size: 10px; padding: 3px 8px; border-radius: 4px; margin-bottom: 12px; font-weight: 600; }
+  .type-card .type-badge.info { background: #2563eb20; color: #60a5fa; }
+  .type-card .type-badge.review { background: #22c55e20; color: #22c55e; }
+  .type-card .type-badge.page { background: #a78bfa20; color: #a78bfa; }
+  .type-card .example-list { margin-top: 12px; }
+  .type-card .example { font-size: 12px; color: #94a3b8; padding: 4px 0; border-bottom: 1px solid #0f172a; }
+
+  /* Calendar */
+  .calendar-container { background: #1e293b; border: 1px solid #334155; border-radius: 16px; overflow: hidden; margin-bottom: 32px; }
+  .calendar-header { padding: 16px 24px; border-bottom: 1px solid #334155; display: flex; justify-content: space-between; align-items: center; }
+  .calendar-header h3 { font-size: 16px; color: #fff; }
+  .calendar-header .month { font-size: 14px; color: #94a3b8; }
+  .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); }
+  .cal-header { padding: 8px; text-align: center; font-size: 11px; color: #64748b; border-bottom: 1px solid #334155; font-weight: 600; }
+  .cal-cell { padding: 8px; min-height: 80px; border-bottom: 1px solid #0f172a; border-right: 1px solid #0f172a; }
+  .cal-cell .day { font-size: 11px; color: #64748b; margin-bottom: 4px; }
+  .cal-event { font-size: 9px; padding: 2px 6px; border-radius: 3px; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .cal-event.info { background: #2563eb30; color: #60a5fa; }
+  .cal-event.review { background: #22c55e30; color: #4ade80; }
+  .cal-event.draft { background: #f59e0b30; color: #fbbf24; }
+
+  /* Blog List */
+  .blog-list { background: #1e293b; border: 1px solid #334155; border-radius: 16px; overflow: hidden; margin-bottom: 32px; }
+  .blog-list-header { padding: 16px 24px; border-bottom: 1px solid #334155; display: flex; justify-content: space-between; align-items: center; }
+  .blog-list-header h3 { font-size: 16px; color: #fff; }
+  .blog-table { width: 100%; font-size: 12px; border-collapse: collapse; }
+  .blog-table th { text-align: left; padding: 10px 16px; color: #64748b; border-bottom: 1px solid #334155; font-weight: 600; }
+  .blog-table td { padding: 12px 16px; border-bottom: 1px solid #0f172a; color: #94a3b8; }
+  .blog-table tr:hover { background: #0f172a40; }
+  .blog-table .title-col { color: #fff; font-weight: 500; max-width: 300px; }
+  .type-tag { font-size: 10px; padding: 2px 8px; border-radius: 4px; font-weight: 600; }
+  .type-tag.info { background: #2563eb20; color: #60a5fa; }
+  .type-tag.review { background: #22c55e20; color: #22c55e; }
+  .score { font-weight: 600; }
+  .score.high { color: #22c55e; }
+  .score.mid { color: #f59e0b; }
+  .status-tag { font-size: 10px; padding: 2px 8px; border-radius: 4px; font-weight: 600; }
+  .status-tag.published { background: #22c55e20; color: #22c55e; }
+  .status-tag.draft { background: #f59e0b20; color: #f59e0b; }
+  .status-tag.scheduled { background: #a78bfa20; color: #a78bfa; }
+
+  /* Stats */
+  .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 32px; }
+  .stat-card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 20px; text-align: center; }
+  .stat-value { font-size: 32px; font-weight: 800; }
+  .stat-label { font-size: 12px; color: #64748b; margin-top: 4px; }
+
+  @media (max-width: 768px) {
+    body { padding: 20px; }
+    .type-grid { grid-template-columns: 1fr; }
+    .stats-row { grid-template-columns: repeat(2, 1fr); }
+    .flow-horizontal { flex-direction: column; }
+    .flow-stage::after { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="nav">
+  <a href="index.html">Phase 목업 인덱스</a>
+  <span class="sep">/</span>
+  <span class="current">Phase 6: 블로그 대량발행</span>
+</div>
+
+<h1>Phase 6: 블로그 대량발행 연동</h1>
+<p class="subtitle">기존 waide-mkt 발행 파이프라인과 홈페이지 블로그 통합 — 예상 소요 2일</p>
+
+<!-- Stats -->
+<div class="stats-row">
+  <div class="stat-card">
+    <div class="stat-value" style="color: #38bdf8;">8</div>
+    <div class="stat-label">월간 발행 목표</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value" style="color: #22c55e;">4</div>
+    <div class="stat-label">정보성 블로그</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value" style="color: #a78bfa;">4</div>
+    <div class="stat-label">후기성 블로그</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value" style="color: #f59e0b;">70+</div>
+    <div class="stat-label">QC 최소 점수</div>
+  </div>
+</div>
+
+<!-- Pipeline Flow -->
+<div class="section-title">블로그 발행 파이프라인 <span class="badge">기존 시스템 확장</span></div>
+<div class="flow-container">
+  <div class="flow-horizontal">
+    <div class="flow-stage">
+      <div class="flow-stage-icon" style="background: #1e3a5f;">1</div>
+      <h4>키워드 선정</h4>
+      <p>미발행 키워드 우선</p>
+      <div class="sub-items">
+        <div class="sub-item">keywords 테이블 조회</div>
+        <div class="sub-item">source = 'blog_target'</div>
+        <div class="sub-item">publish_count 기준 정렬</div>
+      </div>
+    </div>
+    <div class="flow-stage">
+      <div class="flow-stage-icon" style="background: #312e81;">2</div>
+      <h4>콘텐츠 생성</h4>
+      <p>SEO Writer 에이전트</p>
+      <div class="sub-items">
+        <div class="sub-item">brand_persona 참조</div>
+        <div class="sub-item">hp_blog_info / review</div>
+        <div class="sub-item">JSON-LD 자동 삽입</div>
+      </div>
+    </div>
+    <div class="flow-stage">
+      <div class="flow-stage-icon" style="background: #4a1d1d;">3</div>
+      <h4>품질 검수</h4>
+      <p>QC 에이전트</p>
+      <div class="sub-items">
+        <div class="sub-item">quality_score >= 70</div>
+        <div class="sub-item">SEO 최적화 체크</div>
+        <div class="sub-item">독창성 검증</div>
+      </div>
+    </div>
+    <div class="flow-stage">
+      <div class="flow-stage-icon" style="background: #1e3a2a;">4</div>
+      <h4>홈페이지 발행</h4>
+      <p>platform: 'homepage'</p>
+      <div class="sub-items">
+        <div class="sub-item">contents 테이블 INSERT</div>
+        <div class="sub-item">publications 기록</div>
+        <div class="sub-item">ISR 재검증 트리거</div>
+      </div>
+    </div>
+    <div class="flow-stage">
+      <div class="flow-stage-icon" style="background: #164e63;">5</div>
+      <h4>추적</h4>
+      <p>SERP + AEO</p>
+      <div class="sub-items">
+        <div class="sub-item">keyword_visibility</div>
+        <div class="sub-item">serp_results 저장</div>
+        <div class="sub-item">aeo_scores 업데이트</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Content Types -->
+<div class="section-title">콘텐츠 타입 <span class="badge">3종</span></div>
+<div class="type-grid">
+  <div class="type-card">
+    <h4>정보성 블로그</h4>
+    <span class="type-badge info">hp_blog_info</span>
+    <p style="font-size: 12px; color: #94a3b8;">인테리어 비용, 트렌드, 선택 가이드 등 정보 중심의 SEO 블로그 콘텐츠</p>
+    <div class="example-list">
+      <div class="example">강남 인테리어 비용, 항목별 가이드</div>
+      <div class="example">2026년 인테리어 트렌드 TOP 5</div>
+      <div class="example">인테리어 업체 고르는 7가지 체크리스트</div>
+      <div class="example">30평 아파트 인테리어 예산 배분</div>
+    </div>
+  </div>
+  <div class="type-card">
+    <h4>후기성 블로그</h4>
+    <span class="type-badge review">hp_blog_review</span>
+    <p style="font-size: 12px; color: #94a3b8;">실제 시공 사례 기반의 Before/After, 견적 공개, 고객 후기 블로그 콘텐츠</p>
+    <div class="example-list">
+      <div class="example">강남 30평 아파트 올수리 후기</div>
+      <div class="example">서초구 신혼집 인테리어 견적 공개</div>
+      <div class="example">주방 리모델링 Before/After</div>
+      <div class="example">송파구 빌라 전체 시공 과정</div>
+    </div>
+  </div>
+  <div class="type-card">
+    <h4>정적 페이지</h4>
+    <span class="type-badge page">hp_page</span>
+    <p style="font-size: 12px; color: #94a3b8;">홈페이지 메인/서비스/회사소개 등 정적 페이지 콘텐츠 (블로그와 별도)</p>
+    <div class="example-list">
+      <div class="example">메인 히어로 텍스트</div>
+      <div class="example">서비스 소개 페이지</div>
+      <div class="example">회사 연혁/소개</div>
+    </div>
+  </div>
+</div>
+
+<!-- Content Calendar -->
+<div class="section-title">월간 발행 캘린더 <span class="badge">2026년 3월</span></div>
+<div class="calendar-container">
+  <div class="calendar-header">
+    <h3>발행 캘린더</h3>
+    <div class="month">2026년 3월</div>
+  </div>
+  <div class="calendar-grid">
+    <div class="cal-header">월</div>
+    <div class="cal-header">화</div>
+    <div class="cal-header">수</div>
+    <div class="cal-header">목</div>
+    <div class="cal-header">금</div>
+    <div class="cal-header">토</div>
+    <div class="cal-header">일</div>
+
+    <div class="cal-cell"><div class="day">2</div><div class="cal-event info">강남 인테리어 비용</div></div>
+    <div class="cal-cell"><div class="day">3</div></div>
+    <div class="cal-cell"><div class="day">4</div></div>
+    <div class="cal-cell"><div class="day">5</div><div class="cal-event review">30평 시공 후기</div></div>
+    <div class="cal-cell"><div class="day">6</div></div>
+    <div class="cal-cell"><div class="day">7</div></div>
+    <div class="cal-cell"><div class="day">8</div></div>
+
+    <div class="cal-cell"><div class="day">9</div><div class="cal-event info">인테리어 트렌드</div></div>
+    <div class="cal-cell"><div class="day">10</div></div>
+    <div class="cal-cell"><div class="day">11</div></div>
+    <div class="cal-cell"><div class="day">12</div><div class="cal-event review">주방 B/A 후기</div></div>
+    <div class="cal-cell"><div class="day">13</div></div>
+    <div class="cal-cell"><div class="day">14</div></div>
+    <div class="cal-cell"><div class="day">15</div></div>
+
+    <div class="cal-cell"><div class="day">16</div><div class="cal-event info">업체 선택 가이드</div></div>
+    <div class="cal-cell"><div class="day">17</div></div>
+    <div class="cal-cell"><div class="day">18</div></div>
+    <div class="cal-cell"><div class="day">19</div><div class="cal-event review">견적 공개 후기</div></div>
+    <div class="cal-cell"><div class="day">20</div></div>
+    <div class="cal-cell"><div class="day">21</div></div>
+    <div class="cal-cell"><div class="day">22</div></div>
+
+    <div class="cal-cell"><div class="day">23</div><div class="cal-event info">예산 배분 가이드</div></div>
+    <div class="cal-cell"><div class="day">24</div></div>
+    <div class="cal-cell"><div class="day">25</div></div>
+    <div class="cal-cell"><div class="day">26</div><div class="cal-event review">빌라 시공 사례</div></div>
+    <div class="cal-cell"><div class="day">27</div></div>
+    <div class="cal-cell"><div class="day">28</div></div>
+    <div class="cal-cell"><div class="day">29</div></div>
+  </div>
+</div>
+
+<!-- Blog List -->
+<div class="section-title">발행된 블로그 목록 <span class="badge">어드민 UI</span></div>
+<div class="blog-list">
+  <div class="blog-list-header">
+    <h3>홈페이지 블로그 (24개)</h3>
+  </div>
+  <table class="blog-table">
+    <thead>
+      <tr><th>제목</th><th>타입</th><th>키워드</th><th>QC</th><th>상태</th><th>발행일</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="title-col">강남 인테리어 비용, 항목별 완벽 가이드 [2026]</td>
+        <td><span class="type-tag info">정보성</span></td>
+        <td>강남 인테리어 비용</td>
+        <td><span class="score high">92</span></td>
+        <td><span class="status-tag published">발행</span></td>
+        <td>03.02</td>
+      </tr>
+      <tr>
+        <td class="title-col">강남 30평 아파트 모던 인테리어 시공 후기</td>
+        <td><span class="type-tag review">후기성</span></td>
+        <td>강남 인테리어 후기</td>
+        <td><span class="score high">87</span></td>
+        <td><span class="status-tag published">발행</span></td>
+        <td>03.05</td>
+      </tr>
+      <tr>
+        <td class="title-col">2026년 인테리어 트렌드 TOP 5</td>
+        <td><span class="type-tag info">정보성</span></td>
+        <td>인테리어 트렌드</td>
+        <td><span class="score high">85</span></td>
+        <td><span class="status-tag published">발행</span></td>
+        <td>03.09</td>
+      </tr>
+      <tr>
+        <td class="title-col">서초구 주방 리모델링 Before/After</td>
+        <td><span class="type-tag review">후기성</span></td>
+        <td>서초 주방 리모델링</td>
+        <td><span class="score mid">78</span></td>
+        <td><span class="status-tag scheduled">예정</span></td>
+        <td>03.19</td>
+      </tr>
+      <tr>
+        <td class="title-col">인테리어 업체 고르는 7가지 체크리스트</td>
+        <td><span class="type-tag info">정보성</span></td>
+        <td>인테리어 업체 선택</td>
+        <td><span class="score mid">74</span></td>
+        <td><span class="status-tag draft">초안</span></td>
+        <td>-</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+</body>
+</html>

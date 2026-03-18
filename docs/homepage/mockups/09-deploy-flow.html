@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vercel 배포 플로우 — Phase 5</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, 'Pretendard', sans-serif; background: #f8fafc; color: #0f172a; padding: 40px; }
+
+  h1 { font-size: 28px; font-weight: 700; margin-bottom: 4px; }
+  .subtitle { color: #64748b; font-size: 14px; margin-bottom: 40px; }
+
+  /* Flow Diagram */
+  .flow-container { display: flex; flex-direction: column; gap: 0; max-width: 900px; margin: 0 auto; }
+
+  .flow-step { display: flex; gap: 24px; align-items: flex-start; }
+  .flow-left { width: 200px; text-align: right; padding-top: 24px; }
+  .flow-trigger { font-size: 12px; color: #64748b; }
+  .flow-actor { font-size: 14px; font-weight: 600; color: #334155; }
+
+  .flow-center { display: flex; flex-direction: column; align-items: center; }
+  .flow-dot { width: 48px; height: 48px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 20px; border: 3px solid; flex-shrink: 0; }
+  .flow-dot.admin { background: #eff6ff; border-color: #2563eb; }
+  .flow-dot.api { background: #f0fdf4; border-color: #22c55e; }
+  .flow-dot.vercel { background: #f5f3ff; border-color: #7c3aed; }
+  .flow-dot.auto { background: #fefce8; border-color: #eab308; }
+  .flow-dot.done { background: #dcfce7; border-color: #16a34a; }
+  .flow-line { width: 3px; height: 48px; background: #e2e8f0; }
+  .flow-line.active { background: linear-gradient(#2563eb, #7c3aed); }
+
+  .flow-right { flex: 1; padding: 12px 0; }
+  .flow-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; }
+  .flow-card.highlight { border-color: #2563eb; box-shadow: 0 2px 12px rgba(37,99,235,0.1); }
+  .flow-card h3 { font-size: 15px; font-weight: 600; margin-bottom: 8px; }
+  .flow-card p { font-size: 13px; color: #64748b; line-height: 1.6; }
+  .flow-card code { background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-size: 12px; font-family: 'SF Mono', monospace; }
+
+  .api-spec { margin-top: 12px; background: #0f172a; border-radius: 8px; padding: 16px; font-family: 'SF Mono', monospace; font-size: 12px; color: #e2e8f0; overflow-x: auto; }
+  .api-method { color: #22c55e; font-weight: 700; }
+  .api-url { color: #38bdf8; }
+  .api-comment { color: #64748b; }
+
+  .env-list { margin-top: 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .env-item { padding: 6px 10px; background: #f8fafc; border-radius: 6px; font-family: 'SF Mono', monospace; font-size: 11px; color: #475569; }
+
+  /* Status Cards at bottom */
+  .status-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; max-width: 900px; margin: 48px auto 0; }
+  .status-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; text-align: center; }
+  .status-icon { font-size: 32px; margin-bottom: 8px; }
+  .status-name { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+  .status-desc { font-size: 12px; color: #64748b; }
+</style>
+</head>
+<body>
+
+<h1>☁️ Vercel 배포 플로우</h1>
+<p class="subtitle">어드민에서 버튼 클릭 → Vercel API로 자동 배포 → 서브도메인 활성화까지의 전체 파이프라인</p>
+
+<div class="flow-container">
+  <!-- Step 1: Admin triggers build -->
+  <div class="flow-step">
+    <div class="flow-left">
+      <div class="flow-actor">어드민</div>
+      <div class="flow-trigger">빌드 & 배포 클릭</div>
+    </div>
+    <div class="flow-center">
+      <div class="flow-dot admin">👤</div>
+      <div class="flow-line active"></div>
+    </div>
+    <div class="flow-right">
+      <div class="flow-card highlight">
+        <h3>1. 배포 요청</h3>
+        <p>어드민 대시보드에서 프로젝트의 "빌드 & 배포" 버튼을 클릭합니다.<br>
+        템플릿 선택, 환경변수 확인 후 배포를 시작합니다.</p>
+        <div class="api-spec">
+          <span class="api-method">POST</span> <span class="api-url">/api/homepage/deploy</span><br>
+          <span class="api-comment">// Body</span><br>
+          { "projectId": "uuid", "templateId": "modern-minimal" }
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Step 2: Server Action -->
+  <div class="flow-step">
+    <div class="flow-left">
+      <div class="flow-actor">Server Action</div>
+      <div class="flow-trigger">deployHomepage()</div>
+    </div>
+    <div class="flow-center">
+      <div class="flow-dot api">⚙️</div>
+      <div class="flow-line active"></div>
+    </div>
+    <div class="flow-right">
+      <div class="flow-card">
+        <h3>2. Vercel 프로젝트 생성 & 환경변수 주입</h3>
+        <p>Vercel REST API로 프로젝트를 생성하고, 필요한 환경변수를 자동 주입합니다.</p>
+        <div class="api-spec">
+          <span class="api-comment">// Vercel API Calls:</span><br>
+          <span class="api-method">POST</span> <span class="api-url">api.vercel.com/v10/projects</span><br>
+          <span class="api-method">POST</span> <span class="api-url">api.vercel.com/v10/projects/:id/env</span><br>
+          <span class="api-method">POST</span> <span class="api-url">api.vercel.com/v13/deployments</span>
+        </div>
+        <div class="env-list">
+          <div class="env-item">NEXT_PUBLIC_SITE_URL</div>
+          <div class="env-item">NEXT_PUBLIC_PROJECT_ID</div>
+          <div class="env-item">SUPABASE_URL</div>
+          <div class="env-item">SUPABASE_ANON_KEY</div>
+          <div class="env-item">SUPABASE_SERVICE_KEY</div>
+          <div class="env-item">NEXT_PUBLIC_KAKAO_ID</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Step 3: Vercel Build -->
+  <div class="flow-step">
+    <div class="flow-left">
+      <div class="flow-actor">Vercel</div>
+      <div class="flow-trigger">빌드 진행</div>
+    </div>
+    <div class="flow-center">
+      <div class="flow-dot vercel">▲</div>
+      <div class="flow-line active"></div>
+    </div>
+    <div class="flow-right">
+      <div class="flow-card">
+        <h3>3. 빌드 & 배포 실행</h3>
+        <p>Vercel에서 Next.js 빌드를 실행합니다. 빌드 중 <code>getHomepageConfig()</code>로 Supabase 데이터를 fetch하여 정적 페이지를 생성합니다.</p>
+        <div style="margin-top:12px;background:#f8fafc;border-radius:8px;padding:16px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+            <span style="font-size:13px;font-weight:600;">빌드 진행 중...</span>
+            <span style="font-size:12px;color:#2563eb;">45s</span>
+          </div>
+          <div style="height:6px;background:#e2e8f0;border-radius:3px;overflow:hidden;">
+            <div style="width:65%;height:100%;background:linear-gradient(90deg,#2563eb,#7c3aed);border-radius:3px;"></div>
+          </div>
+          <div style="margin-top:8px;font-size:11px;color:#64748b;font-family:monospace;">
+            ✅ Installing dependencies... done<br>
+            ✅ Building Next.js app...<br>
+            ⏳ Generating static pages (4/7)...<br>
+            ⏳ Deploying to edge network...
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Step 4: Webhook -->
+  <div class="flow-step">
+    <div class="flow-left">
+      <div class="flow-actor">Webhook</div>
+      <div class="flow-trigger">빌드 완료 알림</div>
+    </div>
+    <div class="flow-center">
+      <div class="flow-dot auto">🔔</div>
+      <div class="flow-line active"></div>
+    </div>
+    <div class="flow-right">
+      <div class="flow-card">
+        <h3>4. 빌드 완료 → 상태 업데이트</h3>
+        <p>Vercel 웹훅이 빌드 완료를 알리면, <code>homepage_projects.status</code>를 <code>'preview'</code>로 자동 변경합니다.</p>
+        <div class="api-spec">
+          <span class="api-method">POST</span> <span class="api-url">/api/homepage/deploy/webhook</span><br>
+          <span class="api-comment">// Vercel sends deployment.ready event</span><br>
+          <span class="api-comment">// → UPDATE homepage_projects SET status='preview'</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Step 5: Subdomain Setup -->
+  <div class="flow-step">
+    <div class="flow-left">
+      <div class="flow-actor">DNS</div>
+      <div class="flow-trigger">서브도메인 연결</div>
+    </div>
+    <div class="flow-center">
+      <div class="flow-dot auto">🌐</div>
+      <div class="flow-line active"></div>
+    </div>
+    <div class="flow-right">
+      <div class="flow-card">
+        <h3>5. 서브도메인 자동 설정</h3>
+        <p>Vercel 도메인 API로 <code>{업체명}.waide.kr</code> 서브도메인을 자동 연결합니다.</p>
+        <div class="api-spec">
+          <span class="api-method">POST</span> <span class="api-url">api.vercel.com/v10/projects/:id/domains</span><br>
+          { "name": "gangnam-int.waide.kr" }
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Step 6: Go Live -->
+  <div class="flow-step">
+    <div class="flow-left">
+      <div class="flow-actor">어드민</div>
+      <div class="flow-trigger">라이브 전환</div>
+    </div>
+    <div class="flow-center">
+      <div class="flow-dot done">✅</div>
+    </div>
+    <div class="flow-right">
+      <div class="flow-card" style="border-color:#22c55e;background:#f0fdf4">
+        <h3 style="color:#16a34a">6. 라이브 전환 완료</h3>
+        <p>프리뷰 확인 후 "라이브 전환" 버튼을 클릭하면 <code>status='live'</code>로 변경됩니다.<br>
+        고객이 <code>gangnam-int.waide.kr</code>에서 홈페이지를 볼 수 있습니다.</p>
+        <div class="api-spec" style="background:#065f46;">
+          <span class="api-method">POST</span> <span class="api-url">/api/homepage/deploy/promote</span><br>
+          <span class="api-comment">// → UPDATE homepage_projects SET status='live'</span><br>
+          <span class="api-comment">// → 커스텀 도메인 설정 (선택)</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Status Overview -->
+<div class="status-grid">
+  <div class="status-card">
+    <div class="status-icon">📝</div>
+    <div class="status-name">자료 수집</div>
+    <div class="status-desc">고객 정보 수집<br>포트폴리오 등록</div>
+  </div>
+  <div class="status-card" style="border-color:#2563eb">
+    <div class="status-icon">🔨</div>
+    <div class="status-name">빌드 중</div>
+    <div class="status-desc">Vercel 빌드<br>정적 페이지 생성</div>
+  </div>
+  <div class="status-card">
+    <div class="status-icon">👁️</div>
+    <div class="status-name">프리뷰</div>
+    <div class="status-desc">고객 확인 대기<br>수정 요청 반영</div>
+  </div>
+  <div class="status-card" style="border-color:#22c55e">
+    <div class="status-icon">🚀</div>
+    <div class="status-name">라이브</div>
+    <div class="status-desc">서비스 운영 중<br>상담 접수 활성</div>
+  </div>
+</div>
+
+</body>
+</html>

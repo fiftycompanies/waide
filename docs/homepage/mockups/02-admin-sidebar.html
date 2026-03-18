@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>어드민 사이드바 — 홈페이지 메뉴 통합</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, 'Pretendard', sans-serif; background: #f8fafc; display: flex; min-height: 100vh; }
+
+  /* Sidebar */
+  .sidebar { width: 260px; background: #fff; border-right: 1px solid #e2e8f0; display: flex; flex-direction: column; height: 100vh; position: fixed; overflow-y: auto; }
+  .sidebar-logo { padding: 20px 20px 16px; border-bottom: 1px solid #f1f5f9; }
+  .sidebar-logo img { height: 28px; }
+  .sidebar-logo .logo-text { font-size: 20px; font-weight: 800; color: #0f172a; letter-spacing: -0.5px; }
+
+  .brand-selector { margin: 12px 16px; padding: 10px 12px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; display: flex; align-items: center; justify-content: space-between; cursor: pointer; }
+  .brand-selector:hover { border-color: #94a3b8; }
+  .brand-name { font-size: 14px; font-weight: 600; color: #1e293b; }
+  .brand-arrow { color: #94a3b8; font-size: 12px; }
+
+  .nav-group { padding: 8px 0; }
+  .nav-label { font-size: 11px; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; padding: 8px 20px 4px; }
+  .nav-item { display: flex; align-items: center; gap: 10px; padding: 8px 20px; font-size: 14px; color: #475569; cursor: pointer; transition: all 0.15s; text-decoration: none; }
+  .nav-item:hover { background: #f1f5f9; color: #0f172a; }
+  .nav-item.active { background: #eff6ff; color: #2563eb; font-weight: 600; }
+  .nav-item .icon { width: 20px; text-align: center; font-size: 16px; }
+
+  /* NEW badge for homepage section */
+  .nav-group.homepage { background: linear-gradient(135deg, #eff6ff 0%, #f0fdf4 100%); border-top: 1px solid #dbeafe; border-bottom: 1px solid #dbeafe; }
+  .nav-group.homepage .nav-label { color: #2563eb; display: flex; align-items: center; gap: 8px; }
+  .new-badge { background: #2563eb; color: #fff; font-size: 9px; font-weight: 700; padding: 1px 6px; border-radius: 4px; letter-spacing: 0; }
+  .nav-group.homepage .nav-item { color: #1e40af; }
+  .nav-group.homepage .nav-item:hover { background: #dbeafe40; }
+  .nav-group.homepage .nav-item.active { background: #dbeafe; }
+
+  .nav-divider { height: 1px; background: #f1f5f9; margin: 4px 16px; }
+
+  .sidebar-footer { margin-top: auto; padding: 16px; border-top: 1px solid #f1f5f9; }
+  .user-info { display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: 8px; }
+  .user-avatar { width: 32px; height: 32px; border-radius: 50%; background: #e2e8f0; display: flex; align-items: center; justify-content: center; font-size: 14px; }
+  .user-name { font-size: 13px; font-weight: 600; color: #1e293b; }
+  .user-role { font-size: 11px; color: #94a3b8; }
+
+  /* Main Content */
+  .main { margin-left: 260px; flex: 1; padding: 40px; }
+  .main h1 { font-size: 24px; color: #0f172a; margin-bottom: 8px; }
+  .main .desc { color: #64748b; font-size: 14px; margin-bottom: 32px; }
+
+  /* Permission Table */
+  .perm-table { background: #fff; border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden; max-width: 700px; }
+  .perm-table table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .perm-table th { background: #f8fafc; padding: 12px 16px; text-align: center; color: #64748b; font-weight: 600; border-bottom: 1px solid #e2e8f0; }
+  .perm-table th:first-child { text-align: left; }
+  .perm-table td { padding: 12px 16px; text-align: center; border-bottom: 1px solid #f1f5f9; color: #334155; }
+  .perm-table td:first-child { text-align: left; font-weight: 500; }
+  .perm-check { color: #22c55e; }
+  .perm-x { color: #ef4444; }
+
+  .annotation { margin-top: 24px; padding: 16px; background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; font-size: 13px; color: #92400e; max-width: 700px; }
+  .annotation strong { color: #78350f; }
+
+  .file-ref { margin-top: 24px; font-size: 12px; color: #94a3b8; }
+  .file-ref code { background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-family: 'SF Mono', monospace; }
+</style>
+</head>
+<body>
+
+<!-- Sidebar -->
+<nav class="sidebar">
+  <div class="sidebar-logo">
+    <span class="logo-text">WAIDE</span>
+  </div>
+
+  <div class="brand-selector">
+    <span class="brand-name">OO인테리어</span>
+    <span class="brand-arrow">▼</span>
+  </div>
+
+  <div class="nav-group">
+    <div class="nav-label">서비스</div>
+    <a class="nav-item" href="#"><span class="icon">📊</span> 대시보드</a>
+    <a class="nav-item" href="#"><span class="icon">🔑</span> 키워드 관리</a>
+    <a class="nav-item" href="#"><span class="icon">✏️</span> 블로그 발행</a>
+    <a class="nav-item" href="#"><span class="icon">📈</span> 성과 분석</a>
+  </div>
+
+  <div class="nav-group">
+    <div class="nav-label">고객 관리</div>
+    <a class="nav-item" href="#"><span class="icon">🏢</span> 고객 포트폴리오</a>
+    <a class="nav-item" href="#"><span class="icon">🏪</span> 브랜드 관리</a>
+    <a class="nav-item" href="#"><span class="icon">🚀</span> 온보딩</a>
+    <a class="nav-item" href="#"><span class="icon">👤</span> 계정 관리</a>
+  </div>
+
+  <!-- NEW: Homepage Section -->
+  <div class="nav-group homepage">
+    <div class="nav-label">홈페이지 <span class="new-badge">NEW</span></div>
+    <a class="nav-item active" href="#"><span class="icon">🌐</span> 홈페이지 프로젝트</a>
+    <a class="nav-item" href="#"><span class="icon">💬</span> 상담 신청</a>
+    <a class="nav-item" href="#"><span class="icon">🖼️</span> 템플릿 관리</a>
+  </div>
+
+  <div class="nav-group">
+    <div class="nav-label">비즈니스</div>
+    <a class="nav-item" href="#"><span class="icon">💰</span> 매출 관리</a>
+    <a class="nav-item" href="#"><span class="icon">⚠️</span> 이탈 관리</a>
+    <a class="nav-item" href="#"><span class="icon">📦</span> 상품 관리</a>
+    <a class="nav-item" href="#"><span class="icon">🪙</span> 포인트 관리</a>
+  </div>
+
+  <div class="nav-group">
+    <div class="nav-label">영업 CRM</div>
+    <a class="nav-item" href="#"><span class="icon">📋</span> 분석 로그</a>
+    <a class="nav-item" href="#"><span class="icon">✅</span> 영업사원</a>
+  </div>
+
+  <div class="nav-group">
+    <div class="nav-label">리소스</div>
+    <a class="nav-item" href="#"><span class="icon">📱</span> 블로그 계정</a>
+    <a class="nav-item" href="#"><span class="icon">📚</span> 소스 라이브러리</a>
+    <a class="nav-item" href="#"><span class="icon">⏱️</span> 자동 스케줄러</a>
+  </div>
+
+  <div class="nav-group">
+    <div class="nav-label">설정</div>
+    <a class="nav-item" href="#"><span class="icon">🤖</span> 에이전트 설정</a>
+  </div>
+
+  <div class="sidebar-footer">
+    <div class="user-info">
+      <div class="user-avatar">👤</div>
+      <div>
+        <div class="user-name">어드민</div>
+        <div class="user-role">슈퍼어드민</div>
+      </div>
+    </div>
+  </div>
+</nav>
+
+<!-- Main Content -->
+<main class="main">
+  <h1>사이드바 메뉴 통합 — 홈페이지 섹션</h1>
+  <p class="desc">기존 어드민 사이드바에 "홈페이지" 메뉴 그룹을 추가합니다. 왼쪽 사이드바에서 하이라이트된 영역을 확인하세요.</p>
+
+  <h2 style="font-size:18px; color:#0f172a; margin-bottom:16px;">메뉴 접근 권한</h2>
+  <div class="perm-table">
+    <table>
+      <thead>
+        <tr>
+          <th>메뉴</th>
+          <th>super_admin</th>
+          <th>admin</th>
+          <th>sales</th>
+          <th>viewer</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>🌐 홈페이지 프로젝트</td>
+          <td class="perm-check">✅</td>
+          <td class="perm-check">✅</td>
+          <td class="perm-check">✅</td>
+          <td class="perm-check">✅</td>
+        </tr>
+        <tr>
+          <td>💬 상담 신청</td>
+          <td class="perm-check">✅</td>
+          <td class="perm-check">✅</td>
+          <td class="perm-check">✅</td>
+          <td class="perm-check">✅</td>
+        </tr>
+        <tr>
+          <td>🖼️ 템플릿 관리</td>
+          <td class="perm-check">✅</td>
+          <td class="perm-check">✅</td>
+          <td class="perm-x">❌</td>
+          <td class="perm-check">✅</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="annotation">
+    <strong>구현 파일:</strong><br>
+    <code>components/dashboard/app-sidebar.tsx</code> — <code>homepageNavItems</code> 배열 추가<br>
+    아이콘: <code>Globe</code>, <code>MessageSquare</code>, <code>PanelTop</code> (lucide-react)
+  </div>
+</main>
+
+</body>
+</html>

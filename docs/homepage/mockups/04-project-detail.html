@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>프로젝트 상세 — /homepage/[id]</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, 'Pretendard', sans-serif; background: #f8fafc; color: #0f172a; }
+
+  .topbar { display: flex; align-items: center; justify-content: space-between; padding: 16px 32px; background: #fff; border-bottom: 1px solid #e2e8f0; }
+  .topbar-left { display: flex; align-items: center; gap: 16px; }
+  .back-btn { color: #64748b; text-decoration: none; font-size: 14px; }
+  .topbar-title h1 { font-size: 20px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+  .topbar-title p { font-size: 13px; color: #64748b; }
+  .topbar-right { display: flex; gap: 12px; }
+  .btn { padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; border: 1px solid #e2e8f0; background: #fff; color: #334155; }
+  .btn:hover { background: #f8fafc; }
+  .btn-blue { background: #2563eb; color: #fff; border-color: #2563eb; }
+  .btn-blue:hover { background: #1d4ed8; }
+
+  .container { max-width: 1200px; margin: 0 auto; padding: 32px; }
+
+  /* Tabs */
+  .tabs { display: flex; border-bottom: 2px solid #e2e8f0; margin-bottom: 32px; gap: 0; }
+  .tab { padding: 12px 24px; font-size: 14px; font-weight: 500; color: #64748b; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -2px; transition: all 0.15s; display: flex; align-items: center; gap: 6px; }
+  .tab:hover { color: #0f172a; }
+  .tab.active { color: #2563eb; border-bottom-color: #2563eb; font-weight: 600; }
+  .tab .count { background: #f1f5f9; color: #64748b; font-size: 11px; padding: 2px 8px; border-radius: 10px; }
+  .tab.active .count { background: #dbeafe; color: #2563eb; }
+
+  /* Tab Content */
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  /* Stats Row */
+  .stats-mini { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 32px; }
+  .stat-mini { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 16px 20px; }
+  .stat-mini-label { font-size: 12px; color: #94a3b8; margin-bottom: 4px; }
+  .stat-mini-value { font-size: 22px; font-weight: 700; }
+  .stat-mini .badge-sm { display: inline-block; font-size: 11px; padding: 2px 10px; border-radius: 20px; }
+
+  /* Info Card */
+  .card { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 24px; margin-bottom: 20px; }
+  .card-title { font-size: 16px; font-weight: 600; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; }
+  .card-title a { font-size: 13px; color: #2563eb; text-decoration: none; }
+  .info-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+  .info-item { }
+  .info-label { font-size: 12px; color: #94a3b8; margin-bottom: 2px; }
+  .info-value { font-size: 14px; color: #1e293b; font-weight: 500; }
+
+  /* Quick Actions */
+  .quick-actions { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  .action-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 20px; text-align: center; cursor: pointer; transition: all 0.2s; }
+  .action-card:hover { border-color: #2563eb; box-shadow: 0 2px 8px rgba(37,99,235,0.1); transform: translateY(-1px); }
+  .action-icon { font-size: 28px; margin-bottom: 8px; }
+  .action-label { font-size: 13px; font-weight: 600; color: #334155; }
+
+  /* Portfolio Grid */
+  .portfolio-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .portfolio-item { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; cursor: pointer; transition: all 0.2s; }
+  .portfolio-item:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+  .portfolio-img { width: 100%; height: 180px; background: linear-gradient(135deg, #e2e8f0, #cbd5e1); display: flex; align-items: center; justify-content: center; color: #94a3b8; font-size: 32px; }
+  .portfolio-info { padding: 16px; }
+  .portfolio-title { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+  .portfolio-meta { font-size: 12px; color: #94a3b8; }
+  .portfolio-tags { display: flex; gap: 6px; margin-top: 8px; }
+  .portfolio-tag { font-size: 11px; padding: 2px 8px; background: #f1f5f9; border-radius: 4px; color: #64748b; }
+  .portfolio-tag.best { background: #fef3c7; color: #d97706; font-weight: 600; }
+
+  /* Review Card */
+  .review-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 24px; margin-bottom: 12px; }
+  .review-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .review-author { font-size: 15px; font-weight: 600; }
+  .review-stars { color: #fbbf24; letter-spacing: 2px; }
+  .review-date { font-size: 12px; color: #94a3b8; }
+  .review-text { font-size: 14px; color: #475569; line-height: 1.7; margin-bottom: 12px; }
+  .review-project { font-size: 12px; color: #2563eb; background: #eff6ff; padding: 4px 12px; border-radius: 6px; display: inline-block; }
+
+  /* Inquiry Card */
+  .inquiry-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; margin-bottom: 12px; }
+  .inquiry-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .inquiry-name { font-size: 16px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+  .inquiry-phone { font-size: 13px; color: #64748b; }
+  .inquiry-status { display: flex; align-items: center; gap: 8px; }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; }
+  .status-dot.new { background: #ef4444; }
+  .status-dot.in-progress { background: #eab308; }
+  .status-dot.done { background: #22c55e; }
+  .inquiry-specs { font-size: 13px; color: #475569; margin-bottom: 8px; }
+  .inquiry-message { font-size: 14px; color: #334155; font-style: italic; padding: 12px; background: #f8fafc; border-radius: 8px; margin-bottom: 8px; }
+  .inquiry-time { font-size: 12px; color: #94a3b8; }
+  .status-select { padding: 4px 12px; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 12px; cursor: pointer; }
+
+  /* Material Tab */
+  .material-section { margin-bottom: 24px; }
+  .material-row { display: grid; grid-template-columns: 160px 1fr; gap: 12px; padding: 12px 0; border-bottom: 1px solid #f1f5f9; align-items: center; }
+  .material-label { font-size: 13px; color: #64748b; font-weight: 500; }
+  .material-value { font-size: 14px; color: #1e293b; }
+  .material-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; padding: 2px 10px; border-radius: 20px; }
+  .material-badge.done { background: #dcfce7; color: #16a34a; }
+  .material-badge.pending { background: #fef3c7; color: #d97706; }
+</style>
+</head>
+<body>
+
+<!-- Top Bar -->
+<div class="topbar">
+  <div class="topbar-left">
+    <a href="#" class="back-btn">← 뒤로</a>
+    <div class="topbar-title">
+      <h1>강남인테리어 홈페이지 <span class="badge badge-sm" style="background:#dcfce7;color:#16a34a;font-size:12px;padding:4px 12px;border-radius:20px;">라이브</span></h1>
+      <p>OO인테리어</p>
+    </div>
+  </div>
+  <div class="topbar-right">
+    <button class="btn">🔗 프리뷰</button>
+    <button class="btn btn-blue">빌드 & 배포</button>
+  </div>
+</div>
+
+<div class="container">
+  <!-- Tabs -->
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab('overview')">🌐 개요</div>
+    <div class="tab" onclick="switchTab('materials')">📄 자료</div>
+    <div class="tab" onclick="switchTab('portfolios')">🖼️ 포트폴리오 <span class="count">8</span></div>
+    <div class="tab" onclick="switchTab('reviews')">⭐ 후기 <span class="count">12</span></div>
+    <div class="tab" onclick="switchTab('inquiries')">💬 상담 <span class="count">5</span></div>
+  </div>
+
+  <!-- ===== 개요 탭 ===== -->
+  <div class="tab-content active" id="tab-overview">
+    <div class="stats-mini">
+      <div class="stat-mini">
+        <div class="stat-mini-label">상태</div>
+        <div><span class="stat-mini badge-sm" style="background:#dcfce7;color:#16a34a;padding:4px 12px;border-radius:20px;font-size:13px;font-weight:600;">라이브</span></div>
+      </div>
+      <div class="stat-mini">
+        <div class="stat-mini-label">방문수</div>
+        <div class="stat-mini-value">1,234</div>
+      </div>
+      <div class="stat-mini">
+        <div class="stat-mini-label">상담수</div>
+        <div class="stat-mini-value">5</div>
+      </div>
+      <div class="stat-mini">
+        <div class="stat-mini-label">포트폴리오</div>
+        <div class="stat-mini-value">8건</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">프로젝트 정보</div>
+      <div class="info-grid">
+        <div class="info-item"><div class="info-label">템플릿</div><div class="info-value">modern-minimal</div></div>
+        <div class="info-item"><div class="info-label">서브도메인</div><div class="info-value">gangnam-int.waide.kr</div></div>
+        <div class="info-item"><div class="info-label">커스텀 도메인</div><div class="info-value" style="color:#94a3b8">미설정</div></div>
+        <div class="info-item"><div class="info-label">생성일</div><div class="info-value">2026.03.15</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">자료 수집 현황 <a href="#">자료 수집 →</a></div>
+      <div class="info-grid">
+        <div class="info-item"><div class="info-label">업체명</div><div class="info-value">OO인테리어</div></div>
+        <div class="info-item"><div class="info-label">대표</div><div class="info-value">김인테리어</div></div>
+        <div class="info-item"><div class="info-label">연락처</div><div class="info-value">010-1234-5678</div></div>
+        <div class="info-item"><div class="info-label">완료 여부</div><div class="info-value" style="color:#16a34a">✅ 완료</div></div>
+      </div>
+    </div>
+
+    <div class="quick-actions">
+      <div class="action-card"><div class="action-icon">📄</div><div class="action-label">자료 수집</div></div>
+      <div class="action-card"><div class="action-icon">🔗</div><div class="action-label">프리뷰</div></div>
+      <div class="action-card"><div class="action-icon">🖼️</div><div class="action-label">포트폴리오</div></div>
+      <div class="action-card"><div class="action-icon">⚙️</div><div class="action-label">SEO 설정</div></div>
+    </div>
+  </div>
+
+  <!-- ===== 자료 탭 ===== -->
+  <div class="tab-content" id="tab-materials">
+    <div class="card">
+      <div class="card-title">수집된 자료 <a href="#">수정하기</a></div>
+      <div class="material-section">
+        <h3 style="font-size:14px; color:#64748b; margin-bottom:12px;">기본 정보</h3>
+        <div class="material-row"><span class="material-label">업체명</span><span class="material-value">OO인테리어</span></div>
+        <div class="material-row"><span class="material-label">대표자</span><span class="material-value">김인테리어</span></div>
+        <div class="material-row"><span class="material-label">연락처</span><span class="material-value">010-1234-5678</span></div>
+        <div class="material-row"><span class="material-label">사업자번호</span><span class="material-value">123-45-67890</span></div>
+        <div class="material-row"><span class="material-label">주소</span><span class="material-value">서울시 강남구 테헤란로 123</span></div>
+      </div>
+      <div class="material-section">
+        <h3 style="font-size:14px; color:#64748b; margin-bottom:12px;">서비스 정보</h3>
+        <div class="material-row"><span class="material-label">시공 지역</span><span class="material-value">강남구, 서초구, 송파구</span></div>
+        <div class="material-row"><span class="material-label">전문 분야</span><span class="material-value">아파트 인테리어, 리모델링</span></div>
+        <div class="material-row"><span class="material-label">디자인 스타일</span><span class="material-value">모던, 미니멀</span></div>
+        <div class="material-row"><span class="material-label">평균 예산</span><span class="material-value">3,000만 ~ 8,000만</span></div>
+      </div>
+      <div class="material-section">
+        <h3 style="font-size:14px; color:#64748b; margin-bottom:12px;">수집 상태</h3>
+        <div class="material-row"><span class="material-label">기본 정보</span><span class="material-badge done">✅ 완료</span></div>
+        <div class="material-row"><span class="material-label">포트폴리오 사진</span><span class="material-badge done">✅ 8건 업로드</span></div>
+        <div class="material-row"><span class="material-label">고객 후기</span><span class="material-badge done">✅ 12건</span></div>
+        <div class="material-row"><span class="material-label">로고/CI</span><span class="material-badge pending">⏳ 대기 중</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 포트폴리오 탭 ===== -->
+  <div class="tab-content" id="tab-portfolios">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+      <h2 style="font-size:18px;">포트폴리오 관리</h2>
+      <button class="btn btn-blue">+ 시공 사례 추가</button>
+    </div>
+    <div class="portfolio-grid">
+      <div class="portfolio-item">
+        <div class="portfolio-img">🏠</div>
+        <div class="portfolio-info">
+          <div class="portfolio-title">30평 모던 거실</div>
+          <div class="portfolio-meta">거실 · 30평 · 모던</div>
+          <div class="portfolio-tags">
+            <span class="portfolio-tag best">BEST</span>
+            <span class="portfolio-tag">모던</span>
+          </div>
+        </div>
+      </div>
+      <div class="portfolio-item">
+        <div class="portfolio-img" style="background:linear-gradient(135deg,#fecaca,#fde68a)">🍳</div>
+        <div class="portfolio-info">
+          <div class="portfolio-title">주방 리모델링</div>
+          <div class="portfolio-meta">주방 · 15평 · 모던</div>
+          <div class="portfolio-tags">
+            <span class="portfolio-tag">리모델링</span>
+          </div>
+        </div>
+      </div>
+      <div class="portfolio-item">
+        <div class="portfolio-img" style="background:linear-gradient(135deg,#bfdbfe,#c7d2fe)">🚿</div>
+        <div class="portfolio-info">
+          <div class="portfolio-title">미니멀 욕실</div>
+          <div class="portfolio-meta">욕실 · 3평 · 미니멀</div>
+          <div class="portfolio-tags">
+            <span class="portfolio-tag">미니멀</span>
+          </div>
+        </div>
+      </div>
+      <div class="portfolio-item">
+        <div class="portfolio-img" style="background:linear-gradient(135deg,#d1fae5,#a7f3d0)">🛏️</div>
+        <div class="portfolio-info">
+          <div class="portfolio-title">마스터 침실</div>
+          <div class="portfolio-meta">침실 · 8평 · 내추럴</div>
+          <div class="portfolio-tags">
+            <span class="portfolio-tag">내추럴</span>
+          </div>
+        </div>
+      </div>
+      <div class="portfolio-item">
+        <div class="portfolio-img" style="background:linear-gradient(135deg,#fef3c7,#fde68a)">📚</div>
+        <div class="portfolio-info">
+          <div class="portfolio-title">서재 & 홈오피스</div>
+          <div class="portfolio-meta">서재 · 5평 · 모던</div>
+          <div class="portfolio-tags">
+            <span class="portfolio-tag">모던</span>
+          </div>
+        </div>
+      </div>
+      <div class="portfolio-item">
+        <div class="portfolio-img" style="background:linear-gradient(135deg,#e9d5ff,#c4b5fd)">🏠</div>
+        <div class="portfolio-info">
+          <div class="portfolio-title">25평 올수리</div>
+          <div class="portfolio-meta">전체 · 25평 · 프리미엄</div>
+          <div class="portfolio-tags">
+            <span class="portfolio-tag">올수리</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 후기 탭 ===== -->
+  <div class="tab-content" id="tab-reviews">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+      <h2 style="font-size:18px;">고객 후기 관리</h2>
+      <button class="btn btn-blue">+ 후기 추가</button>
+    </div>
+
+    <div class="review-card">
+      <div class="review-top">
+        <div>
+          <span class="review-author">김OO</span>
+          <span class="review-stars" style="margin-left:12px">★★★★★</span>
+        </div>
+        <span class="review-date">2026.03.10</span>
+      </div>
+      <div class="review-text">"강남에서 30평 아파트 인테리어를 맡겼는데 정말 만족스러웠습니다. 소통도 잘되고 시공 퀄리티도 기대 이상이었어요. 특히 거실 디자인이 매우 세련되었습니다."</div>
+      <span class="review-project">30평 아파트 올수리</span>
+    </div>
+
+    <div class="review-card">
+      <div class="review-top">
+        <div>
+          <span class="review-author">이OO</span>
+          <span class="review-stars" style="margin-left:12px">★★★★★</span>
+        </div>
+        <span class="review-date">2026.03.05</span>
+      </div>
+      <div class="review-text">"빌라 리모델링을 했는데 공간 활용이 정말 좋아졌어요. 가격도 합리적이고 공사 기간도 정확히 맞춰주셨습니다."</div>
+      <span class="review-project">18평 빌라 리모델링</span>
+    </div>
+
+    <div class="review-card">
+      <div class="review-top">
+        <div>
+          <span class="review-author">박OO</span>
+          <span class="review-stars" style="margin-left:12px">★★★★☆</span>
+        </div>
+        <span class="review-date">2026.02.28</span>
+      </div>
+      <div class="review-text">"주방과 욕실 부분 리모델링을 진행했습니다. 디자이너분이 센스가 좋으셔서 제가 원하는 스타일을 잘 잡아주셨어요."</div>
+      <span class="review-project">주방 & 욕실 리모델링</span>
+    </div>
+  </div>
+
+  <!-- ===== 상담 탭 ===== -->
+  <div class="tab-content" id="tab-inquiries">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+      <h2 style="font-size:18px;">상담 신청 목록</h2>
+      <div style="display:flex;gap:8px;">
+        <span class="filter-tab active" style="padding:4px 12px;border-radius:16px;font-size:12px;border:1px solid #e2e8f0;background:#0f172a;color:#fff;cursor:pointer;">전체 5</span>
+        <span class="filter-tab" style="padding:4px 12px;border-radius:16px;font-size:12px;border:1px solid #e2e8f0;background:#fff;color:#64748b;cursor:pointer;">신규 2</span>
+        <span class="filter-tab" style="padding:4px 12px;border-radius:16px;font-size:12px;border:1px solid #e2e8f0;background:#fff;color:#64748b;cursor:pointer;">진행 중 2</span>
+        <span class="filter-tab" style="padding:4px 12px;border-radius:16px;font-size:12px;border:1px solid #e2e8f0;background:#fff;color:#64748b;cursor:pointer;">완료 1</span>
+      </div>
+    </div>
+
+    <div class="inquiry-card">
+      <div class="inquiry-top">
+        <div class="inquiry-name">
+          👤 홍길동
+          <span style="font-size:13px;color:#64748b;font-weight:400">📞 010-9876-5432</span>
+        </div>
+        <div class="inquiry-status">
+          <span class="status-dot new"></span>
+          <span style="font-size:12px;color:#ef4444;font-weight:600">신규</span>
+          <select class="status-select">
+            <option>상태 변경 ▼</option>
+            <option>진행 중</option>
+            <option>완료</option>
+            <option>취소</option>
+          </select>
+        </div>
+      </div>
+      <div class="inquiry-specs">아파트 · 30평 · 3,000만~5,000만</div>
+      <div class="inquiry-message">"강남역 근처 아파트 리모델링 견적 부탁드립니다"</div>
+      <div class="inquiry-time">2026년 3월 17일 오후 2:30</div>
+    </div>
+
+    <div class="inquiry-card">
+      <div class="inquiry-top">
+        <div class="inquiry-name">
+          👤 김영희
+          <span style="font-size:13px;color:#64748b;font-weight:400">📞 010-1111-2222</span>
+        </div>
+        <div class="inquiry-status">
+          <span class="status-dot new"></span>
+          <span style="font-size:12px;color:#ef4444;font-weight:600">신규</span>
+          <select class="status-select">
+            <option>상태 변경 ▼</option>
+          </select>
+        </div>
+      </div>
+      <div class="inquiry-specs">빌라 · 20평 · 2,000만~3,000만</div>
+      <div class="inquiry-message">"서초동 빌라 전체 인테리어 상담 가능할까요?"</div>
+      <div class="inquiry-time">2026년 3월 17일 오전 10:15</div>
+    </div>
+
+    <div class="inquiry-card">
+      <div class="inquiry-top">
+        <div class="inquiry-name">
+          👤 박진수
+          <span style="font-size:13px;color:#64748b;font-weight:400">📞 010-3333-4444</span>
+        </div>
+        <div class="inquiry-status">
+          <span class="status-dot in-progress"></span>
+          <span style="font-size:12px;color:#eab308;font-weight:600">진행 중</span>
+          <select class="status-select">
+            <option>상태 변경 ▼</option>
+          </select>
+        </div>
+      </div>
+      <div class="inquiry-specs">아파트 · 45평 · 5,000만~1억</div>
+      <div class="inquiry-message">"신축 45평 인테리어 견적 및 일정 상담 요청합니다"</div>
+      <div class="inquiry-time">2026년 3월 15일 오후 4:00</div>
+    </div>
+  </div>
+</div>
+
+<script>
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  event.currentTarget.classList.add('active');
+  document.getElementById('tab-' + name).classList.add('active');
+}
+</script>
+</body>
+</html>

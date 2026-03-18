@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>상담 신청 관리 — /homepage/inquiries</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, 'Pretendard', sans-serif; background: #f8fafc; color: #0f172a; padding: 32px; }
+
+  .page-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 32px; }
+  .page-header h1 { font-size: 28px; font-weight: 700; }
+  .page-header p { color: #64748b; font-size: 14px; margin-top: 4px; }
+
+  /* Stats */
+  .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 32px; }
+  .stat-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; }
+  .stat-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .stat-label { font-size: 13px; color: #64748b; }
+  .stat-icon { width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px; }
+  .stat-value { font-size: 32px; font-weight: 700; }
+  .stat-change { font-size: 12px; margin-top: 4px; }
+  .stat-change.up { color: #22c55e; }
+  .stat-change.down { color: #ef4444; }
+
+  /* Filter Bar */
+  .filter-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; background: #fff; padding: 16px 20px; border-radius: 12px; border: 1px solid #e2e8f0; }
+  .filter-left { display: flex; gap: 8px; }
+  .filter-btn { padding: 6px 16px; border-radius: 20px; font-size: 13px; border: 1px solid #e2e8f0; background: #fff; color: #64748b; cursor: pointer; display: flex; align-items: center; gap: 4px; }
+  .filter-btn.active { background: #0f172a; color: #fff; border-color: #0f172a; }
+  .filter-btn .count { font-weight: 700; }
+  .filter-right { display: flex; gap: 12px; align-items: center; }
+  .search-input { padding: 8px 14px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 13px; width: 200px; outline: none; }
+  .search-input:focus { border-color: #2563eb; }
+  select.filter-select { padding: 8px 14px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 13px; outline: none; cursor: pointer; }
+
+  /* Table */
+  .table-wrapper { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  thead th { background: #f8fafc; padding: 14px 16px; text-align: left; color: #64748b; font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid #e2e8f0; }
+  tbody td { padding: 16px; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
+  tbody tr:hover { background: #f8fafc; }
+  tbody tr:last-child td { border-bottom: none; }
+
+  .customer-name { font-weight: 600; color: #0f172a; }
+  .customer-phone { font-size: 12px; color: #64748b; margin-top: 2px; }
+
+  .badge { padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 600; display: inline-flex; align-items: center; gap: 4px; }
+  .badge-new { background: #fef2f2; color: #ef4444; }
+  .badge-progress { background: #fefce8; color: #ca8a04; }
+  .badge-done { background: #f0fdf4; color: #16a34a; }
+  .badge-cancelled { background: #f1f5f9; color: #64748b; }
+
+  .project-badge { font-size: 11px; padding: 3px 10px; background: #eff6ff; color: #2563eb; border-radius: 6px; display: inline-block; }
+
+  .specs { font-size: 13px; color: #475569; }
+  .message { font-size: 13px; color: #334155; font-style: italic; max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .datetime { font-size: 12px; color: #94a3b8; }
+
+  .action-btn { padding: 6px 12px; border: 1px solid #e2e8f0; border-radius: 6px; background: #fff; font-size: 12px; cursor: pointer; color: #334155; }
+  .action-btn:hover { background: #f8fafc; }
+  .action-btn.primary { color: #2563eb; border-color: #93c5fd; }
+
+  /* Pagination */
+  .pagination { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; background: #fff; border-top: 1px solid #e2e8f0; }
+  .page-info { font-size: 13px; color: #64748b; }
+  .page-btns { display: flex; gap: 4px; }
+  .page-btn { width: 32px; height: 32px; border-radius: 6px; border: 1px solid #e2e8f0; background: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 13px; color: #64748b; }
+  .page-btn.active { background: #2563eb; color: #fff; border-color: #2563eb; }
+
+  /* Detail Panel (right slide) */
+  .detail-panel { position: fixed; top: 0; right: 0; width: 420px; height: 100vh; background: #fff; border-left: 1px solid #e2e8f0; box-shadow: -8px 0 24px rgba(0,0,0,0.08); padding: 32px; overflow-y: auto; z-index: 100; }
+  .detail-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 32px; }
+  .detail-close { width: 32px; height: 32px; border-radius: 8px; border: 1px solid #e2e8f0; background: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 16px; }
+
+  .detail-section { margin-bottom: 24px; }
+  .detail-section h3 { font-size: 12px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px; }
+  .detail-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f1f5f9; }
+  .detail-row .label { font-size: 13px; color: #64748b; }
+  .detail-row .value { font-size: 13px; color: #0f172a; font-weight: 500; }
+
+  .detail-message { padding: 16px; background: #f8fafc; border-radius: 8px; font-size: 14px; color: #334155; line-height: 1.7; }
+
+  .detail-actions { display: flex; gap: 8px; margin-top: 24px; }
+  .detail-btn { flex: 1; padding: 10px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; text-align: center; border: 1px solid #e2e8f0; background: #fff; }
+  .detail-btn.primary { background: #2563eb; color: #fff; border-color: #2563eb; }
+  .detail-btn.danger { color: #ef4444; border-color: #fecaca; }
+
+  .timeline { margin-top: 24px; }
+  .timeline-item { display: flex; gap: 12px; padding: 8px 0; }
+  .timeline-dot { width: 8px; height: 8px; border-radius: 50%; background: #e2e8f0; margin-top: 6px; flex-shrink: 0; }
+  .timeline-dot.active { background: #2563eb; }
+  .timeline-text { font-size: 12px; color: #64748b; }
+  .timeline-text strong { color: #334155; }
+</style>
+</head>
+<body>
+
+<div class="page-header">
+  <div>
+    <h1>💬 상담 신청 관리</h1>
+    <p>모든 홈페이지에서 접수된 상담 신청을 통합 관리합니다</p>
+  </div>
+</div>
+
+<!-- Stats -->
+<div class="stats-row">
+  <div class="stat-card">
+    <div class="stat-top">
+      <span class="stat-label">전체 상담</span>
+      <div class="stat-icon" style="background:#eff6ff">💬</div>
+    </div>
+    <div class="stat-value">47</div>
+    <div class="stat-change up">↑ 12% vs 지난주</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-top">
+      <span class="stat-label">신규 (미확인)</span>
+      <div class="stat-icon" style="background:#fef2f2">🔴</div>
+    </div>
+    <div class="stat-value" style="color:#ef4444">8</div>
+    <div class="stat-change">오늘 3건 접수</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-top">
+      <span class="stat-label">진행 중</span>
+      <div class="stat-icon" style="background:#fefce8">🟡</div>
+    </div>
+    <div class="stat-value" style="color:#ca8a04">15</div>
+    <div class="stat-change">평균 응답시간 2.3h</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-top">
+      <span class="stat-label">이번 달 완료</span>
+      <div class="stat-icon" style="background:#f0fdf4">✅</div>
+    </div>
+    <div class="stat-value" style="color:#16a34a">24</div>
+    <div class="stat-change up">전환율 51%</div>
+  </div>
+</div>
+
+<!-- Filter Bar -->
+<div class="filter-bar">
+  <div class="filter-left">
+    <span class="filter-btn active">전체 <span class="count">47</span></span>
+    <span class="filter-btn">🔴 신규 <span class="count">8</span></span>
+    <span class="filter-btn">🟡 진행 중 <span class="count">15</span></span>
+    <span class="filter-btn">✅ 완료 <span class="count">24</span></span>
+  </div>
+  <div class="filter-right">
+    <select class="filter-select">
+      <option>전체 프로젝트</option>
+      <option>강남인테리어 홈페이지</option>
+      <option>서초리모델링 홈페이지</option>
+    </select>
+    <input type="text" class="search-input" placeholder="🔍 이름, 연락처 검색...">
+  </div>
+</div>
+
+<!-- Table -->
+<div class="table-wrapper">
+  <table>
+    <thead>
+      <tr>
+        <th>고객</th>
+        <th>프로젝트</th>
+        <th>상담 내용</th>
+        <th>상태</th>
+        <th>접수일</th>
+        <th>관리</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>
+          <div class="customer-name">홍길동</div>
+          <div class="customer-phone">010-9876-5432</div>
+        </td>
+        <td><span class="project-badge">강남인테리어</span></td>
+        <td>
+          <div class="specs">아파트 · 30평 · 3,000만~5,000만</div>
+          <div class="message">"강남역 근처 아파트 리모델링 견적 부탁드립니다"</div>
+        </td>
+        <td><span class="badge badge-new">🔴 신규</span></td>
+        <td><span class="datetime">03.17<br>14:30</span></td>
+        <td>
+          <button class="action-btn primary">상세보기</button>
+        </td>
+      </tr>
+      <tr>
+        <td>
+          <div class="customer-name">김영희</div>
+          <div class="customer-phone">010-1111-2222</div>
+        </td>
+        <td><span class="project-badge">강남인테리어</span></td>
+        <td>
+          <div class="specs">빌라 · 20평 · 2,000만~3,000만</div>
+          <div class="message">"서초동 빌라 전체 인테리어 상담 가능할까요?"</div>
+        </td>
+        <td><span class="badge badge-new">🔴 신규</span></td>
+        <td><span class="datetime">03.17<br>10:15</span></td>
+        <td>
+          <button class="action-btn primary">상세보기</button>
+        </td>
+      </tr>
+      <tr>
+        <td>
+          <div class="customer-name">박진수</div>
+          <div class="customer-phone">010-3333-4444</div>
+        </td>
+        <td><span class="project-badge">강남인테리어</span></td>
+        <td>
+          <div class="specs">아파트 · 45평 · 5,000만~1억</div>
+          <div class="message">"신축 45평 인테리어 견적 및 일정 상담 요청합니다"</div>
+        </td>
+        <td><span class="badge badge-progress">🟡 진행 중</span></td>
+        <td><span class="datetime">03.15<br>16:00</span></td>
+        <td>
+          <button class="action-btn primary">상세보기</button>
+        </td>
+      </tr>
+      <tr>
+        <td>
+          <div class="customer-name">최수진</div>
+          <div class="customer-phone">010-5555-6666</div>
+        </td>
+        <td><span class="project-badge">서초리모델링</span></td>
+        <td>
+          <div class="specs">단독주택 · 50평 · 1억 이상</div>
+          <div class="message">"서래마을 단독주택 2층 전체 리모델링"</div>
+        </td>
+        <td><span class="badge badge-progress">🟡 진행 중</span></td>
+        <td><span class="datetime">03.14<br>11:20</span></td>
+        <td>
+          <button class="action-btn primary">상세보기</button>
+        </td>
+      </tr>
+      <tr>
+        <td>
+          <div class="customer-name">이민호</div>
+          <div class="customer-phone">010-7777-8888</div>
+        </td>
+        <td><span class="project-badge">강남인테리어</span></td>
+        <td>
+          <div class="specs">오피스텔 · 15평 · 1,000만~2,000만</div>
+          <div class="message">"오피스텔 인테리어 견적 문의합니다"</div>
+        </td>
+        <td><span class="badge badge-done">✅ 완료</span></td>
+        <td><span class="datetime">03.12<br>09:30</span></td>
+        <td>
+          <button class="action-btn">상세보기</button>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+  <div class="pagination">
+    <span class="page-info">1-5 of 47 상담</span>
+    <div class="page-btns">
+      <button class="page-btn">←</button>
+      <button class="page-btn active">1</button>
+      <button class="page-btn">2</button>
+      <button class="page-btn">3</button>
+      <button class="page-btn">...</button>
+      <button class="page-btn">10</button>
+      <button class="page-btn">→</button>
+    </div>
+  </div>
+</div>
+
+<!-- Detail Slide Panel -->
+<div class="detail-panel">
+  <div class="detail-header">
+    <div>
+      <h2 style="font-size:20px;font-weight:700;">홍길동</h2>
+      <p style="font-size:13px;color:#64748b;margin-top:4px;">강남인테리어 홈페이지에서 접수</p>
+    </div>
+    <button class="detail-close">✕</button>
+  </div>
+
+  <div class="detail-section">
+    <h3>고객 정보</h3>
+    <div class="detail-row"><span class="label">이름</span><span class="value">홍길동</span></div>
+    <div class="detail-row"><span class="label">연락처</span><span class="value">010-9876-5432</span></div>
+    <div class="detail-row"><span class="label">이메일</span><span class="value">hong@email.com</span></div>
+  </div>
+
+  <div class="detail-section">
+    <h3>상담 요청 내용</h3>
+    <div class="detail-row"><span class="label">건물 유형</span><span class="value">아파트</span></div>
+    <div class="detail-row"><span class="label">면적</span><span class="value">30평</span></div>
+    <div class="detail-row"><span class="label">예산</span><span class="value">3,000만 ~ 5,000만</span></div>
+    <div class="detail-row"><span class="label">희망 시기</span><span class="value">2026년 4월</span></div>
+  </div>
+
+  <div class="detail-section">
+    <h3>메시지</h3>
+    <div class="detail-message">
+      강남역 근처 아파트 리모델링 견적 부탁드립니다. 거실과 주방 위주로 시공하고 싶고, 모던한 스타일 선호합니다. 가능하시면 이번 주 내로 방문 상담 가능할까요?
+    </div>
+  </div>
+
+  <div class="detail-actions">
+    <button class="detail-btn primary">📞 전화하기</button>
+    <button class="detail-btn">진행 중으로 변경</button>
+    <button class="detail-btn danger">취소</button>
+  </div>
+
+  <div class="detail-section" style="margin-top:32px;">
+    <h3>활동 타임라인</h3>
+    <div class="timeline">
+      <div class="timeline-item">
+        <div class="timeline-dot active"></div>
+        <div class="timeline-text"><strong>상담 접수</strong><br>2026.03.17 14:30 — 홈페이지에서 접수됨</div>
+      </div>
+      <div class="timeline-item">
+        <div class="timeline-dot"></div>
+        <div class="timeline-text"><strong>자동 알림 발송</strong><br>2026.03.17 14:31 — 카카오톡 알림 발송</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

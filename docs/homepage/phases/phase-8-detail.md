@@ -1,0 +1,393 @@
+# Phase 8: 모니터링 & 리포트
+
+## 개요
+- **목적:** 홈페이지 방문 통계, 상담 전환율, 블로그 성과를 추적하는 대시보드를 구축하고, 월간 리포트에 홈페이지 섹션을 추가하며, 상담 신청 실시간 알림(Slack + 이메일)을 연동한다.
+- **예상 기간:** 2일
+- **선행 조건:** Phase 5 (배포 완료된 라이브 홈페이지), Phase 6 (블로그 발행 연동)
+- **산출물:** 모니터링 대시보드 페이지, 월간 리포트 확장, 알림 시스템
+
+---
+
+## 상세 작업 목록
+
+### 8.1 방문 통계 수집 시스템
+
+#### 설명
+홈페이지 방문자 데이터를 수집하는 경량 분석 시스템을 구현한다. Google Analytics 4 또는 자체 수집 스크립트를 사용한다.
+
+#### 기술 스펙
+- **수집 방법 1 (권장):** Vercel Analytics API 연동
+  - Vercel 내장 Web Analytics 활성화
+  - Vercel API로 방문 데이터 조회
+- **수집 방법 2 (대안):** 자체 경량 스크립트
+  - 페이지뷰 이벤트: `POST /api/analytics/pageview`
+  - homepage_analytics 테이블에 저장
+- **수집 데이터:**
+  - 일별 방문수 (unique visitors)
+  - 페이지별 조회수 (page views)
+  - 유입 경로 (referrer)
+  - 디바이스 (desktop/mobile/tablet)
+  - 상담 폼 전환율 (방문 대비 상담 접수)
+
+#### 파일 구조
+```
+lib/homepage/
+├── analytics/
+│   ├── vercel-analytics.ts   ← Vercel Analytics API 클라이언트
+│   └── types.ts              ← 분석 데이터 타입
+```
+
+#### 코드 예시
+```typescript
+// lib/homepage/analytics/vercel-analytics.ts
+import { vercelFetch } from '../vercel';
+
+interface AnalyticsData {
+  period: { start: string; end: string };
+  visitors: number;
+  pageviews: number;
+  topPages: Array<{ path: string; views: number }>;
+  topReferrers: Array<{ referrer: string; views: number }>;
+  devices: { desktop: number; mobile: number; tablet: number };
+}
+
+export async function getAnalytics(
+  projectId: string,
+  from: string,
+  to: string
+): Promise<AnalyticsData> {
+  const data = await vercelFetch<any>({
+    method: 'GET',
+    path: `/v1/web/insights/stats?projectId=${projectId}&from=${from}&to=${to}`,
+  });
+
+  return {
+    period: { start: from, end: to },
+    visitors: data.visitors,
+    pageviews: data.pageviews,
+    topPages: data.topPages,
+    topReferrers: data.topReferrers,
+    devices: data.devices,
+  };
+}
+```
+
+### 8.2 홈페이지 통계 대시보드
+
+#### 설명
+어드민에서 홈페이지 방문/상담 통계를 시각적으로 확인할 수 있는 대시보드를 구현한다.
+
+#### 기술 스펙
+- **위치:** 프로젝트 상세 → 개요 탭 (또는 별도 통계 탭)
+- **KPI 카드 (4개):**
+  - 이번 달 방문수 (전월 대비 증감 %)
+  - 이번 달 상담 접수 (전월 대비 증감 %)
+  - 상담 전환율 (상담수 / 방문수 × 100)
+  - 블로그 발행 수 (이번 달)
+- **차트 (3개):**
+  - 일별 방문수 추이 (최근 30일, 라인 차트)
+  - 상담 상태 분포 (파이 차트: 신규/연락완료/상담중/계약/이탈)
+  - 유입 경로 분포 (바 차트: 네이버/구글/직접/SNS)
+- **테이블 (2개):**
+  - 인기 페이지 TOP 10 (페이지, 조회수, 평균 체류시간)
+  - 최근 상담 신청 목록 (5개)
+
+#### 파일 구조
+```
+app/(dashboard)/dashboard/homepage/[id]/
+├── _components/
+│   ├── analytics-dashboard.tsx    ← 통계 대시보드 (Client Component)
+│   ├── kpi-cards.tsx              ← KPI 카드 4개
+│   ├── visitors-chart.tsx         ← 방문 추이 라인 차트
+│   ├── inquiry-status-chart.tsx   ← 상담 상태 파이 차트
+│   ├── referrer-chart.tsx         ← 유입 경로 바 차트
+│   ├── top-pages-table.tsx        ← 인기 페이지 테이블
+│   └── recent-inquiries.tsx       ← 최근 상담 테이블
+```
+
+#### 코드 예시
+```typescript
+// _components/kpi-cards.tsx
+interface KPIData {
+  visitors: { current: number; previous: number };
+  inquiries: { current: number; previous: number };
+  conversionRate: number;
+  blogPosts: number;
+}
+
+export function KPICards({ data }: { data: KPIData }) {
+  const calcChange = (current: number, previous: number) => {
+    if (previous === 0) return 100;
+    return Math.round(((current - previous) / previous) * 100);
+  };
+
+  return (
+    <div className="grid grid-cols-4 gap-4">
+      <KPICard
+        title="이번 달 방문수"
+        value={data.visitors.current.toLocaleString()}
+        change={calcChange(data.visitors.current, data.visitors.previous)}
+        icon={<Eye />}
+      />
+      <KPICard
+        title="상담 접수"
+        value={data.inquiries.current}
+        change={calcChange(data.inquiries.current, data.inquiries.previous)}
+        icon={<MessageCircle />}
+      />
+      <KPICard
+        title="전환율"
+        value={`${data.conversionRate.toFixed(1)}%`}
+        icon={<TrendingUp />}
+      />
+      <KPICard
+        title="블로그 발행"
+        value={data.blogPosts}
+        icon={<FileText />}
+      />
+    </div>
+  );
+}
+```
+
+### 8.3 월간 리포트 확장
+
+#### 설명
+기존 waide-mkt 월간 리포트(PDF)에 홈페이지 성과 섹션을 추가한다.
+
+#### 기술 스펙
+- **기존 리포트 구조:**
+  - 커버 페이지
+  - SEO 성과 (키워드 순위, 블로그 성과)
+  - AEO 성과 (AI 답변 노출)
+  - 추천 사항
+- **신규 추가 섹션: 홈페이지 성과**
+  - 월간 방문수 / 전월 대비 증감
+  - 상담 접수 건수 / 전환율
+  - 인기 페이지 TOP 5
+  - 유입 경로 분석
+  - 블로그 발행 현황 (제목, 키워드, 조회수)
+  - 상담 현황 요약 (신규/진행중/계약 건수)
+  - 다음 달 계획 (발행 예정 키워드)
+
+#### 파일 구조
+```
+lib/reports/
+├── sections/
+│   └── homepage-section.tsx   ← 리포트 홈페이지 섹션 (신규)
+```
+
+#### 코드 예시
+```typescript
+// lib/reports/sections/homepage-section.tsx
+import { getAnalytics } from '@/lib/homepage/analytics/vercel-analytics';
+
+export async function generateHomepageReportSection(
+  projectId: string,
+  month: string // '2026-03'
+) {
+  const startDate = `${month}-01`;
+  const endDate = getLastDayOfMonth(month);
+
+  const analytics = await getAnalytics(projectId, startDate, endDate);
+
+  // 상담 데이터
+  const { data: inquiries } = await supabase
+    .from('homepage_inquiries')
+    .select('status')
+    .eq('project_id', projectId)
+    .gte('created_at', startDate)
+    .lte('created_at', endDate);
+
+  // 블로그 데이터
+  const { data: blogPosts } = await supabase
+    .from('contents')
+    .select('title, main_keyword, quality_score')
+    .eq('client_id', clientId)
+    .in('content_type', ['hp_blog_info', 'hp_blog_review'])
+    .gte('published_at', startDate)
+    .lte('published_at', endDate);
+
+  return {
+    title: '홈페이지 성과',
+    metrics: {
+      visitors: analytics.visitors,
+      pageviews: analytics.pageviews,
+      inquiries: inquiries?.length ?? 0,
+      conversionRate: analytics.visitors > 0
+        ? ((inquiries?.length ?? 0) / analytics.visitors * 100).toFixed(1)
+        : '0.0',
+      blogPostsPublished: blogPosts?.length ?? 0,
+    },
+    topPages: analytics.topPages.slice(0, 5),
+    topReferrers: analytics.topReferrers.slice(0, 5),
+    inquiryStatus: {
+      new: inquiries?.filter(i => i.status === 'new').length ?? 0,
+      consulting: inquiries?.filter(i => i.status === 'consulting').length ?? 0,
+      contracted: inquiries?.filter(i => i.status === 'contracted').length ?? 0,
+      lost: inquiries?.filter(i => i.status === 'lost').length ?? 0,
+    },
+    blogPosts: blogPosts ?? [],
+  };
+}
+```
+
+### 8.4 상담 신청 알림 시스템
+
+#### 설명
+홈페이지에서 새 상담이 접수되면 실시간으로 Slack 채널과 담당자 이메일로 알림을 발송한다.
+
+#### 기술 스펙
+- **Slack 알림:**
+  - Webhook URL: 프로젝트별 설정 가능
+  - 메시지 형식: 고객명, 연락처, 공간유형, 평수, 예산, 메시지 요약
+  - 채널: `#homepage-inquiries` (기본) 또는 프로젝트별 채널
+  - 빠른 액션 버튼: "상세 보기" → 어드민 상담 관리 페이지 링크
+- **이메일 알림:**
+  - 수신자: 프로젝트 담당자 이메일 (settings에서 설정)
+  - 템플릿: HTML 이메일 (고객 정보 + 상담 내용 + 관리 페이지 링크)
+  - 발송: Resend API 사용
+
+#### 파일 구조
+```
+lib/homepage/
+├── notifications/
+│   ├── slack.ts              ← Slack 알림 발송
+│   ├── email.ts              ← 이메일 알림 발송
+│   └── templates/
+│       └── inquiry-email.tsx  ← 이메일 HTML 템플릿
+```
+
+#### 코드 예시
+```typescript
+// lib/homepage/notifications/slack.ts
+interface InquiryNotification {
+  projectName: string;
+  customerName: string;
+  phone: string;
+  spaceType: string;
+  areaPyeong: number;
+  budgetRange: string;
+  message: string;
+  adminUrl: string;
+}
+
+export async function sendSlackInquiryNotification(
+  webhookUrl: string,
+  data: InquiryNotification
+) {
+  const payload = {
+    blocks: [
+      {
+        type: 'header',
+        text: { type: 'plain_text', text: `새 상담 신청 — ${data.projectName}` },
+      },
+      {
+        type: 'section',
+        fields: [
+          { type: 'mrkdwn', text: `*고객명:*\n${data.customerName}` },
+          { type: 'mrkdwn', text: `*연락처:*\n${data.phone}` },
+          { type: 'mrkdwn', text: `*공간유형:*\n${data.spaceType}` },
+          { type: 'mrkdwn', text: `*평수:*\n${data.areaPyeong}평` },
+          { type: 'mrkdwn', text: `*예산:*\n${data.budgetRange}` },
+        ],
+      },
+      {
+        type: 'section',
+        text: { type: 'mrkdwn', text: `*메시지:*\n${data.message || '(없음)'}` },
+      },
+      {
+        type: 'actions',
+        elements: [
+          {
+            type: 'button',
+            text: { type: 'plain_text', text: '상세 보기' },
+            url: data.adminUrl,
+            style: 'primary',
+          },
+        ],
+      },
+    ],
+  };
+
+  await fetch(webhookUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+}
+
+// lib/homepage/notifications/email.ts
+import { Resend } from 'resend';
+import { InquiryEmailTemplate } from './templates/inquiry-email';
+
+const resend = new Resend(process.env.RESEND_API_KEY);
+
+export async function sendEmailInquiryNotification(
+  to: string[],
+  data: InquiryNotification
+) {
+  await resend.emails.send({
+    from: 'waide 홈페이지 <noreply@waide.kr>',
+    to,
+    subject: `[새 상담] ${data.customerName} — ${data.projectName}`,
+    react: InquiryEmailTemplate({ data }),
+  });
+}
+```
+
+### 8.5 알림 설정 UI
+
+#### 설명
+프로젝트별 알림 채널(Slack, 이메일)을 설정하는 UI를 어드민에 추가한다.
+
+#### 기술 스펙
+- **위치:** 프로젝트 상세 → 설정 탭
+- **Slack 설정:** Webhook URL 입력, 테스트 발송 버튼
+- **이메일 설정:** 수신자 이메일 추가/삭제, 테스트 발송 버튼
+- **알림 유형 토글:** 신규 상담, 상태 변경, 일일 요약
+
+#### 파일 구조
+```
+app/(dashboard)/dashboard/homepage/[id]/
+├── settings/
+│   └── page.tsx               ← 프로젝트 설정 페이지
+│   └── _components/
+│       ├── notification-settings.tsx  ← 알림 설정 UI
+│       ├── slack-config.tsx           ← Slack 설정
+│       └── email-config.tsx           ← 이메일 설정
+```
+
+### 8.6 전체 홈페이지 운영 대시보드
+
+#### 설명
+운영팀이 모든 홈페이지 프로젝트의 성과를 한눈에 볼 수 있는 통합 대시보드.
+
+#### 기술 스펙
+- **위치:** `/ops/homepage` (운영팀 전용)
+- **통합 KPI:** 전체 라이브 프로젝트 수, 총 방문수, 총 상담수, 평균 전환율
+- **프로젝트별 성과 테이블:** 프로젝트명, 방문수, 상담수, 전환율, 블로그 수, 상태
+- **상담 배분 현황:** 담당자별 상담 건수, 처리율
+- **알림 로그:** 최근 발송된 알림 이력
+
+---
+
+## 테스트 계획
+- [ ] Vercel Analytics API 연동 — 방문 데이터 조회 정상
+- [ ] KPI 카드 데이터 정확성 (방문수, 상담수, 전환율)
+- [ ] 차트 렌더링 정상 (라인, 파이, 바)
+- [ ] 월간 리포트 홈페이지 섹션 생성 확인
+- [ ] Slack 알림 발송 정상 (테스트 웹훅)
+- [ ] 이메일 알림 발송 정상 (Resend API)
+- [ ] 알림 설정 UI — 저장/로드/테스트 동작 확인
+- [ ] 운영 대시보드 데이터 집계 정확성
+- [ ] 기간 필터 변경 시 데이터 정상 반영
+
+## 완료 기준
+- [ ] 방문 통계 수집 시스템 구현 완료
+- [ ] 프로젝트별 통계 대시보드 구현 완료 (KPI + 차트 + 테이블)
+- [ ] 월간 리포트 홈페이지 섹션 추가 완료
+- [ ] Slack 알림 연동 완료
+- [ ] 이메일 알림 연동 완료
+- [ ] 알림 설정 UI 구현 완료
+- [ ] 운영 대시보드 구현 완료

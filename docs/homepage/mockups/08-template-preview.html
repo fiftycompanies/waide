@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>템플릿 미리보기 — 3종 비교</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, 'Pretendard', sans-serif; background: #0f172a; color: #e2e8f0; padding: 40px; }
+
+  .page-header { text-align: center; margin-bottom: 48px; }
+  .page-header h1 { font-size: 32px; font-weight: 700; color: #fff; margin-bottom: 8px; }
+  .page-header p { color: #94a3b8; font-size: 14px; }
+
+  .templates-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; max-width: 1200px; margin: 0 auto; }
+
+  /* Template Card */
+  .template-card { border-radius: 16px; overflow: hidden; border: 2px solid #334155; transition: all 0.3s; position: relative; }
+  .template-card:hover { border-color: #2563eb; transform: translateY(-4px); box-shadow: 0 12px 40px rgba(0,0,0,0.3); }
+  .template-card.popular { border-color: #2563eb; }
+  .popular-badge { position: absolute; top: 16px; right: 16px; background: #2563eb; color: #fff; font-size: 11px; font-weight: 700; padding: 4px 12px; border-radius: 20px; z-index: 10; }
+
+  /* Template Preview */
+  .template-preview { height: 400px; overflow: hidden; position: relative; }
+  .template-preview::after { content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 60px; background: linear-gradient(transparent, #1e293b); }
+
+  /* Modern Minimal Preview */
+  .preview-modern { background: #fafafa; color: #1a1a1a; }
+  .preview-modern .p-nav { padding: 16px 24px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eee; }
+  .preview-modern .p-logo { font-size: 16px; font-weight: 700; color: #1a1a1a; }
+  .preview-modern .p-hero { padding: 40px 24px; text-align: center; }
+  .preview-modern .p-hero h2 { font-size: 24px; font-weight: 700; color: #1a1a1a; margin-bottom: 8px; }
+  .preview-modern .p-hero p { font-size: 12px; color: #666; margin-bottom: 16px; }
+  .preview-modern .p-btn { display: inline-block; padding: 10px 24px; background: #1a1a1a; color: #fff; border-radius: 6px; font-size: 12px; font-weight: 600; }
+  .preview-modern .p-stats { display: flex; justify-content: center; gap: 32px; padding: 16px; }
+  .preview-modern .p-stat { text-align: center; }
+  .preview-modern .p-stat-num { font-size: 20px; font-weight: 700; color: #1a1a1a; }
+  .preview-modern .p-stat-label { font-size: 10px; color: #999; }
+  .preview-modern .p-portfolio { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding: 0 24px; }
+  .preview-modern .p-portfolio-item { height: 80px; background: #e5e7eb; border-radius: 6px; }
+
+  /* Natural Wood Preview */
+  .preview-wood { background: #F5F0EB; color: #3d3d3d; }
+  .preview-wood .p-nav { padding: 16px 24px; display: flex; justify-content: space-between; align-items: center; }
+  .preview-wood .p-logo { font-size: 16px; font-weight: 600; color: #8B7355; font-family: Georgia, serif; }
+  .preview-wood .p-hero { height: 160px; background: linear-gradient(135deg, #d4c5b4, #b8a690); display: flex; align-items: center; justify-content: center; position: relative; }
+  .preview-wood .p-hero-overlay { text-align: center; color: #fff; }
+  .preview-wood .p-hero h2 { font-size: 20px; font-weight: 600; font-family: Georgia, serif; text-shadow: 0 2px 8px rgba(0,0,0,0.3); }
+  .preview-wood .p-hero p { font-size: 11px; margin-top: 4px; opacity: 0.9; }
+  .preview-wood .p-section { padding: 20px 24px; }
+  .preview-wood .p-section h3 { font-size: 14px; font-weight: 600; color: #8B7355; margin-bottom: 12px; font-family: Georgia, serif; }
+  .preview-wood .p-portfolio { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .preview-wood .p-portfolio-item { height: 100px; background: linear-gradient(135deg,#d4c5b4,#c4b5a4); border-radius: 8px; }
+  .preview-wood .p-badge { position: absolute; top: 8px; left: 8px; background: #6B8E5A; color: #fff; font-size: 9px; padding: 2px 8px; border-radius: 4px; }
+
+  /* Premium Dark Preview */
+  .preview-dark { background: #1A1A2E; color: #fafafa; }
+  .preview-dark .p-nav { padding: 16px 24px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #C6A66430; }
+  .preview-dark .p-logo { font-size: 16px; font-weight: 600; color: #C6A664; letter-spacing: 2px; }
+  .preview-dark .p-hero { height: 180px; background: linear-gradient(135deg, #1A1A2E 0%, #16213E 50%, #0F3460 100%); display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden; }
+  .preview-dark .p-hero::before { content: ''; position: absolute; inset: 0; background: radial-gradient(circle at 70% 30%, #C6A66420 0%, transparent 60%); }
+  .preview-dark .p-hero-text { text-align: center; position: relative; }
+  .preview-dark .p-hero h2 { font-size: 22px; font-weight: 300; letter-spacing: 4px; color: #fff; }
+  .preview-dark .p-hero .gold { color: #C6A664; font-weight: 600; }
+  .preview-dark .p-hero p { font-size: 11px; color: #C6A664; margin-top: 8px; letter-spacing: 2px; }
+  .preview-dark .p-btn { display: inline-block; margin-top: 12px; padding: 8px 24px; border: 1px solid #C6A664; color: #C6A664; font-size: 11px; letter-spacing: 1px; }
+  .preview-dark .p-services { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding: 16px 24px; }
+  .preview-dark .p-service { padding: 16px; background: #16213E; border: 1px solid #C6A66420; border-radius: 8px; text-align: center; }
+  .preview-dark .p-service-icon { font-size: 20px; margin-bottom: 4px; }
+  .preview-dark .p-service-name { font-size: 11px; color: #C6A664; }
+
+  /* Template Info */
+  .template-info { background: #1e293b; padding: 24px; }
+  .template-name { font-size: 18px; font-weight: 700; color: #fff; margin-bottom: 4px; }
+  .template-desc { font-size: 13px; color: #94a3b8; margin-bottom: 16px; line-height: 1.5; }
+
+  .template-colors { display: flex; gap: 8px; margin-bottom: 16px; }
+  .color-dot { width: 28px; height: 28px; border-radius: 50%; border: 2px solid #334155; }
+
+  .template-features { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; }
+  .feature-tag { font-size: 11px; padding: 4px 10px; background: #334155; border-radius: 6px; color: #94a3b8; }
+
+  .template-stats { display: flex; gap: 16px; padding-top: 16px; border-top: 1px solid #334155; }
+  .t-stat { }
+  .t-stat-value { font-size: 16px; font-weight: 700; color: #fff; }
+  .t-stat-label { font-size: 11px; color: #64748b; }
+
+  .btn-select { display: block; width: 100%; padding: 12px; margin-top: 16px; background: transparent; border: 1px solid #475569; border-radius: 8px; color: #94a3b8; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+  .btn-select:hover { border-color: #2563eb; color: #2563eb; }
+  .template-card.popular .btn-select { background: #2563eb; border-color: #2563eb; color: #fff; }
+</style>
+</head>
+<body>
+
+<div class="page-header">
+  <h1>🖼️ 템플릿 선택</h1>
+  <p>인테리어 업체 특성에 맞는 홈페이지 템플릿을 선택하세요</p>
+</div>
+
+<div class="templates-grid">
+  <!-- Template A: Modern Minimal -->
+  <div class="template-card popular">
+    <span class="popular-badge">인기</span>
+    <div class="template-preview">
+      <div class="preview-modern">
+        <div class="p-nav">
+          <span class="p-logo">OO인테리어</span>
+          <span style="font-size:11px;color:#999">포트폴리오 · 후기 · 상담</span>
+        </div>
+        <div class="p-hero">
+          <h2>공간의 가치를<br>디자인합니다</h2>
+          <p>강남 프리미엄 인테리어 전문</p>
+          <span class="p-btn">무료 상담 신청</span>
+        </div>
+        <div class="p-stats">
+          <div class="p-stat"><div class="p-stat-num">150+</div><div class="p-stat-label">시공 사례</div></div>
+          <div class="p-stat"><div class="p-stat-num">10년</div><div class="p-stat-label">경력</div></div>
+          <div class="p-stat"><div class="p-stat-num">4.9</div><div class="p-stat-label">평점</div></div>
+        </div>
+        <div class="p-portfolio">
+          <div class="p-portfolio-item"></div>
+          <div class="p-portfolio-item" style="background:#d1d5db"></div>
+          <div class="p-portfolio-item" style="background:#e5e7eb"></div>
+        </div>
+      </div>
+    </div>
+    <div class="template-info">
+      <div class="template-name">Modern Minimal</div>
+      <div class="template-desc">깔끔하고 세련된 미니멀 디자인. 모던한 인테리어 업체에 최적화.</div>
+      <div class="template-colors">
+        <div class="color-dot" style="background:#1a1a1a"></div>
+        <div class="color-dot" style="background:#f5f5f5"></div>
+        <div class="color-dot" style="background:#666666"></div>
+        <div class="color-dot" style="background:#2563eb"></div>
+      </div>
+      <div class="template-features">
+        <span class="feature-tag">Framer Motion</span>
+        <span class="feature-tag">필터 그리드</span>
+        <span class="feature-tag">카운터 애니메이션</span>
+        <span class="feature-tag">반응형</span>
+      </div>
+      <div class="template-stats">
+        <div class="t-stat"><div class="t-stat-value">11</div><div class="t-stat-label">섹션</div></div>
+        <div class="t-stat"><div class="t-stat-value">27</div><div class="t-stat-label">파일</div></div>
+        <div class="t-stat"><div class="t-stat-value">95+</div><div class="t-stat-label">Lighthouse</div></div>
+      </div>
+      <button class="btn-select">✅ 구현 완료 — 선택하기</button>
+    </div>
+  </div>
+
+  <!-- Template B: Natural Wood -->
+  <div class="template-card">
+    <div class="template-preview">
+      <div class="preview-wood">
+        <div class="p-nav">
+          <span class="p-logo">따뜻한 공간</span>
+          <span style="font-size:11px;color:#8B7355">포트폴리오 · 후기 · 상담</span>
+        </div>
+        <div class="p-hero">
+          <div class="p-hero-overlay">
+            <h2>자연을 담은<br>따뜻한 공간</h2>
+            <p>내추럴 인테리어 전문</p>
+          </div>
+        </div>
+        <div class="p-section">
+          <h3>시공 사례</h3>
+          <div class="p-portfolio">
+            <div class="p-portfolio-item" style="position:relative">
+              <span class="p-badge">Before/After</span>
+            </div>
+            <div class="p-portfolio-item" style="background:linear-gradient(135deg,#c4b5a4,#b8a690)"></div>
+            <div class="p-portfolio-item" style="background:linear-gradient(135deg,#d4c5b4,#c4b5a4)"></div>
+            <div class="p-portfolio-item" style="background:linear-gradient(135deg,#bfb0a0,#a89888)"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="template-info">
+      <div class="template-name">Natural Wood</div>
+      <div class="template-desc">따뜻한 우드톤과 자연주의 감성. 내추럴/북유럽 스타일 업체에 추천.</div>
+      <div class="template-colors">
+        <div class="color-dot" style="background:#F5F0EB"></div>
+        <div class="color-dot" style="background:#8B7355"></div>
+        <div class="color-dot" style="background:#6B8E5A"></div>
+        <div class="color-dot" style="background:#D4C5B4"></div>
+      </div>
+      <div class="template-features">
+        <span class="feature-tag">Before/After 슬라이더</span>
+        <span class="feature-tag">매거진 레이아웃</span>
+        <span class="feature-tag">3D 투어 연동</span>
+        <span class="feature-tag">소재 팔레트</span>
+      </div>
+      <div class="template-stats">
+        <div class="t-stat"><div class="t-stat-value">13</div><div class="t-stat-label">섹션</div></div>
+        <div class="t-stat"><div class="t-stat-value">—</div><div class="t-stat-label">파일</div></div>
+        <div class="t-stat"><div class="t-stat-value">—</div><div class="t-stat-label">Lighthouse</div></div>
+      </div>
+      <button class="btn-select">Phase 7 — 기획 중</button>
+    </div>
+  </div>
+
+  <!-- Template C: Premium Dark -->
+  <div class="template-card">
+    <div class="template-preview">
+      <div class="preview-dark">
+        <div class="p-nav">
+          <span class="p-logo">PREMIUM</span>
+          <span style="font-size:10px;color:#C6A66480;letter-spacing:1px">PORTFOLIO · REVIEW · CONTACT</span>
+        </div>
+        <div class="p-hero">
+          <div class="p-hero-text">
+            <h2><span class="gold">PREMIUM</span><br>INTERIOR</h2>
+            <p>LUXURY SPACE DESIGN</p>
+            <span class="p-btn">CONSULTATION</span>
+          </div>
+        </div>
+        <div class="p-services">
+          <div class="p-service">
+            <div class="p-service-icon">🏠</div>
+            <div class="p-service-name">아파트</div>
+          </div>
+          <div class="p-service">
+            <div class="p-service-icon">🏢</div>
+            <div class="p-service-name">펜트하우스</div>
+          </div>
+          <div class="p-service">
+            <div class="p-service-icon">🏡</div>
+            <div class="p-service-name">단독주택</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="template-info">
+      <div class="template-name">Premium Dark</div>
+      <div class="template-desc">고급스러운 다크 테마와 골드 포인트. 프리미엄/럭셔리 업체 전용.</div>
+      <div class="template-colors">
+        <div class="color-dot" style="background:#1A1A2E"></div>
+        <div class="color-dot" style="background:#C6A664"></div>
+        <div class="color-dot" style="background:#FAFAFA"></div>
+        <div class="color-dot" style="background:#0F3460"></div>
+      </div>
+      <div class="template-features">
+        <span class="feature-tag">비디오 히어로</span>
+        <span class="feature-tag">패럴랙스 스크롤</span>
+        <span class="feature-tag">글래스모피즘</span>
+        <span class="feature-tag">프리미엄 CTA</span>
+      </div>
+      <div class="template-stats">
+        <div class="t-stat"><div class="t-stat-value">14</div><div class="t-stat-label">섹션</div></div>
+        <div class="t-stat"><div class="t-stat-value">—</div><div class="t-stat-label">파일</div></div>
+        <div class="t-stat"><div class="t-stat-value">—</div><div class="t-stat-label">Lighthouse</div></div>
+      </div>
+      <button class="btn-select">Phase 7 — 기획 중</button>
+    </div>
+  </div>
+</div>
+
+<!-- Comparison Table -->
+<div style="max-width:1200px;margin:48px auto 0;background:#1e293b;border-radius:16px;padding:32px;border:1px solid #334155;">
+  <h2 style="font-size:20px;color:#fff;margin-bottom:24px;text-align:center;">템플릿 비교표</h2>
+  <table style="width:100%;border-collapse:collapse;font-size:13px;">
+    <thead>
+      <tr>
+        <th style="padding:12px 16px;text-align:left;color:#64748b;border-bottom:2px solid #334155;">기능</th>
+        <th style="padding:12px 16px;text-align:center;color:#94a3b8;border-bottom:2px solid #334155;">Modern Minimal</th>
+        <th style="padding:12px 16px;text-align:center;color:#94a3b8;border-bottom:2px solid #334155;">Natural Wood</th>
+        <th style="padding:12px 16px;text-align:center;color:#94a3b8;border-bottom:2px solid #334155;">Premium Dark</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td style="padding:10px 16px;color:#94a3b8;border-bottom:1px solid #334155;">타겟 스타일</td><td style="padding:10px;text-align:center;color:#e2e8f0;border-bottom:1px solid #334155;">모던 / 미니멀</td><td style="padding:10px;text-align:center;color:#e2e8f0;border-bottom:1px solid #334155;">내추럴 / 북유럽</td><td style="padding:10px;text-align:center;color:#e2e8f0;border-bottom:1px solid #334155;">럭셔리 / 프리미엄</td></tr>
+      <tr><td style="padding:10px 16px;color:#94a3b8;border-bottom:1px solid #334155;">히어로 섹션</td><td style="padding:10px;text-align:center;color:#e2e8f0;border-bottom:1px solid #334155;">텍스트 중심</td><td style="padding:10px;text-align:center;color:#e2e8f0;border-bottom:1px solid #334155;">풀스크린 슬라이드</td><td style="padding:10px;text-align:center;color:#e2e8f0;border-bottom:1px solid #334155;">비디오 배경</td></tr>
+      <tr><td style="padding:10px 16px;color:#94a3b8;border-bottom:1px solid #334155;">포트폴리오</td><td style="padding:10px;text-align:center;color:#e2e8f0;border-bottom:1px solid #334155;">필터 그리드</td><td style="padding:10px;text-align:center;color:#e2e8f0;border-bottom:1px solid #334155;">매거진 레이아웃</td><td style="padding:10px;text-align:center;color:#e2e8f0;border-bottom:1px solid #334155;">풀스크린 갤러리</td></tr>
+      <tr><td style="padding:10px 16px;color:#94a3b8;border-bottom:1px solid #334155;">특수 기능</td><td style="padding:10px;text-align:center;color:#e2e8f0;border-bottom:1px solid #334155;">카운터 애니메이션</td><td style="padding:10px;text-align:center;color:#e2e8f0;border-bottom:1px solid #334155;">Before/After 슬라이더</td><td style="padding:10px;text-align:center;color:#e2e8f0;border-bottom:1px solid #334155;">패럴랙스 + 글래스</td></tr>
+      <tr><td style="padding:10px 16px;color:#94a3b8;border-bottom:1px solid #334155;">구현 상태</td><td style="padding:10px;text-align:center;border-bottom:1px solid #334155;color:#22c55e;font-weight:600;">✅ 완료</td><td style="padding:10px;text-align:center;border-bottom:1px solid #334155;color:#eab308;">🔲 Phase 7</td><td style="padding:10px;text-align:center;border-bottom:1px solid #334155;color:#eab308;">🔲 Phase 7</td></tr>
+    </tbody>
+  </table>
+</div>
+
+</body>
+</html>
