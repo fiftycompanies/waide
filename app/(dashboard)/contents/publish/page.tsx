@@ -6,11 +6,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { getActiveKeywordPool } from "@/lib/actions/campaign-planning-actions";
 import { BlogPublishFlow } from "@/components/contents/blog-publish-flow";
 import {
-
-export const dynamic = "force-dynamic";
   getPublishingAccounts,
   getBrandAnalysisForPublishing,
 } from "@/lib/actions/publishing-account-actions";
+
+export const dynamic = "force-dynamic";
 
 interface PublishPageProps {
   searchParams: Promise<{ keywordId?: string; keywordName?: string }>;
