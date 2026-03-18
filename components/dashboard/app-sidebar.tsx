@@ -11,13 +11,16 @@ import {
   Coins,
   DollarSign,
   FileEdit,
+  Globe,
   Home,
   Key,
   LayoutDashboard,
   Library,
   Loader2,
   LogOut,
+  MessageSquare,
   Package,
+  PanelTop,
   Radio,
   Rocket,
   Search,
@@ -115,6 +118,14 @@ const bizNavItems: NavItem[] = [
 const crmNavItems: NavItem[] = [
   { title: "분석 로그", url: "/ops/analysis-logs", icon: ClipboardList, roles: ALL_ADMIN },
   { title: "영업사원",  url: "/ops/sales-agents",  icon: UserCheck,     roles: ADMIN_ONLY },
+];
+
+// ═══ 어드민: 홈페이지 ═══
+const homepageNavItems: NavItem[] = [
+  { title: "홈페이지 프로젝트", url: "/homepage",           icon: Globe,          roles: ALL_ADMIN },
+  { title: "상담 신청",         url: "/homepage/inquiries", icon: MessageSquare,  roles: ALL_ADMIN },
+  { title: "운영 총괄",         url: "/homepage/ops",       icon: BarChart3,      roles: ADMIN_ONLY },
+  { title: "템플릿 관리",       url: "/homepage/templates", icon: PanelTop,       roles: ADMIN_ONLY },
 ];
 
 // ═══ 어드민: 리소스 ═══
@@ -240,6 +251,7 @@ export function AppSidebar({
     : [
         { label: "서비스", items: filterByRole(serviceNavItems), separator: false },
         { label: "고객 관리", items: filterByRole(clientMgmtNavItems), separator: true },
+        { label: "홈페이지", items: filterByRole(homepageNavItems), separator: false },
         { label: "비즈니스", items: filterByRole(bizNavItems), separator: false },
         { label: "영업 CRM", items: filterByRole(crmNavItems), separator: false },
         { label: "리소스", items: filterByRole(resourceNavItems), separator: false },
