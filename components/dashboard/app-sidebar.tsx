@@ -20,7 +20,6 @@ import {
   LogOut,
   MessageSquare,
   Package,
-  PanelTop,
   Radio,
   Rocket,
   Search,
@@ -126,8 +125,6 @@ const crmNavItems: NavItem[] = [
 const homepageNavItems: NavItem[] = [
   { title: "홈페이지 프로젝트", url: "/homepage",           icon: Globe,          roles: ALL_ADMIN },
   { title: "상담 신청",         url: "/homepage/inquiries", icon: MessageSquare,  roles: ALL_ADMIN },
-  { title: "운영 총괄",         url: "/homepage/ops",       icon: BarChart3,      roles: ADMIN_ONLY },
-  { title: "템플릿 관리",       url: "/homepage/templates", icon: PanelTop,       roles: ADMIN_ONLY },
 ];
 
 // ═══ 어드민: 리소스 ═══
