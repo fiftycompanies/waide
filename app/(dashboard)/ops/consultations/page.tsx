@@ -174,6 +174,9 @@ export default function ConsultationsPage() {
 
       try {
         listResult = await getConsultationList(filters);
+        if (listResult.error) {
+          throw new Error(listResult.error);
+        }
       } catch (e) {
         console.error("getConsultationList failed:", e);
         throw new Error("상담 목록 조회 실패: " + (e instanceof Error ? e.message : String(e)));

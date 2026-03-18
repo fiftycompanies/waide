@@ -100,6 +100,7 @@ export async function getConsultationList(filters: ConsultationFilters = {}): Pr
   total: number;
   page: number;
   pageSize: number;
+  error?: string;
 }> {
   const page = filters.page ?? 1;
   const pageSize = filters.pageSize ?? 20;
@@ -191,8 +192,9 @@ export async function getConsultationList(filters: ConsultationFilters = {}): Pr
 
   return { data, total: count ?? 0, page, pageSize };
   } catch (err) {
-    console.error("getConsultationList exception:", err);
-    throw new Error("상담 목록 조회 실패: " + (err instanceof Error ? err.message : String(err)));
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("getConsultationList exception:", msg);
+    return { data: [], total: 0, page, pageSize, error: "getConsultationList: " + msg };
   }
 }
 
