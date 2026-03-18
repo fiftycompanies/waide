@@ -2,18 +2,21 @@
  * middleware.ts — Supabase Auth 단일 인증 라우트 가드
  * Phase AUTH-1 + UI-2: 포털 제거 → /dashboard 단일화
  *
+ * ★ 핵심 원칙: 모든 인증된 사용자(admin/client 모두) → /dashboard 단일 진입
+ *   역할별 view/CRUD 권한은 UI 컴포넌트 레벨에서 분기 (middleware에서 역할별 라우트 분리 금지)
+ *
  * 분기 로직:
  *   PUBLIC     → 통과
  *   AUTH       → 이미 로그인 시 /dashboard 리다이렉트
- *   PROTECTED  → Supabase Auth + 유효 role 필수
+ *   PROTECTED  → Supabase Auth + 유효 role 필수 (ALL_VALID_ROLES)
  *   /portal/*  → /dashboard (또는 동등 어드민 경로)로 리다이렉트
  *   /          → 로그인 상태면 /dashboard 리다이렉트
  */
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
-// ── 어드민 보호 라우트 ──────────────────────────────────────────────────
-const ADMIN_PROTECTED_ROUTES = [
+// ── 보호 라우트 (모든 인증된 역할 접근 가능) ─────────────────────────────
+const PROTECTED_ROUTES = [
   "/dashboard",
   "/brands",
   "/campaigns",
@@ -32,7 +35,7 @@ const ADMIN_PROTECTED_ROUTES = [
   "/homepage",
 ];
 
-// ── 포털 보호 라우트 ────────────────────────────────────────────────────
+// ── 포털 라우트 → /dashboard로 리다이렉트 (포털 완전 제거) ───────────────
 const PORTAL_ROUTES = ["/portal"];
 
 // ── 인증 관련 라우트 ────────────────────────────────────────────────────
@@ -50,11 +53,8 @@ const PUBLIC_ROUTES = [
   "/api/auth",
 ];
 
-// ── 어드민 영역 접근 가능 역할 ──────────────────────────────────────────
-const ADMIN_ALLOWED_ROLES = ["super_admin", "admin", "sales", "viewer"];
-
-// ── 전체 유효 역할 (어드민 + 고객) ──────────────────────────────────────
-const ALL_VALID_ROLES = [...ADMIN_ALLOWED_ROLES, "client_owner", "client_member"];
+// ── 전체 유효 역할 (어드민 + 고객 모두 /dashboard 접근 가능) ─────────────
+const ALL_VALID_ROLES = ["super_admin", "admin", "sales", "viewer", "client_owner", "client_member"];
 
 // ── Supabase users 테이블 역할 조회 (service role, Edge 호환) ────────────
 async function getSupabaseUserRole(authUserId: string): Promise<string | null> {
@@ -113,14 +113,6 @@ async function getSupabaseUser(request: NextRequest, response: NextResponse) {
   }
 }
 
-// ── role 기반 리다이렉트 대상 결정 ──────────────────────────────────────
-function getRedirectByRole(role: string | null): string {
-  if (role === "client_owner" || role === "client_member") {
-    return "/portal";
-  }
-  return "/dashboard";
-}
-
 /* ═══════════════════════════════════════════════════════════════════════════
  * DEPRECATED: HMAC-SHA256 세션 검증 (Phase AUTH-1 이전 코드)
  * 기존 admin_users 테이블의 username 로그인이 완전 폐지될 때까지 폴백용 유지.
@@ -157,7 +149,7 @@ export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
   const response = NextResponse.next();
 
-  const isAdminProtected = ADMIN_PROTECTED_ROUTES.some((r) => pathname.startsWith(r));
+  const isProtected = PROTECTED_ROUTES.some((r) => pathname.startsWith(r));
   const isPortal = PORTAL_ROUTES.some((r) => pathname.startsWith(r));
   const isAuth = AUTH_ROUTES.some((r) => pathname.startsWith(r));
   const isPublic = PUBLIC_ROUTES.some((r) => pathname.startsWith(r));
@@ -167,55 +159,29 @@ export async function middleware(request: NextRequest) {
     return response;
   }
 
-  // ─── 2. 포털 라우트 → 인증 필요 (client_owner/client_member 전용) ──
+  // ─── 2. 포털 라우트 → /dashboard (또는 동등 경로)로 리다이렉트 ──
+  //     포털 완전 제거 — 모든 /portal/* 경로를 어드민 경로로 전환
   if (isPortal) {
-    const supabaseUser = await getSupabaseUser(request, response);
-    if (supabaseUser) {
-      const role = await getSupabaseUserRole(supabaseUser.id);
-      // 어드민 역할 → /dashboard로 리다이렉트
-      if (role && ADMIN_ALLOWED_ROLES.includes(role)) {
-        const url = request.nextUrl.clone();
-        if (pathname === "/portal" || pathname === "/portal/") {
-          url.pathname = "/dashboard";
-        } else {
-          url.pathname = pathname.replace(/^\/portal/, "");
-        }
-        return NextResponse.redirect(url);
-      }
-      // client 역할 또는 기타 → 포털 통과
-      return response;
+    const url = request.nextUrl.clone();
+    if (pathname === "/portal" || pathname === "/portal/") {
+      url.pathname = "/dashboard";
+    } else {
+      // /portal/keywords → /keywords, /portal/contents → /contents 등
+      url.pathname = pathname.replace(/^\/portal/, "");
     }
-    // 미인증 → /login
-    const loginUrl = request.nextUrl.clone();
-    loginUrl.pathname = "/login";
-    loginUrl.searchParams.set("redirect", pathname);
-    return NextResponse.redirect(loginUrl);
+    return NextResponse.redirect(url);
   }
 
-  // ─── 3. 보호 라우트 (어드민 + 고객 공용) ─────────────────────
-  if (isAdminProtected) {
+  // ─── 3. 보호 라우트 (모든 유효 역할 접근 가능) ─────────────────
+  if (isProtected) {
     // 3-A. Supabase Auth 체크 (기본)
     const supabaseUser = await getSupabaseUser(request, response);
     if (supabaseUser) {
       const role = await getSupabaseUserRole(supabaseUser.id);
-
-      // /onboarding 라우트: 모든 인증된 사용자 허용 (회원가입 직후 client_owner 포함)
-      if (pathname.startsWith("/onboarding")) {
+      // 유효 역할이면 통과 (admin + client 모두)
+      if (role && ALL_VALID_ROLES.includes(role)) {
         return response;
       }
-
-      // 유효 어드민 역할만 통과
-      if (role && ADMIN_ALLOWED_ROLES.includes(role)) {
-        return response;
-      }
-
-      // client_owner/client_member → /portal 리다이렉트
-      if (role && (role === "client_owner" || role === "client_member")) {
-        const portalUrl = request.nextUrl.clone();
-        portalUrl.pathname = "/portal";
-        return NextResponse.redirect(portalUrl);
-      }
-
       // role 없음 또는 유효하지 않음 → fail-closed (/login)
       const loginUrl = request.nextUrl.clone();
       loginUrl.pathname = "/login";
@@ -256,10 +222,8 @@ export async function middleware(request: NextRequest) {
     if (!hasError) {
       const supabaseUser = await getSupabaseUser(request, response);
       if (supabaseUser) {
-        const role = await getSupabaseUserRole(supabaseUser.id);
         const redirectTo = request.nextUrl.searchParams.get("redirect");
         const url = request.nextUrl.clone();
-        const defaultTarget = getRedirectByRole(role);
 
         if (redirectTo && redirectTo.startsWith("/")) {
           // /portal/* redirect → 어드민 동등 경로로 변환
@@ -269,7 +233,7 @@ export async function middleware(request: NextRequest) {
             url.pathname = redirectTo;
           }
         } else {
-          url.pathname = defaultTarget;
+          url.pathname = "/dashboard";
         }
         url.searchParams.delete("redirect");
         url.searchParams.delete("mode");
@@ -293,9 +257,8 @@ export async function middleware(request: NextRequest) {
     // Supabase Auth
     const supabaseUser = await getSupabaseUser(request, response);
     if (supabaseUser) {
-      const role = await getSupabaseUserRole(supabaseUser.id);
       const url = request.nextUrl.clone();
-      url.pathname = getRedirectByRole(role);
+      url.pathname = "/dashboard";
       return NextResponse.redirect(url);
     }
   }

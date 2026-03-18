@@ -15,7 +15,7 @@
 
 # Waide (AI Hospitality Aide) — 서비스 IA
 
-> 최종 업데이트: 2026-03-13
+> 최종 업데이트: 2026-03-18
 > 버전: Phase PERSONA-1~3 완료 (브랜드 페르소나 고도화 — 크롤링 자동확보 + 업주 확인/보완)
 
 ---
@@ -62,6 +62,7 @@
 15. admin_users.role CHECK: 'super_admin'/'admin'/'sales'/'viewer' — 사이드바 메뉴 자동 필터링
 16. 고객 계정 연결: users.client_id FK → clients.id (client_users 별도 테이블 없음, 1:N 직접 연결)
 17. DB 마이그레이션 작성 전 반드시 기존 스키마 확인: `scripts/schema/check_constraints.sql` + `scripts/schema/columns.sql` 파일로 현재 DB 스키마를 파악한 뒤 설계. CHECK 제약/컬럼 타입/기존 데이터 값/DEFAULT를 모르고 마이그레이션 작성 금지.
+18. **★ /dashboard 단일 진입 (절대 위반 금지)**: 모든 인증된 사용자(super_admin/admin/sales/viewer/client_owner/client_member 모두)는 `/dashboard`로 진입. **고객(client_owner/client_member)을 `/portal`로 라우팅하는 코드 절대 금지.** 역할별 view/CRUD 권한 차이는 UI 컴포넌트 레벨에서 분기 (middleware에서 역할별 라우트 분리 금지). `/portal/*` 경로는 완전 제거(Phase AUTH-1 + UI-2) — 접근 시 `/dashboard`로 리다이렉트. middleware의 `ALL_VALID_ROLES`에 admin+client 역할 모두 포함 필수.
 
 ---
 
@@ -1098,7 +1099,7 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 - Supabase query builder에는 `.catch()` 없음 → `.then(({ error }) => { if (error) ... })` 패턴 사용
 - AEO 추적 포인트 정책: 추적 자체는 무료, 콘텐츠 생성만 1포인트, 실패 시 refundPoints() 자동 환불
 - apps/web에 실체 파일 생성 금지: 소스 원본은 루트에만 존재. `apps/web/app`, `apps/web/lib` 등은 루트의 심볼릭 링크. apps/web에 별도 파일을 만들면 동기화 불일치로 Vercel 배포 실패.
-- 미들웨어 Supabase Auth 폴백 보안: 어드민 보호 라우트에서 Supabase Auth 폴백 시 반드시 users.role 체크 필요. `ADMIN_ALLOWED_ROLES`에 포함된 역할만 통과, client_owner/client_member는 /portal로 리다이렉트. fail-closed 원칙 (역할 조회 실패 시 접근 거부).
+- ★ /dashboard 단일 진입 위반 금지: 모든 유효 역할(ALL_VALID_ROLES: admin+client 모두)은 /dashboard로 진입. client_owner/client_member를 /portal로 리다이렉트하는 코드 작성 절대 금지. 역할별 UI 차이는 컴포넌트 레벨에서 분기. middleware에서 역할별 라우트 분리 금지. fail-closed 원칙 (역할 조회 실패 시 /login으로).
 
 ---
 

@@ -228,7 +228,7 @@ export function OnboardingRefineClient({
         localStorage.removeItem("waide_analysis_id");
       }
       setTimeout(() => {
-        router.push("/portal");
+        router.push("/dashboard");
       }, 1500);
     } catch {
       setError("오류가 발생했습니다. 다시 시도해주세요.");
@@ -252,7 +252,7 @@ export function OnboardingRefineClient({
           <p className="text-gray-500 mb-4">
             {summary.name}의 마케팅 프로젝트가 준비되었습니다.
             <br />
-            포털로 이동합니다...
+            대시보드로 이동합니다...
           </p>
         </div>
       </div>
