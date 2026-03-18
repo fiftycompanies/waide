@@ -452,12 +452,22 @@ export async function createHomepageInquiry(
   if (error) return { success: false, error: error.message };
 
   // 상담 수 카운트 증가
-  await db.rpc("increment_inquiry_count", { p_project_id: payload.project_id }).catch(() => {
+  try {
+    await db.rpc("increment_inquiry_count", { p_project_id: payload.project_id });
+  } catch {
     // rpc 없으면 수동 업데이트
-    db.from("homepage_projects")
-      .update({ total_inquiries: db.rpc ? undefined : 0 })
-      .eq("id", payload.project_id);
-  });
+    const { data } = await db
+      .from("homepage_projects")
+      .select("total_inquiries")
+      .eq("id", payload.project_id)
+      .single();
+    if (data) {
+      await db
+        .from("homepage_projects")
+        .update({ total_inquiries: (data.total_inquiries || 0) + 1 })
+        .eq("id", payload.project_id);
+    }
+  }
 
   revalidatePath(`/homepage/${payload.project_id}`);
   return { success: true };

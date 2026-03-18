@@ -203,13 +203,13 @@ export async function generateHomepageKeywords(
   const interiorProfile = persona.interior_profile || {};
 
   const regions: string[] =
-    material?.service_regions?.length > 0
-      ? material.service_regions
+    (material?.service_regions?.length ?? 0) > 0
+      ? material!.service_regions
       : interiorProfile.service_regions || [];
 
   const serviceTypes: string[] =
-    material?.service_types?.length > 0
-      ? material.service_types
+    (material?.service_types?.length ?? 0) > 0
+      ? material!.service_types
       : interiorProfile.service_types || [];
 
   if (regions.length === 0) {

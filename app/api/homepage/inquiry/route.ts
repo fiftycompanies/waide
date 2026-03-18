@@ -44,24 +44,26 @@ export async function POST(req: NextRequest) {
     }
 
     // total_inquiries 카운트 증가
-    await db.rpc("increment_field", {
-      table_name: "homepage_projects",
-      field_name: "total_inquiries",
-      row_id: project_id,
-    }).catch(() => {
+    try {
+      await db.rpc("increment_field", {
+        table_name: "homepage_projects",
+        field_name: "total_inquiries",
+        row_id: project_id,
+      });
+    } catch {
       // RPC 없으면 수동 증가
-      db.from("homepage_projects")
+      const { data } = await db
+        .from("homepage_projects")
         .select("total_inquiries")
         .eq("id", project_id)
-        .single()
-        .then(({ data }) => {
-          if (data) {
-            db.from("homepage_projects")
-              .update({ total_inquiries: (data.total_inquiries || 0) + 1 })
-              .eq("id", project_id);
-          }
-        });
-    });
+        .single();
+      if (data) {
+        await db
+          .from("homepage_projects")
+          .update({ total_inquiries: (data.total_inquiries || 0) + 1 })
+          .eq("id", project_id);
+      }
+    }
 
     return NextResponse.json({ success: true });
   } catch {

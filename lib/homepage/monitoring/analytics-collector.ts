@@ -97,9 +97,13 @@ export class AnalyticsCollector {
     }
 
     // 프로젝트 총 방문수 증가 (비동기, 실패해도 무시)
-    this.supabase.rpc("increment_total_visits", {
-      p_project_id: projectId,
-    }).then(() => {}).catch(() => {});
+    try {
+      await this.supabase.rpc("increment_total_visits", {
+        p_project_id: projectId,
+      });
+    } catch {
+      // RPC 없어도 무시
+    }
   }
 
   /**
