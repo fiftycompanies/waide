@@ -1,10 +1,10 @@
 import { MetadataRoute } from "next";
 import { createClient } from "@supabase/supabase-js";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-);
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
+const supabaseKey = process.env.SUPABASE_SERVICE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+
+const supabase = supabaseUrl ? createClient(supabaseUrl, supabaseKey) : null;
 
 const PROJECT_ID = process.env.HOMEPAGE_PROJECT_ID!;
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://example.waide.kr";
@@ -14,6 +14,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: SITE_URL, lastModified: new Date(), changeFrequency: "weekly", priority: 1 },
     { url: `${SITE_URL}/blog`, lastModified: new Date(), changeFrequency: "daily", priority: 0.8 },
   ];
+
+  if (!supabase) return entries;
 
   // 포트폴리오
   const { data: portfolios } = await supabase

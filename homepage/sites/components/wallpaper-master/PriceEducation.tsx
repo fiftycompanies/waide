@@ -42,17 +42,15 @@ export default function PriceEducation() {
           >
             <div className="relative">
               <svg viewBox="0 0 200 200" className="h-[250px] w-[250px] md:h-[300px] md:w-[300px]">
-                {(() => {
-                  let cumulativePercent = 0;
-                  const radius = 80;
-                  const cx = 100;
-                  const cy = 100;
-                  const colors = ["#3594f2", "#176cc0", "#60a5fa", "#93c5fd", "#bfdbfe"];
+                {priceInfo.factors.reduce<{ offset: number; paths: React.ReactNode[] }>(
+                  (acc, factor, i) => {
+                    const radius = 80;
+                    const cx = 100;
+                    const cy = 100;
+                    const colors = ["#3594f2", "#176cc0", "#60a5fa", "#93c5fd", "#bfdbfe"];
 
-                  return priceInfo.factors.map((factor, i) => {
-                    const startAngle = (cumulativePercent / 100) * 360;
-                    cumulativePercent += factor.percentage;
-                    const endAngle = (cumulativePercent / 100) * 360;
+                    const startAngle = (acc.offset / 100) * 360;
+                    const endAngle = ((acc.offset + factor.percentage) / 100) * 360;
 
                     const startRad = ((startAngle - 90) * Math.PI) / 180;
                     const endRad = ((endAngle - 90) * Math.PI) / 180;
@@ -71,11 +69,13 @@ export default function PriceEducation() {
                       "Z",
                     ].join(" ");
 
-                    return (
+                    acc.paths.push(
                       <path key={i} d={d} fill={colors[i]} stroke="white" strokeWidth="2" />
                     );
-                  });
-                })()}
+                    return { offset: acc.offset + factor.percentage, paths: acc.paths };
+                  },
+                  { offset: 0, paths: [] }
+                ).paths}
                 {/* Center circle for donut effect */}
                 <circle cx="100" cy="100" r="45" fill="white" />
                 <text

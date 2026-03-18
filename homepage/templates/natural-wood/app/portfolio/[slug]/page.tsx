@@ -3,14 +3,16 @@ import { createClient } from "@supabase/supabase-js";
 import { BreadcrumbJsonLd } from "@/components/shared/JsonLd";
 import type { Metadata } from "next";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-);
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
+const supabaseKey = process.env.SUPABASE_SERVICE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+
+const supabase = supabaseUrl ? createClient(supabaseUrl, supabaseKey) : null;
 
 const PROJECT_ID = process.env.HOMEPAGE_PROJECT_ID!;
 
 async function getPortfolio(slug: string) {
+  if (!supabase) return null;
+
   const { data } = await supabase
     .from("homepage_portfolios")
     .select("*")

@@ -1,9 +1,11 @@
-import { createClient } from "@supabase/supabase-js";
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-);
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
+const supabaseKey = process.env.SUPABASE_SERVICE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+
+const supabase: SupabaseClient | null = supabaseUrl
+  ? createClient(supabaseUrl, supabaseKey)
+  : null;
 
 const PROJECT_ID = process.env.HOMEPAGE_PROJECT_ID!;
 
@@ -94,6 +96,19 @@ export interface HomepageConfig {
 // ── Data Fetcher ───────────────────────────────────────────────────────────
 
 export async function getHomepageConfig(): Promise<HomepageConfig> {
+  if (!supabase) {
+    return {
+      company: { name: "인테리어", owner: "", phone: "", address: "", description: "", kakaoLink: null, logo: null, instagram: null, youtube: null, naverPlace: null, naverBlog: null, operatingHours: null, businessNumber: null },
+      theme: { primary_color: "#2563eb", secondary_color: "#10b981", font_heading: "Pretendard", font_body: "Pretendard", logo_url: null, favicon_url: null, og_image_url: null },
+      seo: { meta_title_template: "%s | 인테리어", meta_description: "", keywords: [], json_ld_local_business: {} },
+      persona: {},
+      portfolios: [],
+      reviews: [],
+      blogPosts: [],
+      faqItems: [],
+    };
+  }
+
   const [projectRes, materialsRes, portfoliosRes, reviewsRes] = await Promise.all([
     supabase
       .from("homepage_projects")

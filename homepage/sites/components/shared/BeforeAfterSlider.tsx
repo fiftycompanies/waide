@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 
 interface BeforeAfterSliderProps {
   beforeColor: string;
@@ -20,8 +20,21 @@ export default function BeforeAfterSlider({
   height = "aspect-[16/9]",
 }: BeforeAfterSliderProps) {
   const [position, setPosition] = useState(50);
+  const [containerWidth, setContainerWidth] = useState<number | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const isDragging = useRef(false);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setContainerWidth(entry.contentRect.width);
+      }
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   const updatePosition = useCallback((clientX: number) => {
     if (!containerRef.current) return;
@@ -82,9 +95,7 @@ export default function BeforeAfterSlider({
         <div
           className={`${beforeColor} h-full flex items-center justify-center`}
           style={{
-            width: containerRef.current
-              ? `${containerRef.current.offsetWidth}px`
-              : "100vw",
+            width: containerWidth ? `${containerWidth}px` : "100vw",
           }}
         >
           <span className="text-white/30 text-2xl font-bold">시공 전</span>

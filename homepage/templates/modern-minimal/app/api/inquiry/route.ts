@@ -1,12 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-);
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
+const supabaseKey = process.env.SUPABASE_SERVICE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+
+const supabase = supabaseUrl ? createClient(supabaseUrl, supabaseKey) : null;
 
 export async function POST(req: NextRequest) {
+  if (!supabase) {
+    return NextResponse.json({ error: "서비스를 사용할 수 없습니다" }, { status: 503 });
+  }
+
   try {
     const body = await req.json();
     const { project_id, name, phone, area_pyeong, space_type, budget_range, message } = body;
