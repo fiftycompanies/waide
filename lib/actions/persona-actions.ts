@@ -1,6 +1,7 @@
 "use server";
 
 import { createAdminClient } from "@/lib/supabase/service";
+import { normalizePersona, syncFlatFromEnhanced } from "@/lib/utils/persona-compat";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -333,13 +334,17 @@ export async function regeneratePersona(
     });
 
     if (result.success && result.data) {
+      const normalized = normalizePersona(result.data as Record<string, unknown>);
+      const synced = syncFlatFromEnhanced(normalized);
       const { error } = await db
         .from("clients")
         .update({
           brand_persona: {
-            ...result.data,
+            ...synced,
+            persona_version: 2,
+            confirmation_status: "pending",
             generated_at: new Date().toISOString(),
-            generated_by: "CMO_v1.0_regenerated",
+            generated_by: "CMO_v2.0_regenerated",
             manually_edited: false,
             manual_overrides: {},
           },

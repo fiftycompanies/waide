@@ -28,7 +28,7 @@ export function normalizePersona(
     return raw as unknown as EnhancedBrandPersona;
   }
 
-  // v1 flat → v2 매핑
+  // v1 flat → v2 매핑 (CMO agent 출력 키 호환)
   const flat = raw as Record<string, unknown>;
 
   const aiInferred: AiInferred = {
@@ -38,11 +38,17 @@ export function normalizePersona(
         (flat.target_customer as string) ||
         (flat.target_audience as string) ||
         "",
+      secondary: (flat.secondary_target as string) || "",
+      pain_points: Array.isArray(flat.target_needs)
+        ? (flat.target_needs as string[])
+        : [],
+      search_intent: "",
       confirmed: false,
     },
     tone: {
       style: (flat.tone as string) || "",
       personality: (flat.tone as string) || "",
+      example_phrases: [],
       confirmed: false,
     },
     usp: {
@@ -56,9 +62,13 @@ export function normalizePersona(
       angles: Array.isArray(flat.content_angles)
         ? (flat.content_angles as string[])
         : [],
+      types: [],
+      frequency: "",
       confirmed: false,
     },
     price_position: {
+      position: (flat.competitor_position as string) || "",
+      comparison: (flat.differentiation as string) || "",
       confirmed: false,
     },
   };
@@ -169,6 +179,12 @@ export function syncFlatFromEnhanced(
     updated.ai_inferred.content_direction.angles.length > 0
   ) {
     updated.content_angles = updated.ai_inferred.content_direction.angles;
+  }
+  if (updated.ai_inferred?.price_position?.position) {
+    updated.positioning = updated.positioning || updated.ai_inferred.price_position.position;
+  }
+  if (updated.ai_inferred?.target_customer?.pain_points && updated.ai_inferred.target_customer.pain_points.length > 0) {
+    updated.target_needs = updated.ai_inferred.target_customer.pain_points;
   }
 
   // owner_input.forbidden_content → avoid_angles에 병합
