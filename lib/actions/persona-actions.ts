@@ -372,3 +372,173 @@ export async function getPersona(
   if (!data?.brand_persona) return null;
   return data.brand_persona as BrandPersona;
 }
+
+// ── 브랜드 분석 페이지 데이터 조회 ─────────────────────────────────────────
+
+export interface BrandAnalysisPageData {
+  client: {
+    id: string;
+    name: string;
+    industry?: string;
+    website_url?: string;
+    persona_updated_at?: string;
+  };
+  persona: EnhancedBrandPersona | null;
+  analysis: {
+    marketing_score?: number;
+    basic_info?: Record<string, unknown>;
+    score_breakdown?: Record<string, unknown>;
+    keyword_analysis?: Record<string, unknown>;
+    analysis_result?: Record<string, unknown>;
+  } | null;
+  activeKeywords: string[];
+}
+
+export async function getBrandAnalysisPageData(
+  clientId: string,
+): Promise<BrandAnalysisPageData | null> {
+  const db = createAdminClient();
+
+  // 1. clients 테이블: 기본 정보 + 페르소나
+  const { data: client } = await db
+    .from("clients")
+    .select("id, name, industry, website_url, brand_persona, persona_updated_at")
+    .eq("id", clientId)
+    .single();
+
+  if (!client) return null;
+
+  // 2. brand_analyses 테이블: 최신 완료 분석 1건
+  const { data: analysisRows } = await db
+    .from("brand_analyses")
+    .select("basic_info, marketing_score, score_breakdown, keyword_analysis, analysis_result")
+    .eq("client_id", clientId)
+    .in("status", ["completed", "converted"])
+    .order("analyzed_at", { ascending: false })
+    .limit(1);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const analysisRow = (analysisRows?.[0] as any) ?? null;
+
+  // 3. keywords 테이블: 활성 키워드 목록
+  const { data: kwRows } = await db
+    .from("keywords")
+    .select("keyword")
+    .eq("client_id", clientId)
+    .eq("status", "active");
+
+  const activeKeywords = (kwRows ?? []).map((k: { keyword: string }) => k.keyword);
+
+  return {
+    client: {
+      id: client.id,
+      name: client.name,
+      industry: client.industry ?? undefined,
+      website_url: client.website_url ?? undefined,
+      persona_updated_at: client.persona_updated_at ?? undefined,
+    },
+    persona: (client.brand_persona as EnhancedBrandPersona) ?? null,
+    analysis: analysisRow
+      ? {
+          marketing_score: analysisRow.marketing_score ?? undefined,
+          basic_info: analysisRow.basic_info ?? undefined,
+          score_breakdown: analysisRow.score_breakdown ?? undefined,
+          keyword_analysis: analysisRow.keyword_analysis ?? undefined,
+          analysis_result: analysisRow.analysis_result ?? undefined,
+        }
+      : null,
+    activeKeywords,
+  };
+}
+
+// ── 키워드 활성화/비활성화 ──────────────────────────────────────────────────
+
+export async function activateAnalysisKeyword(
+  clientId: string,
+  keyword: string,
+  metadata?: { monthlySearch?: number; competition?: string; intent?: string },
+): Promise<{ success: boolean; keywordId?: string; error?: string }> {
+  const db = createAdminClient();
+
+  // 이미 존재하는 키워드인지 확인
+  const { data: existing } = await db
+    .from("keywords")
+    .select("id, status")
+    .eq("client_id", clientId)
+    .eq("keyword", keyword.trim())
+    .maybeSingle();
+
+  if (existing) {
+    // 이미 active면 그대로 반환
+    if (existing.status === "active") {
+      return { success: true, keywordId: existing.id };
+    }
+    // paused/archived 등이면 active로 변경
+    const { error } = await db
+      .from("keywords")
+      .update({
+        status: "active",
+        is_tracking: true,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", existing.id);
+
+    if (error) return { success: false, error: error.message };
+    return { success: true, keywordId: existing.id };
+  }
+
+  // 새로 INSERT
+  const { data: inserted, error } = await db
+    .from("keywords")
+    .insert({
+      client_id: clientId,
+      keyword: keyword.trim(),
+      status: "active",
+      source: "analysis",
+      is_tracking: true,
+      metadata: {
+        search_intent: metadata?.intent || null,
+        competition_estimate: metadata?.competition || null,
+        generated_by: "brand_analysis_activation",
+        generated_at: new Date().toISOString(),
+      },
+      monthly_search_total: metadata?.monthlySearch || 0,
+      competition_level: metadata?.competition || "medium",
+      updated_at: new Date().toISOString(),
+    })
+    .select("id")
+    .single();
+
+  if (error) return { success: false, error: error.message };
+
+  // 질문 자동 생성 트리거 (비동기, 실패해도 활성화는 유지)
+  if (inserted?.id) {
+    import("./question-actions").then(({ generateQuestions }) => {
+      generateQuestions(inserted.id, clientId).catch((err) => {
+        console.warn("[activateAnalysisKeyword] 질문 생성 실패:", err);
+      });
+    });
+  }
+
+  return { success: true, keywordId: inserted?.id };
+}
+
+export async function deactivateAnalysisKeyword(
+  clientId: string,
+  keyword: string,
+): Promise<{ success: boolean; error?: string }> {
+  const db = createAdminClient();
+
+  const { error } = await db
+    .from("keywords")
+    .update({
+      status: "paused",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("client_id", clientId)
+    .eq("keyword", keyword.trim())
+    .eq("status", "active");
+
+  if (error) return { success: false, error: error.message };
+  return { success: true };
+}

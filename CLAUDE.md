@@ -152,6 +152,7 @@
 | `/clients/[id]` → `/ops/clients/[id]` | 고객 상세 (10탭: 개요/키워드/콘텐츠/분석/순위/페르소나/구독/온보딩/계정/리포트) | `clients`, `subscriptions`, `brand_analyses`, `keywords`, `contents`, `keyword_visibility`, `daily_visibility_summary`, `report_deliveries` |
 | `/ops/onboarding` | 온보딩 관리 (체크리스트, 진행률) | `clients` (onboarding_checklist JSONB) |
 | `/brands` | 브랜드 관리 (분석 브랜드 목록) | `brand_analyses`, `clients` |
+| `/brand-analysis` | 브랜드 분석 (7섹션: 기본정보/마케팅점수/개선포인트/키워드/AI추론/업주입력/포지셔닝) | `clients`, `brand_analyses`, `keywords` |
 | `/accounts` → `/ops/accounts-management` | 계정 관리 (사용자 계정 CRUD) | `users` |
 
 #### 비즈니스

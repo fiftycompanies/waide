@@ -76,7 +76,7 @@ import {
   type LinkedAccount,
 } from "@/lib/actions/client-account-actions";
 import { BrandAnalysisModal } from "@/components/onboarding/brand-analysis-modal";
-import BrandAnalysisClient from "@/components/brand-analysis/brand-analysis-client";
+import BrandAnalysisLoader from "@/components/brand-analysis/brand-analysis-loader";
 
 // ── Tab button ─────────────────────────────────────────────────────────────
 
@@ -1630,7 +1630,7 @@ export default function ClientDetailPage() {
           </Link>
         </div>
       )}
-      {activeTab === "brand-analysis" && <BrandAnalysisClient clientId={client.id} />}
+      {activeTab === "brand-analysis" && <BrandAnalysisLoader clientId={client.id} />}
       {activeTab === "rankings" && <RankingsTab clientId={client.id} />}
       {activeTab === "persona" && <PersonaTab client={client} onRefresh={refreshClient} />}
       {activeTab === "subscription" && <SubscriptionTab client={client} />}

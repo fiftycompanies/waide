@@ -102,6 +102,7 @@ const serviceNavItems: NavItem[] = [
 const clientMgmtNavItems: NavItem[] = [
   { title: "고객 포트폴리오", url: "/clients",    icon: Building2, roles: ALL_ADMIN },
   { title: "브랜드 관리",     url: "/brands",     icon: Store,     roles: ALL_ADMIN },
+  { title: "브랜드 분석",     url: "/brand-analysis", icon: Microscope, roles: ALL_ADMIN },
   { title: "온보딩",          url: "/ops/onboarding", icon: Rocket,    roles: ALL_ADMIN },
   { title: "계정 관리",       url: "/accounts",   icon: UserCog,   roles: ["super_admin", "admin"] },
 ];
