@@ -1066,6 +1066,7 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 | 061 | evolving_knowledge 확장 (knowledge_type/title/description/evidence/confidence/is_active/learned_at) + keywords 확장 (monthly_search_volume/pc_volume/mobile_volume/competition/volume_updated_at) | **SQL 생성 완료** |
 | 064 | AUTH 통합: users.auth_provider 컬럼 + role CHECK에 viewer 추가 + handle_new_user 트리거 + admin_users DEPRECATED 주석 | **SQL 생성 완료** |
 | 068 | 상담 CRM: consultation_requests 확장 (status CHECK 5→6, assigned_to/notes/interested_items/brand_name/marketing_score/channel/follow_up_date/consultation_date/last_activity_at 컬럼, 인덱스 4개) | **SQL 생성 완료** |
+| 069 | RLS 전체 활성화: 56개 테이블 ENABLE ROW LEVEL SECURITY + anon/authenticated 정책 (brand_analyses SELECT, consultation INSERT, users/clients/keywords/contents/subscriptions/notifications 등 포털 접근 정책) | **SQL 생성 완료** |
 
 > ⚠️ 045~068: scripts/migrations/ 디렉토리에 SQL 파일 생성. Supabase Dashboard에서 실행 필요.
 
