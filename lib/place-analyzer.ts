@@ -1236,19 +1236,41 @@ async function calculateMarketingScore(
     });
 
     // scoring_criteria 결과 → 기존 MarketingScoreResult 포맷 변환
+    const ITEM_LABELS: Record<string, string> = {
+      visitor_review_count: "방문자 리뷰",
+      blog_review_count: "블로그 리뷰",
+      review_volume_bonus: "리뷰 보정",
+      place_exposure: "플레이스 노출",
+      blog_exposure: "블로그 노출",
+      google_exposure: "구글 노출",
+      image_count: "이미지 수",
+      image_quality: "이미지 품질",
+      image_usability: "이미지 활용도",
+      image_count_basic: "이미지 수",
+      homepage: "홈페이지",
+      sns: "SNS",
+      naver_reservation: "네이버 예약",
+      naver_talktalk: "네이버 톡톡",
+      business_hours: "영업시간",
+      brand_blog: "브랜드 블로그",
+      keyword_blog: "키워드 블로그",
+      google_seo: "구글 SEO",
+    };
     const breakdownMap: Record<string, { score: number; max: number; details: string[] }> = {};
     for (const r of criteriaResult.breakdown) {
       const group = r.category;
       if (!breakdownMap[group]) breakdownMap[group] = { score: 0, max: 0, details: [] };
       breakdownMap[group].score += r.score;
       breakdownMap[group].max += r.maxScore;
-      breakdownMap[group].details.push(`${r.item}: ${r.label}`);
+      const itemLabel = ITEM_LABELS[r.item] ?? r.item;
+      breakdownMap[group].details.push(`${itemLabel}: ${r.label}`);
     }
 
     const improvements: string[] = [];
     for (const r of criteriaResult.breakdown) {
       if (r.score < r.maxScore * 0.5) {
-        improvements.push(`${r.item} 개선 시 +${r.maxScore - r.score}점 가능`);
+        const itemLabel = ITEM_LABELS[r.item] ?? r.item;
+        improvements.push(`${itemLabel} 개선 시 +${r.maxScore - r.score}점 가능`);
       }
     }
 

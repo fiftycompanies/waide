@@ -214,7 +214,44 @@ export default function BrandAnalysisClient({ data }: Props) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const ka = (analysis?.keyword_analysis ?? {}) as Record<string, any>;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const sb = (analysis?.score_breakdown ?? {}) as Record<string, any>;
+  const sbRaw = (analysis?.score_breakdown ?? {}) as Record<string, any>;
+
+  // 기존 DB 데이터의 영문 변수명을 한글로 변환
+  const ITEM_LABEL_MAP: Record<string, string> = {
+    visitor_review_count: "방문자 리뷰",
+    blog_review_count: "블로그 리뷰",
+    review_volume_bonus: "리뷰 보정",
+    place_exposure: "플레이스 노출",
+    blog_exposure: "블로그 노출",
+    google_exposure: "구글 노출",
+    image_count: "이미지 수",
+    image_quality: "이미지 품질",
+    image_usability: "이미지 활용도",
+    image_count_basic: "이미지 수",
+    homepage: "홈페이지",
+    sns: "SNS",
+    naver_reservation: "네이버 예약",
+    naver_talktalk: "네이버 톡톡",
+    business_hours: "영업시간",
+    brand_blog: "브랜드 블로그",
+    keyword_blog: "키워드 블로그",
+    google_seo: "구글 SEO",
+  };
+  const translateDetails = (text: string) =>
+    text.replace(/(\w[\w_]*?):\s/g, (_, key) => `${ITEM_LABEL_MAP[key] ?? key}: `);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb: Record<string, any> = {};
+  for (const [k, v] of Object.entries(sbRaw)) {
+    if (v && typeof v === "object") {
+      sb[k] = {
+        ...v,
+        details: v.details ? translateDetails(String(v.details)) : v.details,
+        detail: v.detail ? translateDetails(String(v.detail)) : v.detail,
+      };
+    } else {
+      sb[k] = v;
+    }
+  }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const ar = (analysis?.analysis_result ?? {}) as Record<string, any>;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
