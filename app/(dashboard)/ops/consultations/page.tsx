@@ -167,11 +167,31 @@ export default function ConsultationsPage() {
       if (period === "7d") filters.dateFrom = new Date(Date.now() - 7 * 86400000).toISOString().split("T")[0];
       if (period === "30d") filters.dateFrom = new Date(Date.now() - 30 * 86400000).toISOString().split("T")[0];
 
-      const [listResult, statsResult, agentsList] = await Promise.all([
-        getConsultationList(filters),
-        getConsultationStats(),
-        getConsultationAgentsList(),
-      ]);
+      // 각 서버 액션을 개별적으로 호출하여 에러 지점 파악
+      let listResult: Awaited<ReturnType<typeof getConsultationList>> = { data: [], total: 0, page: 1, pageSize: 20 };
+      let statsResult: ConsultationStats | null = null;
+      let agentsList: Array<{ ref_code: string; name: string }> = [];
+
+      try {
+        listResult = await getConsultationList(filters);
+      } catch (e) {
+        console.error("getConsultationList failed:", e);
+        throw new Error("상담 목록 조회 실패: " + (e instanceof Error ? e.message : String(e)));
+      }
+
+      try {
+        statsResult = await getConsultationStats();
+      } catch (e) {
+        console.error("getConsultationStats failed:", e);
+        // 통계는 실패해도 목록은 표시
+      }
+
+      try {
+        agentsList = await getConsultationAgentsList();
+      } catch (e) {
+        console.error("getConsultationAgentsList failed:", e);
+        // 담당자 목록은 실패해도 목록은 표시
+      }
 
       setItems(listResult.data);
       setTotal(listResult.total);
@@ -179,7 +199,7 @@ export default function ConsultationsPage() {
       setAgents(agentsList);
     } catch (err) {
       console.error("fetchData error:", err);
-      setError("데이터를 불러오는 중 오류가 발생했습니다.");
+      setError(err instanceof Error ? err.message : "데이터를 불러오는 중 오류가 발생했습니다.");
     } finally {
       setLoading(false);
     }

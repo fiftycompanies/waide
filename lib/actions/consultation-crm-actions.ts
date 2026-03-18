@@ -101,9 +101,10 @@ export async function getConsultationList(filters: ConsultationFilters = {}): Pr
   page: number;
   pageSize: number;
 }> {
-  const db = createAdminClient();
   const page = filters.page ?? 1;
   const pageSize = filters.pageSize ?? 20;
+  try {
+  const db = createAdminClient();
   const offset = (page - 1) * pageSize;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -189,6 +190,10 @@ export async function getConsultationList(filters: ConsultationFilters = {}): Pr
   });
 
   return { data, total: count ?? 0, page, pageSize };
+  } catch (err) {
+    console.error("getConsultationList exception:", err);
+    throw new Error("상담 목록 조회 실패: " + (err instanceof Error ? err.message : String(err)));
+  }
 }
 
 // ═══════════════════════════════════════════
@@ -477,40 +482,50 @@ export async function updateConsultationFollowUp(
 // ═══════════════════════════════════════════
 
 export async function getConsultationStats(): Promise<ConsultationStats> {
-  const db = createAdminClient();
+  try {
+    const db = createAdminClient();
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: all } = await (db as any)
-    .from("consultation_requests")
-    .select("status, created_at, last_activity_at");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: all, error } = await (db as any)
+      .from("consultation_requests")
+      .select("status, created_at, last_activity_at");
 
-  const rows = all ?? [];
-  const total = rows.length;
-  const byStatus: Record<string, number> = {};
-  for (const r of rows) {
-    const s = r.status ?? "pending";
-    byStatus[s] = (byStatus[s] ?? 0) + 1;
+    if (error) {
+      console.error("getConsultationStats error:", error);
+      return { total: 0, byStatus: {}, recentCount: 0, avgResponseTime: null };
+    }
+
+    const rows = all ?? [];
+    const total = rows.length;
+    const byStatus: Record<string, number> = {};
+    for (const r of rows) {
+      const s = r.status ?? "pending";
+      byStatus[s] = (byStatus[s] ?? 0) + 1;
+    }
+
+    // 최근 7일
+    const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString();
+    const recentCount = rows.filter((r: { created_at: string }) => r.created_at >= sevenDaysAgo).length;
+
+    // 평균 응답 시간 (pending → contacted 전환까지)
+    // 간이 계산: last_activity_at - created_at (contacted 이상인 건)
+    const respondedRows = rows.filter((r: { status: string }) =>
+      r.status !== "pending"
+    );
+    let avgResponseTime: number | null = null;
+    if (respondedRows.length > 0) {
+      const totalHours = respondedRows.reduce((sum: number, r: { created_at: string; last_activity_at: string }) => {
+        const diff = new Date(r.last_activity_at).getTime() - new Date(r.created_at).getTime();
+        return sum + diff / 3600000;
+      }, 0);
+      avgResponseTime = Math.round((totalHours / respondedRows.length) * 10) / 10;
+    }
+
+    return { total, byStatus, recentCount, avgResponseTime };
+  } catch (err) {
+    console.error("getConsultationStats exception:", err);
+    return { total: 0, byStatus: {}, recentCount: 0, avgResponseTime: null };
   }
-
-  // 최근 7일
-  const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString();
-  const recentCount = rows.filter((r: { created_at: string }) => r.created_at >= sevenDaysAgo).length;
-
-  // 평균 응답 시간 (pending → contacted 전환까지)
-  // 간이 계산: last_activity_at - created_at (contacted 이상인 건)
-  const respondedRows = rows.filter((r: { status: string }) =>
-    r.status !== "pending"
-  );
-  let avgResponseTime: number | null = null;
-  if (respondedRows.length > 0) {
-    const totalHours = respondedRows.reduce((sum: number, r: { created_at: string; last_activity_at: string }) => {
-      const diff = new Date(r.last_activity_at).getTime() - new Date(r.created_at).getTime();
-      return sum + diff / 3600000;
-    }, 0);
-    avgResponseTime = Math.round((totalHours / respondedRows.length) * 10) / 10;
-  }
-
-  return { total, byStatus, recentCount, avgResponseTime };
 }
 
 // ═══════════════════════════════════════════
@@ -518,12 +533,17 @@ export async function getConsultationStats(): Promise<ConsultationStats> {
 // ═══════════════════════════════════════════
 
 export async function getConsultationAgentsList(): Promise<Array<{ ref_code: string; name: string }>> {
-  const db = createAdminClient();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data } = await (db as any)
-    .from("sales_agents")
-    .select("ref_code, name")
-    .eq("is_active", true)
-    .order("name");
-  return data ?? [];
+  try {
+    const db = createAdminClient();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data } = await (db as any)
+      .from("sales_agents")
+      .select("ref_code, name")
+      .eq("is_active", true)
+      .order("name");
+    return data ?? [];
+  } catch (err) {
+    console.error("getConsultationAgentsList exception:", err);
+    return [];
+  }
 }
