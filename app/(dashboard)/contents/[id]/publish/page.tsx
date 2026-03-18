@@ -4,6 +4,8 @@ import { getContent } from "@/lib/actions/ops-actions";
 import { Breadcrumb } from "@/components/ui/breadcrumb";
 import { PublishWizard } from "@/app/(dashboard)/ops/contents/[id]/publish/publish-wizard";
 
+export const dynamic = "force-dynamic";
+
 async function PublishContent({ id }: { id: string }) {
   const content = await getContent(id);
 

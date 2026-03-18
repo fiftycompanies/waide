@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, Building2 } from "lucide-react";
 import Link from "next/link";
 
+export const dynamic = "force-dynamic";
+
 export default async function NewCampaignPage() {
   const [selectedClientId, brands] = await Promise.all([
     getSelectedClientId(),

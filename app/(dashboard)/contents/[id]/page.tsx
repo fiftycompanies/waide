@@ -6,12 +6,14 @@ import { getBlogAccounts } from "@/lib/actions/blog-account-actions";
 import { Breadcrumb } from "@/components/ui/breadcrumb";
 import { ContentEditor } from "@/components/ops/content-editor";
 
+export const dynamic = "force-dynamic";
+
 async function ContentDetailInner({ id }: { id: string }) {
   const content = await getContent(id);
   if (!content) notFound();
 
   const blogAccounts = await getBlogAccounts(content.client_id ?? null);
-  const activeAccounts = blogAccounts.filter((a: any) => a.status === "active");
+  const activeAccounts = blogAccounts.filter((a: any) => a.is_active);
 
   return (
     <div className="space-y-6">

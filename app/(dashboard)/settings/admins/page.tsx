@@ -3,6 +3,8 @@ import { requireSuperAdmin } from "@/lib/auth/admin-session";
 import { getAdmins } from "@/lib/actions/admin-actions";
 import { AdminsClient } from "@/components/settings/admins-client";
 
+export const dynamic = "force-dynamic";
+
 export default async function AdminsPage() {
   const session = await requireSuperAdmin().catch(() => null);
   if (!session) redirect("/dashboard");

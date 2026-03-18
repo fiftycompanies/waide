@@ -1,6 +1,8 @@
 import { getBrandList, getDefaultWorkspaceId, getCompanyBrands } from "@/lib/actions/brand-actions";
 import { BrandsClient } from "@/components/brands/brands-client";
 
+export const dynamic = "force-dynamic";
+
 export default async function BrandsPage() {
   const [brands, workspaceId, companyBrands] = await Promise.all([
     getBrandList(),

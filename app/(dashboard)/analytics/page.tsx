@@ -19,6 +19,8 @@ import { getSelectedClientId } from "@/lib/actions/brand-actions";
 import { VisibilitySection } from "@/components/analytics/visibility-section";
 import { AnalyticsTabsWrapper } from "@/components/analytics/analytics-tabs-wrapper";
 import {
+
+export const dynamic = "force-dynamic";
   getAEOAnalyticsData,
   getAEOCompetitionData,
   getAEOCitationData,

@@ -1,6 +1,8 @@
 import { getClientPointsList, getPointTransactions, getPointSettings } from "@/lib/actions/point-actions";
 import { PointsPageClient } from "@/components/points/points-page-client";
 
+export const dynamic = "force-dynamic";
+
 export default async function PointsPage() {
   const [clientPoints, transactions, settings] = await Promise.all([
     getClientPointsList(),

@@ -6,6 +6,8 @@ import { NewContentForm } from "@/components/ops/new-content-form";
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
 
+export const dynamic = "force-dynamic";
+
 interface PageProps {
   searchParams: Promise<{ keyword_id?: string }>;
 }

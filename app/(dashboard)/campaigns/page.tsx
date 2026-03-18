@@ -6,6 +6,8 @@ import { BrandBadge } from "@/components/ui/brand-badge";
 import Link from "next/link";
 import { Plus, Target } from "lucide-react";
 
+export const dynamic = "force-dynamic";
+
 const CAMPAIGN_STATUS_KO: Record<string, string> = {
   draft: "초안",
   active: "진행중",

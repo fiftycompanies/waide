@@ -5,6 +5,8 @@ import {
 } from "@/lib/actions/scheduler-actions";
 import { SchedulerClient } from "@/components/ops/scheduler-client";
 
+export const dynamic = "force-dynamic";
+
 export default async function SchedulerPage() {
   const [settings, logs, slackChannels] = await Promise.all([
     getAllSchedulerSettings(),

@@ -21,6 +21,8 @@ import { Building2, ExternalLink, FileText, Radio, RefreshCw, Send } from "lucid
 import Link from "next/link";
 import { PublishTabsWrapper } from "@/components/publish/publish-tabs-wrapper";
 
+export const dynamic = "force-dynamic";
+
 interface PublishPageProps {
   searchParams: Promise<{ tab?: string }>;
 }

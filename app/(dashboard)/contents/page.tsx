@@ -26,6 +26,8 @@ import { AutoPublishSettingsClient } from "@/components/publish/auto-publish-set
 import { KeywordHistoryClient } from "@/components/contents/keyword-history-client";
 import Link from "next/link";
 
+export const dynamic = "force-dynamic";
+
 const STATUS_COLORS: Record<string, string> = {
   draft: "bg-gray-100 text-gray-600 border-gray-200",
   review: "bg-yellow-100 text-yellow-700 border-yellow-200",

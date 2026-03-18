@@ -3,6 +3,8 @@ import { getBlogAccounts } from "@/lib/actions/blog-account-actions";
 import { getAccountGrades } from "@/lib/actions/recommendation-actions";
 import { BlogAccountsClient } from "@/components/blog-accounts/blog-accounts-client";
 
+export const dynamic = "force-dynamic";
+
 export default async function BlogAccountsPage() {
   const [selectedClientId, brands] = await Promise.all([
     getSelectedClientId(),

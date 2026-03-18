@@ -9,6 +9,8 @@ import { getPromptRegistryAction } from "@/lib/actions/prompt-registry-actions";
 import { getSelectedClientId } from "@/lib/actions/brand-actions";
 import { KnowledgeLearningSection } from "@/components/analytics/knowledge-learning-section";
 
+export const dynamic = "force-dynamic";
+
 const AGENT_TYPES = ["CMO", "RND", "COPYWRITER", "OPS_QUALITY", "OPS_PUBLISHER"] as const;
 
 export default async function AgentSettingsPage({

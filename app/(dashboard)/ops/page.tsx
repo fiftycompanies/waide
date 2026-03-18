@@ -5,6 +5,8 @@ import { JobStatusBadge } from "@/components/ops/job-status-badge";
 import Link from "next/link";
 import { Activity, FileText, Clock, CheckCircle2 } from "lucide-react";
 
+export const dynamic = "force-dynamic";
+
 export default async function OpsPage() {
   const [stats, recentJobs] = await Promise.all([
     getOpsStats(),

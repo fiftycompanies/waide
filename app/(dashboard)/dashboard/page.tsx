@@ -36,6 +36,8 @@ import Link from "next/link";
 import { AEODashboardSection } from "@/components/dashboard/aeo-dashboard-section";
 import { getAEODashboardData } from "@/lib/actions/aeo-tracking-actions";
 
+export const dynamic = "force-dynamic";
+
 // ── 델타 배지 ────────────────────────────────────────────────────────────────
 function DeltaBadge({ value, inverse = false, unit = "%" }: { value: number; inverse?: boolean; unit?: string }) {
   if (value === 0)

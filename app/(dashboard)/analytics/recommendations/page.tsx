@@ -11,6 +11,8 @@ import { RecommendationsSection } from "@/components/analytics/recommendations-s
 import { Card, CardContent } from "@/components/ui/card";
 import { Building2 } from "lucide-react";
 
+export const dynamic = "force-dynamic";
+
 async function RecommendationsContent() {
   const clientId = await getSelectedClientId();
 

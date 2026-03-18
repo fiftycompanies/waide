@@ -3,6 +3,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { getAEOSettings } from "@/lib/actions/aeo-tracking-actions";
 import { AEOSettingsClient } from "@/components/settings/aeo-settings-client";
 
+export const dynamic = "force-dynamic";
+
 async function AEOSettingsSection() {
   const settings = await getAEOSettings();
   return <AEOSettingsClient initialSettings={settings} />;

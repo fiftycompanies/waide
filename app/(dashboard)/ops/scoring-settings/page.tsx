@@ -1,6 +1,8 @@
 import { getScoringWeights, getAnalysisOptions } from "@/lib/actions/settings-actions";
 import { ScoringSettingsClient } from "@/components/ops/scoring-settings-client";
 
+export const dynamic = "force-dynamic";
+
 export default async function ScoringSettingsPage() {
   const [settings, analysisOptions] = await Promise.all([
     getScoringWeights(),

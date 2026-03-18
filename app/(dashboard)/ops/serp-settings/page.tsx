@@ -3,6 +3,8 @@ import { getBrandSummaryStats } from "@/lib/actions/analytics-actions";
 import { SerpSettingsClient } from "@/components/ops/serp-settings-client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
+export const dynamic = "force-dynamic";
+
 export default async function SerpSettingsPage() {
   const [settings, brandStats] = await Promise.all([
     getSerpSchedulerSettings(),

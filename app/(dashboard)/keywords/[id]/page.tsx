@@ -15,6 +15,8 @@ import { KeywordContentsTable } from "@/components/keywords/keyword-contents-tab
 import { Plus, FileEdit } from "lucide-react";
 import { KeywordDetailActions } from "@/components/keywords/keyword-detail-actions";
 
+export const dynamic = "force-dynamic";
+
 // ── 상수 ──────────────────────────────────────────────────────────────────────
 
 const STATUS_COLORS: Record<string, string> = {

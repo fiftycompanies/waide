@@ -11,6 +11,8 @@ import { KeywordsTabsWrapper } from "@/components/keywords/keywords-tabs-wrapper
 import { QuestionsTab } from "@/components/questions/questions-tab";
 import { KeywordVolumeTab } from "@/components/keywords/keyword-volume-tab";
 
+export const dynamic = "force-dynamic";
+
 // ── KPI 데이터 조회 ──────────────────────────────────────────────────────
 interface KeywordKpi {
   total: number;
