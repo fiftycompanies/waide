@@ -14,6 +14,7 @@
 import { createAdminClient } from "@/lib/supabase/service";
 import { runAgentChain } from "@/lib/agent-chain";
 import { collectCompetitors, type CompetitorData } from "@/lib/competitor-collector";
+import { normalizePersona } from "@/lib/utils/persona-compat";
 
 // ═══════════════════════════════════════════
 // Types
@@ -104,7 +105,7 @@ export async function runAnalysisAgentChain(
         resultKey: "competitor_analysis",
       },
 
-      // Step 2: CMO 브랜드 페르소나
+      // Step 2: CMO 브랜드 페르소나 (v2 — ai_inferred + content_strategy 출력)
       {
         agent: "CMO",
         task: "brand_persona",
@@ -126,6 +127,11 @@ export async function runAnalysisAgentChain(
           negative_keywords: params.placeData.negativeKeywords || "정보 없음",
           image_analysis: params.placeData.imageAnalysis || "미분석",
           marketing_score: params.scoringResult.score,
+          // v2 추가 context
+          homepage_url: params.placeData.homepageUrl || "정보 없음",
+          sns_url: params.placeData.snsUrl || "정보 없음",
+          service_labels: params.placeData.serviceLabels?.join(", ") || "정보 없음",
+          image_count: params.placeData.imageCount || 0,
         },
         dependsOn: {
           competitor_summary: "competitor_analysis",
@@ -201,14 +207,17 @@ export async function runAnalysisAgentChain(
 
     // 4. 브랜드 페르소나를 clients 테이블에 저장 (clientId가 있을 때만)
     if (params.clientId && chainResults.results?.brand_persona?.success) {
+      const normalized = normalizePersona(chainResults.results.brand_persona.data);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await (db as any)
         .from("clients")
         .update({
           brand_persona: {
-            ...chainResults.results.brand_persona.data,
+            ...normalized,
+            persona_version: 2,
+            confirmation_status: "pending",
             generated_at: new Date().toISOString(),
-            generated_by: "CMO_v1.0",
+            generated_by: "CMO_v2.0",
             manually_edited: false,
             manual_overrides: {},
           },

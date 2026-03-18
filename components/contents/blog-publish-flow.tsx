@@ -50,6 +50,28 @@ interface CrawledImage {
   height: number;
 }
 
+interface PersonaForPublish {
+  one_liner: string;
+  positioning: string;
+  primary_target: string;
+  strengths: string[];
+  tone: string;
+  content_angles: string[];
+  avoid_angles: string[];
+  brand_story: string;
+  forbidden_content: string;
+  awards: string[];
+  usp_details: string[];
+  pain_points: string[];
+  price_position: string;
+}
+
+interface OwnerInputForPublish {
+  brand_story: string;
+  forbidden_content: string;
+  awards_certifications: string[];
+}
+
 interface BlogPublishFlowProps {
   clientId: string;
   brandAnalysis: BrandAnalysis | null;
@@ -57,6 +79,8 @@ interface BlogPublishFlowProps {
   activeKeywords: Array<{ keyword: string; id: string }>;
   initialKeywordId?: string;
   initialKeywordName?: string;
+  personaData?: PersonaForPublish | null;
+  ownerInputData?: OwnerInputForPublish | null;
 }
 
 type ContentType = "blog_info" | "blog_review" | "blog_list";
@@ -81,6 +105,8 @@ export function BlogPublishFlow({
   activeKeywords,
   initialKeywordId,
   initialKeywordName,
+  personaData,
+  ownerInputData,
 }: BlogPublishFlowProps) {
   const [step, setStep] = useState(0);
 
@@ -625,6 +651,8 @@ export function BlogPublishFlow({
               value={brief}
               onChange={setBrief}
               brandAnalysis={brandAnalysis}
+              personaData={personaData}
+              ownerInputData={ownerInputData}
             />
           )}
           {step === 3 && (
@@ -1115,20 +1143,31 @@ function StepTypeKeyword({
   );
 }
 
-// Step 2: 브리프 작성
+// Step 2: 브리프 작성 (v2: 페르소나 기반 pre-fill + 보완사항)
 function StepBrief({
   value,
   onChange,
   brandAnalysis,
+  personaData,
+  ownerInputData,
 }: {
   value: string;
   onChange: (v: string) => void;
   brandAnalysis?: BrandAnalysis | null;
+  personaData?: PersonaForPublish | null;
+  ownerInputData?: OwnerInputForPublish | null;
 }) {
-  // 고객 리뷰 기반 강점 추출
+  // 고객 리뷰 기반 강점 추출 (기존 로직 유지 + 페르소나 폴백)
   const sellingPoints = (() => {
+    // 1) 페르소나에서 USP
+    if (personaData?.usp_details && personaData.usp_details.length > 0) {
+      return personaData.usp_details.slice(0, 5);
+    }
+    if (personaData?.strengths && personaData.strengths.length > 0) {
+      return personaData.strengths.slice(0, 5);
+    }
+    // 2) brandAnalysis 폴백
     if (!brandAnalysis) return [];
-    // content_strategy.review_analysis.selling_points 또는 analysis_result.review_analysis.selling_points
     const cs = brandAnalysis.content_strategy as Record<string, unknown> | null;
     const ar = brandAnalysis.analysis_result as Record<string, unknown> | null;
     const reviewFromCs = cs?.review_analysis as Record<string, unknown> | undefined;
@@ -1140,13 +1179,15 @@ function StepBrief({
     return points.slice(0, 5);
   })();
 
-  // 브랜드 톤 힌트 추출
-  const toneHint = (() => {
+  // 브랜드 톤 힌트 추출 (페르소나 우선)
+  const toneHint = personaData?.tone || (() => {
     if (!brandAnalysis?.content_strategy) return "";
     const cs = brandAnalysis.content_strategy;
     const brandA = cs.brand_analysis as Record<string, unknown> | undefined;
     return String(brandA?.tone || "");
   })();
+
+  const targetHint = personaData?.primary_target || "";
 
   return (
     <div className="space-y-4">
@@ -1155,23 +1196,31 @@ function StepBrief({
         콘텐츠를 작성할 포인트를 기술하세요. 해당 내용을 반영하여 AI가 원고를 작성합니다.
       </p>
 
-      {/* 브랜드 톤 힌트 */}
-      {toneHint && (
-        <div className="rounded-lg border border-purple-200 bg-purple-50/50 p-3">
-          <p className="text-sm font-medium text-purple-700 flex items-center gap-1.5">
-            <Pen className="h-3.5 w-3.5" />
-            브랜드 톤앤매너
-          </p>
-          <p className="text-sm text-purple-600 mt-1">{toneHint}</p>
+      {/* 페르소나 요약 카드 (있으면 표시) */}
+      {(toneHint || targetHint) && (
+        <div className="rounded-lg border border-purple-200 bg-purple-50/50 p-3 space-y-1.5">
+          {toneHint && (
+            <div className="flex items-center gap-1.5">
+              <Pen className="h-3.5 w-3.5 text-purple-600 shrink-0" />
+              <span className="text-xs text-purple-500">톤앤매너:</span>
+              <span className="text-sm text-purple-700">{toneHint}</span>
+            </div>
+          )}
+          {targetHint && (
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-purple-500 ml-5">타겟:</span>
+              <span className="text-sm text-purple-700">{targetHint}</span>
+            </div>
+          )}
         </div>
       )}
 
-      {/* 고객 리뷰 기반 강점 */}
+      {/* 고객 리뷰 기반 강점 / USP */}
       {sellingPoints.length > 0 && (
         <div className="rounded-lg border border-emerald-200 bg-emerald-50/50 p-3 space-y-2">
           <p className="text-sm font-medium text-emerald-700 flex items-center gap-1.5">
             <Sparkles className="h-3.5 w-3.5" />
-            고객 리뷰 기반 강점
+            USP / 강점
           </p>
           <div className="flex flex-wrap gap-1.5">
             {sellingPoints.map((point, i) => (
@@ -1196,10 +1245,50 @@ function StepBrief({
         </div>
       )}
 
+      {/* 브랜드 스토리 (있으면 표시) */}
+      {(ownerInputData?.brand_story || personaData?.brand_story) && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50/50 p-3">
+          <p className="text-xs font-medium text-amber-700 mb-1">브랜드 스토리</p>
+          <p className="text-sm text-amber-800">
+            {ownerInputData?.brand_story || personaData?.brand_story}
+          </p>
+        </div>
+      )}
+
+      {/* 수상/인증 (있으면 표시) */}
+      {ownerInputData?.awards_certifications && ownerInputData.awards_certifications.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {ownerInputData.awards_certifications.map((award, i) => (
+            <button
+              key={i}
+              onClick={() => {
+                if (!value.includes(award)) {
+                  onChange(value ? `${value}\n${award}` : award);
+                }
+              }}
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700 hover:bg-yellow-200 transition-colors"
+            >
+              <Plus className="h-3 w-3" />
+              {award}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* 금지 사항 (있으면 경고 표시) */}
+      {(ownerInputData?.forbidden_content || personaData?.forbidden_content) && (
+        <div className="rounded-lg border border-red-200 bg-red-50/50 p-3">
+          <p className="text-xs font-medium text-red-600 mb-1">금지 사항</p>
+          <p className="text-sm text-red-700">
+            {ownerInputData?.forbidden_content || personaData?.forbidden_content}
+          </p>
+        </div>
+      )}
+
       <textarea
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        placeholder="예: 20~30대 여성 타겟, 깔끔한 인테리어와 시그니처 메뉴를 강조, 방문 후기 형식으로..."
+        placeholder="이번 글에 특별히 강조할 포인트를 입력하세요. 위 강점/스토리를 클릭하면 자동 추가됩니다."
         className="w-full min-h-[160px] rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-y"
       />
     </div>

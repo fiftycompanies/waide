@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/service";
 import { OnboardingRefineClient } from "@/components/onboarding/onboarding-refine-client";
+import { normalizePersona } from "@/lib/utils/persona-compat";
 
 export const dynamic = "force-dynamic";
 
@@ -38,6 +39,7 @@ export default async function OnboardingRefinePage({ searchParams }: PageProps) 
   const bi = (analysis.basic_info ?? {}) as Record<string, unknown>;
   const ka = (analysis.keyword_analysis ?? {}) as Record<string, unknown>;
   const ra = (analysis.review_analysis ?? {}) as Record<string, unknown>;
+  const ar = (analysis.analysis_result ?? {}) as Record<string, unknown>;
 
   // 키워드 프리필
   const refinedKws = (analysis.refined_keywords as string[]) || [];
@@ -65,12 +67,53 @@ export default async function OnboardingRefinePage({ searchParams }: PageProps) 
     target: (analysis.refined_target as string) || "",
   };
 
+  // AI 추론 페르소나 데이터 추출 (analysis_result.brand_persona → normalizePersona)
+  const rawPersona = (ar.brand_persona as Record<string, unknown>) || {};
+  const enhancedPersona = normalizePersona(rawPersona);
+
+  // ai_inferred 프리필 데이터 구성
+  const aiInferredPrefill = {
+    target_customer: {
+      primary: enhancedPersona.ai_inferred?.target_customer?.primary
+        || enhancedPersona.primary_target
+        || enhancedPersona.target_customer
+        || enhancedPersona.target_audience
+        || (analysis.refined_target as string)
+        || "",
+      secondary: enhancedPersona.ai_inferred?.target_customer?.secondary || "",
+      pain_points: enhancedPersona.ai_inferred?.target_customer?.pain_points || [],
+      search_intent: enhancedPersona.ai_inferred?.target_customer?.search_intent || "",
+    },
+    tone: {
+      style: enhancedPersona.ai_inferred?.tone?.style || enhancedPersona.tone || "",
+      personality: enhancedPersona.ai_inferred?.tone?.personality || "",
+      example_phrases: enhancedPersona.ai_inferred?.tone?.example_phrases || [],
+    },
+    usp: {
+      points: enhancedPersona.ai_inferred?.usp?.points
+        || (Array.isArray(enhancedPersona.strengths) ? enhancedPersona.strengths : []),
+      from_reviews: enhancedPersona.ai_inferred?.usp?.from_reviews
+        || sellingPoints,
+    },
+    content_direction: {
+      angles: enhancedPersona.ai_inferred?.content_direction?.angles
+        || (Array.isArray(enhancedPersona.content_angles) ? enhancedPersona.content_angles : []),
+      types: enhancedPersona.ai_inferred?.content_direction?.types || [],
+      frequency: enhancedPersona.ai_inferred?.content_direction?.frequency || "",
+    },
+    price_position: {
+      position: enhancedPersona.ai_inferred?.price_position?.position || "",
+      comparison: enhancedPersona.ai_inferred?.price_position?.comparison || "",
+    },
+  };
+
   return (
     <OnboardingRefineClient
       analysisId={analysisId}
       userId={user.id}
       summary={summaryData}
       prefill={prefillData}
+      aiInferredPrefill={aiInferredPrefill}
     />
   );
 }

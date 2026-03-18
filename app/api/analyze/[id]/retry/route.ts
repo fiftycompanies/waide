@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/service";
 
-export const maxDuration = 10;
+export const maxDuration = 300;
 
 export async function POST(
   _request: NextRequest,
@@ -51,10 +51,13 @@ export async function POST(
 
     // 비동기 재분석 실행
     import("@/lib/place-analyzer").then(({ runFullAnalysis }) => {
-      runFullAnalysis(id, refinedData).catch((err) => {
+      runFullAnalysis(id, refinedData).catch(async (err) => {
         console.error("[retry] 재분석 실패:", err);
+        // 기존 basic_info 보존하면서 에러 추가
+        const { data: existing } = await db.from("brand_analyses").select("basic_info").eq("id", id).single();
+        const existingInfo = (existing?.basic_info && typeof existing.basic_info === "object") ? existing.basic_info : {};
         db.from("brand_analyses")
-          .update({ status: "failed", basic_info: { error: String(err) } })
+          .update({ status: "failed", basic_info: { ...existingInfo, error: String(err) } })
           .eq("id", id);
       });
     });

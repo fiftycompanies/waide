@@ -255,7 +255,7 @@ export default function AnalysisResultPage({
         if (!resp.ok) { router.replace("/"); return; }
         const result = await resp.json();
         if (result.status === "analyzing" || result.status === "pending") {
-          router.replace(`/analysis/loading?url=${encodeURIComponent(result.input_url)}`);
+          router.replace(`/analysis/loading?url=${encodeURIComponent(result.input_url)}&id=${id}`);
           return;
         }
         if (result.status === "failed") { router.replace("/"); return; }

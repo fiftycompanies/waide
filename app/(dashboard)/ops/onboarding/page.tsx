@@ -15,7 +15,7 @@ import {
   updateOnboardingChecklist,
   type ClientPortfolio,
 } from "@/lib/actions/client-portfolio-actions";
-import { createAdminClient } from "@/lib/supabase/service";
+// createAdminClient removed — must not be used in client components
 
 // Default checklist for new clients
 const DEFAULT_CHECKLIST = [

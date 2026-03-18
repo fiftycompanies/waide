@@ -16,7 +16,7 @@
 # Waide (AI Hospitality Aide) — 서비스 IA
 
 > 최종 업데이트: 2026-03-13
-> 버전: Phase AUTH-1 완료 (인증 통합 — Supabase Auth 단일화 + OAuth)
+> 버전: Phase PERSONA-1~3 완료 (브랜드 페르소나 고도화 — 크롤링 자동확보 + 업주 확인/보완)
 
 ---
 
@@ -362,6 +362,15 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 | `aeo_tracking_settings` | /ops/aeo-settings | AEO 추적 전역 설정 (모델/반복/크론/Playwright) |
 | `publications` | /publish, /contents/[id]/publish | 발행 이력 (플랫폼, 상태, 재시도 횟수) |
 | `auto_publish_settings` | /publish?tab=auto | 자동 발행 설정 (마스터 토글, 채널별 ON/OFF) |
+
+**clients.brand_persona JSONB 구조 (v2):**
+- 기존 flat 13필드 (one_liner, positioning, tone, strengths, ...) → 하위 호환 유지
+- `ai_inferred`: { target_customer, tone, usp, content_direction, price_position } → 확인 여부 tracked
+- `owner_input`: { brand_story, forbidden_content, awards_certifications, official_price_info }
+- `content_strategy`: { blog: { tone, topics, forbidden_terms, ... } }
+- `competitive_summary`: { market_position, top_competitors[] }
+- `persona_version`: 2, `confirmation_status`: pending/partial/confirmed
+- 접근: `getPersonaForPipeline()` (flat 변환), `normalizePersona()` (v1→v2 정규화)
 
 ### 5-2. API 라우트 맵
 
@@ -915,6 +924,17 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
   - lib/actions/admin-actions.ts: adminLogout() Supabase Auth + HMAC 쿠키 동시 클리어
   - 사전 조건: Supabase Dashboard에서 구글/카카오 OAuth provider 활성화 + 064 마이그레이션 실행 필요
   - tsc --noEmit 통과
+- Phase PERSONA-1~3: 브랜드 페르소나 고도화 — 크롤링 80~90% 자동 + 업주 확인 4질문 + 콘텐츠 발행 보완 (2026-03-18)
+  - EnhancedBrandPersona 타입 확장 (ai_inferred + owner_input + content_strategy + competitive_summary)
+  - lib/utils/persona-compat.ts (신규): normalizePersona(), getPersonaForPipeline(), syncFlatFromEnhanced() 하위 호환 레이어
+  - analysis-agent-chain.ts: CMO context에 homepage_url/sns_url/service_labels/image_count 추가, 저장 시 normalizePersona() 적용 + persona_version:2 태깅
+  - 온보딩 리뉴얼 (/onboarding/refine): AI추론 5항목 확인 (타겟/톤/USP/콘텐츠방향/가격포지션) + 업주 4질문(브랜드스토리/금지콘텐츠/수상인증/가격표, 모두 선택)
+  - refinement-actions.ts: applyAnalysisToProject에 aiInferred/ownerInput 파라미터 추가, syncFlatFromEnhanced로 flat↔nested 동기화
+  - content-pipeline-v2.ts: getPersonaForPipeline() 경유 flat 필드 접근 + brand_story/forbidden_content/awards/usp_details/pain_points/price_position/special_emphasis 추가
+  - content-qc-v2.ts: forbidden_content 검수 필드 추가 (avoid_angles와 별도로 전달)
+  - blog-publish-flow.tsx Step 2: 페르소나 기반 pre-fill (USP/톤/타겟/브랜드스토리/수상인증/금지사항 표시) + 보완사항 입력
+  - publishing-account-actions.ts: getBrandAnalysisForPublishing 폴백에 ai_inferred.tone 보강
+  - tsc --noEmit 통과, npm run build 성공
 
 ### 설계 원칙
 
@@ -977,6 +997,7 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 | 17 | **Phase 6** | 자동 배포 엔진 — Tistory/WordPress/Medium + OAuth + 자동발행 | ✅ 완료 |
 | 18 | **Phase 7-10** | 프롬프트 편집 + 진화지식 + 니치 키워드 + 검색량 + 리포트 AEO | ✅ 완료 |
 | 19 | **AUTH-1** | 인증 통합 — Supabase Auth 단일화 + 구글/카카오 OAuth + HMAC deprecated | ✅ 완료 |
+| 20 | **PERSONA-1~3** | 브랜드 페르소나 고도화 — EnhancedBrandPersona + 온보딩 리뉴얼 + 콘텐츠 보완 | ✅ 완료 |
 
 ### 미구현 (우선순위 순)
 
@@ -1044,6 +1065,9 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 
 ## 11. 반복 에러 패턴
 
+- brand_persona 접근: 반드시 getPersonaForPipeline() 통해서 flat 필드 접근 (직접 접근하면 v1/v2 구조 불일치)
+- persona_version 체크: v1(flat만)과 v2(nested) 혼재 → normalizePersona()로 정규화 필수
+- owner_input.forbidden_content: avoid_angles와 별도 필드. QC에서 둘 다 체크. syncFlatFromEnhanced()가 자동 병합.
 - `violates check constraint` → CHECK 제약 먼저 확인 (섹션 1 참조)
 - shadcn 설치 실패 → cd apps/web 후 실행
 - brand_personas만 생성 → clients INSERT 누락 → 트랜잭션

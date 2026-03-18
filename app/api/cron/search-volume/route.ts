@@ -90,7 +90,7 @@ export async function POST(request: Request) {
             const volumes = await getKeywordSearchVolume(kwTexts, creds);
             for (const kw of batch) {
               const clean = kw.keyword.replace(/\s+/g, "");
-              const found = volumes.find((v) => v.keyword === clean) ?? volumes[0];
+              const found = volumes.find((v) => v.keyword === clean);
               if (found) {
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 await (db as any).from("keywords").update({

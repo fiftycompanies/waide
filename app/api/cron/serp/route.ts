@@ -68,7 +68,7 @@ export async function POST(request: Request) {
       const { data: changes } = await (db as any)
         .from("keyword_visibility")
         .select("client_id, keyword_id, rank_pc, rank_change_pc, keywords(keyword)")
-        .eq("date", today)
+        .eq("measured_at", today)
         .not("rank_change_pc", "is", null);
 
       if (changes && changes.length > 0) {

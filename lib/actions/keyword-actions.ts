@@ -568,7 +568,7 @@ export async function refreshKeywordSearchVolume(
       const { getKeywordSearchVolume } = await import("@/lib/naver-keyword-api");
       const results = await getKeywordSearchVolume([kw.keyword], creds);
       const cleaned = kw.keyword.replace(/\s+/g, "");
-      const found = results.find((r) => r.keyword === cleaned) ?? results[0];
+      const found = results.find((r) => r.keyword === cleaned);
       if (found) {
         const pc = found.monthlyPc;
         const mo = found.monthlyMo;
@@ -659,7 +659,7 @@ export async function refreshBulkKeywordSearchVolume(
         const { getKeywordSearchVolume } = await import("@/lib/naver-keyword-api");
         const results = await getKeywordSearchVolume([kw.keyword], creds);
         const cleaned = kw.keyword.replace(/\s+/g, "");
-        const found = results.find((r: { keyword: string }) => r.keyword === cleaned) ?? results[0];
+        const found = results.find((r: { keyword: string }) => r.keyword === cleaned);
         if (found) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           await (db as any).from("keywords").update({

@@ -11,6 +11,7 @@
 import { createAdminClient } from "@/lib/supabase/service";
 import { runAgent, type AgentResult } from "@/lib/agent-runner";
 import { getBenchmark, type BenchmarkData } from "@/lib/content-benchmark";
+import { getPersonaForPipeline } from "@/lib/utils/persona-compat";
 
 // ═══════════════════════════════════════════
 // Types
@@ -23,6 +24,7 @@ export interface ContentCreateParams {
   contentType: string; // 'list' | 'review' | 'info' | 'course'
   accountId?: string;
   sourceId?: string; // 소스 라이브러리 ID (content_sources)
+  specialEmphasis?: string; // 발행 시 입력된 보완사항
 }
 
 export interface ContentCreateResult {
@@ -56,8 +58,7 @@ export async function createContentV2(
     .eq("id", params.clientId)
     .single();
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const persona: Record<string, any> = client?.brand_persona || {};
+  const pipelinePersona = getPersonaForPipeline(client?.brand_persona);
 
   // 2. 벤치마크 조회 (캐시 또는 신규 생성)
   //    null이어도 진행 — 기본값 사용
@@ -74,7 +75,7 @@ export async function createContentV2(
     .from("contents")
     .select("title, body, created_at")
     .eq("client_id", params.clientId)
-    .eq("keyword_id", params.keywordId || "")
+    .eq("keyword_id", params.keywordId ?? "")
     .order("created_at", { ascending: false })
     .limit(3);
 
@@ -128,14 +129,21 @@ export async function createContentV2(
       facilities: placeData.facilities || "",
       parking: placeData.parking || "",
       reservation: placeData.reservation || "",
-      // 페르소나
-      one_liner: persona.one_liner || "",
-      positioning: persona.positioning || "",
-      primary_target: persona.primary_target || "",
-      strengths: persona.strengths || [],
-      tone: persona.tone || "친근한",
-      content_angles: persona.content_angles || [],
-      avoid_angles: persona.avoid_angles || [],
+      // 페르소나 (v2: getPersonaForPipeline 경유)
+      one_liner: pipelinePersona.one_liner,
+      positioning: pipelinePersona.positioning,
+      primary_target: pipelinePersona.primary_target,
+      strengths: pipelinePersona.strengths,
+      tone: pipelinePersona.tone,
+      content_angles: pipelinePersona.content_angles,
+      avoid_angles: pipelinePersona.avoid_angles,
+      // v2 추가 필드
+      brand_story: pipelinePersona.brand_story,
+      forbidden_content: pipelinePersona.forbidden_content,
+      awards: pipelinePersona.awards,
+      usp_details: pipelinePersona.usp_details,
+      pain_points: pipelinePersona.pain_points,
+      price_position: pipelinePersona.price_position,
       // 벤치마크 브리프 (없으면 기본값)
       recommended_title: brief.recommended_title || "",
       recommended_length: brief.recommended_length || "2500~3000자",
@@ -145,6 +153,8 @@ export async function createContentV2(
       must_include: brief.must_include || [],
       must_avoid: brief.must_avoid || [],
       differentiation_angle: brief.differentiation_angle || "",
+      // 발행 시 보완사항
+      special_emphasis: params.specialEmphasis || "",
       // 중복 회피
       previous_contents: prevSummary,
       // 소스

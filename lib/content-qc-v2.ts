@@ -14,6 +14,7 @@
 
 import { createAdminClient } from "@/lib/supabase/service";
 import { runAgent } from "@/lib/agent-runner";
+import { getPersonaForPipeline } from "@/lib/utils/persona-compat";
 
 // ═══════════════════════════════════════════
 // Types
@@ -63,7 +64,8 @@ export async function runQcV2(params: {
     .single();
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const persona: Record<string, any> = client?.brand_persona || {};
+  const personaRaw: Record<string, any> = client?.brand_persona || {};
+  const pipelinePersona = getPersonaForPipeline(personaRaw);
 
   // 2. 벤치마크 조회 (있으면)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -102,8 +104,9 @@ export async function runQcV2(params: {
       body: params.body,
       meta_description: params.metaDescription || "",
       keyword: params.keyword,
-      tone: persona.tone || "",
-      avoid_angles: persona.avoid_angles || [],
+      tone: pipelinePersona.tone,
+      avoid_angles: pipelinePersona.avoid_angles,
+      forbidden_content: pipelinePersona.forbidden_content,
       benchmark_avg_length: benchmarkData.length?.avg || null,
       benchmark_avg_density: benchmarkData.keyword_usage?.density_range || null,
       benchmark_avg_h2: benchmarkData.structure?.avg_h2_count || null,

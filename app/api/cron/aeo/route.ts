@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { runAEOTrackingBatch, getAEOSettings } from "@/lib/actions/aeo-tracking-actions";
 
+export const maxDuration = 300;
+export const dynamic = "force-dynamic";
+
 /**
  * AEO 추적 자동 크론
  *

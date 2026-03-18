@@ -3,6 +3,8 @@
 import { createAdminClient } from "@/lib/supabase/service";
 import { revalidatePath } from "next/cache";
 import { initializeClientPoints } from "./point-actions";
+import { syncFlatFromEnhanced } from "@/lib/utils/persona-compat";
+import type { EnhancedBrandPersona, AiInferred, OwnerInput } from "@/lib/actions/persona-actions";
 
 /**
  * 분석 결과 보완 데이터 저장 + 재분석 트리거
@@ -55,19 +57,23 @@ export async function refineAnalysis(
     try {
       const { runFullAnalysis } = await import("@/lib/place-analyzer");
       // runFullAnalysis를 비동기로 실행하되, 이 요청에서는 즉시 응답
-      runFullAnalysis(analysisId, refinedPayload).catch((err) => {
+      runFullAnalysis(analysisId, refinedPayload).catch(async (err) => {
         console.error("[refineAnalysis] 재분석 실패:", err);
-        // 실패 시 status를 failed로 변경 (completed 롤백 금지 — 불완전 데이터 방지)
+        // 실패 시 status를 failed로 변경 — 기존 basic_info 보존
+        const { data: existing } = await db.from("brand_analyses").select("basic_info").eq("id", analysisId).single();
+        const existingInfo = (existing?.basic_info && typeof existing.basic_info === "object") ? existing.basic_info : {};
         db.from("brand_analyses")
-          .update({ status: "failed", basic_info: { error: String(err) } })
+          .update({ status: "failed", basic_info: { ...existingInfo, error: String(err) } })
           .eq("id", analysisId);
       });
     } catch (err) {
       console.error("[refineAnalysis] 재분석 모듈 로드 실패:", err);
-      // 재분석 실패해도 보완 데이터는 저장됨 — status를 failed로
+      // 재분석 실패해도 보완 데이터는 저장됨 — status를 failed로 (기존 basic_info 보존)
+      const { data: existing } = await db.from("brand_analyses").select("basic_info").eq("id", analysisId).single();
+      const existingInfo = (existing?.basic_info && typeof existing.basic_info === "object") ? existing.basic_info : {};
       await db
         .from("brand_analyses")
-        .update({ status: "failed", basic_info: { error: String(err) } })
+        .update({ status: "failed", basic_info: { ...existingInfo, error: String(err) } })
         .eq("id", analysisId);
     }
 
@@ -93,6 +99,9 @@ export async function applyAnalysisToProject(
     strengths?: string;
     appeal?: string;
     target?: string;
+    // v2 확장
+    aiInferred?: AiInferred;
+    ownerInput?: OwnerInput;
   }
 ): Promise<{ success: boolean; clientId?: string; error?: string }> {
   try {
@@ -171,7 +180,8 @@ export async function applyAnalysisToProject(
     const usp = (ra.usp as string[]) || [];
     const persona = (ar.brand_persona as Record<string, unknown>) || {};
 
-    const brandPersona = {
+    // v2 Enhanced Persona 구성
+    const enhancedPersona: EnhancedBrandPersona = {
       ...persona,
       one_liner: (persona.one_liner as string) || `${placeName} - ${(bi.category as string) || "로컬 비즈니스"}`,
       strengths: sellingPoints.length > 0 ? sellingPoints : (refinedStrengths ? [refinedStrengths] : []),
@@ -181,7 +191,16 @@ export async function applyAnalysisToProject(
       category: (bi.category as string) || "",
       region: (bi.region as string) || "",
       updated_at: now,
+      // v2 구조
+      ai_inferred: overrides?.aiInferred || (persona as Record<string, unknown>).ai_inferred as AiInferred || undefined,
+      owner_input: overrides?.ownerInput || undefined,
+      persona_version: 2,
+      confirmation_status: overrides?.aiInferred ? "confirmed" : "pending",
+      last_confirmed_at: overrides?.aiInferred ? now : undefined,
     };
+
+    // flat 필드 동기화
+    const brandPersona = syncFlatFromEnhanced(enhancedPersona);
 
     await db
       .from("clients")

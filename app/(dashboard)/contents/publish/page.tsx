@@ -9,6 +9,8 @@ import {
   getPublishingAccounts,
   getBrandAnalysisForPublishing,
 } from "@/lib/actions/publishing-account-actions";
+import { getPersona } from "@/lib/actions/persona-actions";
+import { getPersonaForPipeline } from "@/lib/utils/persona-compat";
 
 export const dynamic = "force-dynamic";
 
@@ -61,16 +63,37 @@ async function PublishContent({
     );
   }
 
-  const [brandAnalysis, publishingAccounts, activePool] = await Promise.all([
+  const [brandAnalysis, publishingAccounts, activePool, rawPersona] = await Promise.all([
     getBrandAnalysisForPublishing(clientId),
     getPublishingAccounts(clientId),
     getActiveKeywordPool(clientId),
+    getPersona(clientId),
   ]);
 
   const activeKeywords = (activePool || []).map((kw) => ({
     keyword: kw.keyword,
     id: kw.id,
   }));
+
+  // 페르소나 데이터 직렬화 (서버→클라이언트 전달용)
+  const personaForPublish = rawPersona
+    ? getPersonaForPipeline(rawPersona as Record<string, unknown>)
+    : null;
+
+  // owner_input 데이터도 별도 전달
+  const ownerInput = rawPersona
+    ? {
+        brand_story: (rawPersona as Record<string, unknown>).owner_input
+          ? ((rawPersona as Record<string, unknown>).owner_input as Record<string, unknown>)?.brand_story as string || ""
+          : "",
+        forbidden_content: (rawPersona as Record<string, unknown>).owner_input
+          ? ((rawPersona as Record<string, unknown>).owner_input as Record<string, unknown>)?.forbidden_content as string || ""
+          : "",
+        awards_certifications: (rawPersona as Record<string, unknown>).owner_input
+          ? ((rawPersona as Record<string, unknown>).owner_input as Record<string, unknown>)?.awards_certifications as string[] || []
+          : [],
+      }
+    : null;
 
   return (
     <BlogPublishFlow
@@ -80,6 +103,8 @@ async function PublishContent({
       activeKeywords={activeKeywords}
       initialKeywordId={keywordId}
       initialKeywordName={keywordName ? decodeURIComponent(keywordName) : undefined}
+      personaData={personaForPublish}
+      ownerInputData={ownerInput}
     />
   );
 }

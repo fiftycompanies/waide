@@ -304,7 +304,7 @@ async function getAEOReportData(db: any, clientId: string, monthStart: Date, mon
     // 멘션 데이터 (이번 달)
     const { data: mentions } = await db
       .from("mentions")
-      .select("brand_name, is_target, position, sentiment, ai_model, created_at")
+      .select("brand_name, is_target, position, sentiment, created_at, answer_id, llm_answers!answer_id(ai_model)")
       .eq("client_id", clientId)
       .eq("is_target", true)
       .gte("created_at", monthStart.toISOString())
@@ -331,7 +331,7 @@ async function getAEOReportData(db: any, clientId: string, monthStart: Date, mon
     const mentionArr = (mentions || []) as any[];
     const modelMap = new Map<string, { mentions: number; positions: number[] }>();
     for (const m of mentionArr) {
-      const model = m.ai_model || "unknown";
+      const model = m.llm_answers?.ai_model || "unknown";
       const entry = modelMap.get(model) || { mentions: 0, positions: [] };
       entry.mentions++;
       if (m.position != null) entry.positions.push(m.position);
@@ -346,24 +346,32 @@ async function getAEOReportData(db: any, clientId: string, monthStart: Date, mon
         : null,
     }));
 
-    // 상위 노출 질문 TOP 5
+    // 상위 노출 질문 TOP 5 — llm_answers에서 질문 텍스트 매핑
+    const answerQuestionMap = new Map<string, string>();
+    for (const a of (llmAnswers || []) as any[]) {
+      if (a.question_id && a.questions?.question) {
+        answerQuestionMap.set(a.question_id, a.questions.question);
+      }
+    }
     const topQuestions = mentionArr
       .filter((m) => m.position != null)
       .sort((a, b) => (a.position || 999) - (b.position || 999))
       .slice(0, 5)
       .map((m) => ({
-        question: m.brand_name || "",
-        model: m.ai_model || "",
+        question: (m.answer_id && answerQuestionMap.get(m.answer_id)) || m.brand_name || "",
+        model: m.llm_answers?.ai_model || "",
         position: m.position,
       }));
 
     // LLM 응답이 있지만 멘션이 없는 질문 (미노출)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const answeredQuestions = new Set((llmAnswers || []).map((a: any) => a.questions?.question || a.question_id));
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const mentionedQuestions = new Set(mentionArr.map((m: any) => m.brand_name));
-    const unmatchedQuestions = Array.from(answeredQuestions)
-      .filter((q) => !mentionedQuestions.has(q))
+    const answeredQuestionTexts = new Set((llmAnswers || []).map((a: any) => a.questions?.question).filter(Boolean));
+    const mentionedAnswerIds = new Set(mentionArr.map((m: any) => m.answer_id).filter(Boolean));
+    const answeredWithMention = new Set(
+      (llmAnswers || []).filter((a: any) => mentionedAnswerIds.has(a.question_id)).map((a: any) => a.questions?.question).filter(Boolean)
+    );
+    const unmatchedQuestions = Array.from(answeredQuestionTexts)
+      .filter((q) => !answeredWithMention.has(q))
       .slice(0, 5) as string[];
 
     return {

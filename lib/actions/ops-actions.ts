@@ -511,7 +511,7 @@ export async function getContentDetail(contentId: string): Promise<ContentDetail
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await (db as any)
     .from("contents")
-    .select("id, title, body, publish_status, word_count, published_url, is_tracking, generated_by, created_at, published_at, keyword_id, metadata, keywords(keyword), publishing_accounts(account_name)")
+    .select("id, title, body, publish_status, word_count, published_url, is_tracking, generated_by, created_at, published_at, keyword_id, metadata, keywords(keyword), blog_accounts!account_id(account_name)")
     .eq("id", contentId)
     .single();
 

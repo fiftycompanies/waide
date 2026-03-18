@@ -1357,19 +1357,11 @@ function PlaceTab({ clientId }: { clientId: string }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    import("@/lib/supabase/service").then((mod) => {
-      const db = mod.createAdminClient();
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (db as any)
-        .from("place_stats_history")
-        .select("measured_at, visitor_review_count, blog_review_count, bookmark_count")
-        .eq("client_id", clientId)
-        .order("measured_at", { ascending: false })
-        .limit(30)
-        .then(({ data: rows }: { data: PlaceStatsRecord[] | null }) => {
-          setData(rows ?? []);
-          setLoading(false);
-        });
+    import("@/lib/actions/client-portfolio-actions").then((mod) => {
+      mod.getPlaceStatsHistory(clientId).then((rows: PlaceStatsRecord[]) => {
+        setData(rows);
+        setLoading(false);
+      });
     });
   }, [clientId]);
 

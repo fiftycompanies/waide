@@ -497,3 +497,16 @@ export async function updateOnboardingChecklist(
   if (error) return { success: false as const, error: error.message };
   return { success: true as const };
 }
+
+// ── 플레이스 통계 이력 조회 (서버 액션) ──────────────────────────────────
+export async function getPlaceStatsHistory(clientId: string) {
+  const db = createAdminClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data } = await (db as any)
+    .from("place_stats_history")
+    .select("measured_at, visitor_review_count, blog_review_count, bookmark_count")
+    .eq("client_id", clientId)
+    .order("measured_at", { ascending: false })
+    .limit(30);
+  return data ?? [];
+}

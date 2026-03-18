@@ -18,11 +18,106 @@ export interface BrandPersona {
   recommended_keywords?: string[];
   brand_story_hook?: string;
   visual_direction?: string;
+  // 추가 flat 필드 (v1에서 사용)
+  primary_target?: string;
+  target_customer?: string;
+  appeal_point?: string;
+  usp?: string[];
+  category?: string;
+  region?: string;
   // meta
   generated_at?: string;
   generated_by?: string;
   manually_edited?: boolean;
   manual_overrides?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+// === AI 추론 하위 타입 ===
+
+export interface AiInferredTargetCustomer {
+  primary?: string;
+  secondary?: string;
+  pain_points?: string[];
+  search_intent?: string;
+  confirmed?: boolean;
+}
+
+export interface AiInferredTone {
+  style?: string;
+  personality?: string;
+  example_phrases?: string[];
+  confirmed?: boolean;
+}
+
+export interface AiInferredUsp {
+  points?: string[];
+  from_reviews?: string[];
+  confirmed?: boolean;
+}
+
+export interface AiInferredContentDirection {
+  angles?: string[];
+  types?: string[];
+  frequency?: string;
+  confirmed?: boolean;
+}
+
+export interface AiInferredPricePosition {
+  position?: string;
+  comparison?: string;
+  confirmed?: boolean;
+}
+
+export interface AiInferred {
+  target_customer?: AiInferredTargetCustomer;
+  tone?: AiInferredTone;
+  usp?: AiInferredUsp;
+  content_direction?: AiInferredContentDirection;
+  price_position?: AiInferredPricePosition;
+}
+
+export interface OwnerInput {
+  brand_story?: string;
+  forbidden_content?: string;
+  awards_certifications?: string[];
+  official_price_info?: string;
+}
+
+export interface ContentStrategyBlog {
+  tone?: string;
+  topics?: string[];
+  cta_templates?: string[];
+  forbidden_terms?: string[];
+  target_length?: string;
+}
+
+export interface ContentStrategyAeo {
+  entity_description?: string;
+  target_questions?: string[];
+}
+
+export interface PersonaContentStrategy {
+  blog?: ContentStrategyBlog;
+  aeo?: ContentStrategyAeo;
+}
+
+export interface CompetitiveSummary {
+  market_position?: string;
+  top_competitors?: Array<{
+    name?: string;
+    differentiation?: string;
+  }>;
+}
+
+export interface EnhancedBrandPersona extends BrandPersona {
+  ai_inferred?: AiInferred;
+  owner_input?: OwnerInput;
+  content_strategy?: PersonaContentStrategy;
+  competitive_summary?: CompetitiveSummary;
+  persona_version?: number;
+  confirmation_status?: "pending" | "partial" | "confirmed";
+  last_confirmed_at?: string;
 }
 
 // ── Update persona fields ──────────────────────────────────────────────────

@@ -84,9 +84,15 @@ const GRADE_MATCH_TABLE: Record<string, Record<string, number>> = {
   C: { S: 20, A: 40, B: 80, C: 100 },
 };
 
+const DEFAULT_WEIGHTS: ScoringWeights = {
+  account_grade: { weighted_exposure: 50, exposure_rate: 30, content_volume: 20, thresholds: { S: 80, A: 60, B: 40 }, content_tiers: { high: 10, mid: 5, low: 1 } },
+  keyword_difficulty: { search_volume: 40, competition: 30, serp_dominance: 30, own_rank_bonus: 10, thresholds: { S: 80, A: 60, B: 40 }, volume_tiers: { high: 5000, mid: 1000, low: 100 } },
+  publish_recommendation: { block_already_exposed: true, block_recent_days: 7, grade_matching: 35, publish_history: 25, keyword_relevance: 25, volume_weight: 15 },
+};
+
 async function loadWeights(db: DB): Promise<ScoringWeights> {
   const { data } = await db.from("settings").select("value").eq("key", "scoring_weights").single();
-  return data?.value as ScoringWeights;
+  return (data?.value as ScoringWeights) ?? DEFAULT_WEIGHTS;
 }
 
 // ── API 핸들러 ────────────────────────────────────────────

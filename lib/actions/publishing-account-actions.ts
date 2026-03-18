@@ -100,6 +100,14 @@ export async function getBrandAnalysisForPublishing(clientId: string) {
 
   if (client?.brand_persona) {
     const bp = client.brand_persona as Record<string, unknown>;
+    // v2 content_strategy 추출 (persona 내부 또는 별도 필드)
+    const personaContentStrategy = bp.content_strategy
+      ? (bp.content_strategy as Record<string, unknown>)
+      : null;
+    // v2 ai_inferred 기반 기본 정보 보강
+    const aiInferred = bp.ai_inferred as Record<string, unknown> | undefined;
+    const toneObj = aiInferred?.tone as Record<string, unknown> | undefined;
+
     return {
       id: "",
       basic_info: {
@@ -109,7 +117,9 @@ export async function getBrandAnalysisForPublishing(clientId: string) {
         homepage_url: (bp.homepage_url as string) || (bp.website as string) || "",
         address: (bp.address as string) || "",
       },
-      content_strategy: bp.content_strategy ? bp.content_strategy as Record<string, unknown> : null,
+      content_strategy: personaContentStrategy || (toneObj?.style ? {
+        brand_analysis: { tone: toneObj.style },
+      } : null),
       keyword_analysis: null,
       analysis_result: null,
       place_id: (bp.place_id as string) || null,

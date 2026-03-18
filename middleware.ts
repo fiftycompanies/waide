@@ -44,7 +44,6 @@ const PUBLIC_ROUTES = [
   "/api/analyze",
   "/api/consultation",
   "/api/cron",
-  "/api/internal",
   "/api/homepage",
   "/invite",
   "/auth",
