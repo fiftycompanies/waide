@@ -9,7 +9,7 @@ import {
   ChevronUp,
   Edit3,
   Loader2,
-  Microscope,
+
   Plus,
   RefreshCw,
   Save,
@@ -290,20 +290,6 @@ export default function BrandAnalysisClient({ data }: Props) {
 
   return (
     <div className="space-y-6">
-      {/* ── Page Header ── */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-lg font-bold flex items-center gap-2">
-            <Microscope className="h-5 w-5 text-primary" />
-            브랜드 분석
-          </h2>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            {client.name}
-            {client.industry && ` · ${client.industry}`}
-          </p>
-        </div>
-      </div>
-
       {/* ═══ 섹션 A: 매장 기본 정보 ═══ */}
       {analysis && Object.keys(bi).length > 0 && (
         <div className="border rounded-lg p-4 space-y-3">

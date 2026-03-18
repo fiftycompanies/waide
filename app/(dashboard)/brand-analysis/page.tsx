@@ -62,7 +62,13 @@ export default async function BrandAnalysisPage() {
   }
 
   return (
-    <div className="space-y-6 p-4 md:p-6 max-w-5xl">
+    <div className="p-6 space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight">브랜드 분석</h1>
+        <p className="text-sm text-muted-foreground mt-1">
+          {data.client.name}의 마케팅 분석 결과와 브랜드 페르소나를 확인하고 관리합니다
+        </p>
+      </div>
       <BrandAnalysisClient data={data} />
     </div>
   );
