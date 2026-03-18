@@ -1254,30 +1254,44 @@ function DashboardConsultModal({
 function renderImprovements(plan: any) {
   // Array format (improvements list)
   if (Array.isArray(plan)) {
-    return plan.map((item, i) => (
-      <div key={i} className="p-3 rounded-lg bg-muted/30 border">
-        <div className="flex items-center gap-2 mb-1">
-          {!!item.priority && (
-            <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${
-              item.priority === "high" ? "bg-red-100 text-red-700" :
-              item.priority === "medium" ? "bg-amber-100 text-amber-700" :
-              "bg-gray-100 text-gray-600"
-            }`}>
-              {String(item.priority)}
+    return plan.map((item, i) => {
+      // 문자열 항목 (rule-based improvements)
+      if (typeof item === "string") {
+        return (
+          <div key={i} className="p-3 rounded-lg bg-muted/30 border">
+            <div className="flex items-start gap-2">
+              <CheckCircle2 className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+              <span className="text-sm">{item}</span>
+            </div>
+          </div>
+        );
+      }
+      // 객체 항목 (AI agent structured improvements)
+      return (
+        <div key={i} className="p-3 rounded-lg bg-muted/30 border">
+          <div className="flex items-center gap-2 mb-1">
+            {!!item.priority && (
+              <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${
+                item.priority === "high" ? "bg-red-100 text-red-700" :
+                item.priority === "medium" ? "bg-amber-100 text-amber-700" :
+                "bg-gray-100 text-gray-600"
+              }`}>
+                {String(item.priority)}
+              </span>
+            )}
+            <span className="text-sm font-medium">
+              {String(item.title ?? item.area ?? item.category ?? `개선사항 ${i + 1}`)}
             </span>
+          </div>
+          {!!item.description && (
+            <p className="text-xs text-muted-foreground">{String(item.description)}</p>
           )}
-          <span className="text-sm font-medium">
-            {String(item.title ?? item.area ?? item.category ?? `개선사항 ${i + 1}`)}
-          </span>
+          {!!item.action && (
+            <p className="text-xs text-primary mt-1">&rarr; {String(item.action)}</p>
+          )}
         </div>
-        {!!item.description && (
-          <p className="text-xs text-muted-foreground">{String(item.description)}</p>
-        )}
-        {!!item.action && (
-          <p className="text-xs text-primary mt-1">&rarr; {String(item.action)}</p>
-        )}
-      </div>
-    ));
+      );
+    });
   }
 
   // Object format (short_term/mid_term/long_term)

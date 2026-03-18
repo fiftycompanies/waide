@@ -448,6 +448,16 @@ export async function getBrandAnalysisPageData(
   // content_strategy에서 score_breakdown과 improvements 추출
   const cs = analysisRow?.content_strategy ?? {};
 
+  // improvement_plan 폴백 로직: AI 에이전트 결과 → rule-based improvements
+  // 빈 객체/빈 배열이면 rule-based로 폴백
+  const rawIp = cs.improvement_plan;
+  const isIpMeaningful = rawIp && (
+    (Array.isArray(rawIp) && rawIp.length > 0) ||
+    (typeof rawIp === "object" && !Array.isArray(rawIp) && Object.keys(rawIp).length > 0) ||
+    typeof rawIp === "string"
+  );
+  const effectiveImprovementPlan = isIpMeaningful ? rawIp : (cs.improvements ?? undefined);
+
   return {
     client: {
       id: client.id,
@@ -464,7 +474,7 @@ export async function getBrandAnalysisPageData(
           score_breakdown: cs.score_breakdown ?? undefined,
           keyword_analysis: analysisRow.keyword_analysis ?? undefined,
           analysis_result: {
-            improvement_plan: cs.improvement_plan ?? cs.improvements ?? undefined,
+            improvement_plan: effectiveImprovementPlan,
             seo_comments: cs.seo_comments ?? cs.brand_analysis ?? undefined,
             competitor_analysis: cs.competitor_analysis ?? undefined,
           },
