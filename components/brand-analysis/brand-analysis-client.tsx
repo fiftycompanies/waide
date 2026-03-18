@@ -1139,6 +1139,8 @@ function DashboardConsultModal({
           contactPhone: phone.trim(),
           contactEmail: email.trim() || undefined,
           message: message || undefined,
+          interestedItems: items,
+          channel: "dashboard",
         }),
       });
 

@@ -1,3 +1,5 @@
+> **공통 필수 지침**: ~/Desktop/claude/CLAUDE.md 의 규칙을 반드시 준수할 것 (파일 생성 시 날짜 접두사 등)
+
 ## ⚠️ Git 커밋 규칙 (절대 위반 금지)
 - 모든 git 작업(add/commit/push)은 반드시 루트 디렉토리 기준으로 실행
 - apps/web 안에서 git 명령어 실행 금지
@@ -167,6 +169,8 @@
 |------|---------|-----------|
 | `/ops/analysis-logs` | 분석 로그 목록 (CRM 파이프라인 + 영업사원/계정 인라인 할당) | `brand_analyses`, `sales_agents`, `clients`, `consultation_requests` |
 | `/ops/analysis-logs/[id]` | 분석 상세 (4탭: 분석/SEO/키워드/활동기록) + 영업사원/계정 할당 | `brand_analyses`, `consultation_requests`, `sales_agents`, `clients` |
+| `/ops/consultations` | 마케팅 상담 목록 (상담 파이프라인 + 담당자 인라인 배정 + 통계) | `consultation_requests`, `sales_agents` |
+| `/ops/consultations/[id]` | 상담 상세 (연락처/활동기록/담당자/후속일정/분석연결) | `consultation_requests`, `sales_agents`, `brand_analyses` |
 | `/ops/sales-agents` | 영업사원 관리 + 배포URL 추적링크 + 성과 + 성과요약 테이블 | `sales_agents`, `brand_analyses`, `consultation_requests`, `subscriptions`, `clients` |
 
 #### 리소스
@@ -413,6 +417,7 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 | `keyword-strategy-actions.ts` | generateKeywordStrategy(), getKeywordStrategy() | keywords, brand_analyses, clients |
 | `content-generate-actions.ts` | generateContentV2(), processContentJobs() | contents, jobs, clients, content_sources, content_benchmarks |
 | `analysis-log-actions.ts` | getAnalysisLogs(), getAnalysisLogDetail(), updateLeadStatus(), addAnalysisNote(), updateAnalysisContact(), linkAnalysisToClient(), getAnalysisStats(), assignSalesAgent(), assignToClient(), getClientsList() | brand_analyses, sales_agents, clients, consultation_requests |
+| `consultation-crm-actions.ts` | getConsultationList(), getConsultationDetail(), updateConsultationStatus(), addConsultationNote(), updateConsultationContact(), assignConsultationAgent(), updateConsultationFollowUp(), getConsultationStats() | consultation_requests, sales_agents, brand_analyses |
 | `settings-actions.ts` | getSettings(), getScoringWeights(), getAnalysisOptions() | settings |
 | `admin-actions.ts` | getAdmin() | admins |
 | `auth-actions.ts` | portalSignIn(), portalSignUp(), portalSignOut(), inviteUser(), getClientUsers(), updateUserProfile(), changeUserPassword() | users, invitations (Supabase Auth) |
@@ -1060,8 +1065,9 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 | 060 | blog_accounts 확장 (auth_type/access_token/api_key/is_default 등) + publications + auto_publish_settings 테이블 | **SQL 생성 완료** |
 | 061 | evolving_knowledge 확장 (knowledge_type/title/description/evidence/confidence/is_active/learned_at) + keywords 확장 (monthly_search_volume/pc_volume/mobile_volume/competition/volume_updated_at) | **SQL 생성 완료** |
 | 064 | AUTH 통합: users.auth_provider 컬럼 + role CHECK에 viewer 추가 + handle_new_user 트리거 + admin_users DEPRECATED 주석 | **SQL 생성 완료** |
+| 068 | 상담 CRM: consultation_requests 확장 (status CHECK 5→6, assigned_to/notes/interested_items/brand_name/marketing_score/channel/follow_up_date/consultation_date/last_activity_at 컬럼, 인덱스 4개) | **SQL 생성 완료** |
 
-> ⚠️ 045~064: scripts/migrations/ 디렉토리에 SQL 파일 생성. Supabase Dashboard에서 실행 필요.
+> ⚠️ 045~068: scripts/migrations/ 디렉토리에 SQL 파일 생성. Supabase Dashboard에서 실행 필요.
 
 ---
 

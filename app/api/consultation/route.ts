@@ -8,7 +8,7 @@ import { createAdminClient } from "@/lib/supabase/service";
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { analysisId, salesRef, contactName, contactPhone, contactEmail, message } = body;
+    const { analysisId, salesRef, contactName, contactPhone, contactEmail, message, interestedItems, channel } = body;
 
     if (!analysisId || !contactName || !contactPhone) {
       return NextResponse.json(
@@ -36,7 +36,7 @@ export async function POST(request: Request) {
     const placeName = analysis?.basic_info?.name ?? "알 수 없음";
     const score = analysis?.marketing_score ?? "N/A";
 
-    // 상담 신청 INSERT
+    // 상담 신청 INSERT (CRM 역정규화 필드 포함)
     const { data, error } = await db
       .from("consultation_requests")
       .insert({
@@ -46,6 +46,12 @@ export async function POST(request: Request) {
         contact_phone: contactPhone,
         contact_email: contactEmail || null,
         message: message || null,
+        brand_name: placeName !== "알 수 없음" ? placeName : null,
+        marketing_score: typeof score === "number" ? score : null,
+        interested_items: Array.isArray(interestedItems) ? interestedItems : [],
+        channel: channel || "web",
+        assigned_to: effectiveRef,
+        last_activity_at: new Date().toISOString(),
       })
       .select("id")
       .single();

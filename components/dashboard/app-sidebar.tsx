@@ -117,8 +117,9 @@ const bizNavItems: NavItem[] = [
 
 // ═══ 어드민: 영업 CRM ═══
 const crmNavItems: NavItem[] = [
-  { title: "분석 로그", url: "/ops/analysis-logs", icon: ClipboardList, roles: ALL_ADMIN },
-  { title: "영업사원",  url: "/ops/sales-agents",  icon: UserCheck,     roles: ADMIN_ONLY },
+  { title: "분석 로그", url: "/ops/analysis-logs",  icon: ClipboardList, roles: ALL_ADMIN },
+  { title: "마케팅 상담", url: "/ops/consultations", icon: MessageSquare, roles: ["super_admin", "admin", "sales"] },
+  { title: "영업사원",  url: "/ops/sales-agents",   icon: UserCheck,     roles: ADMIN_ONLY },
 ];
 
 // ═══ 어드민: 홈페이지 ═══

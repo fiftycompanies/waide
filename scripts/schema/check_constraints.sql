@@ -50,7 +50,7 @@
 --   status: 'active','inactive','churned'
 
 -- consultation_requests
---   status: 'pending','contacted','converted'
+--   status: 'pending','contacted','consulting','converted','contracted','closed'
 
 -- content_prompts
 --   content_type: 'list','review','info'
