@@ -5,7 +5,6 @@ import Link from "next/link";
 import {
   Globe,
   Loader2,
-  Plus,
   Search,
   ExternalLink,
   Sparkles,
@@ -200,22 +199,13 @@ export function AdminHomepageView() {
             인테리어 업체 홈페이지를 생성하고 관리합니다
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <Link
-            href="/homepage/generate"
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-violet-200 bg-violet-50 text-violet-700 text-sm font-medium hover:bg-violet-100 transition-colors"
-          >
-            <Sparkles className="h-4 w-4" />
-            AI 생성
-          </Link>
-          <Link
-            href="/homepage/new"
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
-          >
-            <Plus className="h-4 w-4" />
-            새 프로젝트
-          </Link>
-        </div>
+        <Link
+          href="/homepage/generate"
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
+        >
+          <Sparkles className="h-4 w-4" />
+          홈페이지 생성
+        </Link>
       </div>
 
       {/* Stats */}
