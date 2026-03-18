@@ -74,6 +74,8 @@ export async function createPublishingAccount(payload: {
 /** 브랜드 분석 기본 정보 조회 (basic_info, content_strategy) */
 export async function getBrandAnalysisForPublishing(clientId: string) {
   const db = createAdminClient();
+
+  // 1) client_id로 직접 연결된 분석 결과 조회
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await (db as any)
     .from("brand_analyses")
@@ -82,21 +84,61 @@ export async function getBrandAnalysisForPublishing(clientId: string) {
     .eq("status", "completed")
     .order("analyzed_at", { ascending: false })
     .limit(1)
-    .single();
+    .maybeSingle();
 
-  if (error) {
-    console.error("[publishing-account-actions] getBrandAnalysis:", error);
-    return null;
+  if (!error && data) {
+    return data as BrandAnalysisForPublishing;
   }
-  return data as {
-    id: string;
-    basic_info: Record<string, unknown> | null;
-    content_strategy: Record<string, unknown> | null;
-    keyword_analysis: Record<string, unknown> | null;
-    analysis_result: Record<string, unknown> | null;
-    place_id: string | null;
-  } | null;
+
+  // 2) client_id 미연결 — clients.brand_persona에서 폴백
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: client } = await (db as any)
+    .from("clients")
+    .select("name, brand_persona")
+    .eq("id", clientId)
+    .maybeSingle();
+
+  if (client?.brand_persona) {
+    const bp = client.brand_persona as Record<string, unknown>;
+    return {
+      id: "",
+      basic_info: {
+        name: client.name || (bp.name as string) || "",
+        category: (bp.category as string) || "",
+        region: (bp.region as string) || (bp.location as string) || "",
+        homepage_url: (bp.homepage_url as string) || (bp.website as string) || "",
+        address: (bp.address as string) || "",
+      },
+      content_strategy: bp.content_strategy ? bp.content_strategy as Record<string, unknown> : null,
+      keyword_analysis: null,
+      analysis_result: null,
+      place_id: (bp.place_id as string) || null,
+    } as BrandAnalysisForPublishing;
+  }
+
+  // 3) brand_persona도 없으면 클라이언트 기본 이름만
+  if (client) {
+    return {
+      id: "",
+      basic_info: { name: client.name || "" },
+      content_strategy: null,
+      keyword_analysis: null,
+      analysis_result: null,
+      place_id: null,
+    } as BrandAnalysisForPublishing;
+  }
+
+  return null;
 }
+
+type BrandAnalysisForPublishing = {
+  id: string;
+  basic_info: Record<string, unknown> | null;
+  content_strategy: Record<string, unknown> | null;
+  keyword_analysis: Record<string, unknown> | null;
+  analysis_result: Record<string, unknown> | null;
+  place_id: string | null;
+};
 
 /** 콘텐츠 생성 후 DB 저장 */
 export async function saveGeneratedContent(payload: {
