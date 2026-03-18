@@ -1,3 +1,5 @@
+> **공통 필수 지침**: ~/Desktop/claude/CLAUDE.md 의 규칙을 반드시 준수할 것 (파일 생성 시 날짜 접두사 등)
+
 ## ⚠️ Git 커밋 규칙 (절대 위반 금지)
 - 모든 git 작업(add/commit/push)은 반드시 루트 디렉토리 기준으로 실행
 - apps/web 안에서 git 명령어 실행 금지
