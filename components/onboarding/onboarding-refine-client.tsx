@@ -228,7 +228,7 @@ export function OnboardingRefineClient({
         localStorage.removeItem("waide_analysis_id");
       }
       setTimeout(() => {
-        router.push("/dashboard");
+        router.push("/portal");
       }, 1500);
     } catch {
       setError("오류가 발생했습니다. 다시 시도해주세요.");
@@ -252,7 +252,7 @@ export function OnboardingRefineClient({
           <p className="text-gray-500 mb-4">
             {summary.name}의 마케팅 프로젝트가 준비되었습니다.
             <br />
-            대시보드로 이동합니다...
+            포털로 이동합니다...
           </p>
         </div>
       </div>
@@ -408,8 +408,10 @@ export function OnboardingRefineClient({
                 <input
                   value={newUsp}
                   onChange={(e) => setNewUsp(e.target.value)}
+                  onCompositionStart={() => setIsComposing(true)}
+                  onCompositionEnd={() => setIsComposing(false)}
                   onKeyDown={(e) =>
-                    e.key === "Enter" && (e.preventDefault(), addTag(uspPoints, setUspPoints, newUsp, setNewUsp), setUspConfirmed(true))
+                    e.key === "Enter" && !isComposing && (e.preventDefault(), addTag(uspPoints, setUspPoints, newUsp, setNewUsp), setUspConfirmed(true))
                   }
                   placeholder="추가할 강점 입력 후 Enter"
                   className="flex-1 h-9 px-3 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -455,8 +457,10 @@ export function OnboardingRefineClient({
                 <input
                   value={newAngle}
                   onChange={(e) => setNewAngle(e.target.value)}
+                  onCompositionStart={() => setIsComposing(true)}
+                  onCompositionEnd={() => setIsComposing(false)}
                   onKeyDown={(e) =>
-                    e.key === "Enter" && (e.preventDefault(), addTag(contentAngles, setContentAngles, newAngle, setNewAngle), setAngleConfirmed(true))
+                    e.key === "Enter" && !isComposing && (e.preventDefault(), addTag(contentAngles, setContentAngles, newAngle, setNewAngle), setAngleConfirmed(true))
                   }
                   placeholder="추가할 콘텐츠 주제 입력 후 Enter"
                   className="flex-1 h-9 px-3 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -573,8 +577,10 @@ export function OnboardingRefineClient({
                   <input
                     value={newAward}
                     onChange={(e) => setNewAward(e.target.value)}
+                    onCompositionStart={() => setIsComposing(true)}
+                    onCompositionEnd={() => setIsComposing(false)}
                     onKeyDown={(e) =>
-                      e.key === "Enter" && (e.preventDefault(), addTag(awards, setAwards, newAward, setNewAward))
+                      e.key === "Enter" && !isComposing && (e.preventDefault(), addTag(awards, setAwards, newAward, setNewAward))
                     }
                     placeholder="수상/인증 입력 후 Enter"
                     className="flex-1 h-9 px-3 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"

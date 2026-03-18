@@ -14,8 +14,11 @@ export default async function OnboardingRefinePage({ searchParams }: PageProps) 
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
-  // 이미 client_id가 있으면 대시보드로
-  if (user.client_id) redirect("/dashboard");
+  // 이미 client_id가 있으면 역할에 맞는 페이지로
+  if (user.client_id) {
+    const isAdmin = user.role === "super_admin" || user.role === "admin" || user.role === "sales" || user.role === "viewer";
+    redirect(isAdmin ? "/dashboard" : "/portal");
+  }
 
   const params = await searchParams;
   const analysisId = params.analysis_id;
