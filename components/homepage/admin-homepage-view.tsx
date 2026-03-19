@@ -149,7 +149,11 @@ function FilterTab({
 
 // ── Admin Homepage View ─────────────────────────────────────────────────────
 
-export function AdminHomepageView() {
+interface AdminHomepageViewProps {
+  clientId?: string | null;
+}
+
+export function AdminHomepageView({ clientId }: AdminHomepageViewProps = {}) {
   const [projects, setProjects] = useState<HomepageProject[]>([]);
   const [stats, setStats] = useState<HomepageDashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -160,14 +164,14 @@ export function AdminHomepageView() {
   useEffect(() => {
     startTransition(async () => {
       const [projectList, dashboardStats] = await Promise.all([
-        getHomepageProjects(),
-        getHomepageDashboardStats(),
+        getHomepageProjects(clientId),
+        getHomepageDashboardStats(clientId),
       ]);
       setProjects(projectList);
       setStats(dashboardStats);
       setLoading(false);
     });
-  }, []);
+  }, [clientId]);
 
   if (loading) {
     return (

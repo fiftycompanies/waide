@@ -81,7 +81,7 @@ export async function getBrandAnalysisForPublishing(clientId: string) {
     .from("brand_analyses")
     .select("id, basic_info, content_strategy, keyword_analysis, analysis_result, place_id, input_url, url_type")
     .eq("client_id", clientId)
-    .eq("status", "completed")
+    .in("status", ["completed", "converted"])
     .order("analyzed_at", { ascending: false })
     .limit(1)
     .maybeSingle();

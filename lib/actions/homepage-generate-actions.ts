@@ -1,7 +1,7 @@
 "use server";
 
 import { createAdminClient } from "@/lib/supabase/service";
-import { getCurrentUser } from "@/lib/auth";
+import { getAdminSession } from "@/lib/auth/admin-session";
 import { revalidatePath } from "next/cache";
 import {
   HomepageGenerator,
@@ -23,10 +23,10 @@ export async function generateHomepage(
   input: GenerateInput
 ): Promise<ActionResult<GenerateResult>> {
   try {
-    // 권한 체크: super_admin만
-    const user = await getCurrentUser();
-    if (!user || user.role !== "super_admin") {
-      return { success: false, error: "슈퍼어드민만 홈페이지를 생성할 수 있습니다." };
+    // 권한 체크: super_admin 또는 admin
+    const session = await getAdminSession();
+    if (!session || !["super_admin", "admin"].includes(session.role)) {
+      return { success: false, error: "어드민만 홈페이지를 생성할 수 있습니다." };
     }
 
     const supabase = createAdminClient();

@@ -2,7 +2,7 @@
 
 import { createAdminClient } from "@/lib/supabase/service";
 import { revalidatePath } from "next/cache";
-import { getCurrentUser, isClientRole } from "@/lib/auth";
+import { getAdminSession } from "@/lib/auth/admin-session";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -158,8 +158,8 @@ export async function createHomepageProject(payload: {
   projectName: string;
   templateId?: string;
 }): Promise<{ success: boolean; id?: string; error?: string }> {
-  const user = await getCurrentUser();
-  if (user && isClientRole(user.role)) return { success: false, error: "권한이 없습니다." };
+  const session = await getAdminSession();
+  if (!session) return { success: false, error: "권한이 없습니다." };
 
   const db = createAdminClient();
 
@@ -196,8 +196,8 @@ export async function updateHomepageProject(
     last_deployed_at: string;
   }>,
 ): Promise<{ success: boolean; error?: string }> {
-  const user = await getCurrentUser();
-  if (user && isClientRole(user.role)) return { success: false, error: "권한이 없습니다." };
+  const session = await getAdminSession();
+  if (!session) return { success: false, error: "권한이 없습니다." };
 
   const db = createAdminClient();
 
@@ -216,8 +216,8 @@ export async function updateHomepageProject(
 export async function deleteHomepageProject(
   projectId: string,
 ): Promise<{ success: boolean; error?: string }> {
-  const user = await getCurrentUser();
-  if (user && isClientRole(user.role)) return { success: false, error: "권한이 없습니다." };
+  const session = await getAdminSession();
+  if (!session) return { success: false, error: "권한이 없습니다." };
 
   const db = createAdminClient();
 
@@ -255,8 +255,8 @@ export async function upsertHomepageMaterial(
   projectId: string,
   payload: Omit<HomepageMaterial, "id" | "project_id" | "created_at" | "updated_at">,
 ): Promise<{ success: boolean; error?: string }> {
-  const user = await getCurrentUser();
-  if (user && isClientRole(user.role)) return { success: false, error: "권한이 없습니다." };
+  const session = await getAdminSession();
+  if (!session) return { success: false, error: "권한이 없습니다." };
 
   const db = createAdminClient();
 
@@ -309,8 +309,8 @@ export async function createHomepagePortfolio(
   projectId: string,
   payload: Omit<HomepagePortfolio, "id" | "project_id" | "created_at">,
 ): Promise<{ success: boolean; id?: string; error?: string }> {
-  const user = await getCurrentUser();
-  if (user && isClientRole(user.role)) return { success: false, error: "권한이 없습니다." };
+  const session = await getAdminSession();
+  if (!session) return { success: false, error: "권한이 없습니다." };
 
   const db = createAdminClient();
 
@@ -330,8 +330,8 @@ export async function updateHomepagePortfolio(
   portfolioId: string,
   updates: Partial<Omit<HomepagePortfolio, "id" | "project_id" | "created_at">>,
 ): Promise<{ success: boolean; error?: string }> {
-  const user = await getCurrentUser();
-  if (user && isClientRole(user.role)) return { success: false, error: "권한이 없습니다." };
+  const session = await getAdminSession();
+  if (!session) return { success: false, error: "권한이 없습니다." };
 
   const db = createAdminClient();
 
@@ -355,8 +355,8 @@ export async function updateHomepagePortfolio(
 export async function deleteHomepagePortfolio(
   portfolioId: string,
 ): Promise<{ success: boolean; error?: string }> {
-  const user = await getCurrentUser();
-  if (user && isClientRole(user.role)) return { success: false, error: "권한이 없습니다." };
+  const session = await getAdminSession();
+  if (!session) return { success: false, error: "권한이 없습니다." };
 
   const db = createAdminClient();
 
@@ -400,8 +400,8 @@ export async function createHomepageReview(
   projectId: string,
   payload: Omit<HomepageReview, "id" | "project_id" | "created_at">,
 ): Promise<{ success: boolean; error?: string }> {
-  const user = await getCurrentUser();
-  if (user && isClientRole(user.role)) return { success: false, error: "권한이 없습니다." };
+  const session = await getAdminSession();
+  if (!session) return { success: false, error: "권한이 없습니다." };
 
   const db = createAdminClient();
 
@@ -418,8 +418,8 @@ export async function createHomepageReview(
 export async function deleteHomepageReview(
   reviewId: string,
 ): Promise<{ success: boolean; error?: string }> {
-  const user = await getCurrentUser();
-  if (user && isClientRole(user.role)) return { success: false, error: "권한이 없습니다." };
+  const session = await getAdminSession();
+  if (!session) return { success: false, error: "권한이 없습니다." };
 
   const db = createAdminClient();
 
@@ -554,12 +554,18 @@ export async function getClientHomepage(clientId: string): Promise<HomepageProje
 
 // ── Dashboard Stats ────────────────────────────────────────────────────────
 
-export async function getHomepageDashboardStats(): Promise<HomepageDashboardStats> {
+export async function getHomepageDashboardStats(clientId?: string | null): Promise<HomepageDashboardStats> {
   const db = createAdminClient();
 
-  const { data: projects } = await db
+  let projectQuery = db
     .from("homepage_projects")
     .select("status, total_inquiries");
+
+  if (clientId) {
+    projectQuery = projectQuery.eq("client_id", clientId);
+  }
+
+  const { data: projects } = await projectQuery;
 
   if (!projects) {
     return {
@@ -573,10 +579,16 @@ export async function getHomepageDashboardStats(): Promise<HomepageDashboardStat
     };
   }
 
-  const { count: newInquiries } = await db
+  let inquiryQuery = db
     .from("homepage_inquiries")
     .select("id", { count: "exact", head: true })
     .eq("status", "new");
+
+  if (clientId) {
+    inquiryQuery = inquiryQuery.eq("client_id", clientId);
+  }
+
+  const { count: newInquiries } = await inquiryQuery;
 
   return {
     total_projects: projects.length,

@@ -166,7 +166,7 @@ const ROLE_LABELS: Record<string, string> = {
   admin: "어드민",
   sales: "영업",
   viewer: "뷰어",
-  client_owner: "관리자",
+  client_owner: "브랜드 관리자",
   client_member: "멤버",
 };
 
@@ -204,7 +204,7 @@ export function AppSidebar({
   const currentRole: AppRole = (userRole as AppRole)
     || (adminRole as AppRole)
     || admin?.role
-    || "viewer";
+    || "client_member";
 
   const isClientUser = CLIENT_ROLES.includes(currentRole);
 

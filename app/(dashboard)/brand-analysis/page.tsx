@@ -2,7 +2,8 @@
 // 고객(client_owner/client_member): 자기 브랜드 정보 + AI 추론 + 마케팅 방향
 // 어드민(super_admin/admin/sales/viewer): 선택된 브랜드의 동일 정보
 // ─────────────────────────────────────────────────────────────────────────────
-import { getCurrentUser, isAdminRole } from "@/lib/auth";
+import { getCurrentUser, isAdminRole, type UserRole } from "@/lib/auth";
+import { getAdminSession } from "@/lib/auth/admin-session";
 import { getSelectedClientId } from "@/lib/actions/brand-actions";
 import { getBrandAnalysisPageData } from "@/lib/actions/persona-actions";
 import BrandAnalysisClient from "@/components/brand-analysis/brand-analysis-client";
@@ -11,7 +12,10 @@ import { Microscope } from "lucide-react";
 export default async function BrandAnalysisPage() {
   const currentUser = await getCurrentUser();
 
-  if (!currentUser) {
+  // Supabase Auth 실패 시 HMAC 폴백 (deprecated admin_users 사용자 지원)
+  const adminSession = !currentUser ? await getAdminSession() : null;
+
+  if (!currentUser && !adminSession) {
     return (
       <div className="flex items-center justify-center py-20">
         <p className="text-muted-foreground text-sm">
@@ -21,12 +25,15 @@ export default async function BrandAnalysisPage() {
     );
   }
 
+  const effectiveRole = (currentUser?.role ?? adminSession?.role ?? "viewer") as UserRole;
+  const isAdmin = isAdminRole(effectiveRole);
+
   // 역할별 clientId 확보
   let clientId: string | null = null;
-  if (isAdminRole(currentUser.role)) {
+  if (isAdmin) {
     clientId = await getSelectedClientId();
   } else {
-    clientId = currentUser.client_id;
+    clientId = currentUser?.client_id ?? null;
   }
 
   if (!clientId) {
@@ -34,12 +41,12 @@ export default async function BrandAnalysisPage() {
       <div className="flex flex-col items-center justify-center py-20 text-center">
         <Microscope className="h-10 w-10 text-muted-foreground/40 mb-4" />
         <h3 className="text-lg font-bold mb-1">
-          {isAdminRole(currentUser.role)
+          {isAdmin
             ? "브랜드를 선택하세요"
             : "브랜드 정보를 불러올 수 없습니다"}
         </h3>
         <p className="text-sm text-muted-foreground max-w-md">
-          {isAdminRole(currentUser.role)
+          {isAdmin
             ? "사이드바 상단의 브랜드 선택기에서 분석할 브랜드를 선택해주세요."
             : "연결된 브랜드가 없습니다. 관리자에게 문의해주세요."}
         </p>
@@ -50,10 +57,10 @@ export default async function BrandAnalysisPage() {
   const data = await getBrandAnalysisPageData(clientId);
 
   if (data) {
-    data.userRole = currentUser.role;
-    data.userName = currentUser.name || currentUser.email || "";
-    data.userPhone = currentUser.phone || "";
-    data.userEmail = currentUser.email || "";
+    data.userRole = effectiveRole;
+    data.userName = currentUser?.name || currentUser?.email || adminSession?.displayName || "";
+    data.userPhone = currentUser?.phone || "";
+    data.userEmail = currentUser?.email || adminSession?.username || "";
   }
 
   if (!data) {
