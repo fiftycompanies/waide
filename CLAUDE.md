@@ -23,7 +23,7 @@
 # Waide (AI Hospitality Aide) — 서비스 IA
 
 > 최종 업데이트: 2026-03-18
-> 버전: Phase PERSONA-1~3 완료 (브랜드 페르소나 고도화 — 크롤링 자동확보 + 업주 확인/보완)
+> 버전: Phase HOMEPAGE-CLONE 완료 (홈페이지 레퍼런스 복제 파이프라인 개편)
 
 ---
 
@@ -948,6 +948,20 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
   - publishing-account-actions.ts: getBrandAnalysisForPublishing 폴백에 ai_inferred.tone 보강
   - tsc --noEmit 통과, npm run build 성공
 
+- Phase HOMEPAGE-CLONE: 홈페이지 레퍼런스 복제 파이프라인 전면 개편 (2026-03-19)
+  - lib/homepage/generate/homepage-crawler.ts: Playwright waitUntil domcontentloaded → networkidle 변경 (JS 렌더링 완료 대기)
+  - homepage-crawler: networkidle timeout 시 load 이벤트 폴백 (try/catch 패턴)
+  - homepage-crawler: HTTP 결과 빈약(3섹션 미만) 시 Playwright 자동 보강, 실패 시 HTTP 폴백 보존
+  - lib/homepage/generate/reference-cloner.ts: 레퍼런스 원본 HTML을 <reference> 태그로 프롬프트에 포함 (CSS 패턴 복제)
+  - reference-cloner: cleanHtmlForCloner() 추가 (script/svg/주석 제거, style 태그 보존, 8000자 제한)
+  - reference-cloner: max_tokens 12000 → 16000 증가
+  - reference-cloner: "외부 이미지 URL 절대 금지" → "Unsplash CDN 이미지 반드시 사용" 규칙 변경
+  - reference-cloner: 이모지/그라데이션/글래스모피즘 금지, 화이트 배경 기반 전문 디자인 규칙 추가
+  - lib/homepage/generate/unsplash-images.ts: 업종별 Unsplash CDN 이미지 맵 신규 (6카테고리 × 48개 URL)
+  - homepage-generator.ts: rawHtml 항상 fetch (스크린샷 유무 무관), generateReferenceCloneHtml에 options(referenceHtml, industry) 전달
+  - 테스트 스크립트: test-crawler-screenshot.ts, vision-compare.ts 추가
+  - tsc --noEmit 통과
+
 ### 설계 원칙
 
 1. **점수 = 룰 기반 고정** — 마케팅 점수(100점), 계정 등급, 키워드 난이도는 모두 Python/SQL 규칙 기반. AI는 해석·코멘트만 생성.
@@ -1010,6 +1024,7 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 | 18 | **Phase 7-10** | 프롬프트 편집 + 진화지식 + 니치 키워드 + 검색량 + 리포트 AEO | ✅ 완료 |
 | 19 | **AUTH-1** | 인증 통합 — Supabase Auth 단일화 + 구글/카카오 OAuth + HMAC deprecated | ✅ 완료 |
 | 20 | **PERSONA-1~3** | 브랜드 페르소나 고도화 — EnhancedBrandPersona + 온보딩 리뉴얼 + 콘텐츠 보완 | ✅ 완료 |
+| 21 | **HOMEPAGE-CLONE** | 홈페이지 레퍼런스 복제 파이프라인 개편 — Playwright networkidle + 스크린샷 + Unsplash 이미지 + HTML 전달 | ✅ 완료 |
 
 ### 미구현 (우선순위 순)
 
