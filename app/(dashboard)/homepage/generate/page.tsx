@@ -1,5 +1,5 @@
 import { requireAdminSession } from "@/lib/auth/admin-session";
-import { getAiMarketBrands } from "@/lib/actions/brand-actions";
+import { getAiMarketBrands, getSelectedClientId } from "@/lib/actions/brand-actions";
 import { GeneratePipelineForm } from "@/components/homepage/generate-pipeline-form";
 
 export const dynamic = "force-dynamic";
@@ -7,7 +7,10 @@ export const dynamic = "force-dynamic";
 export default async function HomepageGeneratePage() {
   await requireAdminSession();
 
-  const brands = await getAiMarketBrands();
+  const [brands, selectedClientId] = await Promise.all([
+    getAiMarketBrands(),
+    getSelectedClientId(),
+  ]);
 
   return (
     <div className="p-6 md:p-8 space-y-6">
@@ -18,7 +21,7 @@ export default async function HomepageGeneratePage() {
         </p>
       </div>
 
-      <GeneratePipelineForm brands={brands} />
+      <GeneratePipelineForm brands={brands} initialClientId={selectedClientId} />
     </div>
   );
 }

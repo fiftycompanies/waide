@@ -163,12 +163,13 @@ function ProgressSteps({ currentStep }: { currentStep: PipelineStep }) {
 
 interface GeneratePipelineFormProps {
   brands: AiMarketBrand[];
+  initialClientId?: string | null;
 }
 
-export function GeneratePipelineForm({ brands }: GeneratePipelineFormProps) {
+export function GeneratePipelineForm({ brands, initialClientId }: GeneratePipelineFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [selectedClientId, setSelectedClientId] = useState("");
+  const [selectedClientId, setSelectedClientId] = useState(initialClientId || "");
   const [referenceUrls, setReferenceUrls] = useState<string[]>([""]);
   const [brandHomepageUrl, setBrandHomepageUrl] = useState("");
   const [analysis, setAnalysis] = useState<BrandAnalysisRow | null>(null);
