@@ -948,18 +948,19 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
   - publishing-account-actions.ts: getBrandAnalysisForPublishing 폴백에 ai_inferred.tone 보강
   - tsc --noEmit 통과, npm run build 성공
 
-- Phase HOMEPAGE-CLONE: 홈페이지 레퍼런스 복제 파이프라인 전면 개편 (2026-03-19)
-  - lib/homepage/generate/homepage-crawler.ts: Playwright waitUntil domcontentloaded → networkidle 변경 (JS 렌더링 완료 대기)
-  - homepage-crawler: networkidle timeout 시 load 이벤트 폴백 (try/catch 패턴)
-  - homepage-crawler: HTTP 결과 빈약(3섹션 미만) 시 Playwright 자동 보강, 실패 시 HTTP 폴백 보존
-  - lib/homepage/generate/reference-cloner.ts: 레퍼런스 원본 HTML을 <reference> 태그로 프롬프트에 포함 (CSS 패턴 복제)
-  - reference-cloner: cleanHtmlForCloner() 추가 (script/svg/주석 제거, style 태그 보존, 8000자 제한)
-  - reference-cloner: max_tokens 12000 → 16000 증가
-  - reference-cloner: "외부 이미지 URL 절대 금지" → "Unsplash CDN 이미지 반드시 사용" 규칙 변경
-  - reference-cloner: 이모지/그라데이션/글래스모피즘 금지, 화이트 배경 기반 전문 디자인 규칙 추가
-  - lib/homepage/generate/unsplash-images.ts: 업종별 Unsplash CDN 이미지 맵 신규 (6카테고리 × 48개 URL)
-  - homepage-generator.ts: rawHtml 항상 fetch (스크린샷 유무 무관), generateReferenceCloneHtml에 options(referenceHtml, industry) 전달
-  - 테스트 스크립트: test-crawler-screenshot.ts, vision-compare.ts 추가
+- Phase HOMEPAGE-CLONE: 홈페이지 DOM 복제 파이프라인 전면 재설계 (2026-03-19)
+  - **패러다임 전환**: "AI가 HTML 생성" → "레퍼런스 DOM 완전 복제 후 텍스트·이미지만 교체"
+  - **핵심 원칙**: "생성 금지, 복제 후 교체만" — AI의 역할은 '어떤 텍스트를 무엇으로 바꿀지 판단'
+  - lib/homepage/generate/reference-cloner.ts (전면 재작성): Playwright DOM 복제 + CSS 인라인화 + 이미지 절대경로 변환 + 외부 JS/트래킹 제거
+  - lib/homepage/generate/content-mapper.ts (신규): HTML 텍스트 노드 추출 → Claude Sonnet API로 교체 맵 생성 (BrandInfo + PersonaInfo 기반)
+  - lib/homepage/generate/image-replacer.ts (신규): cheerio 기반 이미지 카테고리 분류 (hero/section/about/gallery/logo) + 업종별 Unsplash 이미지 교체
+  - lib/homepage/generate/html-patcher.ts (신규): cheerio DOM 순회로 텍스트·이미지·메타 일괄 패치 (CSS class/id/구조 변경 금지)
+  - lib/homepage/generate/homepage-generator.ts (전면 재작성): 새 파이프라인 오케스트레이션 (cloneReference → buildReplacementMap → replaceImages → applyPatches → deploy)
+  - homepage_projects.template_id: "clone" (기존 "modern-minimal" 폐기)
+  - homepage_projects.theme_config: pipeline="dom-clone" + generated_html 저장
+  - 크롤링 실패 시 status="build_failed" (폴백 금지 — 품질 보장 불가)
+  - lib/homepage/generate/unsplash-images.ts: 업종별 Unsplash CDN 이미지 맵 (6카테고리 × 48개 URL)
+  - lib/homepage/deploy/html-generator.ts: DEPRECATED (기존 AI HTML 생성 완전 폐기)
   - tsc --noEmit 통과
 
 ### 설계 원칙
@@ -967,6 +968,31 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 1. **점수 = 룰 기반 고정** — 마케팅 점수(100점), 계정 등급, 키워드 난이도는 모두 Python/SQL 규칙 기반. AI는 해석·코멘트만 생성.
 2. **프롬프트 = agent_prompts 테이블 동적 로딩** — 에이전트 프롬프트는 코드에 하드코딩 금지. DB에서 런타임 로딩.
 3. **브랜드 페르소나 = 모든 후속 작업의 기반** — brand_personas 레코드가 CMO 전략 → COPYWRITER 톤앤매너 → QC 기준에 일관되게 적용.
+4. **홈페이지 = "생성 금지, 복제 후 교체만"** — AI가 HTML을 처음부터 생성하면 제네릭 템플릿이 됨. 레퍼런스 사이트 DOM을 Playwright로 완전 복제한 뒤, AI는 텍스트 교체 판단만 수행. CSS/구조는 절대 변경 금지.
+
+### 홈페이지 생성 파이프라인 (DOM 복제 방식)
+
+```
+cloneReference(url)          → Playwright 렌더링 + CSS 인라인화 + JS 제거
+  ↓
+buildReplacementMap(html)    → 텍스트 노드 추출 → Claude Sonnet 교체 맵
+  ↓
+replaceImages(html)          → 카테고리 분류 → 업종별 Unsplash 교체
+  ↓
+applyPatches(html)           → cheerio DOM 패치 (텍스트+이미지+메타)
+  ↓
+deploy                       → Vercel 배포 (기존 파이프라인 그대로)
+```
+
+| 파일 | 역할 | 상태 |
+|------|------|------|
+| `reference-cloner.ts` | Playwright DOM 완전 복제 | 활성 |
+| `content-mapper.ts` | AI 텍스트 교체 맵 생성 | 활성 |
+| `image-replacer.ts` | 이미지 카테고리 분류 + Unsplash 교체 | 활성 |
+| `html-patcher.ts` | cheerio 기반 패치 적용 | 활성 |
+| `unsplash-images.ts` | 업종별 이미지 상수 맵 | 활성 |
+| `homepage-generator.ts` | 파이프라인 오케스트레이터 | 활성 |
+| `html-generator.ts` | ~~AI HTML 생성~~ | DEPRECATED |
 
 ### 에이전트 프롬프트 목록 (agent_prompts 테이블)
 
