@@ -60,19 +60,13 @@ function renderHero(data: HomepageData): string {
   const heroTitle = escapeHtml(t.hero?.title || data.clientName);
   const heroSubtitle = escapeHtml(t.hero?.subtitle || "");
   const ctaText = escapeHtml(t.ctaText || "무료 상담 신청하기");
-  const heroImage = t.heroImageCandidates?.[0];
   const phone = data.phone ? escapeHtml(data.phone) : null;
 
-  const bgStyle = heroImage
-    ? `background: linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.5)), url('${escapeHtml(heroImage)}') center/cover no-repeat;`
-    : "";
-  const textColor = heroImage ? "color: #fff;" : "";
-  const subtitleColor = heroImage ? "color: rgba(255,255,255,0.85);" : "";
-
+  // 외부 이미지 핫링크 금지 — CSS 그라데이션만 사용
   return `
-  <section class="hero" id="home"${bgStyle ? ` style="${bgStyle} ${textColor}"` : ""}>
-    <h1${heroImage ? ' style="color:#fff"' : ""}>${heroTitle}</h1>
-    ${heroSubtitle ? `<p${heroImage ? ` style="${subtitleColor}"` : ""}>${heroSubtitle}</p>` : ""}
+  <section class="hero" id="home">
+    <h1>${heroTitle}</h1>
+    ${heroSubtitle ? `<p>${heroSubtitle}</p>` : ""}
     <a href="${phone ? `tel:${phone}` : "#contact"}" class="hero-cta">${ctaText}</a>
   </section>`;
 }
@@ -117,26 +111,10 @@ function renderServices(data: HomepageData): string {
   </div>`;
 }
 
-function renderPortfolio(data: HomepageData): string {
-  const images = data.themeConfig.portfolioImages || [];
-  if (images.length === 0) return "";
-  const title = escapeHtml(data.themeConfig.about?.title ? "포트폴리오" : "시공 사례");
-
-  const itemsHtml = images
-    .slice(0, 6)
-    .map(
-      (img) => `
-        <div class="portfolio-item">
-          <img src="${escapeHtml(img)}" alt="포트폴리오" loading="lazy">
-        </div>`
-    )
-    .join("");
-
-  return `
-  <section class="section" id="portfolio">
-    <h2 class="section-title">${title}</h2>
-    <div class="portfolio-grid">${itemsHtml}</div>
-  </section>`;
+function renderPortfolio(_data: HomepageData): string {
+  // 외부 이미지 핫링크 금지 — 크롤링 이미지를 직접 사용하지 않음
+  // 추후 자체 업로드 이미지 지원 시 활성화
+  return "";
 }
 
 function renderTestimonials(data: HomepageData): string {

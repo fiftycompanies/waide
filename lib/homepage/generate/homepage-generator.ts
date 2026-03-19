@@ -8,6 +8,31 @@ import { crawlMultipleHomepages } from "./homepage-crawler";
 import type { CrawlResult } from "./homepage-crawl-types";
 import { getPersonaForPipeline } from "@/lib/utils/persona-compat";
 
+// ── 업종별 동적 시스템 역할 ──────────────────────────────────────────────────
+
+function getSystemRole(industry: string): string {
+  const map: Record<string, string> = {
+    "인테리어": "인테리어·리모델링 전문 홈페이지를 만드는 웹 디자이너",
+    "도배": "도배·시공 전문 홈페이지를 만드는 웹 디자이너",
+    "피부과": "피부과·의원 전문 홈페이지를 만드는 의료 웹 디자이너",
+    "의원": "피부과·의원 전문 홈페이지를 만드는 의료 웹 디자이너",
+    "클리닉": "피부과·의원 전문 홈페이지를 만드는 의료 웹 디자이너",
+    "치과": "치과 전문 홈페이지를 만드는 의료 웹 디자이너",
+    "카페": "카페·음식점 전문 홈페이지를 만드는 웹 디자이너",
+    "음식점": "카페·음식점 전문 홈페이지를 만드는 웹 디자이너",
+    "숙박": "숙박·호텔 전문 홈페이지를 만드는 웹 디자이너",
+    "호텔": "숙박·호텔 전문 홈페이지를 만드는 웹 디자이너",
+    "펜션": "숙박·호텔 전문 홈페이지를 만드는 웹 디자이너",
+    "헤어": "헤어·뷰티 전문 홈페이지를 만드는 웹 디자이너",
+    "미용": "헤어·뷰티 전문 홈페이지를 만드는 웹 디자이너",
+    "네일": "헤어·뷰티 전문 홈페이지를 만드는 웹 디자이너",
+  };
+  for (const [key, role] of Object.entries(map)) {
+    if (industry?.includes(key)) return role;
+  }
+  return `${industry || "소상공인"} 전문 홈페이지를 만드는 웹 디자이너`;
+}
+
 // ── Types ───────────────────────────────────────────────────────────────────
 
 export interface GenerateInput {
@@ -182,66 +207,97 @@ export class HomepageGenerator {
       ? this.summarizeBrandAnalysis(brandAnalysis)
       : "브랜드 분석 자료 없음";
 
-    // 브랜드 기존 홈페이지 컨텍스트
+    // 브랜드 기존 홈페이지 컨텍스트 (텍스트가 아닌 구조 정보만)
     const brandHomepageContext = brandHomepageContent
-      ? `\n\n[브랜드 기존 홈페이지 정보]\n${brandHomepageContent.fullText}`
+      ? `\n\n[브랜드 기존 홈페이지 — 구조 참고용]\n페이지 제목: ${brandHomepageContent.title || "없음"}\n메타 설명: ${brandHomepageContent.metaDescription || "없음"}`
       : "";
 
-    // 레퍼런스 텍스트 콘텐츠
-    const referenceTextsBlock = merged.referenceTexts
-      .map((t, i) => `--- 레퍼런스 ${i + 1} ---\n${t}`)
-      .join("\n\n");
+    // 페르소나 컨텍스트 구성 (Task 3: persona 데이터 프롬프트 연결)
+    const persona = brandInfo.persona as Record<string, unknown> | null;
+    const personaBlock = persona
+      ? [
+          persona.target_customer && `- 타겟 고객: ${persona.target_customer}`,
+          persona.usp && `- 핵심 차별점(USP): ${persona.usp}`,
+          persona.tone && `- 브랜드 톤앤매너: ${persona.tone}`,
+          persona.keywords && `- 강조 키워드: ${Array.isArray(persona.keywords) ? (persona.keywords as string[]).join(", ") : persona.keywords}`,
+          persona.services && `- 실제 서비스 목록: ${Array.isArray(persona.services) ? (persona.services as string[]).join(", ") : persona.services}`,
+          persona.strengths && `- 브랜드 강점: ${Array.isArray(persona.strengths) ? (persona.strengths as string[]).join(", ") : persona.strengths}`,
+          persona.one_liner && `- 브랜드 한줄소개: ${persona.one_liner}`,
+        ]
+          .filter(Boolean)
+          .join("\n")
+      : "";
 
-    const prompt = `당신은 인테리어 업체 전문 홈페이지를 만드는 웹 디자이너입니다.
+    // 레이아웃 감지 요약 (boolean만 — 텍스트 내용 제외)
+    const layoutSummary = crawlResult.analyses
+      .map((a) => {
+        const flags = [
+          a.layout.hasPortfolio && "포트폴리오",
+          a.layout.hasFaq && "FAQ",
+          a.layout.hasTestimonials && "고객후기",
+          a.layout.hasCta && "CTA",
+        ].filter(Boolean);
+        return flags.length > 0 ? flags.join(", ") : null;
+      })
+      .filter(Boolean)
+      .join(" / ");
 
-아래 레퍼런스 홈페이지의 구조와 디자인 패턴을 참고하여, "${brandName}" 업체의 홈페이지 콘텐츠를 생성해주세요.
+    // Task 1: 업종별 동적 시스템 역할
+    const systemRole = getSystemRole(industry);
 
-[레퍼런스 홈페이지 디자인 분석 (${crawlResult.analyses.length}개 사이트)]
+    const prompt = `당신은 ${systemRole}입니다.
+
+아래 레퍼런스 홈페이지의 디자인 스타일을 참고하여, "${brandName}" 업체의 홈페이지 콘텐츠를 생성해주세요.
+
+[중요] 레퍼런스 사이트의 텍스트 내용은 절대 참고하지 마세요.
+레퍼런스에서는 색상, 폰트, 레이아웃, 디자인 톤만 참고합니다.
+모든 텍스트 콘텐츠는 아래 [브랜드 정보]에서만 생성하세요.
+
+[레퍼런스 디자인 스타일 (${crawlResult.analyses.length}개 사이트)]
 - 색상 팔레트: 주색 ${merged.primaryColor}, 보조색 ${merged.secondaryColor}, 강조 ${merged.accentColor || "없음"}
 - 배경색: ${merged.backgroundColor}, 텍스트색: ${merged.textColor}
 - 폰트: 제목=${merged.headingFont || "기본"}, 본문=${merged.bodyFont || "기본"}
 - 디자인 스타일: ${merged.designStyle}
 - 레이아웃 구조: ${merged.sectionOrder.join(" → ")}
-- 네비게이션: ${merged.suggestedNavigation.map((n) => n.label).join(", ") || "없음"}
+- 감지된 섹션 구성: ${layoutSummary || "기본"}
 
-[레퍼런스 텍스트 콘텐츠]
-${referenceTextsBlock}
-
-[브랜드 정보]
+[브랜드 정보 — 모든 텍스트 콘텐츠는 여기서만 생성]
 - 업체명: ${brandName}
 - 업종: ${industry}
-- 웹사이트: ${(brandInfo.website_url as string) || "없음"}
 - 연락처: ${(brandInfo.phone as string) || "없음"}
 - 주소: ${(brandInfo.address as string) || "없음"}
+- 홈페이지: ${(brandInfo.website_url as string) || "없음"}
+${personaBlock}
 
 [브랜드 분석 자료]
 ${analysisContext}
 ${brandHomepageContext}
 
-다음 JSON 형식으로 "${brandName}" 업체의 홈페이지 콘텐츠를 생성해주세요:
+다음 JSON 형식으로 "${brandName}" 업체의 홈페이지 콘텐츠를 생성해주세요.
+업종(${industry})에 맞는 전문적인 서비스명과 설명을 작성하세요:
 {
   "heroTitle": "메인 히어로 타이틀 (업체명 ${brandName} 포함)",
-  "heroSubtitle": "메인 히어로 서브타이틀",
+  "heroSubtitle": "메인 히어로 서브타이틀 (${industry} 업종에 적합한 문구)",
   "aboutTitle": "회사 소개 타이틀",
-  "aboutDescription": "회사 소개 내용 (3-4문장)",
+  "aboutDescription": "회사 소개 내용 (3-4문장, ${industry} 업종 전문성 강조)",
   "services": [
-    { "title": "서비스명", "description": "설명" }
+    { "title": "${industry} 서비스명", "description": "설명" }
   ],
   "whyChooseUs": [
     { "title": "강점", "description": "설명" }
   ],
   "ctaText": "CTA 문구",
-  "seoTitle": "SEO 타이틀 (60자 이내, ${brandName} 포함)",
+  "seoTitle": "SEO 타이틀 (60자 이내, ${brandName} + ${industry} 포함)",
   "seoDescription": "SEO 디스크립션 (160자 이내)",
-  "primaryColor": "#HEX코드 (레퍼런스 색상 참고, 브랜드에 어울리게 조정)",
+  "primaryColor": "#HEX코드 (레퍼런스 색상 참고, ${industry} 브랜드에 어울리게 조정)",
   "secondaryColor": "#HEX코드"${this.buildExtraFieldsPrompt(merged.sectionOrder)}
 }
 
 중요:
 - 반드시 유효한 JSON만 출력하세요. 다른 텍스트는 포함하지 마세요.
-- 업체명은 반드시 "${brandName}"을 사용하세요. 레퍼런스에 나오는 다른 업체명을 사용하지 마세요.
-- 색상은 레퍼런스 디자인 분석의 색상 팔레트를 참고하되, 브랜드 특성에 맞게 조정하세요.
-- 레이아웃 구조는 레퍼런스의 섹션 구성을 참고하세요.`;
+- 업체명은 반드시 "${brandName}"을 사용하세요. 다른 업체명 절대 사용 금지.
+- 서비스는 반드시 ${industry} 업종에 맞는 실제 서비스를 작성하세요.
+- 색상은 레퍼런스 디자인의 색상 팔레트를 참고하되, ${industry} 브랜드에 맞게 조정하세요.`;
 
     let responseText: string;
     try {
@@ -377,10 +433,9 @@ ${brandHomepageContext}
           stats: content.stats || [],
           referenceUrls,
           sectionOrder,
-          heroImageCandidates: merged.heroImageCandidates.slice(0, 5),
-          portfolioImages: crawlResult.analyses
-            .flatMap((a) => a.images.sectionImages)
-            .slice(0, 6),
+          // 외부 이미지 핫링크 금지 — 크롤링 이미지 URL을 저장하지 않음
+          heroImageCandidates: [],
+          portfolioImages: [],
         },
         seo_config: {
           title: content.seoTitle,
