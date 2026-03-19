@@ -1634,10 +1634,22 @@ function StepImages({
     return map;
   }, [imageAnalyses]);
 
-  // type 라벨
+  // type 라벨 (업종 범용)
   const typeLabels: Record<string, string> = {
+    // 장소형
     exterior: "외관", interior: "내부", food: "음식",
-    menu: "메뉴", facility: "시설", view: "경관", other: "기타",
+    menu: "메뉴", facility: "시설", view: "경관",
+    // 서비스형
+    portfolio: "포트폴리오", branding: "브랜딩", product: "제품",
+    workspace: "작업공간", team: "팀", process: "과정", result: "성과",
+    // 뷰티/의료
+    treatment: "시술", equipment: "장비",
+    // 교육
+    classroom: "수업", material: "교재", event: "행사",
+    // 리테일
+    display: "진열", detail: "디테일", packaging: "포장",
+    // 공통
+    service: "서비스", other: "기타",
   };
 
   // hook_score 순 정렬된 선택 이미지

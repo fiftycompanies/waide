@@ -8,7 +8,7 @@ import { createAdminClient } from "@/lib/supabase/service";
 export interface ImageAnalysis {
   url: string;
   description: string;
-  type: "exterior" | "interior" | "food" | "menu" | "facility" | "view" | "other";
+  type: string; // 업종별 동적 타입 (food/interior/portfolio/product/service/team 등)
   mood: string;
   quality_score: number;
   colors: string[];
@@ -110,19 +110,82 @@ export async function analyzeImages(
   };
 }
 
+/**
+ * 업종별 이미지 타입 옵션 생성
+ */
+function getTypeOptionsForCategory(category: string): { types: string; examples: string } {
+  const cat = (category || "").toLowerCase();
+
+  // 음식/숙박/카페 등 장소형 업종
+  if (/음식|식당|맛집|레스토랑|카페|커피|베이커리|빵집|술집|바|주점|횟집|고기|치킨|피자|분식|한식|일식|중식|양식|뷔페|호텔|숙박|펜션|모텔|리조트|민박|게스트하우스/.test(cat)) {
+    return {
+      types: "exterior/interior/food/menu/facility/view/other",
+      examples: "exterior=건물외관, interior=매장내부, food=음식플레이팅, menu=메뉴판, facility=편의시설, view=전경/야경",
+    };
+  }
+
+  // 디자인/마케팅/IT 서비스
+  if (/디자인|브랜딩|마케팅|광고|에이전시|웹|앱|개발|IT|크리에이티브|스튜디오|영상|사진|촬영/.test(cat)) {
+    return {
+      types: "portfolio/branding/product/workspace/team/process/result/other",
+      examples: "portfolio=작업물/결과물, branding=로고/CI/BI, product=제품사진, workspace=작업공간, team=팀/인물, process=작업과정, result=Before-After/성과",
+    };
+  }
+
+  // 뷰티/미용
+  if (/미용|헤어|네일|피부|에스테틱|뷰티|화장품|메이크업|성형/.test(cat)) {
+    return {
+      types: "result/interior/product/process/facility/team/other",
+      examples: "result=시술결과/Before-After, interior=매장내부, product=제품/도구, process=시술과정, facility=시설, team=전문가/스태프",
+    };
+  }
+
+  // 교육/학원
+  if (/교육|학원|학교|레슨|과외|강의|유치원|어린이집|코칭|컨설팅/.test(cat)) {
+    return {
+      types: "facility/classroom/material/result/team/event/other",
+      examples: "facility=시설외관, classroom=수업공간, material=교재/커리큘럼, result=수강생성과, team=강사진, event=행사/발표회",
+    };
+  }
+
+  // 의료/건강
+  if (/병원|의원|치과|한의원|약국|의료|건강|요가|필라테스|헬스|피트니스|체육/.test(cat)) {
+    return {
+      types: "facility/equipment/team/result/interior/treatment/other",
+      examples: "facility=외관/시설, equipment=장비/기구, team=의료진/트레이너, result=시술결과/변화, interior=내부공간, treatment=진료/운동장면",
+    };
+  }
+
+  // 쇼핑/리테일
+  if (/쇼핑|매장|소품|의류|패션|잡화|가구|인테리어|꽃|플라워|플로리스트/.test(cat)) {
+    return {
+      types: "product/interior/display/detail/packaging/exterior/other",
+      examples: "product=상품전체, interior=매장내부, display=진열/디스플레이, detail=제품디테일, packaging=포장, exterior=매장외관",
+    };
+  }
+
+  // 기본 (범용)
+  return {
+    types: "exterior/interior/product/service/team/facility/result/other",
+    examples: "exterior=외관, interior=내부, product=상품/결과물, service=서비스장면, team=인물/팀, facility=시설, result=성과/포트폴리오",
+  };
+}
+
 async function analyzeSingleImage(
   apiKey: string,
   img: { url: string; type: string },
   placeName: string,
   category: string,
 ): Promise<ImageAnalysis> {
-  const prompt = `이 이미지는 "${placeName}" (${category || "매장"})의 네이버 플레이스 이미지입니다.
-마케팅 관점에서 분석해주세요.
+  const { types, examples } = getTypeOptionsForCategory(category);
+
+  const prompt = `이 이미지는 "${placeName}" (${category || "업체"})의 마케팅용 이미지입니다.
+블로그 콘텐츠에서 활용할 관점으로 분석해주세요.
 
 JSON만 출력:
 {
-  "description": "이미지 설명 (2문장)",
-  "type": "exterior/interior/food/menu/facility/view/other",
+  "description": "이미지 설명 (2문장, 이 이미지가 무엇을 보여주는지 구체적으로)",
+  "type": "${types}" 중 택1,
   "mood": "분위기 형용사 한 단어",
   "quality_score": 7,
   "colors": ["주요 컬러톤 2~3개"],
@@ -132,11 +195,13 @@ JSON만 출력:
   "hook_score": 8
 }
 
+타입 설명: ${examples}
+
 - quality_score: 1~10 (구도, 밝기, 매력도)
-- food_appeal: 음식 이미지일 경우만 (식욕 자극도 1~10)
+- food_appeal: 음식 이미지일 경우만 (식욕 자극도 1~10, 해당 없으면 생략)
 - marketing_usability: 마케팅 소재로 활용 가능성 1~10
 - improvement_tip: 한 문장으로 간결하게
-- hook_score: 블로그 독자 시선을 끄는 정도 1~10 (10=감성샷/야경/플레이팅, 7=깔끔한 음식/인테리어, 4=일반 시설, 1=안내문/간판/텍스트)`;
+- hook_score: 블로그 독자 시선을 끄는 정도 1~10 (10=감성적/임팩트 있는 비주얼, 7=깔끔한 결과물, 4=일반적, 1=안내문/텍스트)`;
 
   const resp = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
@@ -231,9 +296,16 @@ export async function getOrAnalyzeImages(
   }
 
   // 2. URL 매칭으로 캐시 HIT / MISS 분리
-  const cachedUrlSet = new Set(cachedAnalyses.map((a) => a.url));
-  const hitAnalyses = cachedAnalyses.filter((a) => imageUrls.includes(a.url));
-  const missUrls = imageUrls.filter((u) => !cachedUrlSet.has(u));
+  // 캐시된 type이 현재 업종 타입 목록에 없으면 재분석 대상으로 전환
+  const { types: validTypes } = getTypeOptionsForCategory(category);
+  const validTypeSet = new Set(validTypes.split("/"));
+  validTypeSet.add("other"); // other는 항상 유효
+
+  const hitAnalyses = cachedAnalyses.filter(
+    (a) => imageUrls.includes(a.url) && validTypeSet.has(a.type)
+  );
+  const hitUrlSet = new Set(hitAnalyses.map((a) => a.url));
+  const missUrls = imageUrls.filter((u) => !hitUrlSet.has(u));
 
   // 3. 미분석 이미지만 Vision 호출 (최대 12장, 5장 배치 병렬)
   const newAnalyses: ImageAnalysis[] = [];
