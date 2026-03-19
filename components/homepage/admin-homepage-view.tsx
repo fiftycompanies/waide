@@ -2,16 +2,19 @@
 
 import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
+import { toast } from "sonner";
 import {
   Globe,
   Loader2,
   Search,
   ExternalLink,
   Sparkles,
+  Trash2,
 } from "lucide-react";
 import {
   getHomepageProjects,
   getHomepageDashboardStats,
+  deleteHomepageProject,
   type HomepageProject,
   type HomepageDashboardStats,
 } from "@/lib/actions/homepage-actions";
@@ -60,7 +63,13 @@ function StatsCards({ stats }: { stats: HomepageDashboardStats }) {
 
 // ── Project Card ────────────────────────────────────────────────────────────
 
-function ProjectCard({ project }: { project: HomepageProject }) {
+function ProjectCard({
+  project,
+  onDelete,
+}: {
+  project: HomepageProject;
+  onDelete: (id: string) => void;
+}) {
   return (
     <div className="border rounded-lg bg-card p-4 hover:shadow-md transition-shadow">
       <div className="flex items-start justify-between mb-3">
@@ -73,7 +82,19 @@ function ProjectCard({ project }: { project: HomepageProject }) {
             <p className="text-xs text-muted-foreground mt-0.5 ml-6">{project.client_name}</p>
           )}
         </div>
-        <StatusBadge status={project.status} />
+        <div className="flex items-center gap-2">
+          <StatusBadge status={project.status} />
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete(project.id);
+            }}
+            className="p-1 rounded hover:bg-red-50 text-muted-foreground hover:text-red-500 transition-colors"
+            title="프로젝트 삭제"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-4 gap-3 text-center text-xs mb-3">
@@ -181,6 +202,20 @@ export function AdminHomepageView({ clientId }: AdminHomepageViewProps = {}) {
     );
   }
 
+  async function handleDelete(projectId: string) {
+    const project = projects.find((p) => p.id === projectId);
+    if (!project) return;
+    if (!window.confirm(`"${project.project_name}" 프로젝트를 삭제하시겠습니까?\nVercel 배포도 함께 삭제됩니다.`)) return;
+
+    const result = await deleteHomepageProject(projectId);
+    if (result.success) {
+      setProjects((prev) => prev.filter((p) => p.id !== projectId));
+      toast.success("프로젝트가 삭제되었습니다.");
+    } else {
+      toast.error(result.error || "삭제에 실패했습니다.");
+    }
+  }
+
   const filtered = projects.filter((p) => {
     if (statusFilter && p.status !== statusFilter) return false;
     if (searchQuery) {
@@ -238,7 +273,7 @@ export function AdminHomepageView({ clientId }: AdminHomepageViewProps = {}) {
       {filtered.length > 0 ? (
         <div className="space-y-3">
           {filtered.map((project) => (
-            <ProjectCard key={project.id} project={project} />
+            <ProjectCard key={project.id} project={project} onDelete={handleDelete} />
           ))}
         </div>
       ) : (

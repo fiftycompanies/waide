@@ -221,6 +221,26 @@ export async function deleteHomepageProject(
 
   const db = createAdminClient();
 
+  // Vercel 프로젝트도 함께 정리
+  const { data: project } = await db
+    .from("homepage_projects")
+    .select("vercel_project_id")
+    .eq("id", projectId)
+    .single();
+
+  if (project?.vercel_project_id && process.env.VERCEL_TOKEN && process.env.VERCEL_TEAM_ID) {
+    try {
+      const { VercelClient } = await import("@/lib/homepage/deploy/vercel-client");
+      const vercel = new VercelClient({
+        token: process.env.VERCEL_TOKEN,
+        teamId: process.env.VERCEL_TEAM_ID,
+      });
+      await vercel.deleteProject(project.vercel_project_id);
+    } catch (e) {
+      console.warn("[homepage-actions] Vercel 프로젝트 삭제 실패 (무시):", e);
+    }
+  }
+
   const { error } = await db
     .from("homepage_projects")
     .delete()
