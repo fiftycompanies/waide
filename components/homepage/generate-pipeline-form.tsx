@@ -182,6 +182,7 @@ export function GeneratePipelineForm({ brands }: GeneratePipelineFormProps) {
   useEffect(() => {
     if (!selectedClientId) {
       setAnalysis(null);
+      setBrandHomepageUrl("");
       return;
     }
 
@@ -189,9 +190,17 @@ export function GeneratePipelineForm({ brands }: GeneratePipelineFormProps) {
     getBrandAnalysis(selectedClientId)
       .then((result) => {
         setAnalysis(result);
+        // 분석 데이터에 홈페이지 URL이 있으면 자동 채움
+        const homepageUrl = (result?.basic_info as Record<string, unknown>)?.homepage_url as string;
+        if (homepageUrl) {
+          setBrandHomepageUrl(homepageUrl);
+        } else {
+          setBrandHomepageUrl("");
+        }
       })
       .catch(() => {
         setAnalysis(null);
+        setBrandHomepageUrl("");
       })
       .finally(() => {
         setAnalysisLoading(false);
@@ -277,20 +286,22 @@ export function GeneratePipelineForm({ brands }: GeneratePipelineFormProps) {
             </div>
           )}
 
-          {/* 브랜드 홈페이지 URL (선택) */}
-          <div className="space-y-1.5">
-            <Label htmlFor="brand-url">브랜드 기존 홈페이지 URL (선택)</Label>
-            <Input
-              id="brand-url"
-              placeholder="https://example.com (없으면 비워두세요)"
-              value={brandHomepageUrl}
-              onChange={(e) => setBrandHomepageUrl(e.target.value)}
-              disabled={isRunning}
-            />
-            <p className="text-[11px] text-muted-foreground">
-              기존 홈페이지가 있으면 입력해주세요. 콘텐츠 생성 시 참고합니다.
-            </p>
-          </div>
+          {/* 브랜드 홈페이지 URL (선택) — 분석 데이터에 없을 때만 표시 */}
+          {!((analysis?.basic_info as Record<string, unknown>)?.homepage_url) && (
+            <div className="space-y-1.5">
+              <Label htmlFor="brand-url">브랜드 기존 홈페이지 URL (선택)</Label>
+              <Input
+                id="brand-url"
+                placeholder="https://example.com (없으면 비워두세요)"
+                value={brandHomepageUrl}
+                onChange={(e) => setBrandHomepageUrl(e.target.value)}
+                disabled={isRunning}
+              />
+              <p className="text-[11px] text-muted-foreground">
+                기존 홈페이지가 있으면 입력해주세요. 콘텐츠 생성 시 참고합니다.
+              </p>
+            </div>
+          )}
 
           {/* 레퍼런스 URL */}
           <div className="space-y-1.5">
