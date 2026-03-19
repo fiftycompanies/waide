@@ -27,6 +27,16 @@ export interface CreateProjectParams {
 }
 
 /**
+ * Vercel 배포용 파일
+ */
+export interface DeployFile {
+  /** 파일 경로 (예: "index.html", "styles/main.css") */
+  file: string;
+  /** 파일 내용 (UTF-8 문자열, base64 인코딩은 내부에서 처리) */
+  data: string;
+}
+
+/**
  * Vercel 배포 생성 파라미터
  */
 export interface CreateDeploymentParams {
@@ -36,6 +46,8 @@ export interface CreateDeploymentParams {
   target: "production" | "preview";
   /** Git 소스 (브랜치 및 레포 ID) */
   gitSource?: { ref: string; repoId: string };
+  /** 파일 업로드 기반 배포 (gitSource 없을 때 사용) */
+  files?: DeployFile[];
 }
 
 /**
@@ -245,6 +257,19 @@ export class VercelClient {
         ref: params.gitSource.ref,
         repoId: params.gitSource.repoId,
         type: "github",
+      };
+    } else if (params.files && params.files.length > 0) {
+      // 파일 업로드 기반 배포 (Git 저장소 없을 때)
+      body.files = params.files.map((f) => ({
+        file: f.file,
+        data: Buffer.from(f.data, "utf-8").toString("base64"),
+        encoding: "base64",
+      }));
+      // 정적 사이트 빌드 설정
+      body.projectSettings = {
+        framework: null,
+        buildCommand: "",
+        outputDirectory: ".",
       };
     }
 

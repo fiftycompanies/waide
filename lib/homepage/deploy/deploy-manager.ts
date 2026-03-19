@@ -1,6 +1,7 @@
 import { SupabaseClient } from "@supabase/supabase-js";
-import { VercelClient } from "./vercel-client";
+import { VercelClient, type DeployFile } from "./vercel-client";
 import { generateUniqueSubdomain } from "./subdomain-manager";
+import { generateHomepageHtml } from "./html-generator";
 
 /**
  * 배포 결과
@@ -138,6 +139,29 @@ export class DeployManager {
       }
 
       // 6. 배포 생성
+      let deployFiles: DeployFile[] | undefined;
+      if (!project.git_repository) {
+        // Git 저장소 없으면 HTML 파일 업로드 방식
+        const clientName =
+          (project.client as Record<string, unknown>)?.name as string ||
+          materials?.company_name ||
+          project.project_name ||
+          "홈페이지";
+        const clientPhone = (project.client as Record<string, unknown>)?.phone as string | undefined;
+        const clientAddress = (project.client as Record<string, unknown>)?.address as string | undefined;
+
+        const html = generateHomepageHtml({
+          projectName: project.project_name || "홈페이지",
+          clientName,
+          phone: clientPhone,
+          address: clientAddress,
+          themeConfig: (project.theme_config || {}) as Record<string, unknown>,
+          seoConfig: (project.seo_config || {}) as Record<string, unknown>,
+        });
+
+        deployFiles = [{ file: "index.html", data: html }];
+      }
+
       const deployment = await this.vercel.createDeployment({
         projectId: vercelProjectId,
         target: "production",
@@ -147,6 +171,7 @@ export class DeployManager {
               repoId: project.git_repo_id || "",
             }
           : undefined,
+        files: deployFiles,
       });
 
       // 7. homepage_projects 테이블 업데이트

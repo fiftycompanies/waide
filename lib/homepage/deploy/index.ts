@@ -3,6 +3,7 @@ export type {
   VercelConfig,
   CreateProjectParams,
   CreateDeploymentParams,
+  DeployFile,
   EnvVar,
   DeploymentInfo,
 } from "./vercel-client";
