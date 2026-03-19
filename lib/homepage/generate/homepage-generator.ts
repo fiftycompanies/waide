@@ -52,7 +52,8 @@ export class HomepageGenerator {
     if (!process.env.ANTHROPIC_API_KEY) {
       throw new Error("ANTHROPIC_API_KEY 환경변수가 설정되지 않았습니다.");
     }
-    this.anthropicApiKey = process.env.ANTHROPIC_API_KEY;
+    // Vercel 환경변수 끝의 개행문자 제거
+    this.anthropicApiKey = process.env.ANTHROPIC_API_KEY.trim();
   }
 
   private emit(step: GenerateStep, message: string, percent: number) {
