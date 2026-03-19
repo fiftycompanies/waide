@@ -113,7 +113,7 @@ interface BlogPublishFlowProps {
   clientWebsiteUrl?: string | null;
   brandAnalysis: BrandAnalysis | null;
   publishingAccounts: PublishingAccount[];
-  activeKeywords: Array<{ keyword: string; id: string }>;
+  activeKeywords: Array<{ keyword: string; id: string; monthlySearch?: number }>;
   initialKeywordId?: string;
   initialKeywordName?: string;
   personaData?: PersonaForPublish | null;
@@ -163,11 +163,14 @@ export function BlogPublishFlow({
 
     // 네이버 플레이스 URL: input_url > place_id 구성 > basic_info > personaExtras
     const isNaverInput = inputUrl.includes("naver.com") || inputUrl.includes("place.naver");
+    const biNaverUrl = (bi.naver_place_url as string) || (bi.place_url as string) || "";
     const naverPlaceUrl = isNaverInput
       ? inputUrl
-      : placeId
-        ? `https://m.place.naver.com/place/${placeId}/home`
-        : (bi.naver_place_url as string) || (bi.place_url as string) || personaExtras?.naverPlaceUrl || "";
+      : biNaverUrl
+        ? biNaverUrl
+        : placeId
+          ? `https://m.place.naver.com/place/${placeId}/home`
+          : personaExtras?.naverPlaceUrl || "";
 
     // 홈페이지 URL: input_url(웹사이트) > basic_info > personaExtras > clients.website_url
     const isWebsiteInput = urlType === "website" || (!isNaverInput && inputUrl && !inputUrl.includes("naver.com"));
@@ -288,8 +291,15 @@ export function BlogPublishFlow({
       const fromInputUrl = parseIdFromUrl(brandAnalysis.input_url);
       if (fromInputUrl) return fromInputUrl;
     }
+    // basic_info 내부 URL 폴백 파싱
+    const bi = brandAnalysis?.basic_info;
+    if (bi) {
+      const biUrl = (bi.naver_place_url as string) || (bi.place_url as string) || "";
+      const fromBiUrl = parseIdFromUrl(biUrl);
+      if (fromBiUrl) return fromBiUrl;
+    }
     return null;
-  }, [brandAnalysis?.place_id, brandAnalysis?.input_url, personaExtras?.placeId, brandInfo.naverPlaceUrl]);
+  }, [brandAnalysis?.place_id, brandAnalysis?.input_url, brandAnalysis?.basic_info, personaExtras?.placeId, brandInfo.naverPlaceUrl]);
 
   // Style Transfer 학습 콘텐츠
   const searchParams = useSearchParams();
@@ -1086,7 +1096,7 @@ function KeywordCombobox({
 }: {
   value: string;
   onChange: (text: string, id?: string) => void;
-  activeKeywords: Array<{ keyword: string; id: string }>;
+  activeKeywords: Array<{ keyword: string; id: string; monthlySearch?: number }>;
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -1152,12 +1162,17 @@ function KeywordCombobox({
                   setSearch("");
                   setOpen(false);
                 }}
-                className={`flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-accent transition-colors text-left ${
+                className={`flex w-full items-center justify-between gap-2 px-3 py-2 text-sm hover:bg-accent transition-colors text-left ${
                   value === kw.keyword ? "bg-accent font-medium" : ""
                 }`}
               >
-                <Hash className="h-3 w-3 text-muted-foreground flex-shrink-0" />
-                {kw.keyword}
+                <span className="flex items-center gap-2 min-w-0">
+                  <Hash className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                  <span className="truncate">{kw.keyword}</span>
+                </span>
+                {kw.monthlySearch ? (
+                  <span className="text-xs text-muted-foreground shrink-0">{kw.monthlySearch.toLocaleString()}/월</span>
+                ) : null}
               </button>
             ))
           ) : (
@@ -1284,7 +1299,7 @@ function StepTypeKeyword({
   subInput: string;
   onSubInputChange: (v: string) => void;
   onSubAdd: () => void;
-  activeKeywords: Array<{ keyword: string; id: string }>;
+  activeKeywords: Array<{ keyword: string; id: string; monthlySearch?: number }>;
   styleRefTitles?: string[];
   brandAnalysis?: BrandAnalysis | null;
   onAddSubKeyword?: (kw: string) => void;
@@ -1571,41 +1586,6 @@ function StepBrief({
   targetOverride?: string | null;
   onTargetOverride?: (v: string | null) => void;
 }) {
-  // 고객 리뷰 기반 강점 추출 (다단계 폴백)
-  const sellingPoints = (() => {
-    const collected: string[] = [];
-    // 1) 페르소나에서 USP
-    if (personaData?.usp_details?.length) collected.push(...personaData.usp_details);
-    // 2) 페르소나 strengths
-    if (collected.length === 0 && personaData?.strengths?.length) collected.push(...personaData.strengths);
-    // 3) brandAnalysis 폴백
-    if (collected.length === 0 && brandAnalysis) {
-      const cs = brandAnalysis.content_strategy as Record<string, unknown> | null;
-      const ar = brandAnalysis.analysis_result as Record<string, unknown> | null;
-      const reviewFromCs = cs?.review_analysis as Record<string, unknown> | undefined;
-      const reviewFromAr = ar?.review_analysis as Record<string, unknown> | undefined;
-      const brandA = cs?.brand_analysis as Record<string, unknown> | undefined;
-      const points =
-        (reviewFromCs?.selling_points as string[] | undefined) ||
-        (reviewFromAr?.selling_points as string[] | undefined) ||
-        [];
-      if (points.length > 0) collected.push(...points);
-      // 4) content_strategy.brand_analysis.usp
-      if (collected.length === 0 && brandA?.usp) {
-        const usp = brandA.usp;
-        if (Array.isArray(usp) && usp.length > 0) collected.push(...(usp as string[]));
-      }
-      // 5) strengths 문자열 split
-      if (collected.length === 0 && brandA?.strengths) {
-        const str = String(brandA.strengths);
-        const delim = str.includes(",") ? "," : str.includes("/") ? "/" : null;
-        if (delim) collected.push(...str.split(delim).map((s: string) => s.trim()).filter(Boolean));
-        else if (str.length > 0) collected.push(str);
-      }
-    }
-    return collected.slice(0, 8);
-  })();
-
   // 톤앤매너 (override 우선 → 페르소나 → brandAnalysis)
   const baseTone = personaData?.tone || (() => {
     if (!brandAnalysis?.content_strategy) return "";
@@ -1615,12 +1595,14 @@ function StepBrief({
   })();
   const effectiveTone = toneOverride !== null && toneOverride !== undefined ? toneOverride : baseTone;
 
-  // 타겟 (override 우선 → 페르소나)
-  const baseTarget = personaData?.primary_target || "";
+  // 타겟 (override 우선 → 페르소나 → brandAnalysis 폴백)
+  const baseTarget = personaData?.primary_target || (() => {
+    if (!brandAnalysis?.content_strategy) return "";
+    const cs = brandAnalysis.content_strategy;
+    const brandA = cs.brand_analysis as Record<string, unknown> | undefined;
+    return String(brandA?.target_audience || "");
+  })();
   const effectiveTarget = targetOverride !== null && targetOverride !== undefined ? targetOverride : baseTarget;
-
-  // USP가 brief에 이미 추가되었는지 라인 기반 검사 (substring 오탐 방지)
-  const briefLines = useMemo(() => value.split("\n").map((l) => l.trim()).filter(Boolean), [value]);
 
   // 톤 추가 모드
   const [showAddTone, setShowAddTone] = useState(false);
@@ -1696,45 +1678,6 @@ function StepBrief({
         )}
       </div>
 
-      {/* USP / 강점 — 클릭하면 brief에 추가 */}
-      {sellingPoints.length > 0 && (
-        <div className="rounded-lg border border-emerald-200 bg-emerald-50/50 p-3 space-y-2">
-          <p className="text-sm font-medium text-emerald-700 flex items-center gap-1.5">
-            <Sparkles className="h-3.5 w-3.5" />
-            USP / 강점
-          </p>
-          <div className="flex flex-wrap gap-1.5">
-            {sellingPoints.map((point, i) => {
-              const trimmed = point.trim();
-              if (!trimmed) return null;
-              // 라인 기반 비교: brief의 각 줄과 정확히 일치하는지 확인
-              const isAdded = briefLines.some((line) => line === trimmed || line === `강점: ${trimmed}`);
-              return (
-                <button
-                  key={i}
-                  onClick={() => {
-                    if (!isAdded) {
-                      onChange(value ? `${value}\n${trimmed}` : trimmed);
-                    }
-                  }}
-                  className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
-                    isAdded
-                      ? "bg-emerald-200/60 text-emerald-500 cursor-default"
-                      : "bg-emerald-100 text-emerald-700 hover:bg-emerald-200 cursor-pointer"
-                  }`}
-                >
-                  {isAdded ? <Check className="h-3 w-3" /> : <Plus className="h-3 w-3" />}
-                  {point}
-                </button>
-              );
-            })}
-          </div>
-          <p className="text-xs text-muted-foreground">
-            클릭하면 마케팅 포인트에 추가됩니다
-          </p>
-        </div>
-      )}
-
       {/* 브랜드 스토리 (있으면 표시) */}
       {(ownerInputData?.brand_story || personaData?.brand_story) && (
         <div className="rounded-lg border border-amber-200 bg-amber-50/50 p-3">
@@ -1795,12 +1738,22 @@ function StepBrief({
         </div>
       )}
 
-      <textarea
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder="이번 글에 특별히 강조할 포인트를 입력하세요. 위 강점/스토리를 클릭하면 자동 추가됩니다."
-        className="w-full min-h-[160px] rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-y"
-      />
+      {/* 추가 강조 사항 */}
+      <div className="rounded-lg border border-slate-200 bg-slate-50/30 p-3 space-y-2">
+        <p className="text-sm font-medium text-slate-700 flex items-center gap-1.5">
+          <Pen className="h-3.5 w-3.5" />
+          추가 강조 사항
+        </p>
+        <p className="text-xs text-muted-foreground">
+          AI 원고에 추가로 반영할 내용을 자유롭게 입력하세요.
+        </p>
+        <textarea
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="이번 글에 특별히 강조할 포인트를 입력하세요."
+          className="w-full min-h-[120px] rounded-md border border-input bg-white px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-y"
+        />
+      </div>
     </div>
   );
 }
@@ -2095,8 +2048,8 @@ function StepContentGeneration({
     };
   }, [isGenerating]);
 
-  // Estimated 45s for content generation
-  const estimatedSeconds = 45;
+  // Estimated 60s for content generation
+  const estimatedSeconds = 60;
   const progressPercent = isGenerating
     ? Math.min(Math.round((elapsed / estimatedSeconds) * 100), 95)
     : 0;
@@ -2105,6 +2058,19 @@ function StepContentGeneration({
   const elapsedLabel = elapsedMin > 0
     ? `${elapsedMin}분 ${elapsedSec}초`
     : `${elapsedSec}초`;
+
+  // 단계별 상태 메시지
+  const stageMessages = [
+    { threshold: 0, label: "브랜드 정보 분석 중..." },
+    { threshold: 8, label: "키워드 전략 수립 중..." },
+    { threshold: 18, label: "콘텐츠 구조 설계 중..." },
+    { threshold: 30, label: "원고 작성 중..." },
+    { threshold: 50, label: "SEO 최적화 적용 중..." },
+    { threshold: 70, label: "마무리 검수 중..." },
+  ];
+  const currentStage = stageMessages
+    .filter((s) => elapsed >= s.threshold)
+    .pop()?.label || stageMessages[0].label;
 
   return (
     <div className="space-y-4">
@@ -2181,16 +2147,21 @@ function StepContentGeneration({
             <Loader2 className="h-10 w-10 animate-spin text-violet-600" />
             <Sparkles className="h-4 w-4 text-violet-400 absolute -top-1 -right-1 animate-pulse" />
           </div>
-          <div className="w-full max-w-md space-y-2">
-            <div className="flex items-center justify-between text-xs text-muted-foreground">
-              <span>콘텐츠 생성 중...</span>
-              <span>{progressPercent}%</span>
-            </div>
-            <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
-              <div
-                className="h-full rounded-full bg-violet-600 transition-all duration-1000 ease-linear"
-                style={{ width: `${progressPercent}%` }}
-              />
+          <div className="w-full max-w-md space-y-3">
+            <p className="text-center text-sm font-medium text-violet-700 transition-all duration-500">
+              {currentStage}
+            </p>
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <span>진행률</span>
+                <span>{progressPercent}%</span>
+              </div>
+              <div className="h-2.5 w-full rounded-full bg-muted overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-violet-500 to-violet-600 transition-all duration-1000 ease-linear"
+                  style={{ width: `${progressPercent}%` }}
+                />
+              </div>
             </div>
             <p className="text-center text-xs text-muted-foreground">
               경과 시간: {elapsedLabel}

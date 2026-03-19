@@ -72,10 +72,13 @@ async function PublishContent({
     getClientInfoForPublishing(clientId),
   ]);
 
-  const activeKeywords = (activePool || []).map((kw) => ({
-    keyword: kw.keyword,
-    id: kw.id,
-  }));
+  const activeKeywords = (activePool || [])
+    .map((kw) => ({
+      keyword: kw.keyword,
+      id: kw.id,
+      monthlySearch: kw.monthlySearchTotal ?? 0,
+    }))
+    .sort((a, b) => b.monthlySearch - a.monthlySearch);
 
   // 페르소나 데이터 직렬화 (서버→클라이언트 전달용)
   const personaForPublish = rawPersona
