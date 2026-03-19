@@ -6,6 +6,11 @@
 - Vercel 배포는 루트 레포(fiftycompanies/waide) main 브랜치 push로 자동 트리거됨
 - apps/web/.git 이 존재하면 즉시 제거 후 루트 기준으로 작업
 
+## ⚠️ 배포 규칙 (절대 위반 금지)
+- `vercel` CLI 명령어 절대 실행 금지 (`vercel --prod`, `vercel deploy` 등 모든 vercel 명령 포함)
+- 배포는 `git push origin main` 만으로 완료. Vercel Git Integration이 자동 처리.
+- 커밋 후 push까지만 실행하고 배포 완료 보고.
+
 ## ⚠️ 파일 구조 규칙 — 단일 소스 (절대 위반 금지)
 - **소스 코드 원본은 루트에만 존재** — `app/`, `lib/`, `components/`, `public/`, `prisma/`, `middleware.ts`, `next.config.ts`, `tsconfig.json`, `postcss.config.mjs`, `package.json`
 - `apps/web/`의 위 파일들은 루트를 가리키는 심볼릭 링크 (`../../app` 등)

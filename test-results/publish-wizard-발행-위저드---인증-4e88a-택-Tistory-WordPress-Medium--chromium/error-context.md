@@ -1,0 +1,210 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e5]:
+      - link "Waide" [ref=e7] [cursor=pointer]:
+        - /url: /dashboard
+        - generic [ref=e8]:
+          - img [ref=e9]
+          - generic [ref=e13]: Waide
+      - generic [ref=e15]:
+        - paragraph [ref=e16]:
+          - img [ref=e17]
+          - text: 활성 브랜드
+        - combobox [ref=e21]:
+          - generic [ref=e22]: 🌐 전체 브랜드
+          - img
+      - generic [ref=e23]:
+        - generic [ref=e25]:
+          - generic [ref=e26]: 서비스
+          - list [ref=e28]:
+            - listitem [ref=e29]:
+              - link "대시보드" [ref=e30] [cursor=pointer]:
+                - /url: /dashboard
+                - img [ref=e31]
+                - generic [ref=e36]: 대시보드
+            - listitem [ref=e37]:
+              - link "키워드 관리" [ref=e38] [cursor=pointer]:
+                - /url: /keywords
+                - img [ref=e39]
+                - generic [ref=e43]: 키워드 관리
+            - listitem [ref=e44]:
+              - link "블로그 발행" [ref=e45] [cursor=pointer]:
+                - /url: /contents
+                - img [ref=e46]
+                - generic [ref=e50]: 블로그 발행
+            - listitem [ref=e51]:
+              - link "성과 분석" [ref=e52] [cursor=pointer]:
+                - /url: /analytics
+                - img [ref=e53]
+                - generic [ref=e54]: 성과 분석
+        - generic [ref=e57]:
+          - generic [ref=e58]: 고객 관리
+          - list [ref=e60]:
+            - listitem [ref=e61]:
+              - link "고객 포트폴리오" [ref=e62] [cursor=pointer]:
+                - /url: /clients
+                - img [ref=e63]
+                - generic [ref=e67]: 고객 포트폴리오
+            - listitem [ref=e68]:
+              - link "브랜드 관리" [ref=e69] [cursor=pointer]:
+                - /url: /brands
+                - img [ref=e70]
+                - generic [ref=e74]: 브랜드 관리
+            - listitem [ref=e75]:
+              - link "브랜드 분석" [ref=e76] [cursor=pointer]:
+                - /url: /brand-analysis
+                - img [ref=e77]
+                - generic [ref=e81]: 브랜드 분석
+            - listitem [ref=e82]:
+              - link "온보딩" [ref=e83] [cursor=pointer]:
+                - /url: /ops/onboarding
+                - img [ref=e84]
+                - generic [ref=e89]: 온보딩
+            - listitem [ref=e90]:
+              - link "계정 관리" [ref=e91] [cursor=pointer]:
+                - /url: /accounts
+                - img [ref=e92]
+                - generic [ref=e104]: 계정 관리
+        - generic [ref=e106]:
+          - generic [ref=e107]: 홈페이지
+          - list [ref=e109]:
+            - listitem [ref=e110]:
+              - link "홈페이지 프로젝트" [ref=e111] [cursor=pointer]:
+                - /url: /homepage
+                - img [ref=e112]
+                - generic [ref=e115]: 홈페이지 프로젝트
+            - listitem [ref=e116]:
+              - link "제작 신청" [ref=e117] [cursor=pointer]:
+                - /url: /homepage/requests
+                - img [ref=e118]
+                - generic [ref=e121]: 제작 신청
+            - listitem [ref=e122]:
+              - link "상담 문의" [ref=e123] [cursor=pointer]:
+                - /url: /homepage/inquiries
+                - img [ref=e124]
+                - generic [ref=e126]: 상담 문의
+        - generic [ref=e128]:
+          - generic [ref=e129]: 비즈니스
+          - list [ref=e131]:
+            - listitem [ref=e132]:
+              - link "매출 관리" [ref=e133] [cursor=pointer]:
+                - /url: /ops/revenue
+                - img [ref=e134]
+                - generic [ref=e136]: 매출 관리
+            - listitem [ref=e137]:
+              - link "이탈 관리" [ref=e138] [cursor=pointer]:
+                - /url: /ops/churn
+                - img [ref=e139]
+                - generic [ref=e141]: 이탈 관리
+            - listitem [ref=e142]:
+              - link "상품 관리" [ref=e143] [cursor=pointer]:
+                - /url: /ops/products
+                - img [ref=e144]
+                - generic [ref=e148]: 상품 관리
+            - listitem [ref=e149]:
+              - link "포인트 관리" [ref=e150] [cursor=pointer]:
+                - /url: /ops/points
+                - img [ref=e151]
+                - generic [ref=e156]: 포인트 관리
+        - generic [ref=e158]:
+          - generic [ref=e159]: 영업 CRM
+          - list [ref=e161]:
+            - listitem [ref=e162]:
+              - link "분석 로그" [ref=e163] [cursor=pointer]:
+                - /url: /ops/analysis-logs
+                - img [ref=e164]
+                - generic [ref=e167]: 분석 로그
+            - listitem [ref=e168]:
+              - link "마케팅 상담" [ref=e169] [cursor=pointer]:
+                - /url: /ops/consultations
+                - img [ref=e170]
+                - generic [ref=e172]: 마케팅 상담
+            - listitem [ref=e173]:
+              - link "영업사원" [ref=e174] [cursor=pointer]:
+                - /url: /ops/sales-agents
+                - img [ref=e175]
+                - generic [ref=e179]: 영업사원
+        - generic [ref=e181]:
+          - generic [ref=e182]: 리소스
+          - list [ref=e184]:
+            - listitem [ref=e185]:
+              - link "블로그 계정" [ref=e186] [cursor=pointer]:
+                - /url: /ops/blog-accounts
+                - img [ref=e187]
+                - generic [ref=e189]: 블로그 계정
+            - listitem [ref=e190]:
+              - link "소스 라이브러리" [ref=e191] [cursor=pointer]:
+                - /url: /ops/sources
+                - img [ref=e192]
+                - generic [ref=e194]: 소스 라이브러리
+            - listitem [ref=e195]:
+              - link "자동 스케줄러" [ref=e196] [cursor=pointer]:
+                - /url: /ops/scheduler
+                - img [ref=e197]
+                - generic [ref=e200]: 자동 스케줄러
+        - generic [ref=e202]:
+          - generic [ref=e203]: 설정
+          - list [ref=e205]:
+            - listitem [ref=e206]:
+              - link "에이전트 설정" [ref=e207] [cursor=pointer]:
+                - /url: /settings/agents
+                - img [ref=e208]
+                - generic [ref=e211]: 에이전트 설정
+            - listitem [ref=e212]:
+              - link "점수 가중치" [ref=e213] [cursor=pointer]:
+                - /url: /ops/scoring-settings
+                - img [ref=e214]
+                - generic [ref=e215]: 점수 가중치
+            - listitem [ref=e216]:
+              - link "SERP 설정" [ref=e217] [cursor=pointer]:
+                - /url: /ops/serp-settings
+                - img [ref=e218]
+                - generic [ref=e221]: SERP 설정
+            - listitem [ref=e222]:
+              - link "AEO 설정" [ref=e223] [cursor=pointer]:
+                - /url: /ops/aeo-settings
+                - img [ref=e224]
+                - generic [ref=e230]: AEO 설정
+            - listitem [ref=e231]:
+              - link "API 설정" [ref=e232] [cursor=pointer]:
+                - /url: /ops/settings
+                - img [ref=e233]
+                - generic [ref=e236]: API 설정
+            - listitem [ref=e237]:
+              - link "에러 로그" [ref=e238] [cursor=pointer]:
+                - /url: /ops/error-logs
+                - img [ref=e239]
+                - generic [ref=e241]: 에러 로그
+            - listitem [ref=e242]:
+              - link "어드민 관리" [ref=e243] [cursor=pointer]:
+                - /url: /settings/admins
+                - img [ref=e244]
+                - generic [ref=e247]: 어드민 관리
+      - button "E E2E 테스트 관리자 슈퍼 어드민" [ref=e249]:
+        - generic [ref=e251]: E
+        - generic [ref=e252]:
+          - generic [ref=e253]: E2E 테스트 관리자
+          - generic [ref=e254]: 슈퍼 어드민
+    - main [ref=e255]:
+      - button "Toggle Sidebar" [ref=e257]:
+        - img
+        - generic [ref=e258]: Toggle Sidebar
+      - main [ref=e259]:
+        - generic [ref=e261]: 콘텐츠를 찾을 수 없습니다.
+  - region "Notifications alt+T"
+  - generic [ref=e266] [cursor=pointer]:
+    - button "Open Next.js Dev Tools" [ref=e267]:
+      - img [ref=e268]
+    - generic [ref=e271]:
+      - button "Open issues overlay" [ref=e272]:
+        - generic [ref=e273]:
+          - generic [ref=e274]: "0"
+          - generic [ref=e275]: "1"
+        - generic [ref=e276]: Issue
+      - button "Collapse issues badge" [ref=e277]:
+        - img [ref=e278]
+  - alert [ref=e280]
+```
