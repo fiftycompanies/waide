@@ -305,7 +305,6 @@ ${brandHomepageContext}
         project_name: content.projectName || "AI 생성 홈페이지",
         template_id: "modern-minimal",
         status: "building",
-        reference_url: referenceUrls[0], // 하위 호환: 첫 번째 URL
         theme_config: {
           primaryColor,
           secondaryColor,
