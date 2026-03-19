@@ -1,12 +1,13 @@
 /**
  * reference-cloner.ts
- * 레퍼런스 사이트 DOM 완전 복제 크롤러
+ * 레퍼런스 사이트 DOM 복제 크롤러
  *
  * 패러다임: "생성 금지, 복제 후 교체만"
  * 1. Playwright로 완전 렌더링된 HTML 수집
- * 2. 외부 CSS 모두 인라인화
- * 3. 외부 JS 제거 (보안·개인정보)
- * 4. 완전한 독립 HTML 반환
+ * 2. <link>/<script> 원본 유지 (Vercel 배포 시 정상 로딩)
+ * 3. 상대경로를 절대경로로 변환 (이미지, 인라인 bg)
+ * 4. 내부 링크를 # 으로 무력화 (단일 페이지)
+ * 5. 트래킹 스크립트만 제거
  */
 
 import {
@@ -16,9 +17,9 @@ import {
 // ── 반환 타입 ──────────────────────────────────────────────────────────────────
 
 export interface CloneResult {
-  /** 독립 실행 가능한 HTML (외부 리소스 없음) */
+  /** Vercel 배포용 HTML (외부 CSS/JS는 원본 URL 유지) */
   html: string;
-  /** 레퍼런스 사이트 base URL (이미지 절대경로 변환용) */
+  /** 레퍼런스 사이트 base URL (상대경로 변환용) */
   baseUrl: string;
 }
 
@@ -98,127 +99,136 @@ export async function cloneReference(url: string): Promise<CloneResult> {
     // 추가 렌더링 대기 (이미지/폰트/CSS)
     await page.waitForTimeout(2000);
 
-    // Step 2: 외부 CSS URL 수집 + 인라인화 (Playwright 내에서)
-    const cssInlineResult = await page.evaluate(async (baseOrigin: string) => {
-      const cssTexts: string[] = [];
-      const linksToRemove: Element[] = [];
+    // Step 2: 상대경로 → 절대경로 변환 + 내부 링크 무력화 (Playwright 내에서)
+    // CSS/JS <link>/<script>는 원본 유지 (Vercel 배포 시 브라우저가 정상 로딩)
+    const patchResult2 = await page.evaluate((baseOrigin: string) => {
+      let imgFixed = 0;
+      let linkFixed = 0;
 
-      // <link rel="stylesheet"> 찾기
-      const links = document.querySelectorAll('link[rel="stylesheet"]');
-      for (const link of links) {
-        const href = (link as HTMLLinkElement).href;
-        if (!href) continue;
-
-        try {
-          const resp = await fetch(href, { mode: "cors" });
-          if (resp.ok) {
-            let cssText = await resp.text();
-            // CSS 내 상대경로 url() → 절대경로로 변환
-            const cssBaseUrl = new URL(href).origin;
-            cssText = cssText.replace(
-              /url\(\s*['"]?(?!data:|https?:|\/\/)(.*?)['"]?\s*\)/gi,
-              (_match: string, p1: string) => {
-                try {
-                  const absUrl = new URL(p1, href).href;
-                  return `url('${absUrl}')`;
-                } catch {
-                  return `url('${cssBaseUrl}/${p1}')`;
-                }
-              }
-            );
-            cssTexts.push(cssText);
-            linksToRemove.push(link);
-          }
-        } catch {
-          // CORS 실패 등 → 무시 (원본 link 유지)
+      // 1. <link rel="stylesheet"> href 상대경로 → 절대경로 (태그 자체는 유지)
+      const cssLinks = document.querySelectorAll('link[rel="stylesheet"]');
+      for (const link of cssLinks) {
+        const href = link.getAttribute("href");
+        if (href && !href.startsWith("http") && !href.startsWith("//") && !href.startsWith("data:")) {
+          try {
+            link.setAttribute("href", new URL(href, baseOrigin).href);
+          } catch { /* ignore */ }
         }
       }
 
-      // 원본 <link> 제거 + <style> 삽입
-      for (const link of linksToRemove) {
-        link.remove();
-      }
-      if (cssTexts.length > 0) {
-        const styleEl = document.createElement("style");
-        styleEl.textContent = cssTexts.join("\n\n");
-        document.head.appendChild(styleEl);
+      // 2. <script src> 상대경로 → 절대경로 (태그 자체는 유지)
+      const scripts = document.querySelectorAll("script[src]");
+      for (const script of scripts) {
+        const src = script.getAttribute("src");
+        if (src && !src.startsWith("http") && !src.startsWith("//") && !src.startsWith("data:")) {
+          try {
+            script.setAttribute("src", new URL(src, baseOrigin).href);
+          } catch { /* ignore */ }
+        }
       }
 
-      // <img> src 상대경로 → 절대경로 변환
+      // 3. <img> src/srcset 상대경로 → 절대경로
       const imgs = document.querySelectorAll("img");
       for (const img of imgs) {
         const src = img.getAttribute("src");
         if (src && !src.startsWith("http") && !src.startsWith("data:") && !src.startsWith("//")) {
           try {
             img.setAttribute("src", new URL(src, baseOrigin).href);
+            imgFixed++;
           } catch {
             img.setAttribute("src", `${baseOrigin}/${src.replace(/^\//, "")}`);
+            imgFixed++;
           }
         }
-        // srcset도 절대경로 변환
         const srcset = img.getAttribute("srcset");
         if (srcset) {
           const converted = srcset.replace(
             /(\S+)(\s+\d+[wx])/g,
             (_m: string, u: string, desc: string) => {
               if (u.startsWith("http") || u.startsWith("data:") || u.startsWith("//")) return u + desc;
-              try {
-                return new URL(u, baseOrigin).href + desc;
-              } catch {
-                return `${baseOrigin}/${u.replace(/^\//, "")}` + desc;
-              }
+              try { return new URL(u, baseOrigin).href + desc; }
+              catch { return `${baseOrigin}/${u.replace(/^\//, "")}` + desc; }
             }
           );
           img.setAttribute("srcset", converted);
         }
       }
 
-      // CSS background-image 상대경로 변환 (인라인 style)
-      const allElements = document.querySelectorAll("[style]");
-      for (const el of allElements) {
+      // 4. <source srcset> 상대경로 → 절대경로
+      const sources = document.querySelectorAll("source[srcset]");
+      for (const source of sources) {
+        const srcset = source.getAttribute("srcset");
+        if (srcset && !srcset.startsWith("http") && !srcset.startsWith("data:")) {
+          try {
+            source.setAttribute("srcset", new URL(srcset, baseOrigin).href);
+          } catch { /* ignore */ }
+        }
+      }
+
+      // 5. 인라인 style background-image 상대경로 → 절대경로
+      const styledEls = document.querySelectorAll("[style]");
+      for (const el of styledEls) {
         const style = el.getAttribute("style") || "";
         if (style.includes("url(")) {
           const fixed = style.replace(
-            /url\(\s*['"]?(?!data:|https?:|\/\/)(.*?)['"]?\s*\)/gi,
-            (_m: string, p1: string) => {
-              try {
-                return `url('${new URL(p1, baseOrigin).href}')`;
-              } catch {
-                return `url('${baseOrigin}/${p1.replace(/^\//, "")}')`;
-              }
+            /url\(\s*(['"]?)(?!data:|https?:|\/\/)(.*?)\1\s*\)/gi,
+            (_m: string, q: string, p1: string) => {
+              try { return `url(${q}${new URL(p1, baseOrigin).href}${q})`; }
+              catch { return `url(${q}${baseOrigin}/${p1.replace(/^\//, "")}${q})`; }
             }
           );
           el.setAttribute("style", fixed);
         }
       }
 
-      return { inlinedCount: cssTexts.length };
+      // 6. 내부 링크 무력화 (단일 페이지이므로)
+      const anchors = document.querySelectorAll("a[href]");
+      for (const a of anchors) {
+        const href = a.getAttribute("href") || "";
+        // 앵커 링크(#section) → 유지
+        if (href.startsWith("#")) continue;
+        // 외부 링크(https://...) → 유지
+        if (href.startsWith("http://") || href.startsWith("https://")) continue;
+        // tel:, mailto: → 유지
+        if (href.startsWith("tel:") || href.startsWith("mailto:")) continue;
+        // javascript: → 유지
+        if (href.startsWith("javascript:")) continue;
+        // 그 외 내부 링크 (/, /sub/page, page.html 등) → # 으로 무력화
+        a.setAttribute("href", "#");
+        linkFixed++;
+      }
+
+      return { imgFixed, linkFixed };
     }, baseUrl);
 
-    console.log(`[ReferenceCloner] CSS 인라인 완료: ${cssInlineResult.inlinedCount}개`);
+    console.log(`[ReferenceCloner] 상대경로 변환: 이미지 ${patchResult2.imgFixed}건, 내부링크 무력화 ${patchResult2.linkFixed}건`);
 
-    // Step 3: 외부 JS 제거 + 정리 (Playwright 내에서)
+    // Step 3: 트래킹/분석 스크립트만 제거 (기능 JS는 유지)
     await page.evaluate(() => {
-      // 외부 스크립트 제거 (인라인 인터랙션 JS는 유지)
+      const trackingPatterns = [
+        "gtag", "ga(", "fbq(", "kakaoPixel", "dataLayer",
+        "naver.wcslog", "_satellite", "amplitude", "mixpanel",
+        "hotjar", "clarity", "googletagmanager",
+      ];
+
       const scripts = document.querySelectorAll("script");
       for (const script of scripts) {
-        const src = script.getAttribute("src");
+        const src = script.getAttribute("src") || "";
         const content = script.textContent || "";
 
-        // 외부 스크립트는 모두 제거
-        if (src) {
+        // 트래킹 관련 외부 스크립트 제거
+        const isTrackingSrc = trackingPatterns.some((p) => src.includes(p))
+          || src.includes("analytics")
+          || src.includes("gtag")
+          || src.includes("googletagmanager");
+        if (src && isTrackingSrc) {
           script.remove();
           continue;
         }
 
-        // 인라인 스크립트: 트래킹/분석 관련만 제거
-        const trackingPatterns = [
-          "gtag", "ga(", "fbq(", "kakaoPixel", "dataLayer",
-          "naver.wcslog", "_satellite", "amplitude", "mixpanel",
-          "hotjar", "clarity", "googletagmanager",
-        ];
-        const isTracking = trackingPatterns.some((p) => content.includes(p));
-        if (isTracking) {
+        // 트래킹 관련 인라인 스크립트 제거
+        const isTrackingInline = trackingPatterns.some((p) => content.includes(p));
+        if (!src && isTrackingInline) {
           script.remove();
         }
       }
