@@ -63,8 +63,7 @@ export class HomepagePublisher {
         .update({
           account_name: accountName,
           account_url: accountUrl,
-          metadata: { project_id: projectId, subdomain },
-          updated_at: new Date().toISOString(),
+          memo: JSON.stringify({ project_id: projectId, subdomain }),
         })
         .eq("id", existing.id);
 
@@ -81,7 +80,7 @@ export class HomepagePublisher {
           account_name: accountName,
           account_url: accountUrl,
           is_default: true,
-          metadata: { project_id: projectId, subdomain },
+          memo: JSON.stringify({ project_id: projectId, subdomain }),
         });
 
       if (error) {
