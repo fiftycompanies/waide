@@ -218,8 +218,12 @@ export async function archiveContentSource(
   }
 }
 
-// 하위 호환 유지
-export const deleteContentSource = archiveContentSource;
+// 하위 호환 유지 — "use server" 파일에서 const export 금지 (런타임 모듈 로딩 실패)
+export async function deleteContentSource(
+  id: string,
+): Promise<{ success: boolean; error?: string }> {
+  return archiveContentSource(id);
+}
 
 /** URL 크롤링 → 제목, 본문 텍스트, 구조 분석 */
 export async function crawlSourceUrl(url: string): Promise<{

@@ -52,3 +52,7 @@ homepage/*/out/
 homepage/templates/*/node_modules/
 homepage/templates/*/.next/
 homepage/templates/*/.vercel/
+
+# playwright 아티팩트
+homepage/sites/playwright-report/
+homepage/sites/test-results/
