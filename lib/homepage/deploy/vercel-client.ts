@@ -14,8 +14,8 @@ export interface VercelConfig {
 export interface CreateProjectParams {
   /** 프로젝트 이름 */
   name: string;
-  /** 프레임워크 (현재 nextjs만 지원) */
-  framework: "nextjs";
+  /** 프레임워크 (nextjs 또는 null for 정적 사이트) */
+  framework: "nextjs" | null;
   /** Git 저장소 연결 정보 */
   gitRepository?: { repo: string; type: "github" };
   /** 환경변수 목록 */
@@ -213,8 +213,11 @@ export class VercelClient {
   ): Promise<{ id: string; name: string }> {
     const body: Record<string, unknown> = {
       name: params.name,
-      framework: params.framework,
     };
+    // framework가 null이면 Vercel이 정적 사이트로 처리
+    if (params.framework) {
+      body.framework = params.framework;
+    }
 
     if (params.gitRepository) {
       body.gitRepository = params.gitRepository;
@@ -327,6 +330,17 @@ export class VercelClient {
       "DELETE",
       `/v9/projects/${projectId}/domains/${domain}`
     );
+  }
+
+  /**
+   * 프로젝트의 Deployment Protection(SSO/Password)을 비활성화한다.
+   * 홈페이지 프로젝트는 공개 접근이 필요하므로 보호를 꺼야 한다.
+   */
+  async disableDeploymentProtection(projectId: string): Promise<void> {
+    await this.request<unknown>("PATCH", `/v9/projects/${projectId}`, {
+      ssoProtection: null,
+      passwordProtection: null,
+    });
   }
 
   /**

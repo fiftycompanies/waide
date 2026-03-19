@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, useEffect } from "react";
+import { useState, useTransition, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -232,11 +232,45 @@ export function GeneratePipelineForm({ brands, initialClientId }: GeneratePipeli
   const validUrls = referenceUrls.filter((u) => u.trim().length > 0);
   const canStart = selectedClientId && validUrls.length > 0 && pipelineStep === "idle";
 
+  // 진행 단계 시뮬레이션 타이머 (서버 액션은 스트리밍 불가)
+  const progressTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+
+  const clearProgressTimers = useCallback(() => {
+    progressTimersRef.current.forEach(clearTimeout);
+    progressTimersRef.current = [];
+  }, []);
+
+  // 컴포넌트 언마운트 시 타이머 정리
+  useEffect(() => {
+    return () => clearProgressTimers();
+  }, [clearProgressTimers]);
+
   function handleStart() {
     if (!canStart) return;
 
     setPipelineStep("reference_crawl");
     setErrorMessage("");
+    clearProgressTimers();
+
+    // 예상 시간 기반 진행 단계 시뮬레이션
+    // 실제 서버 작업: 크롤링(5-10s) → 브랜드(2s) → AI(10-20s) → 블로그(2s) → 배포(10-20s)
+    const stepSchedule: Array<{ step: PipelineStep; delayMs: number }> = [
+      { step: "brand_data_load", delayMs: 6000 },
+      { step: "content_generate", delayMs: 10000 },
+      { step: "blog_inject", delayMs: 25000 },
+      { step: "deploy", delayMs: 30000 },
+    ];
+
+    stepSchedule.forEach(({ step, delayMs }) => {
+      const timer = setTimeout(() => {
+        // 이미 완료/에러면 시뮬레이션 중단
+        setPipelineStep((prev) => {
+          if (prev === "done" || prev === "error") return prev;
+          return step;
+        });
+      }, delayMs);
+      progressTimersRef.current.push(timer);
+    });
 
     startTransition(async () => {
       const result = await generateHomepage({
@@ -244,6 +278,8 @@ export function GeneratePipelineForm({ brands, initialClientId }: GeneratePipeli
         referenceUrls: validUrls.map((u) => u.trim()),
         brandHomepageUrl: brandHomepageUrl.trim() || undefined,
       });
+
+      clearProgressTimers();
 
       if (result.success && result.data) {
         setPipelineStep("done");

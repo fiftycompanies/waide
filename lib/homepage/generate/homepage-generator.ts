@@ -337,6 +337,9 @@ ${brandHomepageContext}
     const primaryColor = content.primaryColor || merged.primaryColor || "#2563eb";
     const secondaryColor = content.secondaryColor || merged.secondaryColor || "#64748b";
 
+    // 크롤러 섹션 + 최소 필수 섹션 보장 (크롤러가 hero+contact만 감지해도 about/services/cta 자동 추가)
+    const sectionOrder = ensureMinimumSections(merged.sectionOrder || []);
+
     // 브랜드명 기반 프로젝트명 — AI가 레퍼런스 텍스트에서 임의 회사명을 가져오는 버그 방지
     const clientName = (brandInfo.name as string) || (brandInfo.company_name as string) || "업체";
     const projectName = `${clientName} 홈페이지`;
@@ -357,7 +360,7 @@ ${brandHomepageContext}
           headingFont: merged.headingFont || null,
           bodyFont: merged.bodyFont || null,
           designStyle: merged.designStyle || "modern",
-          navigation: buildNavigationFromSections(merged.sectionOrder),
+          navigation: buildNavigationFromSections(sectionOrder),
           hero: {
             title: content.heroTitle,
             subtitle: content.heroSubtitle,
@@ -373,7 +376,7 @@ ${brandHomepageContext}
           faqItems: content.faqItems || [],
           stats: content.stats || [],
           referenceUrls,
-          sectionOrder: merged.sectionOrder,
+          sectionOrder,
           heroImageCandidates: merged.heroImageCandidates.slice(0, 5),
           portfolioImages: crawlResult.analyses
             .flatMap((a) => a.images.sectionImages)
@@ -421,6 +424,31 @@ ${brandHomepageContext}
       subdomain: result.subdomain,
     };
   }
+}
+
+// ── Section Order Helper ─────────────────────────────────────────────────────
+
+/** 크롤러가 감지한 섹션이 부족해도 최소 필수 섹션은 항상 포함 */
+const MINIMUM_SECTIONS = ["hero", "about", "services", "cta", "contact"];
+
+function ensureMinimumSections(crawled: string[]): string[] {
+  const result = [...crawled];
+  for (const section of MINIMUM_SECTIONS) {
+    if (!result.includes(section)) {
+      // 최소 섹션 배열 기준으로 적절한 위치에 삽입
+      const minIdx = MINIMUM_SECTIONS.indexOf(section);
+      let insertAt = result.length;
+      for (let i = minIdx - 1; i >= 0; i--) {
+        const prevIdx = result.indexOf(MINIMUM_SECTIONS[i]);
+        if (prevIdx !== -1) {
+          insertAt = prevIdx + 1;
+          break;
+        }
+      }
+      result.splice(insertAt, 0, section);
+    }
+  }
+  return result;
 }
 
 // ── Navigation Helper ────────────────────────────────────────────────────────

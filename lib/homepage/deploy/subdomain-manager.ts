@@ -149,13 +149,21 @@ const COMMON_WORDS: Record<string, string> = {
   건축: "architecture",
   리모델링: "remodeling",
   시공: "construction",
+  홈페이지: "homepage",
   홈: "home",
+  페이지: "page",
   하우스: "house",
   스튜디오: "studio",
   프리미엄: "premium",
   모던: "modern",
   클래식: "classic",
   럭셔리: "luxury",
+  의원: "clinic",
+  병원: "hospital",
+  치과: "dental",
+  한의원: "clinic",
+  피부과: "derma",
+  성형외과: "plastic",
 };
 
 /**

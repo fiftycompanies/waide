@@ -98,11 +98,15 @@ export class DeployManager {
     await this.updateStatus(projectId, "building");
 
     try {
-      // 2. 서브도메인 결정
+      // 2. 서브도메인 결정 — client.name 우선 사용 (project.project_name은 "업체 홈페이지" 폴백 위험)
       let subdomain = project.subdomain;
       if (!subdomain) {
         const companyName =
-          materials?.company_name || project.project_name || "homepage";
+          (project.client as Record<string, unknown>)?.name as string ||
+          (project.client as Record<string, unknown>)?.company_name as string ||
+          materials?.company_name ||
+          project.project_name ||
+          "homepage";
         subdomain = await generateUniqueSubdomain(companyName, this.supabase);
       }
 
@@ -110,13 +114,14 @@ export class DeployManager {
       let vercelProjectId = project.vercel_project_id;
       if (!vercelProjectId) {
         const projectName = `waide-hp-${subdomain}`;
+        const hasGitRepo = !!project.git_repository;
         try {
           const vercelProject = await this.vercel.createProject({
             name: projectName,
-            framework: "nextjs",
-            gitRepository: project.git_repository
+            framework: hasGitRepo ? "nextjs" : null,
+            gitRepository: hasGitRepo
               ? {
-                  repo: project.git_repository,
+                  repo: project.git_repository as string,
                   type: "github",
                 }
               : undefined,
@@ -139,9 +144,15 @@ export class DeployManager {
         }
       }
 
-      // 4. 환경변수 설정
+      // 4. 환경변수 설정 + Deployment Protection 비활성화 (공개 홈페이지)
       const envVars = this.buildEnvVars(project, subdomain);
       await this.vercel.setEnvVars(vercelProjectId, envVars);
+      try {
+        await this.vercel.disableDeploymentProtection(vercelProjectId);
+      } catch {
+        // 실패해도 배포는 계속 진행 (팀 설정에 따라 권한 부족 가능)
+        console.warn("[DeployManager] Deployment Protection 비활성화 실패, 계속 진행합니다.");
+      }
 
       // 5. 서브도메인 도메인 연결
       const domain = `${subdomain}.waide.kr`;
