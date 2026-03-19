@@ -11,6 +11,8 @@ import {
   AlertCircle,
   ExternalLink,
   ArrowLeft,
+  Plus,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -49,6 +51,8 @@ const STEP_LABELS: Record<string, string> = {
 
 const selectCls =
   "flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring";
+
+const MAX_REFERENCE_URLS = 3;
 
 // ── Brand Analysis Card ─────────────────────────────────────────────────────
 
@@ -126,7 +130,6 @@ function ProgressSteps({ currentStep }: { currentStep: PipelineStep }) {
       {steps.map((step, idx) => {
         const isActive = step === currentStep;
         const isDone = currentIdx > idx || currentStep === "done";
-        const isPending = currentIdx < idx && currentStep !== "error";
 
         return (
           <div
@@ -166,7 +169,7 @@ export function GeneratePipelineForm({ brands }: GeneratePipelineFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [selectedClientId, setSelectedClientId] = useState("");
-  const [referenceUrl, setReferenceUrl] = useState("");
+  const [referenceUrls, setReferenceUrls] = useState<string[]>([""]);
   const [brandHomepageUrl, setBrandHomepageUrl] = useState("");
   const [analysis, setAnalysis] = useState<BrandAnalysisRow | null>(null);
   const [analysisLoading, setAnalysisLoading] = useState(false);
@@ -190,7 +193,6 @@ export function GeneratePipelineForm({ brands }: GeneratePipelineFormProps) {
     getBrandAnalysis(selectedClientId)
       .then((result) => {
         setAnalysis(result);
-        // 분석 데이터에 홈페이지 URL이 있으면 자동 채움
         const homepageUrl = (result?.basic_info as Record<string, unknown>)?.homepage_url as string;
         if (homepageUrl) {
           setBrandHomepageUrl(homepageUrl);
@@ -207,8 +209,27 @@ export function GeneratePipelineForm({ brands }: GeneratePipelineFormProps) {
       });
   }, [selectedClientId]);
 
-  const canStart =
-    selectedClientId && referenceUrl.trim() && pipelineStep === "idle";
+  // 레퍼런스 URL 관리
+  function addReferenceUrl() {
+    if (referenceUrls.length < MAX_REFERENCE_URLS) {
+      setReferenceUrls([...referenceUrls, ""]);
+    }
+  }
+
+  function removeReferenceUrl(index: number) {
+    if (referenceUrls.length > 1) {
+      setReferenceUrls(referenceUrls.filter((_, i) => i !== index));
+    }
+  }
+
+  function updateReferenceUrl(index: number, value: string) {
+    const updated = [...referenceUrls];
+    updated[index] = value;
+    setReferenceUrls(updated);
+  }
+
+  const validUrls = referenceUrls.filter((u) => u.trim().length > 0);
+  const canStart = selectedClientId && validUrls.length > 0 && pipelineStep === "idle";
 
   function handleStart() {
     if (!canStart) return;
@@ -219,7 +240,7 @@ export function GeneratePipelineForm({ brands }: GeneratePipelineFormProps) {
     startTransition(async () => {
       const result = await generateHomepage({
         clientId: selectedClientId,
-        referenceUrl: referenceUrl.trim(),
+        referenceUrls: validUrls.map((u) => u.trim()),
         brandHomepageUrl: brandHomepageUrl.trim() || undefined,
       });
 
@@ -303,18 +324,49 @@ export function GeneratePipelineForm({ brands }: GeneratePipelineFormProps) {
             </div>
           )}
 
-          {/* 레퍼런스 URL */}
-          <div className="space-y-1.5">
-            <Label htmlFor="reference-url">레퍼런스 홈페이지 URL *</Label>
-            <Input
-              id="reference-url"
-              placeholder="https://reference-site.com"
-              value={referenceUrl}
-              onChange={(e) => setReferenceUrl(e.target.value)}
-              disabled={isRunning}
-            />
+          {/* 레퍼런스 URL (1-3개) */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label>레퍼런스 홈페이지 URL * (최대 {MAX_REFERENCE_URLS}개)</Label>
+              {referenceUrls.length < MAX_REFERENCE_URLS && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={addReferenceUrl}
+                  disabled={isRunning}
+                  className="h-7 text-xs text-violet-600 hover:text-violet-700"
+                >
+                  <Plus className="h-3.5 w-3.5 mr-1" />
+                  URL 추가
+                </Button>
+              )}
+            </div>
+            {referenceUrls.map((url, index) => (
+              <div key={index} className="flex items-center gap-2">
+                <Input
+                  placeholder={`https://reference-site${index + 1}.com`}
+                  value={url}
+                  onChange={(e) => updateReferenceUrl(index, e.target.value)}
+                  disabled={isRunning}
+                />
+                {referenceUrls.length > 1 && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => removeReferenceUrl(index)}
+                    disabled={isRunning}
+                    className="h-9 w-9 shrink-0 text-muted-foreground hover:text-red-500"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
+            ))}
             <p className="text-[11px] text-muted-foreground">
-              참고할 인테리어 홈페이지 URL을 입력하세요. 구조와 디자인 패턴을 분석합니다.
+              참고할 인테리어 홈페이지 URL을 입력하세요. 구조, 디자인, 색상 등을 분석합니다.
+              여러 사이트를 입력하면 디자인 패턴을 비교 분석합니다.
             </p>
           </div>
 
@@ -334,7 +386,7 @@ export function GeneratePipelineForm({ brands }: GeneratePipelineFormProps) {
                 className="bg-violet-600 hover:bg-violet-700 gap-2"
               >
                 <Sparkles className="h-4 w-4" />
-                생성 시작
+                생성 시작 {validUrls.length > 1 && `(${validUrls.length}개 레퍼런스)`}
               </Button>
             )}
 

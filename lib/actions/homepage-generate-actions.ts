@@ -29,9 +29,19 @@ export async function generateHomepage(
       return { success: false, error: "어드민만 홈페이지를 생성할 수 있습니다." };
     }
 
+    // referenceUrl → referenceUrls 하위 호환 정규화
+    const normalizedInput: GenerateInput = {
+      ...input,
+      referenceUrls: input.referenceUrls?.length
+        ? input.referenceUrls
+        : input.referenceUrl
+          ? [input.referenceUrl]
+          : [],
+    };
+
     const supabase = createAdminClient();
     const generator = new HomepageGenerator(supabase);
-    const result = await generator.generate(input);
+    const result = await generator.generate(normalizedInput);
 
     revalidatePath("/homepage");
 

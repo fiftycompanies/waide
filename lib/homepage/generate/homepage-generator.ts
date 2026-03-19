@@ -5,12 +5,16 @@ import { getBrandAnalysis, type BrandAnalysisRow } from "@/lib/actions/analysis-
 import { injectBlogMenu } from "./blog-injector";
 import { DeployManager, VercelClient } from "@/lib/homepage/deploy";
 import { HomepagePublisher } from "@/lib/homepage/publishing";
+import { crawlMultipleHomepages } from "./homepage-crawler";
+import type { CrawlResult } from "./homepage-crawl-types";
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
 export interface GenerateInput {
   clientId: string;
-  referenceUrl: string;
+  referenceUrls: string[];
+  /** @deprecated referenceUrls 사용 권장 */
+  referenceUrl?: string;
   brandHomepageUrl?: string;
 }
 
@@ -56,9 +60,33 @@ export class HomepageGenerator {
   }
 
   async generate(input: GenerateInput): Promise<GenerateResult> {
-    // Step 1: 레퍼런스 크롤링
-    this.emit("reference_crawl", "레퍼런스 홈페이지를 크롤링하고 있습니다...", 10);
-    const referenceContent = await scrapeWebsite(input.referenceUrl);
+    // referenceUrls 정규화 (하위 호환)
+    const referenceUrls = input.referenceUrls?.length
+      ? input.referenceUrls
+      : input.referenceUrl
+        ? [input.referenceUrl]
+        : [];
+
+    if (referenceUrls.length === 0) {
+      throw new Error("레퍼런스 URL이 최소 1개 필요합니다.");
+    }
+
+    // Step 1: 레퍼런스 디자인 크롤링
+    this.emit("reference_crawl", `레퍼런스 홈페이지를 크롤링하고 있습니다... (${referenceUrls.length}개)`, 10);
+    let crawlResult: CrawlResult;
+    try {
+      crawlResult = await crawlMultipleHomepages(referenceUrls);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "알 수 없는 오류";
+      throw new Error(`레퍼런스 홈페이지 크롤링 실패 — ${msg}`);
+    }
+
+    if (crawlResult.errors.length > 0) {
+      console.warn(
+        `[HomepageGenerator] 일부 레퍼런스 크롤링 실패:`,
+        crawlResult.errors
+      );
+    }
 
     // Step 2: 브랜드 데이터 로딩
     this.emit("brand_data_load", "브랜드 분석 자료를 불러오고 있습니다...", 25);
@@ -79,8 +107,8 @@ export class HomepageGenerator {
 
     // Step 4: 콘텐츠 생성 (OpenAI)
     this.emit("content_generate", "AI가 홈페이지 콘텐츠를 생성하고 있습니다...", 45);
-    const generatedContent = await this.generateContent(
-      referenceContent,
+    const generatedContent = await this.generateContentWithDesign(
+      crawlResult,
       brandAnalysis,
       brandInfo,
       brandHomepageContent
@@ -88,7 +116,7 @@ export class HomepageGenerator {
 
     // Step 5: 프로젝트 생성 + DB 저장
     this.emit("db_save", "프로젝트를 생성하고 있습니다...", 60);
-    const projectId = await this.saveProject(input, generatedContent);
+    const projectId = await this.saveProject(input, generatedContent, crawlResult, referenceUrls);
 
     // Step 6: 블로그 메뉴 강제 삽입
     this.emit("blog_inject", "블로그 메뉴를 설정하고 있습니다...", 70);
@@ -140,14 +168,15 @@ export class HomepageGenerator {
     };
   }
 
-  private async generateContent(
-    referenceContent: ScrapedContent,
+  private async generateContentWithDesign(
+    crawlResult: CrawlResult,
     brandAnalysis: BrandAnalysisRow | null,
     brandInfo: Record<string, unknown>,
     brandHomepageContent: ScrapedContent | null
   ): Promise<GeneratedHomepageContent> {
     const brandName = (brandInfo.name as string) || (brandInfo.company_name as string) || "업체";
     const industry = (brandInfo.industry as string) || "인테리어";
+    const merged = crawlResult.merged;
 
     // 브랜드 분석 데이터 요약
     const analysisContext = brandAnalysis
@@ -159,12 +188,25 @@ export class HomepageGenerator {
       ? `\n\n[브랜드 기존 홈페이지 정보]\n${brandHomepageContent.fullText}`
       : "";
 
+    // 레퍼런스 텍스트 콘텐츠
+    const referenceTextsBlock = merged.referenceTexts
+      .map((t, i) => `--- 레퍼런스 ${i + 1} ---\n${t}`)
+      .join("\n\n");
+
     const prompt = `당신은 인테리어 업체 전문 홈페이지를 만드는 웹 디자이너입니다.
 
 아래 레퍼런스 홈페이지의 구조와 디자인 패턴을 참고하여, "${brandName}" 업체의 홈페이지 콘텐츠를 생성해주세요.
 
-[레퍼런스 홈페이지]
-${referenceContent.fullText}
+[레퍼런스 홈페이지 디자인 분석 (${crawlResult.analyses.length}개 사이트)]
+- 색상 팔레트: 주색 ${merged.primaryColor}, 보조색 ${merged.secondaryColor}, 강조 ${merged.accentColor || "없음"}
+- 배경색: ${merged.backgroundColor}, 텍스트색: ${merged.textColor}
+- 폰트: 제목=${merged.headingFont || "기본"}, 본문=${merged.bodyFont || "기본"}
+- 디자인 스타일: ${merged.designStyle}
+- 레이아웃 구조: ${merged.sectionOrder.join(" → ")}
+- 네비게이션: ${merged.suggestedNavigation.map((n) => n.label).join(", ") || "없음"}
+
+[레퍼런스 텍스트 콘텐츠]
+${referenceTextsBlock}
 
 [브랜드 정보]
 - 업체명: ${brandName}
@@ -193,11 +235,14 @@ ${brandHomepageContext}
   "ctaText": "CTA 문구",
   "seoTitle": "SEO 타이틀 (60자 이내)",
   "seoDescription": "SEO 디스크립션 (160자 이내)",
-  "primaryColor": "#HEX코드",
+  "primaryColor": "#HEX코드 (레퍼런스 색상 참고, 브랜드에 어울리게 조정)",
   "secondaryColor": "#HEX코드"
 }
 
-중요: 반드시 유효한 JSON만 출력하세요. 다른 텍스트는 포함하지 마세요.`;
+중요:
+- 반드시 유효한 JSON만 출력하세요. 다른 텍스트는 포함하지 마세요.
+- 색상은 레퍼런스 디자인 분석의 색상 팔레트를 참고하되, 브랜드 특성에 맞게 조정하세요.
+- 레이아웃 구조는 레퍼런스의 섹션 구성을 참고하세요.`;
 
     const completion = await this.openai.chat.completions.create({
       model: "gpt-4o",
@@ -243,8 +288,16 @@ ${brandHomepageContext}
 
   private async saveProject(
     input: GenerateInput,
-    content: GeneratedHomepageContent
+    content: GeneratedHomepageContent,
+    crawlResult: CrawlResult,
+    referenceUrls: string[]
   ): Promise<string> {
+    const merged = crawlResult.merged;
+
+    // 색상: AI 출력 우선 → 크롤링 결과 폴백
+    const primaryColor = content.primaryColor || merged.primaryColor || "#2563eb";
+    const secondaryColor = content.secondaryColor || merged.secondaryColor || "#64748b";
+
     const { data, error } = await this.supabase
       .from("homepage_projects")
       .insert({
@@ -252,11 +305,17 @@ ${brandHomepageContext}
         project_name: content.projectName || "AI 생성 홈페이지",
         template_id: "modern-minimal",
         status: "building",
-        reference_url: input.referenceUrl,
+        reference_url: referenceUrls[0], // 하위 호환: 첫 번째 URL
         brand_homepage_url: input.brandHomepageUrl || null,
         theme_config: {
-          primaryColor: content.primaryColor || "#2563eb",
-          secondaryColor: content.secondaryColor || "#64748b",
+          primaryColor,
+          secondaryColor,
+          accentColor: merged.accentColor || null,
+          backgroundColor: merged.backgroundColor || "#ffffff",
+          textColor: merged.textColor || "#111827",
+          headingFont: merged.headingFont || null,
+          bodyFont: merged.bodyFont || null,
+          designStyle: merged.designStyle || "modern",
           navigation: [
             { label: "홈", path: "/" },
             { label: "소개", path: "#about" },
@@ -275,6 +334,10 @@ ${brandHomepageContext}
           services: content.services,
           whyChooseUs: content.whyChooseUs,
           ctaText: content.ctaText,
+          // 크롤링 메타 (추후 활용)
+          referenceUrls,
+          sectionOrder: merged.sectionOrder,
+          heroImageCandidates: merged.heroImageCandidates.slice(0, 5),
         },
         seo_config: {
           title: content.seoTitle,
