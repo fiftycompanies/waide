@@ -22,13 +22,23 @@ type ActionResult<T = void> = {
 export async function generateHomepage(
   input: GenerateInput
 ): Promise<ActionResult<GenerateResult>> {
+  // 권한 체크: super_admin 또는 admin
+  let session;
   try {
-    // 권한 체크: super_admin 또는 admin
-    const session = await getAdminSession();
-    if (!session || !["super_admin", "admin"].includes(session.role)) {
-      return { success: false, error: "어드민만 홈페이지를 생성할 수 있습니다." };
-    }
+    session = await getAdminSession();
+  } catch (authErr) {
+    console.error("[homepage-generate] getAdminSession 에러:", authErr);
+    return { success: false, error: `인증 확인 실패: ${authErr instanceof Error ? authErr.message : "unknown"}` };
+  }
 
+  if (!session) {
+    return { success: false, error: "로그인이 필요합니다. 다시 로그인해주세요." };
+  }
+  if (!["super_admin", "admin"].includes(session.role)) {
+    return { success: false, error: `권한 부족: 현재 역할(${session.role})로는 홈페이지를 생성할 수 없습니다.` };
+  }
+
+  try {
     // referenceUrl → referenceUrls 하위 호환 정규화
     const normalizedInput: GenerateInput = {
       ...input,
