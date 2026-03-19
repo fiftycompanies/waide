@@ -462,6 +462,27 @@ export class VercelClient {
   }
 
   /**
+   * 이름 또는 ID로 프로젝트를 조회한다.
+   *
+   * @param nameOrId - 프로젝트 이름 또는 ID
+   * @returns 프로젝트 정보 (없으면 null)
+   */
+  async getProject(nameOrId: string): Promise<{ id: string; name: string } | null> {
+    try {
+      const result = await this.request<{ id: string; name: string }>(
+        "GET",
+        `/v9/projects/${encodeURIComponent(nameOrId)}`
+      );
+      return { id: result.id, name: result.name };
+    } catch (error) {
+      if (error instanceof VercelApiError && error.statusCode === 404) {
+        return null;
+      }
+      throw error;
+    }
+  }
+
+  /**
    * 빌드 로그를 조회한다.
    *
    * @param deploymentId - 대상 배포 ID

@@ -106,20 +106,37 @@ export class DeployManager {
         subdomain = await generateUniqueSubdomain(companyName, this.supabase);
       }
 
-      // 3. Vercel 프로젝트 생성 (미존재 시)
+      // 3. Vercel 프로젝트 생성 (미존재 시) — 이미 존재하면 재사용
       let vercelProjectId = project.vercel_project_id;
       if (!vercelProjectId) {
-        const vercelProject = await this.vercel.createProject({
-          name: `waide-hp-${subdomain}`,
-          framework: "nextjs",
-          gitRepository: project.git_repository
-            ? {
-                repo: project.git_repository,
-                type: "github",
-              }
-            : undefined,
-        });
-        vercelProjectId = vercelProject.id;
+        const projectName = `waide-hp-${subdomain}`;
+        try {
+          const vercelProject = await this.vercel.createProject({
+            name: projectName,
+            framework: "nextjs",
+            gitRepository: project.git_repository
+              ? {
+                  repo: project.git_repository,
+                  type: "github",
+                }
+              : undefined,
+          });
+          vercelProjectId = vercelProject.id;
+        } catch (err) {
+          // 이미 존재하는 프로젝트면 조회하여 재사용
+          const isAlreadyExists =
+            err instanceof Error && err.message.includes("already exists");
+          if (isAlreadyExists) {
+            const existing = await this.vercel.getProject(projectName);
+            if (existing) {
+              vercelProjectId = existing.id;
+            } else {
+              throw err;
+            }
+          } else {
+            throw err;
+          }
+        }
       }
 
       // 4. 환경변수 설정
