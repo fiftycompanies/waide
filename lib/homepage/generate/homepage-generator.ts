@@ -174,8 +174,8 @@ export class HomepageGenerator {
     const brandContent: BrandContent = {
       brandName: (brandInfo.name as string) || (brandInfo.company_name as string) || "업체",
       industry: (brandInfo.industry as string) || "인테리어",
-      phone: (brandInfo.phone as string) || null,
-      address: (brandInfo.address as string) || null,
+      phone: (brandInfo.contact_phone as string) || null,
+      address: null,
       websiteUrl: (brandInfo.website_url as string) || null,
       heroTitle: generatedContent.heroTitle,
       heroSubtitle: generatedContent.heroSubtitle,
@@ -238,7 +238,7 @@ export class HomepageGenerator {
   private async loadBrandInfo(clientId: string): Promise<Record<string, unknown>> {
     const { data: client } = await this.supabase
       .from("clients")
-      .select("name, company_name, website_url, industry, phone, address, brand_persona")
+      .select("name, company_name, website_url, industry, contact_phone, contact_email, brand_persona")
       .eq("id", clientId)
       .single();
 
