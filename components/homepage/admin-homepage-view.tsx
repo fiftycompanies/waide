@@ -76,10 +76,10 @@ function ProjectCard({
         <div>
           <div className="flex items-center gap-2">
             <Globe className="h-4 w-4 text-muted-foreground" />
-            <span className="font-semibold">{project.project_name}</span>
+            <span className="font-semibold">{project.client_name || project.project_name}</span>
           </div>
-          {project.client_name && (
-            <p className="text-xs text-muted-foreground mt-0.5 ml-6">{project.client_name}</p>
+          {project.client_name && project.client_name !== project.project_name && (
+            <p className="text-xs text-muted-foreground mt-0.5 ml-6">{project.project_name}</p>
           )}
         </div>
         <div className="flex items-center gap-2">

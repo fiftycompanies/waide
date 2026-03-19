@@ -4,6 +4,7 @@
  */
 
 import * as cheerio from "cheerio";
+import axios from "axios";
 import type {
   HomepageDesignAnalysis,
   SectionInfo,
@@ -105,32 +106,38 @@ function isLight(hex: string): boolean {
 
 // ── 메인 추출 함수 ──────────────────────────────────────────────────────────
 
-export function extractDesignFromHTML(
+export async function extractDesignFromHTML(
   html: string,
   url: string,
   crawlMethod: "http" | "playwright" = "http"
-): HomepageDesignAnalysis {
+): Promise<HomepageDesignAnalysis> {
   const $ = cheerio.load(html);
+
+  // 외부 CSS 1개 fetch하여 스타일 분석 보강
+  const externalCss = await fetchFirstExternalCss($, url);
+  const allCss = collectStyleContent($, html) + (externalCss ? "\n" + externalCss : "");
+
+  const sections = detectLayoutSections($);
 
   return {
     url,
     crawlMethod,
     text: extractTextContent($),
     design: {
-      colorPalette: extractColorsFromHTML($, html),
-      fonts: extractFontsFromHTML($, html),
-      borderRadius: extractBorderRadius($, html),
+      colorPalette: extractColorsFromCss($, allCss),
+      fonts: extractFontsFromCss($, allCss),
+      borderRadius: extractBorderRadiusFromCss(allCss),
       designStyle: null, // merger에서 추론
     },
     images: extractImagesFromHTML($, url),
     layout: {
-      sections: detectLayoutSections($),
+      sections,
       navigation: extractNavigation($),
-      hasHero: detectLayoutSections($).some((s) => s.type === "hero"),
-      hasPortfolio: detectLayoutSections($).some((s) => s.type === "portfolio"),
-      hasCta: detectLayoutSections($).some((s) => s.type === "cta"),
-      hasTestimonials: detectLayoutSections($).some((s) => s.type === "testimonials"),
-      hasFaq: detectLayoutSections($).some((s) => s.type === "faq"),
+      hasHero: sections.some((s) => s.type === "hero"),
+      hasPortfolio: sections.some((s) => s.type === "portfolio"),
+      hasCta: sections.some((s) => s.type === "cta"),
+      hasTestimonials: sections.some((s) => s.type === "testimonials"),
+      hasFaq: sections.some((s) => s.type === "faq"),
     },
     meta: extractMetaTags($, url),
   };
@@ -196,11 +203,29 @@ function extractTextContent($: cheerio.CheerioAPI): HomepageDesignAnalysis["text
   };
 }
 
+// ── 외부 CSS fetch (첫 번째 1개만, 3초 타임아웃) ──────────────────────────────
+
+async function fetchFirstExternalCss($: cheerio.CheerioAPI, baseUrl: string): Promise<string | null> {
+  const firstCssLink = $('link[rel="stylesheet"]').first().attr("href");
+  if (!firstCssLink) return null;
+
+  try {
+    const cssUrl = new URL(firstCssLink, baseUrl).href;
+    const resp = await axios.get(cssUrl, { timeout: 3000, responseType: "text" });
+    if (typeof resp.data === "string" && resp.data.length < 500000) {
+      return resp.data;
+    }
+  } catch {
+    // 실패해도 무시
+  }
+  return null;
+}
+
 // ── 색상 추출 ────────────────────────────────────────────────────────────────
 
-function extractColorsFromHTML(
+function extractColorsFromCss(
   $: cheerio.CheerioAPI,
-  html: string
+  allCss: string
 ): HomepageDesignAnalysis["design"]["colorPalette"] {
   const colorCounts = new Map<string, number>();
 
@@ -209,8 +234,6 @@ function extractColorsFromHTML(
     colorCounts.set(lower, (colorCounts.get(lower) || 0) + 1);
   }
 
-  // 1. <style> 블록 + 인라인 style에서 color/background-color 추출
-  const allCss = collectStyleContent($, html);
   let match: RegExpExecArray | null;
 
   while ((match = CSS_COLOR_PROP_RE.exec(allCss)) !== null) {
@@ -231,8 +254,9 @@ function extractColorsFromHTML(
     if (normalized) addColor(normalized);
   }
 
-  // 3. Tailwind 클래스
-  while ((match = TW_BG_RE.exec(html)) !== null) {
+  // 3. Tailwind 클래스 (HTML class 속성에서 추출)
+  const rawHtml = $.html() || "";
+  while ((match = TW_BG_RE.exec(rawHtml)) !== null) {
     const hex = TW_COLOR_MAP[match[1]];
     if (hex) addColor(hex);
   }
@@ -288,9 +312,9 @@ function collectStyleContent($: cheerio.CheerioAPI, html: string): string {
 
 // ── 폰트 추출 ────────────────────────────────────────────────────────────────
 
-function extractFontsFromHTML(
+function extractFontsFromCss(
   $: cheerio.CheerioAPI,
-  html: string
+  allCss: string
 ): HomepageDesignAnalysis["design"]["fonts"] {
   const fonts: string[] = [];
 
@@ -303,9 +327,8 @@ function extractFontsFromHTML(
     }
   });
 
-  // <style> + 인라인에서 font-family 추출
+  // allCss에서 font-family 추출
   const fontFamilyRe = /font-family\s*:\s*['"]?([^;'"}\n]+)/gi;
-  const allCss = collectStyleContent($, html);
   let match: RegExpExecArray | null;
   while ((match = fontFamilyRe.exec(allCss)) !== null) {
     const familyRaw = match[1].trim();
@@ -518,8 +541,7 @@ function extractMetaTags(
 
 // ── border-radius 추출 ──────────────────────────────────────────────────────
 
-function extractBorderRadius($: cheerio.CheerioAPI, html: string): string | null {
-  const allCss = collectStyleContent($, html);
+function extractBorderRadiusFromCss(allCss: string): string | null {
   const radiusRe = /border-radius\s*:\s*([^;}{]+)/g;
   const values: string[] = [];
   let match: RegExpExecArray | null;

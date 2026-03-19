@@ -148,7 +148,7 @@ export async function crawlHomepageDesign(url: string): Promise<{
   // Layer 1: Enhanced HTTP
   try {
     const { html } = await fetchWithBrowserHeaders(normalizedUrl);
-    const analysis = extractDesignFromHTML(html, normalizedUrl, "http");
+    const analysis = await extractDesignFromHTML(html, normalizedUrl, "http");
     return { success: true, data: analysis, error: null };
   } catch (httpError) {
     const isBlocked =
@@ -177,7 +177,7 @@ export async function crawlHomepageDesign(url: string): Promise<{
   // Layer 2: Playwright Stealth
   try {
     const { html, page, browser } = await fetchWithPlaywright(normalizedUrl);
-    let analysis = extractDesignFromHTML(html, normalizedUrl, "playwright");
+    let analysis = await extractDesignFromHTML(html, normalizedUrl, "playwright");
 
     // computed style 보강
     if (page) {
