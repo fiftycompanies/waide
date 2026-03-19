@@ -8,6 +8,7 @@ import { BlogPublishFlow } from "@/components/contents/blog-publish-flow";
 import {
   getPublishingAccounts,
   getBrandAnalysisForPublishing,
+  getClientInfoForPublishing,
 } from "@/lib/actions/publishing-account-actions";
 import { getPersona } from "@/lib/actions/persona-actions";
 import { getPersonaForPipeline } from "@/lib/utils/persona-compat";
@@ -63,11 +64,12 @@ async function PublishContent({
     );
   }
 
-  const [brandAnalysis, publishingAccounts, activePool, rawPersona] = await Promise.all([
+  const [brandAnalysis, publishingAccounts, activePool, rawPersona, clientInfo] = await Promise.all([
     getBrandAnalysisForPublishing(clientId),
     getPublishingAccounts(clientId),
     getActiveKeywordPool(clientId),
     getPersona(clientId),
+    getClientInfoForPublishing(clientId),
   ]);
 
   const activeKeywords = (activePool || []).map((kw) => ({
@@ -111,6 +113,8 @@ async function PublishContent({
   return (
     <BlogPublishFlow
       clientId={clientId}
+      clientName={clientInfo?.name || null}
+      clientWebsiteUrl={clientInfo?.websiteUrl || null}
       brandAnalysis={brandAnalysis}
       publishingAccounts={publishingAccounts}
       activeKeywords={activeKeywords}

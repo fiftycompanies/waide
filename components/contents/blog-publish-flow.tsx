@@ -54,7 +54,7 @@ interface CrawledImage {
 interface ImageAnalysisItem {
   url: string;
   description: string;
-  type: "exterior" | "interior" | "food" | "menu" | "facility" | "view" | "other";
+  type: string; // 업종별 동적 타입 (food/interior/portfolio/product/service/team 등)
   mood: string;
   quality_score: number;
   hook_score: number;
@@ -96,6 +96,8 @@ interface PersonaExtras {
 
 interface BlogPublishFlowProps {
   clientId: string;
+  clientName?: string | null;
+  clientWebsiteUrl?: string | null;
   brandAnalysis: BrandAnalysis | null;
   publishingAccounts: PublishingAccount[];
   activeKeywords: Array<{ keyword: string; id: string }>;
@@ -123,6 +125,8 @@ const STEPS = [
 // ═══════════════════════════════════════════════════════════════
 export function BlogPublishFlow({
   clientId,
+  clientName,
+  clientWebsiteUrl,
   brandAnalysis,
   publishingAccounts: initialAccounts,
   activeKeywords,
@@ -141,29 +145,38 @@ export function BlogPublishFlow({
     const inputUrl = brandAnalysis?.input_url || "";
     const urlType = brandAnalysis?.url_type || "";
 
+    // 업체명: clients.name(셀렉터와 동일) > basic_info.name > personaExtras
+    const name = clientName || (bi.name as string) || "";
+
     // 네이버 플레이스 URL: input_url > place_id 구성 > basic_info > personaExtras
     const isNaverInput = inputUrl.includes("naver.com") || inputUrl.includes("place.naver");
     const naverPlaceUrl = isNaverInput
       ? inputUrl
       : placeId
-        ? `https://m.place.naver.com/restaurant/${placeId}/home`
+        ? `https://m.place.naver.com/place/${placeId}/home`
         : (bi.naver_place_url as string) || (bi.place_url as string) || personaExtras?.naverPlaceUrl || "";
 
-    // 홈페이지 URL: input_url(웹사이트) > basic_info > personaExtras
+    // 홈페이지 URL: input_url(웹사이트) > basic_info > personaExtras > clients.website_url
     const isWebsiteInput = urlType === "website" || (!isNaverInput && inputUrl && !inputUrl.includes("naver.com"));
     const homepage = isWebsiteInput
       ? inputUrl
-      : (bi.homepage_url as string) || (bi.homepage as string) || (bi.website as string) || (bi.website_url as string) || personaExtras?.homepage || "";
+      : (bi.homepage_url as string) || (bi.homepage as string) || (bi.website as string) || (bi.website_url as string) || personaExtras?.homepage || clientWebsiteUrl || "";
+
+    // 카테고리: basic_info 다중 필드 폴백 > personaExtras
+    const category = (bi.category as string) || (bi.업종 as string) || (bi.business_type as string) || personaExtras?.category || "";
+
+    // 지역: basic_info 다중 필드 폴백 > personaExtras
+    const region = (bi.region as string) || (bi.address as string) || (bi.지역 as string) || (bi.location as string) || personaExtras?.region || "";
 
     // description: personaData.one_liner 우선 → 빈값이면 나중 useEffect에서 채움
     const initialDescription = personaData?.one_liner || personaData?.positioning || "";
 
     return {
-      name: (bi.name as string) || "",
+      name,
       naverPlaceUrl,
       homepage,
-      category: (bi.category as string) || personaExtras?.category || "",
-      region: (bi.region as string) || (bi.address as string) || personaExtras?.region || "",
+      category,
+      region,
       description: initialDescription,
     };
   });
@@ -244,8 +257,12 @@ export function BlogPublishFlow({
     if (personaExtras?.placeId) return personaExtras.placeId;
     const url = brandInfo.naverPlaceUrl;
     if (!url) return null;
-    const match = url.match(/\/(?:restaurant|place)\/(\d+)/);
-    return match ? match[1] : null;
+    // 다양한 네이버 플레이스 URL 패턴: /restaurant/, /place/, /cafe/, /hotel/, /beauty/, /hospital/ 등
+    const match = url.match(/\/(?:restaurant|place|cafe|hotel|accommodation|beauty|hospital|hairshop|school|shopping|food)\/(\d+)/);
+    if (match) return match[1];
+    // 패턴 매칭 실패 시 URL 내 5자리 이상 숫자 시퀀스 폴백
+    const numMatch = url.match(/\/(\d{5,})(?:\/|$|\?)/);
+    return numMatch ? numMatch[1] : null;
   }, [brandAnalysis?.place_id, personaExtras?.placeId, brandInfo.naverPlaceUrl]);
 
   // Style Transfer 학습 콘텐츠
@@ -370,7 +387,7 @@ export function BlogPublishFlow({
           imageUrls: selectedImages,
           placeName: brandInfo.name,
           category: brandInfo.category,
-          placeId: brandAnalysis?.place_id || null,
+          placeId: brandAnalysis?.place_id || derivedPlaceId || null,
         }),
       });
       if (res.ok) {

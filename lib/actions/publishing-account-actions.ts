@@ -184,6 +184,25 @@ type BrandAnalysisForPublishing = {
   url_type: string | null;
 };
 
+/** 클라이언트 기본 정보 조회 (publish 페이지용 — clients 테이블 직접 참조) */
+export async function getClientInfoForPublishing(clientId: string): Promise<{
+  name: string;
+  websiteUrl: string | null;
+} | null> {
+  const db = createAdminClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data } = await (db as any)
+    .from("clients")
+    .select("name, website_url")
+    .eq("id", clientId)
+    .maybeSingle();
+  if (!data) return null;
+  return {
+    name: data.name || "",
+    websiteUrl: data.website_url || null,
+  };
+}
+
 /** 콘텐츠 생성 후 DB 저장 */
 export async function saveGeneratedContent(payload: {
   clientId: string;
