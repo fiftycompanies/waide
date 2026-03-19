@@ -1,5 +1,4 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import OpenAI from "openai";
 import { scrapeWebsite, type ScrapedContent } from "@/lib/services/scraper";
 import { getBrandAnalysis, type BrandAnalysisRow } from "@/lib/actions/analysis-brand-actions";
 import { injectBlogMenu } from "./blog-injector";
@@ -44,18 +43,16 @@ export interface GenerateResult {
 // ── Generator ───────────────────────────────────────────────────────────────
 
 export class HomepageGenerator {
-  private openai: OpenAI;
+  private anthropicApiKey: string;
 
   constructor(
     private supabase: SupabaseClient,
     private onProgress?: (progress: GenerateProgress) => void
   ) {
-    if (!process.env.OPENAI_API_KEY) {
-      throw new Error("OPENAI_API_KEY 환경변수가 설정되지 않았습니다. Vercel 환경변수를 확인해주세요.");
+    if (!process.env.ANTHROPIC_API_KEY) {
+      throw new Error("ANTHROPIC_API_KEY 환경변수가 설정되지 않았습니다.");
     }
-    this.openai = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY,
-    });
+    this.anthropicApiKey = process.env.ANTHROPIC_API_KEY;
   }
 
   private emit(step: GenerateStep, message: string, percent: number) {
@@ -247,24 +244,42 @@ ${brandHomepageContext}
 - 색상은 레퍼런스 디자인 분석의 색상 팔레트를 참고하되, 브랜드 특성에 맞게 조정하세요.
 - 레이아웃 구조는 레퍼런스의 섹션 구성을 참고하세요.`;
 
-    let completion;
+    let responseText: string;
     try {
-      completion = await this.openai.chat.completions.create({
-        model: "gpt-4o",
-        messages: [{ role: "user", content: prompt }],
-        temperature: 0.7,
-        response_format: { type: "json_object" },
+      const resp = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": this.anthropicApiKey,
+          "anthropic-version": "2023-06-01",
+        },
+        body: JSON.stringify({
+          model: "claude-haiku-4-5-20251001",
+          max_tokens: 2048,
+          messages: [{ role: "user", content: prompt }],
+        }),
       });
+
+      if (!resp.ok) {
+        const errBody = await resp.text().catch(() => "");
+        throw new Error(`HTTP ${resp.status}: ${errBody.slice(0, 200)}`);
+      }
+
+      const data = await resp.json();
+      responseText = data.content?.[0]?.text || "";
     } catch (apiError) {
       const msg = apiError instanceof Error ? apiError.message : String(apiError);
-      throw new Error(`OpenAI API 호출 실패: ${msg}`);
+      throw new Error(`Claude API 호출 실패: ${msg}`);
     }
 
-    const content = completion.choices[0]?.message?.content;
-    if (!content) throw new Error("AI 콘텐츠 생성 실패: 응답 없음");
+    if (!responseText) throw new Error("AI 콘텐츠 생성 실패: 응답 없음");
+
+    // JSON 블록 추출 (```json ... ``` 감싸기 대응)
+    const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) throw new Error("AI 콘텐츠 파싱 실패: JSON을 찾을 수 없음");
 
     try {
-      return JSON.parse(content) as GeneratedHomepageContent;
+      return JSON.parse(jsonMatch[0]) as GeneratedHomepageContent;
     } catch {
       throw new Error("AI 콘텐츠 파싱 실패: 유효하지 않은 JSON");
     }
