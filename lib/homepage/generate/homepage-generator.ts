@@ -306,7 +306,6 @@ ${brandHomepageContext}
         template_id: "modern-minimal",
         status: "building",
         reference_url: referenceUrls[0], // 하위 호환: 첫 번째 URL
-        brand_homepage_url: input.brandHomepageUrl || null,
         theme_config: {
           primaryColor,
           secondaryColor,
