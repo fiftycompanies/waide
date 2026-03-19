@@ -23,9 +23,9 @@ import {
   Upload,
   RefreshCw,
   FileCode,
-  Eye,
   Search,
   Globe,
+  ArrowRightLeft,
 } from "lucide-react";
 import {
   createPublishingAccount,
@@ -33,7 +33,7 @@ import {
   updateContentForTracking,
 } from "@/lib/actions/publishing-account-actions";
 import type { PublishingAccount } from "@/lib/actions/publishing-account-actions";
-import { analyzeImageGaps, buildSearchQuery, type ImageGap } from "@/lib/image-gap-analyzer";
+import { buildSearchQuery } from "@/lib/image-gap-analyzer";
 
 // ── Types ────────────────────────────────────────────────────
 interface BrandAnalysis {
@@ -66,17 +66,15 @@ interface FreeImage {
   height: number;
 }
 
-interface ImageAnalysisItem {
+interface AutoInsertedImage {
+  placeholder: string; // 원래 📷 설명 텍스트
   url: string;
-  description: string;
-  type: string; // 업종별 동적 타입 (food/interior/portfolio/product/service/team 등)
-  mood: string;
-  quality_score: number;
-  hook_score: number;
-  marketing_usability: number;
-  colors: string[];
-  food_appeal?: number;
-  improvement_tip: string;
+  thumbnail: string;
+  source: "unsplash" | "pexels";
+  photographer: string;
+  sourceUrl: string;
+  alt: string;
+  searchQuery: string;
 }
 
 interface PersonaForPublish {
@@ -231,18 +229,14 @@ export function BlogPublishFlow({
   const [imageLoading, setImageLoading] = useState(false);
   const [uploadingCount, setUploadingCount] = useState(0);
 
-  // Step 3: Image Analysis
-  const [useImageAnalysis, setUseImageAnalysis] = useState(false);
-  const [imageAnalyses, setImageAnalyses] = useState<ImageAnalysisItem[]>([]);
-
-  // Step 3: 무료 이미지 검색
-  const [freeImageQuery, setFreeImageQuery] = useState("");
-  const [freeImageResults, setFreeImageResults] = useState<FreeImage[]>([]);
-  const [freeImageLoading, setFreeImageLoading] = useState(false);
-
-  // 이미지-콘텐츠 갭 분석 (Step 5 이후)
-  const [imageGaps, setImageGaps] = useState<ImageGap[]>([]);
-  const [analyzing, setAnalyzing] = useState(false);
+  // Step 5: 자동 삽입된 무료 이미지 (콘텐츠 생성 후)
+  const [autoInsertedImages, setAutoInsertedImages] = useState<AutoInsertedImage[]>([]);
+  const [autoInsertLoading, setAutoInsertLoading] = useState(false);
+  // 교체 검색용 상태
+  const [replacingIndex, setReplacingIndex] = useState<number | null>(null);
+  const [replaceQuery, setReplaceQuery] = useState("");
+  const [replaceResults, setReplaceResults] = useState<FreeImage[]>([]);
+  const [replaceLoading, setReplaceLoading] = useState(false);
 
   // Step 4: Titles
   const [titles, setTitles] = useState<string[]>([]);
@@ -274,19 +268,28 @@ export function BlogPublishFlow({
     accountUrl: "",
   });
 
-  // placeId 추출 보강: brandAnalysis > personaExtras > naverPlaceUrl 파싱
+  // placeId 추출 보강: brandAnalysis > personaExtras > naverPlaceUrl 파싱 > input_url 파싱
   const derivedPlaceId = useMemo(() => {
     if (brandAnalysis?.place_id) return brandAnalysis.place_id;
     if (personaExtras?.placeId) return personaExtras.placeId;
-    const url = brandInfo.naverPlaceUrl;
-    if (!url) return null;
-    // 다양한 네이버 플레이스 URL 패턴: /restaurant/, /place/, /cafe/, /hotel/, /beauty/, /hospital/ 등
-    const match = url.match(/\/(?:restaurant|place|cafe|hotel|accommodation|beauty|hospital|hairshop|school|shopping|food)\/(\d+)/);
-    if (match) return match[1];
-    // 패턴 매칭 실패 시 URL 내 5자리 이상 숫자 시퀀스 폴백
-    const numMatch = url.match(/\/(\d{5,})(?:\/|$|\?)/);
-    return numMatch ? numMatch[1] : null;
-  }, [brandAnalysis?.place_id, personaExtras?.placeId, brandInfo.naverPlaceUrl]);
+    // URL 파싱 헬퍼
+    const parseIdFromUrl = (url: string): string | null => {
+      if (!url) return null;
+      const match = url.match(/\/(?:restaurant|place|cafe|hotel|accommodation|beauty|hospital|hairshop|school|shopping|food)\/(\d+)/);
+      if (match) return match[1];
+      const numMatch = url.match(/\/(\d{5,})(?:\/|$|\?)/);
+      return numMatch ? numMatch[1] : null;
+    };
+    // naverPlaceUrl 우선 파싱
+    const fromNaverUrl = parseIdFromUrl(brandInfo.naverPlaceUrl);
+    if (fromNaverUrl) return fromNaverUrl;
+    // input_url 폴백 파싱 (brand_analyses.input_url)
+    if (brandAnalysis?.input_url) {
+      const fromInputUrl = parseIdFromUrl(brandAnalysis.input_url);
+      if (fromInputUrl) return fromInputUrl;
+    }
+    return null;
+  }, [brandAnalysis?.place_id, brandAnalysis?.input_url, personaExtras?.placeId, brandInfo.naverPlaceUrl]);
 
   // Style Transfer 학습 콘텐츠
   const searchParams = useSearchParams();
@@ -398,32 +401,6 @@ export function BlogPublishFlow({
     }
   };
 
-  // ── Image analysis ──
-  const handleAnalyzeImages = async () => {
-    if (selectedImages.length === 0) return;
-    setAnalyzing(true);
-    try {
-      const res = await fetch("/api/ai/analyze-images", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          imageUrls: selectedImages,
-          placeName: brandInfo.name,
-          category: brandInfo.category,
-          placeId: brandAnalysis?.place_id || derivedPlaceId || null,
-        }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setImageAnalyses(data.analyses || []);
-      }
-    } catch (err) {
-      console.error("Image analysis failed:", err);
-    } finally {
-      setAnalyzing(false);
-    }
-  };
-
   const toggleImage = (url: string) => {
     setSelectedImages((prev) =>
       prev.includes(url) ? prev.filter((u) => u !== url) : [...prev, url]
@@ -434,37 +411,52 @@ export function BlogPublishFlow({
     setSelectedImages((prev) => prev.filter((u) => u !== url));
   };
 
-  // ── Free image search ──
-  const handleSearchFreeImages = async (query?: string) => {
-    const q = (query || freeImageQuery).trim();
+  // ── 교체 검색 (자동 삽입 이미지 교체용) ──
+  const handleReplaceSearch = async (query: string) => {
+    const q = query.trim();
     if (!q) return;
-    setFreeImageLoading(true);
+    setReplaceLoading(true);
     try {
       const searchQ = buildSearchQuery(q, brandInfo.category);
       const res = await fetch("/api/ai/search-free-images", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query: searchQ, perPage: 8 }),
+        body: JSON.stringify({ query: searchQ, perPage: 6 }),
       });
       if (res.ok) {
         const data = await res.json();
-        setFreeImageResults(data.images || []);
+        setReplaceResults(data.images || []);
       }
     } catch (err) {
-      console.error("Free image search failed:", err);
+      console.error("Replace image search failed:", err);
     } finally {
-      setFreeImageLoading(false);
+      setReplaceLoading(false);
     }
   };
 
-  // ── Image-content gap analysis (after content generation) ──
-  useEffect(() => {
-    if (generatedContent && imageAnalyses.length > 0) {
-      const gaps = analyzeImageGaps(generatedContent, imageAnalyses, brandInfo.category);
-      setImageGaps(gaps);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [generatedContent, imageAnalyses.length]);
+  // ── 자동 삽입 이미지 교체 ──
+  const handleReplaceImage = (index: number, newImage: FreeImage) => {
+    const oldUrl = autoInsertedImages[index]?.url;
+    if (!oldUrl) return;
+    // 마크다운 내 이미지 URL 교체
+    setGeneratedContent((prev) =>
+      prev.replace(
+        new RegExp(`!\\[([^\\]]*)\\]\\(${oldUrl.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\)`),
+        `![${newImage.alt || autoInsertedImages[index].alt}](${newImage.url})`
+      )
+    );
+    // autoInsertedImages 업데이트
+    setAutoInsertedImages((prev) =>
+      prev.map((img, i) =>
+        i === index
+          ? { ...img, url: newImage.url, thumbnail: newImage.thumbnail, source: newImage.source, photographer: newImage.photographer, sourceUrl: newImage.sourceUrl, alt: newImage.alt || img.alt }
+          : img
+      )
+    );
+    setReplacingIndex(null);
+    setReplaceResults([]);
+    setReplaceQuery("");
+  };
 
   // ── Image upload ──
   const handleFileUpload = async (files: FileList) => {
@@ -545,6 +537,7 @@ export function BlogPublishFlow({
     setGeneratedContent("");
     setSavedContentId(null);
     setTruncationWarning(false);
+    setAutoInsertedImages([]);
 
     try {
       const res = await fetch("/api/ai/generate-content", {
@@ -586,7 +579,6 @@ export function BlogPublishFlow({
           mainKeyword,
           subKeywords,
           imageUrls: selectedImages.length > 0 ? selectedImages : undefined,
-          imageAnalyses: useImageAnalysis && imageAnalyses.length > 0 ? imageAnalyses : undefined,
           title: editedTitle,
           addSchemaMarkup,
           styleRefs: styleRefTitles.length > 0 ? styleRefTitles : undefined,
@@ -637,7 +629,69 @@ export function BlogPublishFlow({
         );
       }
 
+      // 먼저 콘텐츠 표시 (자동 삽입은 비동기로 후처리)
       setGeneratedContent(accumulated);
+
+      // 남은 📷 플레이스홀더 수집 → 무료 이미지 자동 검색 + 삽입
+      const phRegex = /^>\s*📷\s*\[이미지 추천\]\s*(.+)$/gm;
+      const remainingPhs: Array<{ fullMatch: string; description: string }> = [];
+      let phMatch: RegExpExecArray | null;
+      while ((phMatch = phRegex.exec(accumulated)) !== null) {
+        const desc = phMatch[1].replace(/\s*—.*$/, "").trim();
+        remainingPhs.push({ fullMatch: phMatch[0], description: desc });
+      }
+
+      if (remainingPhs.length > 0) {
+        setAutoInsertLoading(true);
+        try {
+          const searchResults = await Promise.all(
+            remainingPhs.map(async (ph) => {
+              const q = buildSearchQuery(ph.description, brandInfo.category);
+              try {
+                const res = await fetch("/api/ai/search-free-images", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ query: q, perPage: 1 }),
+                });
+                if (res.ok) {
+                  const data = await res.json();
+                  return { ...ph, image: (data.images?.[0] as FreeImage) || null };
+                }
+              } catch {}
+              return { ...ph, image: null as FreeImage | null };
+            })
+          );
+
+          let updatedContent = accumulated;
+          const inserted: AutoInsertedImage[] = [];
+          for (const result of searchResults) {
+            if (result.image) {
+              updatedContent = updatedContent.replace(
+                result.fullMatch,
+                `![${result.image.alt || result.description}](${result.image.url})`
+              );
+              inserted.push({
+                placeholder: result.description,
+                url: result.image.url,
+                thumbnail: result.image.thumbnail,
+                source: result.image.source,
+                photographer: result.image.photographer,
+                sourceUrl: result.image.sourceUrl,
+                alt: result.image.alt || result.description,
+                searchQuery: result.description,
+              });
+            }
+          }
+          if (inserted.length > 0) {
+            setGeneratedContent(updatedContent);
+            setAutoInsertedImages(inserted);
+          }
+        } catch (err) {
+          console.error("Auto image insertion failed:", err);
+        } finally {
+          setAutoInsertLoading(false);
+        }
+      }
     } catch (err) {
       console.error("Generation error:", err);
       setGeneratedContent("콘텐츠 생성 중 오류가 발생했습니다. 다시 시도해주세요.");
@@ -823,20 +877,6 @@ export function BlogPublishFlow({
               onToggle={toggleImage}
               onRemove={removeImage}
               onFileUpload={handleFileUpload}
-              useImageAnalysis={useImageAnalysis}
-              onUseImageAnalysisChange={(v) => {
-                setUseImageAnalysis(v);
-                if (!v) setImageAnalyses([]);
-              }}
-              imageAnalyses={imageAnalyses}
-              analyzing={analyzing}
-              onAnalyze={handleAnalyzeImages}
-              brandCategory={brandInfo.category}
-              freeImageQuery={freeImageQuery}
-              onFreeImageQueryChange={setFreeImageQuery}
-              freeImageResults={freeImageResults}
-              freeImageLoading={freeImageLoading}
-              onSearchFreeImages={handleSearchFreeImages}
             />
           )}
           {step === 4 && (
@@ -872,32 +912,100 @@ export function BlogPublishFlow({
                 onContentChange={setGeneratedContent}
                 onCopy={handleCopy}
               />
-              {/* 이미지-콘텐츠 갭 분석 배너 */}
-              {imageGaps.length > 0 && generatedContent && !isGenerating && (
-                <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50/50 p-3 space-y-2">
-                  <p className="text-sm font-medium text-amber-700 flex items-center gap-1.5">
-                    <ImageIcon className="h-3.5 w-3.5" />
-                    {imageGaps.length}개 섹션에 적합한 이미지가 부족합니다
+              {/* 자동 삽입 이미지 로딩 표시 */}
+              {autoInsertLoading && generatedContent && !isGenerating && (
+                <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50/50 p-3 flex items-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+                  <p className="text-sm text-blue-700">무료 이미지를 자동으로 검색하여 삽입하고 있습니다...</p>
+                </div>
+              )}
+              {/* 자동 삽입된 이미지 목록 */}
+              {autoInsertedImages.length > 0 && generatedContent && !isGenerating && !autoInsertLoading && (
+                <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50/50 p-3 space-y-3">
+                  <p className="text-sm font-medium text-emerald-700 flex items-center gap-1.5">
+                    <Globe className="h-3.5 w-3.5" />
+                    {autoInsertedImages.length}개 무료 이미지가 자동 삽입되었습니다
                   </p>
-                  <div className="space-y-1.5">
-                    {imageGaps.map((gap) => (
-                      <div key={gap.sectionIndex} className="flex items-center gap-2">
-                        <span className="text-xs text-amber-600">
-                          &quot;{gap.sectionHeading}&quot; → {gap.koreanHint}
-                        </span>
-                        <button
-                          onClick={() => {
-                            setFreeImageQuery(gap.koreanHint);
-                            handleSearchFreeImages(gap.searchQueries[0]);
-                            setStep(3); // 이미지 Step으로 이동
-                          }}
-                          className="text-xs text-violet-600 hover:text-violet-700 underline"
-                        >
-                          무료 이미지 검색
-                        </button>
+                  <div className="space-y-2">
+                    {autoInsertedImages.map((img, idx) => (
+                      <div key={idx} className="space-y-2">
+                        <div className="flex items-center gap-3 bg-white rounded-md p-2 border border-emerald-100">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={img.thumbnail} alt={img.alt} className="w-12 h-12 rounded object-cover shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs text-muted-foreground truncate">{img.placeholder}</p>
+                            <p className="text-[10px] text-muted-foreground/70">
+                              {img.source === "unsplash" ? "Unsplash" : "Pexels"} · {img.photographer}
+                            </p>
+                          </div>
+                          <button
+                            onClick={() => {
+                              if (replacingIndex === idx) {
+                                setReplacingIndex(null);
+                                setReplaceResults([]);
+                                setReplaceQuery("");
+                              } else {
+                                setReplacingIndex(idx);
+                                setReplaceQuery(img.searchQuery);
+                                setReplaceResults([]);
+                              }
+                            }}
+                            className="text-xs px-2 py-1 rounded-md bg-white border border-muted-foreground/20 hover:bg-muted/50 transition-colors flex items-center gap-1 shrink-0"
+                          >
+                            <ArrowRightLeft className="h-3 w-3" />
+                            교체
+                          </button>
+                        </div>
+                        {/* 교체 검색 UI */}
+                        {replacingIndex === idx && (
+                          <div className="ml-4 p-2 rounded-md bg-white border border-muted-foreground/20 space-y-2">
+                            <div className="flex gap-2">
+                              <input
+                                type="text"
+                                value={replaceQuery}
+                                onChange={(e) => setReplaceQuery(e.target.value)}
+                                placeholder="대체 이미지 검색"
+                                onKeyDown={(e) => { if (e.key === "Enter") handleReplaceSearch(replaceQuery); }}
+                                className="flex-1 h-8 rounded-md border border-input bg-transparent px-2 text-xs shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                              />
+                              <Button
+                                onClick={() => handleReplaceSearch(replaceQuery)}
+                                disabled={replaceLoading || !replaceQuery.trim()}
+                                variant="outline"
+                                size="sm"
+                                className="h-8 text-xs gap-1"
+                              >
+                                {replaceLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Search className="h-3 w-3" />}
+                                검색
+                              </Button>
+                            </div>
+                            {replaceResults.length > 0 && (
+                              <div className="grid grid-cols-3 gap-1.5">
+                                {replaceResults.map((ri) => (
+                                  <button
+                                    key={ri.id}
+                                    onClick={() => handleReplaceImage(idx, ri)}
+                                    className="relative aspect-square rounded overflow-hidden border hover:ring-2 hover:ring-violet-300 transition-all"
+                                  >
+                                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                                    <img src={ri.thumbnail} alt={ri.alt} className="w-full h-full object-cover" />
+                                    <div className="absolute bottom-0 left-0 right-0 bg-black/60 px-1 py-0.5">
+                                      <span className="text-[8px] text-white/80 truncate block">
+                                        {ri.source === "unsplash" ? "U" : "P"} · {ri.photographer}
+                                      </span>
+                                    </div>
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
+                  <p className="text-[10px] text-muted-foreground">
+                    Unsplash/Pexels 무료 이미지 (상업적 이용 가능). &quot;교체&quot;로 다른 이미지로 변경할 수 있습니다.
+                  </p>
                 </div>
               )}
             </>
@@ -1708,17 +1816,6 @@ function StepImages({
   onToggle,
   onRemove,
   onFileUpload,
-  useImageAnalysis,
-  onUseImageAnalysisChange,
-  imageAnalyses,
-  analyzing,
-  onAnalyze,
-  brandCategory,
-  freeImageQuery,
-  onFreeImageQueryChange,
-  freeImageResults,
-  freeImageLoading,
-  onSearchFreeImages,
 }: {
   placeId: string | null;
   crawledImages: CrawledImage[];
@@ -1729,78 +1826,34 @@ function StepImages({
   onToggle: (url: string) => void;
   onRemove: (url: string) => void;
   onFileUpload: (files: FileList) => void;
-  useImageAnalysis: boolean;
-  onUseImageAnalysisChange: (v: boolean) => void;
-  imageAnalyses: ImageAnalysisItem[];
-  analyzing: boolean;
-  onAnalyze: () => void;
-  brandCategory: string;
-  freeImageQuery: string;
-  onFreeImageQueryChange: (v: string) => void;
-  freeImageResults: FreeImage[];
-  freeImageLoading: boolean;
-  onSearchFreeImages: (query?: string) => void;
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [sortByHook, setSortByHook] = useState(false);
-
-  // 분석된 이미지 URL → analysis 매핑
-  const analysisMap = useMemo(() => {
-    const map = new Map<string, ImageAnalysisItem>();
-    for (const a of imageAnalyses) map.set(a.url, a);
-    return map;
-  }, [imageAnalyses]);
-
-  // type 라벨 (업종 범용)
-  const typeLabels: Record<string, string> = {
-    // 장소형
-    exterior: "외관", interior: "내부", food: "음식",
-    menu: "메뉴", facility: "시설", view: "경관",
-    // 서비스형
-    portfolio: "포트폴리오", branding: "브랜딩", product: "제품",
-    workspace: "작업공간", team: "팀", process: "과정", result: "성과",
-    // 뷰티/의료
-    treatment: "시술", equipment: "장비",
-    // 교육
-    classroom: "수업", material: "교재", event: "행사",
-    // 리테일
-    display: "진열", detail: "디테일", packaging: "포장",
-    // 공통
-    service: "서비스", other: "기타",
-  };
-
-  // hook_score 순 정렬된 선택 이미지
-  const sortedSelectedImages = useMemo(() => {
-    if (!sortByHook || imageAnalyses.length === 0) return selectedImages;
-    return [...selectedImages].sort((a, b) => {
-      const scoreA = analysisMap.get(a)?.hook_score ?? 0;
-      const scoreB = analysisMap.get(b)?.hook_score ?? 0;
-      return scoreB - scoreA;
-    });
-  }, [selectedImages, sortByHook, imageAnalyses, analysisMap]);
 
   return (
     <div className="space-y-4">
       <h3 className="text-lg font-semibold">이미지 선택</h3>
       <p className="text-sm text-muted-foreground">
-        플레이스 이미지를 불러오거나 직접 업로드하세요 (선택사항)
+        플레이스 이미지를 불러오거나 직접 업로드하세요. 이미지가 없으면 콘텐츠 생성 시 무료 이미지가 자동 삽입됩니다.
       </p>
 
-      {/* 플레이스 이미지 섹션 */}
-      {placeId ? (
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <p className="text-sm font-medium">플레이스 이미지 (자동 워싱)</p>
-            <Button onClick={onCrawl} disabled={loading} variant="outline" size="sm" className="gap-1.5">
-              {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-              {loading ? "불러오는 중..." : crawledImages.length > 0 ? "다시 불러오기" : "이미지 불러오기"}
-            </Button>
-          </div>
-          {crawledImages.length > 0 ? (
-            <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-              {crawledImages.map((img) => {
-                const analysis = analysisMap.get(img.url);
-                return (
+      {/* 방법 1: 네이버 플레이스 이미지 */}
+      <div className="space-y-3">
+        <p className="text-sm font-medium flex items-center gap-1.5">
+          <Store className="h-3.5 w-3.5" />
+          방법 1. 네이버 플레이스 이미지
+        </p>
+        {placeId ? (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-muted-foreground">플레이스에서 이미지를 자동으로 가져옵니다 (워싱 처리)</p>
+              <Button onClick={onCrawl} disabled={loading} variant="outline" size="sm" className="gap-1.5">
+                {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                {loading ? "불러오는 중..." : crawledImages.length > 0 ? "다시 불러오기" : "이미지 불러오기"}
+              </Button>
+            </div>
+            {crawledImages.length > 0 ? (
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                {crawledImages.map((img) => (
                   <button
                     key={img.phash}
                     onClick={() => onToggle(img.url)}
@@ -1817,45 +1870,28 @@ function StepImages({
                         <Check className="h-3 w-3" />
                       </div>
                     )}
-                    {/* 분석 결과 오버레이 */}
-                    {analysis && (
-                      <>
-                        <div className="absolute bottom-0 left-0 right-0 bg-black/60 px-1.5 py-0.5 flex items-center justify-between">
-                          <span className="text-[10px] text-white font-medium">
-                            {typeLabels[analysis.type] || analysis.type}
-                          </span>
-                          <span className={`text-[10px] font-bold ${
-                            analysis.hook_score >= 8 ? "text-emerald-400" :
-                            analysis.hook_score >= 5 ? "text-yellow-400" : "text-red-400"
-                          }`}>
-                            {analysis.hook_score}
-                          </span>
-                        </div>
-                      </>
-                    )}
                   </button>
-                );
-              })}
-            </div>
-          ) : !loading ? (
-            <p className="text-xs text-muted-foreground">&quot;이미지 불러오기&quot;를 클릭하면 플레이스 이미지를 가져옵니다</p>
-          ) : null}
-        </div>
-      ) : (
-        <div className="rounded-lg border border-dashed border-muted-foreground/30 p-4 text-center">
-          <ImageIcon className="h-6 w-6 text-muted-foreground/50 mx-auto mb-2" />
-          <p className="text-sm text-muted-foreground">
-            네이버 플레이스 연동이 없어 자동 이미지 불러오기가 불가합니다.
-          </p>
-          <p className="text-xs text-muted-foreground mt-1">
-            아래 &quot;직접 업로드&quot;로 이미지를 추가하세요.
-          </p>
-        </div>
-      )}
+                ))}
+              </div>
+            ) : !loading ? (
+              <p className="text-xs text-muted-foreground">&quot;이미지 불러오기&quot;를 클릭하면 플레이스 이미지를 가져옵니다</p>
+            ) : null}
+          </div>
+        ) : (
+          <div className="rounded-lg border border-dashed border-muted-foreground/30 p-3 text-center">
+            <p className="text-xs text-muted-foreground">
+              네이버 플레이스 연동이 없습니다. 직접 업로드를 이용하세요.
+            </p>
+          </div>
+        )}
+      </div>
 
-      {/* 직접 업로드 섹션 */}
+      {/* 방법 2: 직접 업로드 */}
       <div className="border-t pt-4 space-y-3">
-        <p className="text-sm font-medium">직접 업로드</p>
+        <p className="text-sm font-medium flex items-center gap-1.5">
+          <Upload className="h-3.5 w-3.5" />
+          방법 2. 직접 업로드
+        </p>
         <input
           ref={fileInputRef}
           type="file"
@@ -1878,159 +1914,41 @@ function StepImages({
           {uploadingCount > 0 ? (
             <Loader2 className="h-4 w-4 animate-spin" />
           ) : (
-            <Upload className="h-4 w-4" />
+            <Plus className="h-4 w-4" />
           )}
           {uploadingCount > 0 ? `${uploadingCount}개 업로드 중...` : "파일 선택"}
         </Button>
       </div>
 
-      {/* 무료 이미지 검색 섹션 */}
-      <div className="border-t pt-4 space-y-3">
-        <p className="text-sm font-medium flex items-center gap-1.5">
-          <Globe className="h-3.5 w-3.5" />
-          무료 이미지 검색
-        </p>
-        <p className="text-xs text-muted-foreground">
-          Unsplash/Pexels에서 무료 이미지를 검색하여 추가하세요 (상업적 이용 가능)
-        </p>
-        <div className="flex gap-2">
-          <input
-            type="text"
-            value={freeImageQuery}
-            onChange={(e) => onFreeImageQueryChange(e.target.value)}
-            placeholder="검색어 입력 (한글/영문)"
-            onKeyDown={(e) => { if (e.key === "Enter") onSearchFreeImages(); }}
-            className="flex-1 h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-          />
-          <Button
-            onClick={() => onSearchFreeImages()}
-            disabled={freeImageLoading || !freeImageQuery.trim()}
-            variant="outline"
-            size="sm"
-            className="gap-1.5 shrink-0"
-          >
-            {freeImageLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
-            {freeImageLoading ? "검색 중..." : "검색"}
-          </Button>
-        </div>
-        {freeImageResults.length > 0 && (
-          <div className="space-y-2">
-            <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-              {freeImageResults.map((img) => (
-                <button
-                  key={img.id}
-                  onClick={() => onToggle(img.url)}
-                  className={`relative aspect-square rounded-lg overflow-hidden border-2 transition-all ${
-                    selectedImages.includes(img.url)
-                      ? "border-violet-500 ring-2 ring-violet-300"
-                      : "border-transparent hover:border-muted-foreground/30"
-                  }`}
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={img.thumbnail} alt={img.alt} className="w-full h-full object-cover" />
-                  {selectedImages.includes(img.url) && (
-                    <div className="absolute top-1 right-1 bg-violet-600 text-white rounded-full p-0.5">
-                      <Check className="h-3 w-3" />
-                    </div>
-                  )}
-                  <div className="absolute bottom-0 left-0 right-0 bg-black/60 px-1.5 py-0.5">
-                    <span className="text-[9px] text-white/80 truncate block">
-                      {img.source === "unsplash" ? "Unsplash" : "Pexels"} · {img.photographer}
-                    </span>
-                  </div>
-                </button>
-              ))}
-            </div>
-            <p className="text-[10px] text-muted-foreground">
-              이미지 클릭으로 선택/해제. 출처 표기가 포함됩니다.
-            </p>
-          </div>
-        )}
-      </div>
-
-      {/* AI 이미지 분석 섹션 */}
-      <div className="border-t pt-4 space-y-3">
-        <div className="flex items-center justify-between">
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={useImageAnalysis}
-              onChange={(e) => onUseImageAnalysisChange(e.target.checked)}
-              className="h-4 w-4 rounded border-gray-300 text-violet-600 focus:ring-violet-500"
-            />
-            <span className="text-sm font-medium">AI 이미지 분석 적용</span>
-          </label>
-          {useImageAnalysis && imageAnalyses.length > 0 && (
-            <button
-              onClick={() => setSortByHook(!sortByHook)}
-              className={`text-xs px-2 py-1 rounded-md transition-colors ${
-                sortByHook ? "bg-violet-100 text-violet-700" : "bg-muted text-muted-foreground hover:bg-muted/80"
-              }`}
-            >
-              Hook 순 정렬 {sortByHook ? "ON" : "OFF"}
-            </button>
-          )}
-        </div>
-        {useImageAnalysis && (
-          <>
-            <p className="text-xs text-muted-foreground">
-              이미지를 AI로 분석하여 콘텐츠에 최적 배치합니다 (~100원/장, 캐시된 이미지는 무료)
-            </p>
-            {selectedImages.length > 0 && (
-              <Button
-                onClick={onAnalyze}
-                disabled={analyzing}
-                variant="outline"
-                size="sm"
-                className="gap-1.5"
-              >
-                {analyzing ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <Eye className="h-3.5 w-3.5" />
-                )}
-                {analyzing ? "분석 중..." : "이미지 분석 실행"}
-              </Button>
-            )}
-          </>
-        )}
-      </div>
-
-      {/* Selected Images Thumbnails */}
+      {/* 선택된 이미지 목록 */}
       {selectedImages.length > 0 && (
-        <div className="space-y-2">
+        <div className="border-t pt-4 space-y-2">
           <p className="text-xs text-muted-foreground">{selectedImages.length}개 선택됨</p>
           <div className="flex flex-wrap gap-2">
-            {sortedSelectedImages.map((url) => {
-              const analysis = analysisMap.get(url);
-              return (
-                <div key={url} className="relative group">
-                  <div className="w-16 h-16 rounded-md overflow-hidden border">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={url} alt="" className="w-full h-full object-cover" />
-                  </div>
-                  <button
-                    onClick={() => onRemove(url)}
-                    className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 shadow"
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
-                  {/* 분석 배지 */}
-                  {analysis && (
-                    <div className="absolute bottom-0 left-0 right-0 bg-black/70 rounded-b-md px-1 py-0.5 flex items-center justify-between">
-                      <span className="text-[9px] text-white">{typeLabels[analysis.type] || "?"}</span>
-                      <span className={`text-[9px] font-bold ${
-                        analysis.hook_score >= 8 ? "text-emerald-400" :
-                        analysis.hook_score >= 5 ? "text-yellow-400" : "text-red-400"
-                      }`}>
-                        {analysis.hook_score}
-                      </span>
-                    </div>
-                  )}
+            {selectedImages.map((url) => (
+              <div key={url} className="relative group">
+                <div className="w-16 h-16 rounded-md overflow-hidden border">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={url} alt="" className="w-full h-full object-cover" />
                 </div>
-              );
-            })}
+                <button
+                  onClick={() => onRemove(url)}
+                  className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 shadow"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
+            ))}
           </div>
+        </div>
+      )}
+
+      {/* 이미지 없을 때 안내 */}
+      {selectedImages.length === 0 && (
+        <div className="rounded-lg bg-blue-50/50 border border-blue-200 p-3">
+          <p className="text-xs text-blue-700">
+            이미지를 선택하지 않으면 콘텐츠 생성 시 Unsplash/Pexels에서 무료 이미지가 자동으로 검색되어 삽입됩니다.
+          </p>
         </div>
       )}
     </div>
