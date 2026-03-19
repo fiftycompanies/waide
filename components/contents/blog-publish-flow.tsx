@@ -24,6 +24,8 @@ import {
   RefreshCw,
   FileCode,
   Eye,
+  Search,
+  Globe,
 } from "lucide-react";
 import {
   createPublishingAccount,
@@ -31,6 +33,7 @@ import {
   updateContentForTracking,
 } from "@/lib/actions/publishing-account-actions";
 import type { PublishingAccount } from "@/lib/actions/publishing-account-actions";
+import { analyzeImageGaps, buildSearchQuery, type ImageGap } from "@/lib/image-gap-analyzer";
 
 // ── Types ────────────────────────────────────────────────────
 interface BrandAnalysis {
@@ -47,6 +50,18 @@ interface BrandAnalysis {
 interface CrawledImage {
   url: string;
   phash: string;
+  width: number;
+  height: number;
+}
+
+interface FreeImage {
+  id: string;
+  url: string;
+  thumbnail: string;
+  photographer: string;
+  source: "unsplash" | "pexels";
+  sourceUrl: string;
+  alt: string;
   width: number;
   height: number;
 }
@@ -219,6 +234,14 @@ export function BlogPublishFlow({
   // Step 3: Image Analysis
   const [useImageAnalysis, setUseImageAnalysis] = useState(false);
   const [imageAnalyses, setImageAnalyses] = useState<ImageAnalysisItem[]>([]);
+
+  // Step 3: 무료 이미지 검색
+  const [freeImageQuery, setFreeImageQuery] = useState("");
+  const [freeImageResults, setFreeImageResults] = useState<FreeImage[]>([]);
+  const [freeImageLoading, setFreeImageLoading] = useState(false);
+
+  // 이미지-콘텐츠 갭 분석 (Step 5 이후)
+  const [imageGaps, setImageGaps] = useState<ImageGap[]>([]);
   const [analyzing, setAnalyzing] = useState(false);
 
   // Step 4: Titles
@@ -410,6 +433,38 @@ export function BlogPublishFlow({
   const removeImage = (url: string) => {
     setSelectedImages((prev) => prev.filter((u) => u !== url));
   };
+
+  // ── Free image search ──
+  const handleSearchFreeImages = async (query?: string) => {
+    const q = (query || freeImageQuery).trim();
+    if (!q) return;
+    setFreeImageLoading(true);
+    try {
+      const searchQ = buildSearchQuery(q, brandInfo.category);
+      const res = await fetch("/api/ai/search-free-images", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query: searchQ, perPage: 8 }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setFreeImageResults(data.images || []);
+      }
+    } catch (err) {
+      console.error("Free image search failed:", err);
+    } finally {
+      setFreeImageLoading(false);
+    }
+  };
+
+  // ── Image-content gap analysis (after content generation) ──
+  useEffect(() => {
+    if (generatedContent && imageAnalyses.length > 0) {
+      const gaps = analyzeImageGaps(generatedContent, imageAnalyses, brandInfo.category);
+      setImageGaps(gaps);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [generatedContent, imageAnalyses.length]);
 
   // ── Image upload ──
   const handleFileUpload = async (files: FileList) => {
@@ -777,6 +832,11 @@ export function BlogPublishFlow({
               analyzing={analyzing}
               onAnalyze={handleAnalyzeImages}
               brandCategory={brandInfo.category}
+              freeImageQuery={freeImageQuery}
+              onFreeImageQueryChange={setFreeImageQuery}
+              freeImageResults={freeImageResults}
+              freeImageLoading={freeImageLoading}
+              onSearchFreeImages={handleSearchFreeImages}
             />
           )}
           {step === 4 && (
@@ -794,23 +854,53 @@ export function BlogPublishFlow({
             />
           )}
           {step === 5 && (
-            <StepContentGeneration
-              content={generatedContent}
-              isGenerating={isGenerating}
-              savedContentId={savedContentId}
-              copied={copied}
-              title={editedTitle}
-              contentType={contentType}
-              mainKeyword={mainKeyword}
-              subKeywords={subKeywords}
-              imageCount={selectedImages.length}
-              truncationWarning={truncationWarning}
-              addSchemaMarkup={addSchemaMarkup}
-              onSchemaMarkupChange={setAddSchemaMarkup}
-              onGenerate={handleGenerate}
-              onContentChange={setGeneratedContent}
-              onCopy={handleCopy}
-            />
+            <>
+              <StepContentGeneration
+                content={generatedContent}
+                isGenerating={isGenerating}
+                savedContentId={savedContentId}
+                copied={copied}
+                title={editedTitle}
+                contentType={contentType}
+                mainKeyword={mainKeyword}
+                subKeywords={subKeywords}
+                imageCount={selectedImages.length}
+                truncationWarning={truncationWarning}
+                addSchemaMarkup={addSchemaMarkup}
+                onSchemaMarkupChange={setAddSchemaMarkup}
+                onGenerate={handleGenerate}
+                onContentChange={setGeneratedContent}
+                onCopy={handleCopy}
+              />
+              {/* 이미지-콘텐츠 갭 분석 배너 */}
+              {imageGaps.length > 0 && generatedContent && !isGenerating && (
+                <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50/50 p-3 space-y-2">
+                  <p className="text-sm font-medium text-amber-700 flex items-center gap-1.5">
+                    <ImageIcon className="h-3.5 w-3.5" />
+                    {imageGaps.length}개 섹션에 적합한 이미지가 부족합니다
+                  </p>
+                  <div className="space-y-1.5">
+                    {imageGaps.map((gap) => (
+                      <div key={gap.sectionIndex} className="flex items-center gap-2">
+                        <span className="text-xs text-amber-600">
+                          &quot;{gap.sectionHeading}&quot; → {gap.koreanHint}
+                        </span>
+                        <button
+                          onClick={() => {
+                            setFreeImageQuery(gap.koreanHint);
+                            handleSearchFreeImages(gap.searchQueries[0]);
+                            setStep(3); // 이미지 Step으로 이동
+                          }}
+                          className="text-xs text-violet-600 hover:text-violet-700 underline"
+                        >
+                          무료 이미지 검색
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
           )}
           {step === 6 && (
             <StepPublishTrack
@@ -1624,6 +1714,11 @@ function StepImages({
   analyzing,
   onAnalyze,
   brandCategory,
+  freeImageQuery,
+  onFreeImageQueryChange,
+  freeImageResults,
+  freeImageLoading,
+  onSearchFreeImages,
 }: {
   placeId: string | null;
   crawledImages: CrawledImage[];
@@ -1640,6 +1735,11 @@ function StepImages({
   analyzing: boolean;
   onAnalyze: () => void;
   brandCategory: string;
+  freeImageQuery: string;
+  onFreeImageQueryChange: (v: string) => void;
+  freeImageResults: FreeImage[];
+  freeImageLoading: boolean;
+  onSearchFreeImages: (query?: string) => void;
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [sortByHook, setSortByHook] = useState(false);
@@ -1782,6 +1882,70 @@ function StepImages({
           )}
           {uploadingCount > 0 ? `${uploadingCount}개 업로드 중...` : "파일 선택"}
         </Button>
+      </div>
+
+      {/* 무료 이미지 검색 섹션 */}
+      <div className="border-t pt-4 space-y-3">
+        <p className="text-sm font-medium flex items-center gap-1.5">
+          <Globe className="h-3.5 w-3.5" />
+          무료 이미지 검색
+        </p>
+        <p className="text-xs text-muted-foreground">
+          Unsplash/Pexels에서 무료 이미지를 검색하여 추가하세요 (상업적 이용 가능)
+        </p>
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={freeImageQuery}
+            onChange={(e) => onFreeImageQueryChange(e.target.value)}
+            placeholder="검색어 입력 (한글/영문)"
+            onKeyDown={(e) => { if (e.key === "Enter") onSearchFreeImages(); }}
+            className="flex-1 h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          />
+          <Button
+            onClick={() => onSearchFreeImages()}
+            disabled={freeImageLoading || !freeImageQuery.trim()}
+            variant="outline"
+            size="sm"
+            className="gap-1.5 shrink-0"
+          >
+            {freeImageLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
+            {freeImageLoading ? "검색 중..." : "검색"}
+          </Button>
+        </div>
+        {freeImageResults.length > 0 && (
+          <div className="space-y-2">
+            <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+              {freeImageResults.map((img) => (
+                <button
+                  key={img.id}
+                  onClick={() => onToggle(img.url)}
+                  className={`relative aspect-square rounded-lg overflow-hidden border-2 transition-all ${
+                    selectedImages.includes(img.url)
+                      ? "border-violet-500 ring-2 ring-violet-300"
+                      : "border-transparent hover:border-muted-foreground/30"
+                  }`}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={img.thumbnail} alt={img.alt} className="w-full h-full object-cover" />
+                  {selectedImages.includes(img.url) && (
+                    <div className="absolute top-1 right-1 bg-violet-600 text-white rounded-full p-0.5">
+                      <Check className="h-3 w-3" />
+                    </div>
+                  )}
+                  <div className="absolute bottom-0 left-0 right-0 bg-black/60 px-1.5 py-0.5">
+                    <span className="text-[9px] text-white/80 truncate block">
+                      {img.source === "unsplash" ? "Unsplash" : "Pexels"} · {img.photographer}
+                    </span>
+                  </div>
+                </button>
+              ))}
+            </div>
+            <p className="text-[10px] text-muted-foreground">
+              이미지 클릭으로 선택/해제. 출처 표기가 포함됩니다.
+            </p>
+          </div>
+        )}
       </div>
 
       {/* AI 이미지 분석 섹션 */}
