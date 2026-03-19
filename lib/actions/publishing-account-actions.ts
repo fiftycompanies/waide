@@ -127,16 +127,22 @@ export async function getBrandAnalysisForPublishing(clientId: string) {
       ? (bp.content_strategy as Record<string, unknown>)
       : null;
 
-    return {
+    // Tier 2: brand_persona에서 input_url/url_type 추출 (injectUrlIntoBasicInfo 동작용)
+    const personaNaverUrl = (bp.naver_place_url as string) || (bp.place_url as string) || "";
+    const personaHomepage = (bp.homepage_url as string) || (bp.website as string) || (bp.homepage as string) || (bp.website_url as string) || "";
+    const tier2InputUrl = personaNaverUrl || personaHomepage || null;
+    const tier2UrlType = personaNaverUrl ? "naver_place" : personaHomepage ? "website" : null;
+
+    const tier2Result = {
       id: "",
       basic_info: {
         name: client.name || (bp.name as string) || "",
         category: (bp.category as string) || "",
         region: (bp.region as string) || (bp.location as string) || "",
-        homepage_url: (bp.homepage_url as string) || (bp.website as string) || (bp.homepage as string) || (bp.website_url as string) || "",
+        homepage_url: personaHomepage,
         address: (bp.address as string) || "",
-        naver_place_url: (bp.naver_place_url as string) || (bp.place_url as string) || "",
-        place_url: (bp.place_url as string) || (bp.naver_place_url as string) || "",
+        naver_place_url: personaNaverUrl,
+        place_url: personaNaverUrl,
       },
       content_strategy: personaContentStrategy || {
         brand_analysis: {
@@ -151,9 +157,11 @@ export async function getBrandAnalysisForPublishing(clientId: string) {
       keyword_analysis: null,
       analysis_result: null,
       place_id: placeId,
-      input_url: null,
-      url_type: null,
+      input_url: tier2InputUrl,
+      url_type: tier2UrlType,
     } as BrandAnalysisForPublishing;
+
+    return injectUrlIntoBasicInfo(tier2Result);
   }
 
   // 3) brand_persona도 없으면 클라이언트 기본 이름만

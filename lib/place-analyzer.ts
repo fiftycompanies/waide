@@ -1785,6 +1785,9 @@ export async function runFullAnalysis(
       description: collected.description || undefined,
       booking_url: collected.reservationUrl || undefined,
       bookmark_count: collected.bookmarkCount || undefined,
+      // 네이버 플레이스 URL 저장 (input_url 기반, blog-publish-flow 호환)
+      naver_place_url: analysis.input_url || undefined,
+      place_url: analysis.input_url || undefined,
     };
 
     const topKw = keywords[0];
@@ -2468,11 +2471,16 @@ async function runWebsiteAnalysis(analysisId: string, url: string): Promise<void
   const totalScore = scoreBreakdown.seo_technical + scoreBreakdown.brand_message + scoreBreakdown.content_channel + scoreBreakdown.cta_conversion;
 
   // 6. DB UPDATE
-  const basicInfo = aiAnalysis?.basic_info ?? {
+  const rawBasicInfo: Record<string, unknown> = aiAnalysis?.basic_info ?? {
     name: extractTitleFromHtml(html),
     category: "웹사이트",
     region: "전국",
     description: bodyText.slice(0, 100),
+  };
+  // homepage_url 보충 (AI 분석 결과에 없으면 input_url 사용)
+  const basicInfo = {
+    ...rawBasicInfo,
+    homepage_url: rawBasicInfo.homepage_url || url,
   };
 
   const rawKa = aiAnalysis?.keyword_analysis ?? {

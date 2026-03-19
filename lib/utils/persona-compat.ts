@@ -112,7 +112,7 @@ export function getPersonaForPipeline(
       positioning: "",
       primary_target: "",
       strengths: [],
-      tone: "친근한",
+      tone: "",
       content_angles: [],
       avoid_angles: [],
       brand_story: "",
@@ -139,7 +139,7 @@ export function getPersonaForPipeline(
       p.ai_inferred?.usp?.points ||
       (Array.isArray(p.strengths) ? p.strengths : []),
     tone:
-      p.ai_inferred?.tone?.style || p.tone || "친근한",
+      p.ai_inferred?.tone?.style || p.tone || "",
     content_angles:
       p.ai_inferred?.content_direction?.angles ||
       (Array.isArray(p.content_angles) ? p.content_angles : []),
