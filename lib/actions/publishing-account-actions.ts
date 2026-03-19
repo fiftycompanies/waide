@@ -87,7 +87,7 @@ export async function getBrandAnalysisForPublishing(clientId: string) {
     .maybeSingle();
 
   if (!error && data) {
-    return data as BrandAnalysisForPublishing;
+    return injectUrlIntoBasicInfo(data as BrandAnalysisForPublishing);
   }
 
   // 2) client_id 미연결 — clients.brand_persona에서 폴백
@@ -118,7 +118,7 @@ export async function getBrandAnalysisForPublishing(clientId: string) {
         .limit(1)
         .maybeSingle();
       if (matched) {
-        return matched as BrandAnalysisForPublishing;
+        return injectUrlIntoBasicInfo(matched as BrandAnalysisForPublishing);
       }
     }
 
@@ -183,6 +183,19 @@ type BrandAnalysisForPublishing = {
   input_url: string | null;
   url_type: string | null;
 };
+
+/** Tier 1/2 반환 시 basic_info에 input_url 기반 URL 주입 (기존값 보존) */
+function injectUrlIntoBasicInfo(result: BrandAnalysisForPublishing): BrandAnalysisForPublishing {
+  if (!result.basic_info || !result.input_url) return result;
+  const bi = { ...result.basic_info };
+  if (result.url_type === "naver_place") {
+    if (!bi.naver_place_url) bi.naver_place_url = result.input_url;
+    if (!bi.place_url) bi.place_url = result.input_url;
+  } else if (result.url_type === "website") {
+    if (!bi.homepage_url) bi.homepage_url = result.input_url;
+  }
+  return { ...result, basic_info: bi };
+}
 
 /** 클라이언트 기본 정보 조회 (publish 페이지용 — clients 테이블 직접 참조) */
 export async function getClientInfoForPublishing(clientId: string): Promise<{
