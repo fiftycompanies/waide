@@ -3,6 +3,8 @@
  * Claude Vision API로 네이버 플레이스 이미지 분석
  */
 
+import { createAdminClient } from "@/lib/supabase/service";
+
 export interface ImageAnalysis {
   url: string;
   description: string;
@@ -13,6 +15,7 @@ export interface ImageAnalysis {
   food_appeal?: number;
   marketing_usability: number;
   improvement_tip: string;
+  hook_score: number; // 1-10, 블로그 시선 집중도
 }
 
 export interface ImageAnalysisResult {
@@ -125,13 +128,15 @@ JSON만 출력:
   "colors": ["주요 컬러톤 2~3개"],
   "food_appeal": 8,
   "marketing_usability": 7,
-  "improvement_tip": "더 나은 사진을 위한 팁 1가지"
+  "improvement_tip": "더 나은 사진을 위한 팁 1가지",
+  "hook_score": 8
 }
 
 - quality_score: 1~10 (구도, 밝기, 매력도)
 - food_appeal: 음식 이미지일 경우만 (식욕 자극도 1~10)
 - marketing_usability: 마케팅 소재로 활용 가능성 1~10
-- improvement_tip: 한 문장으로 간결하게`;
+- improvement_tip: 한 문장으로 간결하게
+- hook_score: 블로그 독자 시선을 끄는 정도 1~10 (10=감성샷/야경/플레이팅, 7=깔끔한 음식/인테리어, 4=일반 시설, 1=안내문/간판/텍스트)`;
 
   const resp = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
@@ -186,5 +191,98 @@ JSON만 출력:
     food_appeal: parsed.food_appeal ? Math.min(10, Math.max(1, Number(parsed.food_appeal))) : undefined,
     marketing_usability: Math.min(10, Math.max(1, Number(parsed.marketing_usability) || 5)),
     improvement_tip: parsed.improvement_tip ?? "",
+    hook_score: Math.min(10, Math.max(1, Number(parsed.hook_score) || 5)),
+  };
+}
+
+/**
+ * 캐시 조회 + 미분석 이미지만 Vision 분석
+ * brand_analyses.image_analysis JSONB에 결과 저장/재사용
+ */
+export async function getOrAnalyzeImages(
+  imageUrls: string[],
+  placeName: string,
+  category: string,
+  placeId?: string | null,
+): Promise<{ analyses: ImageAnalysis[]; fromCache: number; newlyAnalyzed: number }> {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) throw new Error("ANTHROPIC_API_KEY not set");
+
+  let cachedAnalyses: ImageAnalysis[] = [];
+  let brandAnalysisId: string | null = null;
+
+  // 1. placeId로 기존 분석 캐시 조회
+  if (placeId) {
+    const db = createAdminClient();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data } = await (db as any)
+      .from("brand_analyses")
+      .select("id, image_analysis")
+      .eq("place_id", placeId)
+      .not("image_analysis", "is", null)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (data?.image_analysis?.images) {
+      brandAnalysisId = data.id;
+      cachedAnalyses = data.image_analysis.images as ImageAnalysis[];
+    }
+  }
+
+  // 2. URL 매칭으로 캐시 HIT / MISS 분리
+  const cachedUrlSet = new Set(cachedAnalyses.map((a) => a.url));
+  const hitAnalyses = cachedAnalyses.filter((a) => imageUrls.includes(a.url));
+  const missUrls = imageUrls.filter((u) => !cachedUrlSet.has(u));
+
+  // 3. 미분석 이미지만 Vision 호출 (최대 12장, 5장 배치 병렬)
+  const newAnalyses: ImageAnalysis[] = [];
+  const targets = missUrls.slice(0, 12);
+
+  for (let i = 0; i < targets.length; i += 5) {
+    const batch = targets.slice(i, i + 5);
+    const promises = batch.map(async (url) => {
+      try {
+        return await analyzeSingleImage(apiKey, { url, type: "auto" }, placeName, category);
+      } catch (err) {
+        console.error(`[getOrAnalyzeImages] Vision failed for ${url}:`, err);
+        return null;
+      }
+    });
+    const results = await Promise.all(promises);
+    for (const r of results) {
+      if (r) newAnalyses.push(r);
+    }
+  }
+
+  // 4. 신규 결과를 DB 캐시에 merge
+  if (newAnalyses.length > 0 && brandAnalysisId) {
+    const merged = [...cachedAnalyses];
+    for (const na of newAnalyses) {
+      const idx = merged.findIndex((a) => a.url === na.url);
+      if (idx >= 0) merged[idx] = na;
+      else merged.push(na);
+    }
+
+    const db = createAdminClient();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (db as any)
+      .from("brand_analyses")
+      .update({
+        image_analysis: {
+          images: merged,
+          collected_urls: merged.map((a) => a.url),
+          updated_at: new Date().toISOString(),
+        },
+      })
+      .eq("id", brandAnalysisId);
+  }
+
+  // 5. 전체 결과 반환 (캐시 HIT + 신규 분석)
+  const allAnalyses = [...hitAnalyses, ...newAnalyses];
+  return {
+    analyses: allAnalyses,
+    fromCache: hitAnalyses.length,
+    newlyAnalyzed: newAnalyses.length,
   };
 }

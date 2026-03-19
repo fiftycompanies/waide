@@ -2,9 +2,12 @@
  * content-qc-v2.ts
  * QC v2: 상세 피드백 + AEO 체크 + 벤치마크 비교
  *
- * 8항목 100점 채점:
+ * 9항목 100점 채점:
  *   글자수(15) + 해요체(10) + 키워드SEO(15) + H2구조(10)
- *   + 이미지(10) + 금지표현(10) + AEO최적화(15) + 자연스러움(10) + 메타디스크립션(5)
+ *   + 이미지매칭(15) + 금지표현(10) + AEO최적화(15) + 자연스러움(5) + 메타디스크립션(5)
+ *
+ * 이미지매칭 15점 세부:
+ *   이미지 수 적정성(5) + H2-이미지 타입 매칭(5) + 타입 다양성(3) + 평균 품질(2)
  *
  * FAIL: 70점 미만 또는 해요체 60% 미만
  *
@@ -52,6 +55,13 @@ export async function runQcV2(params: {
   body: string;
   metaDescription?: string;
   keyword: string;
+  imageAnalyses?: Array<{
+    url: string;
+    type: string;
+    description: string;
+    hook_score: number;
+    quality_score: number;
+  }>;
 }): Promise<QcResult> {
   const db = createAdminClient();
 
@@ -96,6 +106,17 @@ export async function runQcV2(params: {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const benchmarkData: Record<string, any> = benchmark?.benchmark_data?.pattern_analysis || {};
 
+  // 이미지 분석 요약 (있으면)
+  const imageAnalysisSummary = params.imageAnalyses && params.imageAnalyses.length > 0
+    ? params.imageAnalyses.map((a) => ({
+        url: a.url,
+        type: a.type,
+        description: a.description,
+        hook_score: a.hook_score,
+        quality_score: a.quality_score,
+      }))
+    : null;
+
   const result = await runAgent({
     agent: "QC",
     task: "qc_review_v2",
@@ -112,6 +133,12 @@ export async function runQcV2(params: {
       benchmark_avg_h2: benchmarkData.structure?.avg_h2_count || null,
       benchmark_avg_images: benchmarkData.images?.avg_count || null,
       previous_contents: prevSummary,
+      image_analyses: imageAnalysisSummary,
+      image_scoring_guide: imageAnalysisSummary ? `이미지 매칭 채점 (15점):
+- 이미지 수 적정성 (5점): H2 수 대비 이미지 수 적절한가
+- H2-이미지 타입 매칭 (5점): food→메뉴섹션, interior→매장소개 등 적합한 위치에 배치되었는가
+- 타입 다양성 (3점): 다양한 type의 이미지가 사용되었는가 (food+interior+exterior 등)
+- 평균 품질 (2점): 이미지의 평균 quality_score와 hook_score 수준` : null,
     },
     clientId: params.clientId,
   });

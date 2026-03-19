@@ -23,6 +23,7 @@ import {
   Upload,
   RefreshCw,
   FileCode,
+  Eye,
 } from "lucide-react";
 import {
   createPublishingAccount,
@@ -48,6 +49,19 @@ interface CrawledImage {
   phash: string;
   width: number;
   height: number;
+}
+
+interface ImageAnalysisItem {
+  url: string;
+  description: string;
+  type: "exterior" | "interior" | "food" | "menu" | "facility" | "view" | "other";
+  mood: string;
+  quality_score: number;
+  hook_score: number;
+  marketing_usability: number;
+  colors: string[];
+  food_appeal?: number;
+  improvement_tip: string;
 }
 
 interface PersonaForPublish {
@@ -173,6 +187,11 @@ export function BlogPublishFlow({
   const [crawledImages, setCrawledImages] = useState<CrawledImage[]>([]);
   const [imageLoading, setImageLoading] = useState(false);
   const [uploadingCount, setUploadingCount] = useState(0);
+
+  // Step 3: Image Analysis
+  const [useImageAnalysis, setUseImageAnalysis] = useState(false);
+  const [imageAnalyses, setImageAnalyses] = useState<ImageAnalysisItem[]>([]);
+  const [analyzing, setAnalyzing] = useState(false);
 
   // Step 4: Titles
   const [titles, setTitles] = useState<string[]>([]);
@@ -312,6 +331,32 @@ export function BlogPublishFlow({
     }
   };
 
+  // ── Image analysis ──
+  const handleAnalyzeImages = async () => {
+    if (selectedImages.length === 0) return;
+    setAnalyzing(true);
+    try {
+      const res = await fetch("/api/ai/analyze-images", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          imageUrls: selectedImages,
+          placeName: brandInfo.name,
+          category: brandInfo.category,
+          placeId: brandAnalysis?.place_id || null,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setImageAnalyses(data.analyses || []);
+      }
+    } catch (err) {
+      console.error("Image analysis failed:", err);
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
   const toggleImage = (url: string) => {
     setSelectedImages((prev) =>
       prev.includes(url) ? prev.filter((u) => u !== url) : [...prev, url]
@@ -438,6 +483,7 @@ export function BlogPublishFlow({
           mainKeyword,
           subKeywords,
           imageUrls: selectedImages.length > 0 ? selectedImages : undefined,
+          imageAnalyses: useImageAnalysis && imageAnalyses.length > 0 ? imageAnalyses : undefined,
           title: editedTitle,
           addSchemaMarkup,
           styleRefs: styleRefTitles.length > 0 ? styleRefTitles : undefined,
@@ -669,6 +715,15 @@ export function BlogPublishFlow({
               onToggle={toggleImage}
               onRemove={removeImage}
               onFileUpload={handleFileUpload}
+              useImageAnalysis={useImageAnalysis}
+              onUseImageAnalysisChange={(v) => {
+                setUseImageAnalysis(v);
+                if (!v) setImageAnalyses([]);
+              }}
+              imageAnalyses={imageAnalyses}
+              analyzing={analyzing}
+              onAnalyze={handleAnalyzeImages}
+              brandCategory={brandInfo.category}
             />
           )}
           {step === 4 && (
@@ -1331,6 +1386,12 @@ function StepImages({
   onToggle,
   onRemove,
   onFileUpload,
+  useImageAnalysis,
+  onUseImageAnalysisChange,
+  imageAnalyses,
+  analyzing,
+  onAnalyze,
+  brandCategory,
 }: {
   placeId: string | null;
   crawledImages: CrawledImage[];
@@ -1341,8 +1402,38 @@ function StepImages({
   onToggle: (url: string) => void;
   onRemove: (url: string) => void;
   onFileUpload: (files: FileList) => void;
+  useImageAnalysis: boolean;
+  onUseImageAnalysisChange: (v: boolean) => void;
+  imageAnalyses: ImageAnalysisItem[];
+  analyzing: boolean;
+  onAnalyze: () => void;
+  brandCategory: string;
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [sortByHook, setSortByHook] = useState(false);
+
+  // 분석된 이미지 URL → analysis 매핑
+  const analysisMap = useMemo(() => {
+    const map = new Map<string, ImageAnalysisItem>();
+    for (const a of imageAnalyses) map.set(a.url, a);
+    return map;
+  }, [imageAnalyses]);
+
+  // type 라벨
+  const typeLabels: Record<string, string> = {
+    exterior: "외관", interior: "내부", food: "음식",
+    menu: "메뉴", facility: "시설", view: "경관", other: "기타",
+  };
+
+  // hook_score 순 정렬된 선택 이미지
+  const sortedSelectedImages = useMemo(() => {
+    if (!sortByHook || imageAnalyses.length === 0) return selectedImages;
+    return [...selectedImages].sort((a, b) => {
+      const scoreA = analysisMap.get(a)?.hook_score ?? 0;
+      const scoreB = analysisMap.get(b)?.hook_score ?? 0;
+      return scoreB - scoreA;
+    });
+  }, [selectedImages, sortByHook, imageAnalyses, analysisMap]);
 
   return (
     <div className="space-y-4">
@@ -1363,25 +1454,44 @@ function StepImages({
           </div>
           {crawledImages.length > 0 ? (
             <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-              {crawledImages.map((img) => (
-                <button
-                  key={img.phash}
-                  onClick={() => onToggle(img.url)}
-                  className={`relative aspect-square rounded-lg overflow-hidden border-2 transition-all ${
-                    selectedImages.includes(img.url)
-                      ? "border-violet-500 ring-2 ring-violet-300"
-                      : "border-transparent hover:border-muted-foreground/30"
-                  }`}
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={img.url} alt="" className="w-full h-full object-cover" />
-                  {selectedImages.includes(img.url) && (
-                    <div className="absolute top-1 right-1 bg-violet-600 text-white rounded-full p-0.5">
-                      <Check className="h-3 w-3" />
-                    </div>
-                  )}
-                </button>
-              ))}
+              {crawledImages.map((img) => {
+                const analysis = analysisMap.get(img.url);
+                return (
+                  <button
+                    key={img.phash}
+                    onClick={() => onToggle(img.url)}
+                    className={`relative aspect-square rounded-lg overflow-hidden border-2 transition-all ${
+                      selectedImages.includes(img.url)
+                        ? "border-violet-500 ring-2 ring-violet-300"
+                        : "border-transparent hover:border-muted-foreground/30"
+                    }`}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={img.url} alt="" className="w-full h-full object-cover" />
+                    {selectedImages.includes(img.url) && (
+                      <div className="absolute top-1 right-1 bg-violet-600 text-white rounded-full p-0.5">
+                        <Check className="h-3 w-3" />
+                      </div>
+                    )}
+                    {/* 분석 결과 오버레이 */}
+                    {analysis && (
+                      <>
+                        <div className="absolute bottom-0 left-0 right-0 bg-black/60 px-1.5 py-0.5 flex items-center justify-between">
+                          <span className="text-[10px] text-white font-medium">
+                            {typeLabels[analysis.type] || analysis.type}
+                          </span>
+                          <span className={`text-[10px] font-bold ${
+                            analysis.hook_score >= 8 ? "text-emerald-400" :
+                            analysis.hook_score >= 5 ? "text-yellow-400" : "text-red-400"
+                          }`}>
+                            {analysis.hook_score}
+                          </span>
+                        </div>
+                      </>
+                    )}
+                  </button>
+                );
+              })}
             </div>
           ) : !loading ? (
             <p className="text-xs text-muted-foreground">&quot;이미지 불러오기&quot;를 클릭하면 플레이스 이미지를 가져옵니다</p>
@@ -1430,23 +1540,88 @@ function StepImages({
         </Button>
       </div>
 
+      {/* AI 이미지 분석 섹션 */}
+      <div className="border-t pt-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={useImageAnalysis}
+              onChange={(e) => onUseImageAnalysisChange(e.target.checked)}
+              className="h-4 w-4 rounded border-gray-300 text-violet-600 focus:ring-violet-500"
+            />
+            <span className="text-sm font-medium">AI 이미지 분석 적용</span>
+          </label>
+          {useImageAnalysis && imageAnalyses.length > 0 && (
+            <button
+              onClick={() => setSortByHook(!sortByHook)}
+              className={`text-xs px-2 py-1 rounded-md transition-colors ${
+                sortByHook ? "bg-violet-100 text-violet-700" : "bg-muted text-muted-foreground hover:bg-muted/80"
+              }`}
+            >
+              Hook 순 정렬 {sortByHook ? "ON" : "OFF"}
+            </button>
+          )}
+        </div>
+        {useImageAnalysis && (
+          <>
+            <p className="text-xs text-muted-foreground">
+              이미지를 AI로 분석하여 콘텐츠에 최적 배치합니다 (~100원/장, 캐시된 이미지는 무료)
+            </p>
+            {selectedImages.length > 0 && (
+              <Button
+                onClick={onAnalyze}
+                disabled={analyzing}
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+              >
+                {analyzing ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Eye className="h-3.5 w-3.5" />
+                )}
+                {analyzing ? "분석 중..." : "이미지 분석 실행"}
+              </Button>
+            )}
+          </>
+        )}
+      </div>
+
       {/* Selected Images Thumbnails */}
       {selectedImages.length > 0 && (
         <div className="space-y-2">
           <p className="text-xs text-muted-foreground">{selectedImages.length}개 선택됨</p>
           <div className="flex flex-wrap gap-2">
-            {selectedImages.map((url) => (
-              <div key={url} className="relative w-16 h-16 rounded-md overflow-hidden border">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={url} alt="" className="w-full h-full object-cover" />
-                <button
-                  onClick={() => onRemove(url)}
-                  className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 shadow"
-                >
-                  <X className="h-3 w-3" />
-                </button>
-              </div>
-            ))}
+            {sortedSelectedImages.map((url) => {
+              const analysis = analysisMap.get(url);
+              return (
+                <div key={url} className="relative group">
+                  <div className="w-16 h-16 rounded-md overflow-hidden border">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={url} alt="" className="w-full h-full object-cover" />
+                  </div>
+                  <button
+                    onClick={() => onRemove(url)}
+                    className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 shadow"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                  {/* 분석 배지 */}
+                  {analysis && (
+                    <div className="absolute bottom-0 left-0 right-0 bg-black/70 rounded-b-md px-1 py-0.5 flex items-center justify-between">
+                      <span className="text-[9px] text-white">{typeLabels[analysis.type] || "?"}</span>
+                      <span className={`text-[9px] font-bold ${
+                        analysis.hook_score >= 8 ? "text-emerald-400" :
+                        analysis.hook_score >= 5 ? "text-yellow-400" : "text-red-400"
+                      }`}>
+                        {analysis.hook_score}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
