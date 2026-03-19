@@ -147,7 +147,9 @@ export function BlogPublishFlow({
       const cs = brandAnalysis.content_strategy;
       const brandA = cs.brand_analysis as Record<string, unknown> | undefined;
       const parts: string[] = [];
-      if (brandA?.usp) parts.push(String(brandA.usp));
+      if (brandA?.usp) {
+        parts.push(Array.isArray(brandA.usp) ? (brandA.usp as string[]).join(", ") : String(brandA.usp));
+      }
       if (brandA?.strengths) parts.push(String(brandA.strengths));
       if (parts.length > 0 && !brandInfo.description) {
         setBrandInfo((prev) => ({ ...prev, description: parts.join(". ") }));
@@ -653,6 +655,7 @@ export function BlogPublishFlow({
               brandAnalysis={brandAnalysis}
               personaData={personaData}
               ownerInputData={ownerInputData}
+              subKeywords={subKeywords}
             />
           )}
           {step === 3 && (
@@ -1150,12 +1153,14 @@ function StepBrief({
   brandAnalysis,
   personaData,
   ownerInputData,
+  subKeywords,
 }: {
   value: string;
   onChange: (v: string) => void;
   brandAnalysis?: BrandAnalysis | null;
   personaData?: PersonaForPublish | null;
   ownerInputData?: OwnerInputForPublish | null;
+  subKeywords?: string[];
 }) {
   // 고객 리뷰 기반 강점 추출 (기존 로직 유지 + 페르소나 폴백)
   const sellingPoints = (() => {
@@ -1285,6 +1290,26 @@ function StepBrief({
         </div>
       )}
 
+      {/* 서브키워드 표시 (Step 1에서 입력한 값 확인) */}
+      {subKeywords && subKeywords.length > 0 && (
+        <div className="rounded-lg border border-blue-200 bg-blue-50/50 p-3 space-y-2">
+          <p className="text-sm font-medium text-blue-700 flex items-center gap-1.5">
+            <Hash className="h-3.5 w-3.5" />
+            서브키워드
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {subKeywords.map((kw, i) => (
+              <Badge key={i} variant="outline" className="border-blue-200 text-blue-700 text-xs">
+                {kw}
+              </Badge>
+            ))}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            콘텐츠 생성 시 위 서브키워드가 자동 반영됩니다
+          </p>
+        </div>
+      )}
+
       <textarea
         value={value}
         onChange={(e) => onChange(e.target.value)}
@@ -1326,14 +1351,43 @@ function StepImages({
         플레이스 이미지를 불러오거나 직접 업로드하세요 (선택사항)
       </p>
 
-      {/* Crawl Button */}
-      {placeId && crawledImages.length === 0 && (
-        <Button onClick={onCrawl} disabled={loading} variant="outline" className="gap-2">
-          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImageIcon className="h-4 w-4" />}
-          {loading ? "이미지 불러오는 중..." : "이미지 불러오기"}
-        </Button>
-      )}
-      {!placeId && crawledImages.length === 0 && (
+      {/* 플레이스 이미지 섹션 */}
+      {placeId ? (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-medium">플레이스 이미지 (자동 워싱)</p>
+            <Button onClick={onCrawl} disabled={loading} variant="outline" size="sm" className="gap-1.5">
+              {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+              {loading ? "불러오는 중..." : crawledImages.length > 0 ? "다시 불러오기" : "이미지 불러오기"}
+            </Button>
+          </div>
+          {crawledImages.length > 0 ? (
+            <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+              {crawledImages.map((img) => (
+                <button
+                  key={img.phash}
+                  onClick={() => onToggle(img.url)}
+                  className={`relative aspect-square rounded-lg overflow-hidden border-2 transition-all ${
+                    selectedImages.includes(img.url)
+                      ? "border-violet-500 ring-2 ring-violet-300"
+                      : "border-transparent hover:border-muted-foreground/30"
+                  }`}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={img.url} alt="" className="w-full h-full object-cover" />
+                  {selectedImages.includes(img.url) && (
+                    <div className="absolute top-1 right-1 bg-violet-600 text-white rounded-full p-0.5">
+                      <Check className="h-3 w-3" />
+                    </div>
+                  )}
+                </button>
+              ))}
+            </div>
+          ) : !loading ? (
+            <p className="text-xs text-muted-foreground">&quot;이미지 불러오기&quot;를 클릭하면 플레이스 이미지를 가져옵니다</p>
+          ) : null}
+        </div>
+      ) : (
         <div className="rounded-lg border border-dashed border-muted-foreground/30 p-4 text-center">
           <ImageIcon className="h-6 w-6 text-muted-foreground/50 mx-auto mb-2" />
           <p className="text-sm text-muted-foreground">
@@ -1345,32 +1399,7 @@ function StepImages({
         </div>
       )}
 
-      {/* Crawled Images Grid */}
-      {crawledImages.length > 0 && (
-        <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-          {crawledImages.map((img) => (
-            <button
-              key={img.phash}
-              onClick={() => onToggle(img.url)}
-              className={`relative aspect-square rounded-lg overflow-hidden border-2 transition-all ${
-                selectedImages.includes(img.url)
-                  ? "border-violet-500 ring-2 ring-violet-300"
-                  : "border-transparent hover:border-muted-foreground/30"
-              }`}
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={img.url} alt="" className="w-full h-full object-cover" />
-              {selectedImages.includes(img.url) && (
-                <div className="absolute top-1 right-1 bg-violet-600 text-white rounded-full p-0.5">
-                  <Check className="h-3 w-3" />
-                </div>
-              )}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {/* Upload UI */}
+      {/* 직접 업로드 섹션 */}
       <div className="border-t pt-4 space-y-3">
         <p className="text-sm font-medium">직접 업로드</p>
         <input

@@ -100,13 +100,32 @@ export async function getBrandAnalysisForPublishing(clientId: string) {
 
   if (client?.brand_persona) {
     const bp = client.brand_persona as Record<string, unknown>;
-    // v2 content_strategy 추출 (persona 내부 또는 별도 필드)
+    const aiInferred = bp.ai_inferred as Record<string, unknown> | undefined;
+    const toneObj = aiInferred?.tone as Record<string, unknown> | undefined;
+
+    // Issue 1: place_id 추출 강화 (다중 폴백)
+    const placeId = (bp.place_id as string) || (aiInferred?.place_id as string) || (bp.naver_place_id as string) || null;
+
+    // Issue 1: place_id로 brand_analyses 매칭 시도 (client_id 미연결 케이스)
+    if (placeId) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: matched } = await (db as any)
+        .from("brand_analyses")
+        .select("id, basic_info, content_strategy, keyword_analysis, analysis_result, place_id, input_url, url_type")
+        .eq("place_id", placeId)
+        .in("status", ["completed", "converted"])
+        .order("analyzed_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (matched) {
+        return matched as BrandAnalysisForPublishing;
+      }
+    }
+
+    // Issue 3: content_strategy 전체 필드 추출 (Tier 2 폴백)
     const personaContentStrategy = bp.content_strategy
       ? (bp.content_strategy as Record<string, unknown>)
       : null;
-    // v2 ai_inferred 기반 기본 정보 보강
-    const aiInferred = bp.ai_inferred as Record<string, unknown> | undefined;
-    const toneObj = aiInferred?.tone as Record<string, unknown> | undefined;
 
     return {
       id: "",
@@ -117,12 +136,19 @@ export async function getBrandAnalysisForPublishing(clientId: string) {
         homepage_url: (bp.homepage_url as string) || (bp.website as string) || "",
         address: (bp.address as string) || "",
       },
-      content_strategy: personaContentStrategy || (toneObj?.style ? {
-        brand_analysis: { tone: toneObj.style },
-      } : null),
+      content_strategy: personaContentStrategy || {
+        brand_analysis: {
+          tone: toneObj?.style || (bp.tone as string) || "",
+          usp: (aiInferred?.usp as unknown) || (bp.usp as unknown) || [],
+          strengths: (bp.strengths as string) || (aiInferred?.strengths as string) || "",
+          target_audience: (aiInferred?.target_customer as string) || (bp.target_customer as string) || (bp.primary_target as string) || "",
+          positioning: (bp.positioning as string) || "",
+          content_direction: (aiInferred?.content_direction as string) || "",
+        },
+      },
       keyword_analysis: null,
       analysis_result: null,
-      place_id: (bp.place_id as string) || null,
+      place_id: placeId,
       input_url: null,
       url_type: null,
     } as BrandAnalysisForPublishing;
