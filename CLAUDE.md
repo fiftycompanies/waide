@@ -23,7 +23,7 @@
 # Waide (AI Hospitality Aide) — 서비스 IA
 
 > 최종 업데이트: 2026-03-18
-> 버전: Phase HOMEPAGE-CLONE 완료 (홈페이지 레퍼런스 복제 파이프라인 개편)
+> 버전: Phase COMPONENT-LIB 완료 (Waide 컴포넌트 라이브러리 v1 구축)
 
 ---
 
@@ -962,6 +962,17 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
   - lib/homepage/generate/unsplash-images.ts: 업종별 Unsplash CDN 이미지 맵 (6카테고리 × 48개 URL)
   - lib/homepage/deploy/html-generator.ts: DEPRECATED (기존 AI HTML 생성 완전 폐기)
   - tsc --noEmit 통과
+- Phase COMPONENT-LIB: Waide 컴포넌트 라이브러리 v1 구축 (2026-03-19)
+  - **핵심 원칙**: "레퍼런스는 디자인 토큰 추출 전용, 출력 HTML은 100% Waide 컴포넌트 조합"
+  - **기존 코드 무변경**: 새 파일만 추가, 기존 DOM 복제 파이프라인 동작 영향 없음
+  - lib/homepage/components/types.ts: DesignTokens, ComponentPlan, 모든 섹션 Props, ImageMap 타입 정의
+  - lib/homepage/components/base.css.ts: CSS 변수 시스템 (--waide-* 네임스페이스, reset, 레이아웃, 반응형 768px/480px)
+  - lib/homepage/components/index.ts: 컴포넌트 레지스트리 + selectComponents() 자동 변형 선택 + extractDesignTokens() + 렌더 디스패처
+  - lib/homepage/components/sections/: 16종 섹션 컴포넌트 (nav×2, hero×3, about×3, services×3, gallery×2, contact×2, blog, cta, footer)
+  - lib/homepage/generate/component-assembler.ts: Props 빌더 + Google Fonts URL + SEO 메타 + HTML 조립 (27KB, <2ms)
+  - lib/homepage/generate/homepage-component-generator.ts: HomepageComponentGenerator 클래스 — DOM 복제 대안 경로 (template_id="waide-components")
+  - scripts/test-component-assembler.ts: 로컬 검증 스크립트 (6항목 PASS: Waide 클래스, CSS 변수, 블로그 섹션, Google Fonts, Unsplash 이미지)
+  - tsc --noEmit 통과
 
 ### 설계 원칙
 
@@ -969,8 +980,9 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 2. **프롬프트 = agent_prompts 테이블 동적 로딩** — 에이전트 프롬프트는 코드에 하드코딩 금지. DB에서 런타임 로딩.
 3. **브랜드 페르소나 = 모든 후속 작업의 기반** — brand_personas 레코드가 CMO 전략 → COPYWRITER 톤앤매너 → QC 기준에 일관되게 적용.
 4. **홈페이지 = "생성 금지, 복제 후 교체만"** — AI가 HTML을 처음부터 생성하면 제네릭 템플릿이 됨. 레퍼런스 사이트 DOM을 Playwright로 완전 복제한 뒤, AI는 텍스트 교체 판단만 수행. CSS/구조는 절대 변경 금지.
+5. **홈페이지 컴포넌트 = "레퍼런스는 디자인 토큰 추출 전용, 출력은 100% Waide 컴포넌트"** — DOM 복제의 대안 경로. 레퍼런스 URL에서 색상/폰트/레이아웃 토큰만 추출하고, 출력 HTML은 Waide 소유 컴포넌트 16종으로 조합.
 
-### 홈페이지 생성 파이프라인 (DOM 복제 방식)
+### 홈페이지 생성 파이프라인 (DOM 복제 방식 — 기본)
 
 ```
 cloneReference(url)          → Playwright 렌더링 + CSS 인라인화 + JS 제거
@@ -993,6 +1005,49 @@ deploy                       → Vercel 배포 (기존 파이프라인 그대로
 | `unsplash-images.ts` | 업종별 이미지 상수 맵 | 활성 |
 | `homepage-generator.ts` | 파이프라인 오케스트레이터 | 활성 |
 | `html-generator.ts` | ~~AI HTML 생성~~ | DEPRECATED |
+
+### 홈페이지 생성 파이프라인 (Waide 컴포넌트 방식 — 대안)
+
+```
+crawlMultipleHomepages(urls)    → 레퍼런스 크롤링 + 디자인 프로필
+  ↓
+vision-analyzer                 → ReferenceStructure (섹션 구조 + 토큰)
+  ↓
+selectComponents()              → ComponentPlan (변형 선택)
+extractDesignTokens()           → DesignTokens (CSS 변수)
+  ↓
+assembleHomepage()              → 100% Waide 소유 HTML (27KB, <2ms)
+  ↓
+deploy                          → Vercel 배포 (기존 파이프라인 재사용)
+```
+
+| 파일 | 역할 | 상태 |
+|------|------|------|
+| `components/types.ts` | DesignTokens, ComponentPlan, 섹션 Props 타입 | 활성 |
+| `components/base.css.ts` | CSS 변수 시스템 (--waide-* 네임스페이스, 반응형) | 활성 |
+| `components/index.ts` | 컴포넌트 레지스트리 + selectComponents() + extractDesignTokens() + 렌더 디스패처 | 활성 |
+| `components/sections/nav/` | Nav 변형 2종: sticky-dropdown, minimal-fixed | 활성 |
+| `components/sections/hero/` | Hero 변형 3종: fullscreen, split-left, centered | 활성 |
+| `components/sections/about/` | About 변형 3종: image-left, image-right, stats-bar | 활성 |
+| `components/sections/services/` | Services 변형 3종: card-grid, tab-panel, list-detail | 활성 |
+| `components/sections/gallery/` | Gallery 변형 2종: three-col, masonry | 활성 |
+| `components/sections/contact/` | Contact 변형 2종: form-split, form-centered | 활성 |
+| `components/sections/blog/` | Blog: post-grid (Supabase 연동 placeholder) | 활성 |
+| `components/sections/cta/` | CTA: banner | 활성 |
+| `components/sections/footer/` | Footer: default | 활성 |
+| `generate/component-assembler.ts` | Props 빌더 + Google Fonts + SEO 메타 + HTML 조립 | 활성 |
+| `generate/homepage-component-generator.ts` | 컴포넌트 방식 오케스트레이터 (HomepageComponentGenerator) | 활성 |
+
+#### 컴포넌트 선택 로직 (selectComponents)
+
+| 섹션 | 조건 | 선택 변형 |
+|------|------|----------|
+| Nav | background: dark/black/primary → minimal-fixed, 그 외 → sticky-dropdown | 2종 |
+| Hero | hasBackgroundImage → fullscreen, layout:split → split-left, 그 외 → centered | 3종 |
+| About | layout:stats → stats-bar, layout:right → image-right, 그 외 → image-left | 3종 |
+| Services | 서비스 ≥5 → tab-panel, ≥3 → card-grid, <3 → list-detail | 3종 |
+| Gallery | layout:masonry → masonry, 그 외 → three-col | 2종 |
+| Contact | address+phone → form-split, 그 외 → form-centered | 2종 |
 
 ### 에이전트 프롬프트 목록 (agent_prompts 테이블)
 
@@ -1051,6 +1106,7 @@ deploy                       → Vercel 배포 (기존 파이프라인 그대로
 | 19 | **AUTH-1** | 인증 통합 — Supabase Auth 단일화 + 구글/카카오 OAuth + HMAC deprecated | ✅ 완료 |
 | 20 | **PERSONA-1~3** | 브랜드 페르소나 고도화 — EnhancedBrandPersona + 온보딩 리뉴얼 + 콘텐츠 보완 | ✅ 완료 |
 | 21 | **HOMEPAGE-CLONE** | 홈페이지 레퍼런스 복제 파이프라인 개편 — Playwright networkidle + 스크린샷 + Unsplash 이미지 + HTML 전달 | ✅ 완료 |
+| 22 | **COMPONENT-LIB** | Waide 컴포넌트 라이브러리 v1 — 16종 섹션 컴포넌트 + DesignTokens + ComponentPlan + 어셈블러 + 컴포넌트 기반 제너레이터 | ✅ 완료 |
 
 ### 미구현 (우선순위 순)
 
