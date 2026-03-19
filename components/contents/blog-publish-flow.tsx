@@ -123,6 +123,16 @@ interface BlogPublishFlowProps {
 
 type ContentType = "blog_info" | "blog_review" | "blog_list";
 
+/** tone 필드가 객체({style, personality})일 수 있으므로 문자열로 안전하게 추출 */
+function extractToneStyle(tone: unknown): string {
+  if (!tone) return "";
+  if (typeof tone === "string") return tone;
+  if (typeof tone === "object" && tone !== null) {
+    return (tone as Record<string, unknown>).style as string || "";
+  }
+  return String(tone);
+}
+
 const STEPS = [
   { label: "브랜드 정보", icon: Store },
   { label: "유형 · 키워드", icon: Hash },
@@ -333,7 +343,7 @@ export function BlogPublishFlow({
       const parts: string[] = [];
       if (brandA?.strengths) parts.push(`강점: ${String(brandA.strengths)}`);
       if (brandA?.target_audience) parts.push(`타겟: ${String(brandA.target_audience)}`);
-      if (brandA?.tone) parts.push(`톤앤매너: ${String(brandA.tone)}`);
+      if (brandA?.tone) parts.push(`톤앤매너: ${extractToneStyle(brandA.tone)}`);
       if (parts.length > 0 && !brief) {
         setBrief(parts.join("\n"));
       }
@@ -577,7 +587,7 @@ export function BlogPublishFlow({
               const brandA = cs.brand_analysis as Record<string, unknown> | undefined;
               const reviewA = cs.review_analysis as Record<string, unknown> | undefined;
               return {
-                tone_style: toneOverride !== null ? toneOverride : (brandA?.tone || undefined),
+                tone_style: toneOverride !== null ? toneOverride : (extractToneStyle(brandA?.tone) || undefined),
                 selling_points: reviewA?.selling_points || undefined,
               };
             })()),
@@ -1591,7 +1601,7 @@ function StepBrief({
     if (!brandAnalysis?.content_strategy) return "";
     const cs = brandAnalysis.content_strategy;
     const brandA = cs.brand_analysis as Record<string, unknown> | undefined;
-    return String(brandA?.tone || "");
+    return extractToneStyle(brandA?.tone);
   })();
   const effectiveTone = toneOverride !== null && toneOverride !== undefined ? toneOverride : baseTone;
 

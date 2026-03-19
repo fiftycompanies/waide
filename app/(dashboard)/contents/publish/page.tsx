@@ -115,6 +115,7 @@ async function PublishContent({
 
   return (
     <BlogPublishFlow
+      key={clientId}
       clientId={clientId}
       clientName={clientInfo?.name || null}
       clientWebsiteUrl={clientInfo?.websiteUrl || null}
