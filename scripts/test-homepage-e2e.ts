@@ -239,6 +239,24 @@ ${personaContext}
   console.log(`   후기: ${generatedContent.testimonials?.length || 0}개`);
   console.log(`   FAQ: ${generatedContent.faqItems?.length || 0}개`);
 
+  // Step 4.5: 레퍼런스 raw HTML fetch (클로너에 전달)
+  console.log("\n── Step 4.5: 레퍼런스 원본 HTML 가져오기 ──");
+  let rawReferenceHtml: string | null = null;
+  try {
+    const rawResp = await fetch(REFERENCE_URL, {
+      headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" },
+      signal: AbortSignal.timeout(10000),
+    });
+    if (rawResp.ok) {
+      rawReferenceHtml = await rawResp.text();
+      console.log(`✅ 원본 HTML 가져오기 완료: ${Math.round(rawReferenceHtml.length / 1024)}KB`);
+    } else {
+      console.warn(`⚠️ 원본 HTML fetch 실패: HTTP ${rawResp.status}`);
+    }
+  } catch (e) {
+    console.warn(`⚠️ 원본 HTML fetch 실패: ${(e as Error).message}`);
+  }
+
   // Step 5: Reference Clone HTML 생성
   console.log("\n── Step 5: HTML 생성 (Reference Clone) ──");
   const { generateReferenceCloneHtml } = await import("../lib/homepage/generate/reference-cloner");
@@ -266,7 +284,11 @@ ${personaContext}
   const generatedHtml = await generateReferenceCloneHtml(
     referenceStructure,
     brandContent,
-    apiKey
+    apiKey,
+    {
+      referenceHtml: rawReferenceHtml,
+      industry,
+    }
   );
   console.log(`✅ HTML 생성 완료: ${Math.round(generatedHtml.length / 1024)}KB`);
 

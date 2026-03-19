@@ -148,7 +148,7 @@ export class HomepageGenerator {
     // 크롤링된 raw HTML을 직접 사용 (text.fullText는 요약이므로 부족)
     // HTTP fetch된 원본 HTML이 필요하므로 별도 fetch
     let rawHtmlForAnalysis: string | null = null;
-    if (!firstScreenshot && referenceUrls.length > 0) {
+    if (referenceUrls.length > 0) {
       try {
         const resp = await fetch(referenceUrls[0], {
           headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" },
@@ -245,7 +245,11 @@ export class HomepageGenerator {
       generatedHtml = await generateReferenceCloneHtml(
         referenceStructure,
         brandContent,
-        this.anthropicApiKey
+        this.anthropicApiKey,
+        {
+          referenceHtml: rawHtmlForAnalysis,
+          industry: brandContent.industry,
+        }
       );
       console.log("[HomepageGenerator] HTML 생성 완료:", Math.round(generatedHtml.length / 1024), "KB");
     } catch (htmlError) {

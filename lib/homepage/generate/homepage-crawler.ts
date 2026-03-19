@@ -81,8 +81,14 @@ async function fetchWithPlaywright(url: string): Promise<{
     const page = await context.newPage();
     // 데스크톱 뷰포트 설정
     await page.setViewportSize({ width: 1440, height: 900 });
-    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 });
-    // 추가 렌더링 대기 (이미지/폰트 로딩)
+    // networkidle: 네트워크 요청이 500ms 동안 없을 때 = JS 렌더링 완료 시점
+    try {
+      await page.goto(url, { waitUntil: "networkidle", timeout: 40000 });
+    } catch {
+      // 일부 사이트는 networkidle이 끝나지 않음 → load 이벤트까지만 기다리고 진행
+      await page.goto(url, { waitUntil: "load", timeout: 20000 });
+    }
+    // 추가 렌더링 대기 (이미지/폰트/CSS 로딩)
     await page.waitForTimeout(3000);
 
     const html = await page.content();
@@ -165,10 +171,22 @@ export async function crawlHomepageDesign(url: string): Promise<{
   }
 
   // Layer 1: Enhanced HTTP (스크린샷 없음)
+  let httpAnalysis: HomepageDesignAnalysis | null = null;
+  let needPlaywright = false;
+
   try {
     const { html } = await fetchWithBrowserHeaders(normalizedUrl);
     const analysis = await extractDesignFromHTML(html, normalizedUrl, "http", null);
-    return { success: true, data: analysis, error: null };
+    httpAnalysis = analysis;
+
+    // HTTP 결과 품질 검사: JS 렌더링 사이트는 HTTP로 섹션이 충분히 감지되지 않음
+    const sectionCount = analysis.layout.sections.length;
+    if (sectionCount < 3) {
+      console.log(`[HomepageCrawler] HTTP 결과 빈약 (${sectionCount}섹션), Playwright 보강 시도: ${normalizedUrl}`);
+      needPlaywright = true;
+    } else {
+      return { success: true, data: analysis, error: null };
+    }
   } catch (httpError) {
     const isBlocked =
       axios.isAxiosError(httpError) &&
@@ -190,10 +208,15 @@ export async function crawlHomepageDesign(url: string): Promise<{
       }
     }
 
+    needPlaywright = true;
     console.log(`[HomepageCrawler] HTTP 차단, Playwright 폴백: ${normalizedUrl}`);
   }
 
-  // Layer 2: Playwright Stealth
+  if (!needPlaywright) {
+    return { success: true, data: httpAnalysis, error: null };
+  }
+
+  // Layer 2: Playwright Stealth (HTTP 실패 또는 결과 빈약 시)
   try {
     const { html, screenshotBase64, page, browser } = await fetchWithPlaywright(normalizedUrl);
     let analysis = await extractDesignFromHTML(html, normalizedUrl, "playwright", screenshotBase64);
@@ -209,7 +232,12 @@ export async function crawlHomepageDesign(url: string): Promise<{
     return { success: true, data: analysis, error: null };
   } catch (pwError) {
     const msg = pwError instanceof Error ? pwError.message : "Playwright 크롤링 실패";
-    console.error(`[HomepageCrawler] Playwright도 실패: ${normalizedUrl} — ${msg}`);
+    console.warn(`[HomepageCrawler] Playwright 실패: ${normalizedUrl} — ${msg}`);
+    // HTTP 결과가 있으면 폴백으로 사용
+    if (httpAnalysis) {
+      console.log(`[HomepageCrawler] HTTP 결과로 폴백 사용`);
+      return { success: true, data: httpAnalysis, error: null };
+    }
     return { success: false, data: null, error: msg };
   }
 }

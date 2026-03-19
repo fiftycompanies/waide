@@ -3,12 +3,13 @@
  * ReferenceStructure + 브랜드 데이터를 받아 완전한 HTML 페이지를 생성한다.
  *
  * - Claude Sonnet 1회 호출로 전체 HTML 생성
- * - 레퍼런스 구조(Vision 분석)의 섹션 순서·레이아웃·색상 스키마를 그대로 복제
+ * - 레퍼런스 HTML의 CSS 패턴(레이아웃, 여백, 색상, 폰트)을 복제
  * - 텍스트·연락처는 브랜드 정보로 교체
- * - 외부 이미지 핫링크 금지 — CSS 그라데이션/패턴만 사용
+ * - Unsplash CDN 이미지 사용 (이모지/그라데이션 대체 금지)
  */
 
 import type { ReferenceStructure } from "./vision-analyzer";
+import { getUnsplashImages, type UnsplashImageSet } from "./unsplash-images";
 
 // ── 입력 타입 ─────────────────────────────────────────────────────────────────
 
@@ -32,14 +33,31 @@ export interface BrandContent {
   stats?: Array<{ number: string; label: string }>;
 }
 
+export interface ClonerOptions {
+  referenceHtml?: string | null;
+  industry?: string;
+}
+
+// ── HTML 정제 (style 태그 보존, script/svg/주석 제거) ────────────────────────
+
+function cleanHtmlForCloner(html: string, maxChars = 8000): string {
+  return html
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/<svg[\s\S]*?<\/svg>/gi, "")
+    .replace(/<!--[\s\S]*?-->/g, "")
+    .replace(/\s{2,}/g, " ")
+    .slice(0, maxChars);
+}
+
 // ── 메인 생성 함수 ──────────────────────────────────────────────────────────
 
 export async function generateReferenceCloneHtml(
   structure: ReferenceStructure,
   brandContent: BrandContent,
-  apiKey: string
+  apiKey: string,
+  options?: ClonerOptions
 ): Promise<string> {
-  const prompt = buildClonerPrompt(structure, brandContent);
+  const prompt = buildClonerPrompt(structure, brandContent, options);
 
   const resp = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
@@ -50,7 +68,7 @@ export async function generateReferenceCloneHtml(
     },
     body: JSON.stringify({
       model: "claude-sonnet-4-6",
-      max_tokens: 12000,
+      max_tokens: 16000,
       messages: [{ role: "user", content: prompt }],
     }),
   });
@@ -90,25 +108,68 @@ export async function generateReferenceCloneHtml(
 
 function buildClonerPrompt(
   structure: ReferenceStructure,
-  brand: BrandContent
+  brand: BrandContent,
+  options?: ClonerOptions
 ): string {
   const gs = structure.globalStyle;
   const hero = structure.heroStyle;
   const nav = structure.navStyle;
 
+  // 업종별 Unsplash 이미지 세트
+  const images = getUnsplashImages(options?.industry || brand.industry);
+
   // 섹션별 레이아웃 지시사항 생성
   const sectionSpecs = structure.sections
     .map((s) => {
-      const content = getSectionContent(s.type, brand);
+      const content = getSectionContent(s.type, brand, images);
       return `  ${s.order + 1}. [${s.type}] layout="${s.layout}" colorScheme="${s.colorScheme}"
      콘텐츠: ${content}`;
     })
     .join("\n");
 
-  return `당신은 프로페셔널 웹 디자이너입니다.
-아래 디자인 스펙에 따라 "${brand.brandName}" 업체의 완전한 HTML 홈페이지를 생성하세요.
+  // 레퍼런스 HTML 블록 (있으면 포함)
+  const referenceBlock = options?.referenceHtml
+    ? `
+== 레퍼런스 HTML (CSS 패턴 복제 대상) ==
+아래는 레퍼런스 홈페이지의 실제 HTML+CSS입니다.
+이 HTML에서 다음을 복제하세요:
+- CSS 레이아웃 구조 (flexbox/grid 패턴, 컬럼 수, 간격)
+- 여백과 패딩 비율
+- border-radius, box-shadow 스타일
+- font-size 비율 (h1~h6, body)
+- 색상 배합과 배경 패턴
+- 섹션 간 구분선/간격 패턴
 
-== 디자인 시스템 ==
+복제하지 마세요: 텍스트 내용, 이미지 URL, 외부 스크립트, 외부 CSS 파일
+
+<reference>
+${cleanHtmlForCloner(options.referenceHtml)}
+</reference>
+`
+    : "";
+
+  // Unsplash 이미지 목록
+  const imageBlock = `
+== Unsplash 이미지 (반드시 사용) ==
+아래 이미지 URL을 HTML에서 반드시 사용하세요.
+이모지(🏥💉 등)나 CSS 그라데이션으로 이미지를 대체하지 마세요.
+
+히어로 배경:
+${images.hero.map((url, i) => `  ${i + 1}. ${url}`).join("\n")}
+
+서비스/섹션 이미지:
+${images.section.map((url, i) => `  ${i + 1}. ${url}`).join("\n")}
+
+소개 섹션 이미지:
+${images.about.map((url, i) => `  ${i + 1}. ${url}`).join("\n")}
+
+포트폴리오/갤러리 이미지:
+${images.gallery.map((url, i) => `  ${i + 1}. ${url}`).join("\n")}`;
+
+  return `당신은 프로페셔널 웹 디자이너입니다.
+${referenceBlock ? "아래 레퍼런스 HTML의 CSS 패턴을 복제하여" : "아래 디자인 스펙에 따라"} "${brand.brandName}" 업체의 완전한 HTML 홈페이지를 생성하세요.
+${referenceBlock}
+== 디자인 시스템${referenceBlock ? " (레퍼런스 없을 때 폴백)" : ""} ==
 - 디자인 톤: ${gs.designTone}
 - 주색: ${gs.primaryColor}
 - 보조색: ${gs.secondaryColor}
@@ -127,13 +188,14 @@ function buildClonerPrompt(
 - 브랜드명: ${brand.brandName}
 
 == 히어로 ==
-- 배경 이미지: ${hero.hasBackgroundImage ? "CSS 그라데이션으로 대체 (외부 이미지 금지)" : "없음 — CSS 그라데이션"}
-- 오버레이: ${hero.hasOverlay ? "있음" : "없음"}
+- 배경 이미지: 위 Unsplash 히어로 이미지를 background-image로 사용
+- 오버레이: ${hero.hasOverlay ? "있음 (rgba 오버레이 적용)" : "없음"}
 - 텍스트 정렬: ${hero.textAlignment}
 - CTA 스타일: ${hero.ctaStyle}
 
 == 섹션 순서 + 레이아웃 (이 순서대로 정확히 생성) ==
 ${sectionSpecs}
+${imageBlock}
 
 == 브랜드 정보 ==
 - 업체명: ${brand.brandName}
@@ -147,7 +209,8 @@ ${sectionSpecs}
 1. 완전한 HTML 문서를 생성하세요 (<!DOCTYPE html> ~ </html>).
 2. 모든 CSS는 <style> 태그 안에 인라인으로 작성하세요 (외부 CSS 파일 금지).
 3. Google Fonts CDN만 <link>로 허용합니다 (Noto Sans KR 필수 포함).
-4. 외부 이미지 URL 절대 사용 금지. 배경은 CSS 그라데이션/패턴만 사용하세요.
+4. 위 Unsplash CDN 이미지를 반드시 사용하세요. 이모지나 CSS 그라데이션으로 이미지를 대체하지 마세요.
+   히어로에 배경 이미지, 서비스 카드에 이미지, 소개 섹션에 이미지를 필수로 넣으세요.
 5. 반응형 디자인: 모바일(~768px)에서도 정상 동작해야 합니다.
 6. 한국어 콘텐츠입니다. lang="ko"를 설정하세요.
 7. 모든 텍스트는 위 [브랜드 정보]와 [섹션별 콘텐츠]에서만 가져오세요.
@@ -156,23 +219,25 @@ ${sectionSpecs}
 10. 각 섹션에 적절한 id 속성을 부여하세요 (#home, #about, #services 등).
 11. CTA 버튼의 href는 ${brand.phone ? `tel:${brand.phone}` : "#contact"}로 설정하세요.
 12. footer에 Copyright ${new Date().getFullYear()} ${brand.brandName}을 포함하세요.
+13. 배경색은 화이트(#ffffff) 또는 매우 밝은 색 기반으로 하세요. 파란-핑크 그라데이션이나 글래스모피즘 효과를 사용하지 마세요.
+14. 전문적이고 세련된 디자인으로 작성하세요. 제네릭 SaaS 템플릿 스타일은 피하세요.
 
 HTML만 출력하세요. 설명이나 주석은 포함하지 마세요.`;
 }
 
 // ── 섹션별 콘텐츠 매핑 ─────────────────────────────────────────────────────
 
-function getSectionContent(type: string, brand: BrandContent): string {
+function getSectionContent(type: string, brand: BrandContent, images: UnsplashImageSet): string {
   switch (type) {
     case "hero":
-      return `제목="${brand.heroTitle}", 부제="${brand.heroSubtitle}", CTA="${brand.ctaText}"`;
+      return `제목="${brand.heroTitle}", 부제="${brand.heroSubtitle}", CTA="${brand.ctaText}", 배경이미지="${images.hero[0]}"`;
 
     case "about":
-      return `제목="${brand.aboutTitle}", 내용="${brand.aboutDescription}"`;
+      return `제목="${brand.aboutTitle}", 내용="${brand.aboutDescription}", 이미지="${images.about[0]}"`;
 
     case "services": {
       const svcList = brand.services
-        .map((s) => `${s.title}: ${s.description}`)
+        .map((s, i) => `${s.title}: ${s.description} [이미지: ${images.section[i % images.section.length]}]`)
         .join(" | ");
       return `서비스 목록: ${svcList}`;
     }
@@ -208,8 +273,12 @@ function getSectionContent(type: string, brand: BrandContent): string {
     case "map":
       return `주소=${brand.address || "없음"} (네이버지도 링크 포함)`;
 
-    case "portfolio":
-      return "포트폴리오 섹션 (이미지 없이 CSS 플레이스홀더 카드로 구성)";
+    case "portfolio": {
+      const galleryList = images.gallery
+        .map((url, i) => `이미지${i + 1}: ${url}`)
+        .join(", ");
+      return `포트폴리오 섹션 (${galleryList})`;
+    }
 
     case "footer":
       return `업체명=${brand.brandName}, 연락처=${brand.phone || ""}, 주소=${brand.address || ""}`;
