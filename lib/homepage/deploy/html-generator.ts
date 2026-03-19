@@ -1,10 +1,6 @@
-/**
- * 홈페이지 프로젝트의 theme_config + seo_config로
- * 완성된 정적 HTML 페이지를 생성한다.
- *
- * sectionOrder 기반 동적 렌더링 + designStyle CSS 분기.
- * Vercel 파일 업로드 배포에 사용.
- */
+// DEPRECATED: 레퍼런스 구조 복제 파이프라인으로 전환됨 (2026-03-19)
+// 신규 파이프라인: reference-cloner.ts → reference-deployer.ts
+// 이 파일의 generateHomepageHtml()은 더 이상 호출되지 않음.
 
 interface ThemeConfig {
   primaryColor?: string;
@@ -305,7 +301,12 @@ function getDesignStyleCSS(style: string, primary: string, accent: string): stri
 
 // ── 메인 생성 함수 ───────────────────────────────────────────────────────────
 
-export function generateHomepageHtml(data: HomepageData): string {
+export function generateHomepageHtml(_data: HomepageData): string {
+  throw new Error(
+    "[DEPRECATED] html-generator.ts는 폐기됨. reference-cloner.ts 파이프라인을 사용하세요."
+  );
+  // eslint-disable-next-line no-unreachable
+  const data = _data;
   const t = data.themeConfig;
   const s = data.seoConfig;
 

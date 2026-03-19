@@ -64,6 +64,7 @@ async function fetchWithBrowserHeaders(url: string): Promise<{ html: string; met
 async function fetchWithPlaywright(url: string): Promise<{
   html: string;
   method: "playwright";
+  screenshotBase64: string | null;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   page?: any;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -78,9 +79,12 @@ async function fetchWithPlaywright(url: string): Promise<{
 
   try {
     const page = await context.newPage();
-    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 20000 });
-    // 추가 렌더링 대기
-    await page.waitForTimeout(2000);
+    // 데스크톱 뷰포트 설정
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 });
+    // 추가 렌더링 대기 (이미지/폰트 로딩)
+    await page.waitForTimeout(3000);
+
     const html = await page.content();
 
     if (!html || html.length < 100) {
@@ -88,7 +92,22 @@ async function fetchWithPlaywright(url: string): Promise<{
       throw new Error("Playwright: 빈 페이지");
     }
 
-    return { html, method: "playwright", page, browser };
+    // 풀페이지 스크린샷 캡처 (최대 3000px 높이 제한)
+    let screenshotBase64: string | null = null;
+    try {
+      const screenshot = await page.screenshot({
+        fullPage: true,
+        type: "jpeg",
+        quality: 85,
+        clip: { x: 0, y: 0, width: 1440, height: 3000 },
+      });
+      screenshotBase64 = screenshot.toString("base64");
+      console.log(`[HomepageCrawler] 스크린샷 캡처 완료: ${url} (${Math.round(screenshotBase64!.length / 1024)}KB)`);
+    } catch (ssError) {
+      console.warn(`[HomepageCrawler] 스크린샷 캡처 실패 (계속 진행): ${(ssError as Error).message}`);
+    }
+
+    return { html, method: "playwright", screenshotBase64, page, browser };
   } catch (error) {
     await browser.close();
     throw error;
@@ -145,10 +164,10 @@ export async function crawlHomepageDesign(url: string): Promise<{
     normalizedUrl = "https://" + normalizedUrl;
   }
 
-  // Layer 1: Enhanced HTTP
+  // Layer 1: Enhanced HTTP (스크린샷 없음)
   try {
     const { html } = await fetchWithBrowserHeaders(normalizedUrl);
-    const analysis = await extractDesignFromHTML(html, normalizedUrl, "http");
+    const analysis = await extractDesignFromHTML(html, normalizedUrl, "http", null);
     return { success: true, data: analysis, error: null };
   } catch (httpError) {
     const isBlocked =
@@ -176,8 +195,8 @@ export async function crawlHomepageDesign(url: string): Promise<{
 
   // Layer 2: Playwright Stealth
   try {
-    const { html, page, browser } = await fetchWithPlaywright(normalizedUrl);
-    let analysis = await extractDesignFromHTML(html, normalizedUrl, "playwright");
+    const { html, screenshotBase64, page, browser } = await fetchWithPlaywright(normalizedUrl);
+    let analysis = await extractDesignFromHTML(html, normalizedUrl, "playwright", screenshotBase64);
 
     // computed style 보강
     if (page) {

@@ -1,7 +1,6 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 import { VercelClient, type DeployFile } from "./vercel-client";
 import { generateUniqueSubdomain } from "./subdomain-manager";
-import { generateHomepageHtml } from "./html-generator";
 
 /**
  * 배포 결과
@@ -170,24 +169,18 @@ export class DeployManager {
       let deployFiles: DeployFile[] | undefined;
       if (!project.git_repository) {
         // Git 저장소 없으면 HTML 파일 업로드 방식
-        const clientName =
-          (project.client as Record<string, unknown>)?.name as string ||
-          materials?.company_name ||
-          project.project_name ||
-          "홈페이지";
-        const clientPhone = (project.client as Record<string, unknown>)?.phone as string | undefined;
-        const clientAddress = (project.client as Record<string, unknown>)?.address as string | undefined;
+        // theme_config.generated_html에서 사전 생성된 HTML을 읽음
+        const themeConfig = (project.theme_config || {}) as Record<string, unknown>;
+        const generatedHtml = themeConfig.generated_html as string | undefined;
 
-        const html = generateHomepageHtml({
-          projectName: project.project_name || "홈페이지",
-          clientName,
-          phone: clientPhone,
-          address: clientAddress,
-          themeConfig: (project.theme_config || {}) as Record<string, unknown>,
-          seoConfig: (project.seo_config || {}) as Record<string, unknown>,
-        });
+        if (!generatedHtml) {
+          throw new Error(
+            "배포 실패: theme_config.generated_html이 없습니다. " +
+            "homepage-generator 파이프라인에서 HTML이 생성되지 않았습니다."
+          );
+        }
 
-        deployFiles = [{ file: "index.html", data: html }];
+        deployFiles = [{ file: "index.html", data: generatedHtml }];
       }
 
       const deployment = await this.vercel.createDeployment({

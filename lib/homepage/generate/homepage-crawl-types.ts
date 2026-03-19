@@ -6,6 +6,8 @@
 export interface HomepageDesignAnalysis {
   url: string;
   crawlMethod: "http" | "playwright";
+  /** Playwright 풀페이지 스크린샷 (base64 JPEG). HTTP 크롤 시 null. */
+  screenshotBase64: string | null;
   text: {
     title: string;
     metaDescription: string;

@@ -109,7 +109,8 @@ function isLight(hex: string): boolean {
 export async function extractDesignFromHTML(
   html: string,
   url: string,
-  crawlMethod: "http" | "playwright" = "http"
+  crawlMethod: "http" | "playwright" = "http",
+  screenshotBase64: string | null = null
 ): Promise<HomepageDesignAnalysis> {
   const $ = cheerio.load(html);
 
@@ -122,6 +123,7 @@ export async function extractDesignFromHTML(
   return {
     url,
     crawlMethod,
+    screenshotBase64,
     text: extractTextContent($),
     design: {
       colorPalette: extractColorsFromCss($, allCss),

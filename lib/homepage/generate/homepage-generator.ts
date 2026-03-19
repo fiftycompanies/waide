@@ -7,6 +7,12 @@ import { HomepagePublisher } from "@/lib/homepage/publishing";
 import { crawlMultipleHomepages } from "./homepage-crawler";
 import type { CrawlResult } from "./homepage-crawl-types";
 import { getPersonaForPipeline } from "@/lib/utils/persona-compat";
+import {
+  analyzeReferenceScreenshot,
+  buildStructureFromCrawlData,
+  type ReferenceStructure,
+} from "./vision-analyzer";
+import { generateReferenceCloneHtml, type BrandContent } from "./reference-cloner";
 
 // ── 업종별 동적 시스템 역할 ──────────────────────────────────────────────────
 
@@ -132,8 +138,30 @@ export class HomepageGenerator {
       }
     }
 
-    // Step 4: 콘텐츠 생성 (OpenAI)
-    this.emit("content_generate", "AI가 홈페이지 콘텐츠를 생성하고 있습니다...", 45);
+    // Step 4a: Vision 구조 분석 (스크린샷이 있는 경우)
+    this.emit("content_generate", "레퍼런스 구조를 분석하고 있습니다...", 40);
+    let referenceStructure: ReferenceStructure;
+
+    const firstScreenshot = crawlResult.analyses.find((a) => a.screenshotBase64)?.screenshotBase64;
+    if (firstScreenshot) {
+      try {
+        referenceStructure = await analyzeReferenceScreenshot(
+          firstScreenshot,
+          crawlResult.merged,
+          this.anthropicApiKey
+        );
+        console.log("[HomepageGenerator] Vision 분석 완료:", referenceStructure.sections.length, "섹션 감지");
+      } catch (visionError) {
+        console.warn("[HomepageGenerator] Vision 분석 실패, 크롤링 데이터로 폴백:", (visionError as Error).message);
+        referenceStructure = buildStructureFromCrawlData(crawlResult.merged);
+      }
+    } else {
+      console.log("[HomepageGenerator] 스크린샷 없음, 크롤링 데이터로 구조 생성");
+      referenceStructure = buildStructureFromCrawlData(crawlResult.merged);
+    }
+
+    // Step 4b: 콘텐츠 생성 (텍스트)
+    this.emit("content_generate", "AI가 홈페이지 콘텐츠를 생성하고 있습니다...", 50);
     const generatedContent = await this.generateContentWithDesign(
       crawlResult,
       brandAnalysis,
@@ -141,9 +169,44 @@ export class HomepageGenerator {
       brandHomepageContent
     );
 
+    // Step 4c: HTML 생성 (레퍼런스 구조 복제)
+    this.emit("content_generate", "레퍼런스 디자인을 복제하여 HTML을 생성하고 있습니다...", 55);
+    const brandContent: BrandContent = {
+      brandName: (brandInfo.name as string) || (brandInfo.company_name as string) || "업체",
+      industry: (brandInfo.industry as string) || "인테리어",
+      phone: (brandInfo.phone as string) || null,
+      address: (brandInfo.address as string) || null,
+      websiteUrl: (brandInfo.website_url as string) || null,
+      heroTitle: generatedContent.heroTitle,
+      heroSubtitle: generatedContent.heroSubtitle,
+      aboutTitle: generatedContent.aboutTitle,
+      aboutDescription: generatedContent.aboutDescription,
+      services: generatedContent.services,
+      whyChooseUs: generatedContent.whyChooseUs,
+      ctaText: generatedContent.ctaText,
+      seoTitle: generatedContent.seoTitle,
+      seoDescription: generatedContent.seoDescription,
+      testimonials: generatedContent.testimonials,
+      faqItems: generatedContent.faqItems,
+      stats: generatedContent.stats,
+    };
+
+    let generatedHtml: string;
+    try {
+      generatedHtml = await generateReferenceCloneHtml(
+        referenceStructure,
+        brandContent,
+        this.anthropicApiKey
+      );
+      console.log("[HomepageGenerator] HTML 생성 완료:", Math.round(generatedHtml.length / 1024), "KB");
+    } catch (htmlError) {
+      console.error("[HomepageGenerator] HTML 생성 실패:", (htmlError as Error).message);
+      throw new Error(`HTML 생성 실패: ${(htmlError as Error).message}`);
+    }
+
     // Step 5: 프로젝트 생성 + DB 저장
     this.emit("db_save", "프로젝트를 생성하고 있습니다...", 60);
-    const projectId = await this.saveProject(input, generatedContent, crawlResult, referenceUrls, brandInfo);
+    const projectId = await this.saveProject(input, generatedContent, crawlResult, referenceUrls, brandInfo, generatedHtml);
 
     // Step 6: 블로그 메뉴 강제 삽입
     this.emit("blog_inject", "블로그 메뉴를 설정하고 있습니다...", 70);
@@ -385,7 +448,8 @@ ${brandHomepageContext}
     content: GeneratedHomepageContent,
     crawlResult: CrawlResult,
     referenceUrls: string[],
-    brandInfo: Record<string, unknown>
+    brandInfo: Record<string, unknown>,
+    generatedHtml: string
   ): Promise<string> {
     const merged = crawlResult.merged;
 
@@ -436,6 +500,8 @@ ${brandHomepageContext}
           // 외부 이미지 핫링크 금지 — 크롤링 이미지 URL을 저장하지 않음
           heroImageCandidates: [],
           portfolioImages: [],
+          // 생성된 HTML (deploy-manager에서 직접 사용)
+          generated_html: generatedHtml,
         },
         seo_config: {
           title: content.seoTitle,
