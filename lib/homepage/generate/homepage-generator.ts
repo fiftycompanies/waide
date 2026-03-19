@@ -9,6 +9,7 @@ import type { CrawlResult } from "./homepage-crawl-types";
 import { getPersonaForPipeline } from "@/lib/utils/persona-compat";
 import {
   analyzeReferenceScreenshot,
+  analyzeStructureFromHtml,
   buildStructureFromCrawlData,
   type ReferenceStructure,
 } from "./vision-analyzer";
@@ -138,12 +139,31 @@ export class HomepageGenerator {
       }
     }
 
-    // Step 4a: Vision 구조 분석 (스크린샷이 있는 경우)
+    // Step 4a: 구조 분석 (스크린샷 Vision → HTML AI 분석 → 크롤링 폴백)
     this.emit("content_generate", "레퍼런스 구조를 분석하고 있습니다...", 40);
     let referenceStructure: ReferenceStructure;
 
     const firstScreenshot = crawlResult.analyses.find((a) => a.screenshotBase64)?.screenshotBase64;
+    const firstHtml = crawlResult.analyses[0]?.text?.fullText;
+    // 크롤링된 raw HTML을 직접 사용 (text.fullText는 요약이므로 부족)
+    // HTTP fetch된 원본 HTML이 필요하므로 별도 fetch
+    let rawHtmlForAnalysis: string | null = null;
+    if (!firstScreenshot && referenceUrls.length > 0) {
+      try {
+        const resp = await fetch(referenceUrls[0], {
+          headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" },
+          signal: AbortSignal.timeout(10000),
+        });
+        if (resp.ok) {
+          rawHtmlForAnalysis = await resp.text();
+        }
+      } catch {
+        // fetch 실패는 무시
+      }
+    }
+
     if (firstScreenshot) {
+      // 최선: Vision API로 스크린샷 분석
       try {
         referenceStructure = await analyzeReferenceScreenshot(
           firstScreenshot,
@@ -152,11 +172,39 @@ export class HomepageGenerator {
         );
         console.log("[HomepageGenerator] Vision 분석 완료:", referenceStructure.sections.length, "섹션 감지");
       } catch (visionError) {
-        console.warn("[HomepageGenerator] Vision 분석 실패, 크롤링 데이터로 폴백:", (visionError as Error).message);
+        console.warn("[HomepageGenerator] Vision 분석 실패, HTML 분석으로 폴백:", (visionError as Error).message);
+        // Vision 실패 시 HTML 분석 시도
+        if (rawHtmlForAnalysis) {
+          try {
+            referenceStructure = await analyzeStructureFromHtml(
+              rawHtmlForAnalysis,
+              crawlResult.merged,
+              this.anthropicApiKey
+            );
+            console.log("[HomepageGenerator] HTML 기반 분석 완료:", referenceStructure.sections.length, "섹션 감지");
+          } catch {
+            referenceStructure = buildStructureFromCrawlData(crawlResult.merged);
+          }
+        } else {
+          referenceStructure = buildStructureFromCrawlData(crawlResult.merged);
+        }
+      }
+    } else if (rawHtmlForAnalysis) {
+      // 차선: 스크린샷 없으면 HTML 소스를 Claude에 보내 구조 분석
+      try {
+        referenceStructure = await analyzeStructureFromHtml(
+          rawHtmlForAnalysis,
+          crawlResult.merged,
+          this.anthropicApiKey
+        );
+        console.log("[HomepageGenerator] HTML 기반 구조 분석 완료:", referenceStructure.sections.length, "섹션 감지");
+      } catch (htmlAnalysisError) {
+        console.warn("[HomepageGenerator] HTML 분석 실패, 크롤링 데이터로 폴백:", (htmlAnalysisError as Error).message);
         referenceStructure = buildStructureFromCrawlData(crawlResult.merged);
       }
     } else {
-      console.log("[HomepageGenerator] 스크린샷 없음, 크롤링 데이터로 구조 생성");
+      // 최종 폴백: 크롤링 데이터만으로 구조 생성
+      console.log("[HomepageGenerator] 스크린샷/HTML 모두 없음, 크롤링 데이터로 구조 생성");
       referenceStructure = buildStructureFromCrawlData(crawlResult.merged);
     }
 
@@ -166,15 +214,16 @@ export class HomepageGenerator {
       crawlResult,
       brandAnalysis,
       brandInfo,
-      brandHomepageContent
+      brandHomepageContent,
+      referenceStructure
     );
 
     // Step 4c: HTML 생성 (레퍼런스 구조 복제)
     this.emit("content_generate", "레퍼런스 디자인을 복제하여 HTML을 생성하고 있습니다...", 55);
     const brandContent: BrandContent = {
       brandName: (brandInfo.name as string) || (brandInfo.company_name as string) || "업체",
-      industry: (brandInfo.industry as string) || "인테리어",
-      phone: (brandInfo.contact_phone as string) || null,
+      industry: this.resolveIndustry(brandInfo, brandAnalysis),
+      phone: (brandInfo.contact_phone as string) || (brandInfo.phone as string) || null,
       address: null,
       websiteUrl: (brandInfo.website_url as string) || null,
       heroTitle: generatedContent.heroTitle,
@@ -206,7 +255,7 @@ export class HomepageGenerator {
 
     // Step 5: 프로젝트 생성 + DB 저장
     this.emit("db_save", "프로젝트를 생성하고 있습니다...", 60);
-    const projectId = await this.saveProject(input, generatedContent, crawlResult, referenceUrls, brandInfo, generatedHtml);
+    const projectId = await this.saveProject(input, generatedContent, crawlResult, referenceUrls, brandInfo, generatedHtml, referenceStructure);
 
     // Step 6: 블로그 메뉴 강제 삽입
     this.emit("blog_inject", "블로그 메뉴를 설정하고 있습니다...", 70);
@@ -259,10 +308,11 @@ export class HomepageGenerator {
     crawlResult: CrawlResult,
     brandAnalysis: BrandAnalysisRow | null,
     brandInfo: Record<string, unknown>,
-    brandHomepageContent: ScrapedContent | null
+    brandHomepageContent: ScrapedContent | null,
+    referenceStructure?: ReferenceStructure
   ): Promise<GeneratedHomepageContent> {
     const brandName = (brandInfo.name as string) || (brandInfo.company_name as string) || "업체";
-    const industry = (brandInfo.industry as string) || "인테리어";
+    const industry = this.resolveIndustry(brandInfo, brandAnalysis);
     const merged = crawlResult.merged;
 
     // 브랜드 분석 데이터 요약
@@ -305,6 +355,10 @@ export class HomepageGenerator {
       .filter(Boolean)
       .join(" / ");
 
+    // AI 구조 분석 결과의 sectionOrder 우선 → 크롤러 결과 폴백
+    const aiSections = referenceStructure?.sections?.map(s => s.type) || [];
+    const effectiveSectionOrder = aiSections.length >= 3 ? aiSections : merged.sectionOrder;
+
     // Task 1: 업종별 동적 시스템 역할
     const systemRole = getSystemRole(industry);
 
@@ -321,13 +375,13 @@ export class HomepageGenerator {
 - 배경색: ${merged.backgroundColor}, 텍스트색: ${merged.textColor}
 - 폰트: 제목=${merged.headingFont || "기본"}, 본문=${merged.bodyFont || "기본"}
 - 디자인 스타일: ${merged.designStyle}
-- 레이아웃 구조: ${merged.sectionOrder.join(" → ")}
+- 레이아웃 구조: ${effectiveSectionOrder.join(" → ")}
 - 감지된 섹션 구성: ${layoutSummary || "기본"}
 
 [브랜드 정보 — 모든 텍스트 콘텐츠는 여기서만 생성]
 - 업체명: ${brandName}
 - 업종: ${industry}
-- 연락처: ${(brandInfo.phone as string) || "없음"}
+- 연락처: ${(brandInfo.contact_phone as string) || "없음"}
 - 주소: ${(brandInfo.address as string) || "없음"}
 - 홈페이지: ${(brandInfo.website_url as string) || "없음"}
 ${personaBlock}
@@ -353,7 +407,7 @@ ${brandHomepageContext}
   "seoTitle": "SEO 타이틀 (60자 이내, ${brandName} + ${industry} 포함)",
   "seoDescription": "SEO 디스크립션 (160자 이내)",
   "primaryColor": "#HEX코드 (레퍼런스 색상 참고, ${industry} 브랜드에 어울리게 조정)",
-  "secondaryColor": "#HEX코드"${this.buildExtraFieldsPrompt(merged.sectionOrder)}
+  "secondaryColor": "#HEX코드"${this.buildExtraFieldsPrompt(effectiveSectionOrder)}
 }
 
 중요:
@@ -418,6 +472,34 @@ ${brandHomepageContext}
     return extra;
   }
 
+  /** 업종 결정: clients.industry → brand_analysis.basic_info.category → 업체명 추론 → "서비스" */
+  private resolveIndustry(brandInfo: Record<string, unknown>, analysis: BrandAnalysisRow | null): string {
+    // 1) clients 테이블의 industry 필드
+    if (brandInfo.industry && typeof brandInfo.industry === "string") {
+      return brandInfo.industry;
+    }
+    // 2) brand_analysis.basic_info.category
+    if (analysis?.basic_info) {
+      const bi = analysis.basic_info as Record<string, unknown>;
+      if (bi.category && typeof bi.category === "string") return bi.category;
+    }
+    // 3) 업체명에서 업종 추론
+    const name = (brandInfo.name as string) || (brandInfo.company_name as string) || "";
+    const industryHints: Record<string, string> = {
+      "의원": "의원", "클리닉": "클리닉", "치과": "치과", "피부과": "피부과",
+      "병원": "병원", "약국": "약국", "한의원": "한의원",
+      "카페": "카페", "음식점": "음식점", "맛집": "음식점",
+      "호텔": "호텔", "펜션": "펜션", "숙박": "숙박",
+      "헤어": "헤어", "미용": "미용", "네일": "네일",
+      "인테리어": "인테리어", "도배": "도배",
+    };
+    for (const [keyword, ind] of Object.entries(industryHints)) {
+      if (name.includes(keyword)) return ind;
+    }
+    // 4) 최종 폴백
+    return "서비스";
+  }
+
   private summarizeBrandAnalysis(analysis: BrandAnalysisRow): string {
     const parts: string[] = [];
 
@@ -449,7 +531,8 @@ ${brandHomepageContext}
     crawlResult: CrawlResult,
     referenceUrls: string[],
     brandInfo: Record<string, unknown>,
-    generatedHtml: string
+    generatedHtml: string,
+    referenceStructure?: ReferenceStructure
   ): Promise<string> {
     const merged = crawlResult.merged;
 
@@ -457,8 +540,11 @@ ${brandHomepageContext}
     const primaryColor = content.primaryColor || merged.primaryColor || "#2563eb";
     const secondaryColor = content.secondaryColor || merged.secondaryColor || "#64748b";
 
-    // 크롤러 섹션 + 최소 필수 섹션 보장 (크롤러가 hero+contact만 감지해도 about/services/cta 자동 추가)
-    const sectionOrder = ensureMinimumSections(merged.sectionOrder || []);
+    // AI 구조 분석 결과 sectionOrder 우선 → 크롤러 sectionOrder 폴백 → 최소 필수 섹션 보장
+    const aiSections = referenceStructure?.sections?.map(s => s.type) || [];
+    const sectionOrder = ensureMinimumSections(
+      aiSections.length >= 3 ? aiSections : (merged.sectionOrder || [])
+    );
 
     // 브랜드명 기반 프로젝트명 — AI가 레퍼런스 텍스트에서 임의 회사명을 가져오는 버그 방지
     const clientName = (brandInfo.name as string) || (brandInfo.company_name as string) || "업체";

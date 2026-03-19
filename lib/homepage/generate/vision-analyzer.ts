@@ -207,7 +207,129 @@ function enrichWithCrawlData(
   return vision;
 }
 
-// ── 스크린샷 없을 때 크롤링 데이터만으로 구조 생성 ──────────────────────────────
+// ── HTML 텍스트 기반 구조 분석 (스크린샷 없이 Claude로 분석) ────────────────────
+
+export async function analyzeStructureFromHtml(
+  html: string,
+  designData: MergedDesignProfile,
+  apiKey: string
+): Promise<ReferenceStructure> {
+  // HTML을 적절한 크기로 잘라서 전달 (토큰 절약)
+  const truncatedHtml = truncateHtml(html, 15000);
+  const prompt = buildHtmlAnalysisPrompt(truncatedHtml, designData);
+
+  const resp = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
+    },
+    body: JSON.stringify({
+      model: "claude-sonnet-4-6",
+      max_tokens: 2000,
+      messages: [{ role: "user", content: prompt }],
+    }),
+  });
+
+  if (!resp.ok) {
+    const errBody = await resp.text().catch(() => "");
+    throw new Error(`HTML Analysis API HTTP ${resp.status}: ${errBody.slice(0, 200)}`);
+  }
+
+  const data = await resp.json();
+  const responseText: string = data.content?.[0]?.text || "";
+
+  if (!responseText) {
+    throw new Error("HTML 분석 API 응답 비어있음");
+  }
+
+  const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) {
+    throw new Error("HTML 분석 API JSON 파싱 실패");
+  }
+
+  const parsed = JSON.parse(jsonMatch[0]) as ReferenceStructure;
+  return enrichWithCrawlData(parsed, designData);
+}
+
+function truncateHtml(html: string, maxChars: number): string {
+  // script, style 태그 내용 제거 (토큰 절약)
+  let cleaned = html
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/<style[\s\S]*?<\/style>/gi, "")
+    .replace(/<svg[\s\S]*?<\/svg>/gi, "")
+    .replace(/<!--[\s\S]*?-->/g, "")
+    .replace(/\s{2,}/g, " ");
+
+  if (cleaned.length > maxChars) {
+    cleaned = cleaned.slice(0, maxChars) + "\n<!-- ... truncated -->";
+  }
+  return cleaned;
+}
+
+function buildHtmlAnalysisPrompt(html: string, designData: MergedDesignProfile): string {
+  return `이 HTML 소스 코드를 분석하여 홈페이지의 섹션 구조와 디자인 스타일을 추출하세요.
+
+[크롤링으로 사전 추출된 디자인 데이터]
+- 주색: ${designData.primaryColor}
+- 보조색: ${designData.secondaryColor}
+- 강조색: ${designData.accentColor || "없음"}
+- 배경색: ${designData.backgroundColor}
+- 텍스트색: ${designData.textColor}
+- 제목 폰트: ${designData.headingFont || "기본"}
+- 본문 폰트: ${designData.bodyFont || "기본"}
+- 디자인 스타일: ${designData.designStyle}
+
+[HTML 소스]
+${html}
+
+다음 JSON 형식으로 분석 결과를 출력하세요:
+{
+  "sections": [
+    {
+      "type": "hero|about|services|portfolio|testimonials|cta|contact|faq|stats|map|footer",
+      "order": 0,
+      "layout": "레이아웃 토큰 (centered-text, 2-col-image-left, 2-col-image-right, 3-card-grid, 4-card-grid, full-width-bg, split-50-50, single-column, image-gallery 등)",
+      "colorScheme": "dark-bg|light-bg|gradient|primary-bg|image-bg",
+      "contentHints": "이 섹션의 콘텐츠 유형 간략 설명"
+    }
+  ],
+  "globalStyle": {
+    "designTone": "modern-minimal|bold-dark|luxury-elegant|natural-organic|warm-friendly|corporate-clean",
+    "primaryColor": "#hex (크롤링 데이터 우선)",
+    "secondaryColor": "#hex",
+    "accentColor": "#hex 또는 null",
+    "backgroundColor": "#hex",
+    "textColor": "#hex",
+    "headingFont": "폰트명 또는 null",
+    "bodyFont": "폰트명 또는 null",
+    "borderRadius": "none|small|medium|large|pill",
+    "spacing": "compact|normal|spacious"
+  },
+  "heroStyle": {
+    "hasBackgroundImage": true/false,
+    "hasOverlay": true/false,
+    "textAlignment": "center|left",
+    "ctaStyle": "button|phone-link|form"
+  },
+  "navStyle": {
+    "position": "fixed|static",
+    "background": "transparent|solid|blur",
+    "alignment": "between|center"
+  }
+}
+
+중요:
+- 반드시 유효한 JSON만 출력하세요.
+- sections는 HTML에 나타나는 실제 섹션을 순서대로 모두 나열하세요. 최소 5개 이상의 섹션을 감지하세요.
+- HTML의 class명, id, 태그 구조, 텍스트 내용을 분석하여 각 섹션의 type을 정확히 판별하세요.
+- layout 토큰은 해당 섹션의 실제 DOM 구조(grid, flex, columns)를 분석하여 구체적으로 기술하세요.
+- 색상값은 크롤링 데이터를 우선 사용하세요.
+- 어두운 배경의 사이트는 designTone을 "bold-dark"로, 고급스러운 사이트는 "luxury-elegant"로 설정하세요.`;
+}
+
+// ── 스크린샷 없을 때 크롤링 데이터만으로 구조 생성 (최종 폴백) ──────────────────
 
 export function buildStructureFromCrawlData(
   designData: MergedDesignProfile
