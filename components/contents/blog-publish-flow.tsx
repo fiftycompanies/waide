@@ -145,13 +145,16 @@ export function BlogPublishFlow({
       ? inputUrl
       : (bi.homepage_url as string) || (bi.homepage as string) || (bi.website as string) || (bi.website_url as string) || "";
 
+    // description: personaData.one_liner 우선 → 빈값이면 나중 useEffect에서 채움
+    const initialDescription = personaData?.one_liner || personaData?.positioning || "";
+
     return {
       name: (bi.name as string) || "",
       naverPlaceUrl,
       homepage,
       category: (bi.category as string) || "",
       region: (bi.region as string) || (bi.address as string) || "",
-      description: "",
+      description: initialDescription,
     };
   });
 
@@ -179,8 +182,9 @@ export function BlogPublishFlow({
   const [subKeywords, setSubKeywords] = useState<string[]>([]);
   const [subKeywordInput, setSubKeywordInput] = useState("");
 
-  // Step 2: Brief
+  // Step 2: Brief + Tone Override
   const [brief, setBrief] = useState("");
+  const [toneOverride, setToneOverride] = useState<string | null>(null);
 
   // Step 3: Images
   const [selectedImages, setSelectedImages] = useState<string[]>([]);
@@ -222,6 +226,16 @@ export function BlogPublishFlow({
     accountName: "",
     accountUrl: "",
   });
+
+  // placeId 추출 보강: brandAnalysis.place_id 없으면 naverPlaceUrl에서 파싱
+  const derivedPlaceId = useMemo(() => {
+    if (brandAnalysis?.place_id) return brandAnalysis.place_id;
+    const url = brandInfo.naverPlaceUrl;
+    if (!url) return null;
+    // /restaurant/12345/ 또는 /place/12345 패턴
+    const match = url.match(/\/(?:restaurant|place)\/(\d+)/);
+    return match ? match[1] : null;
+  }, [brandAnalysis?.place_id, brandInfo.naverPlaceUrl]);
 
   // Style Transfer 학습 콘텐츠
   const searchParams = useSearchParams();
@@ -297,6 +311,7 @@ export function BlogPublishFlow({
           contentType,
           keywordId: mainKeywordId || undefined,
           imageUrls: selectedImages.length > 0 ? selectedImages : undefined,
+          generatedBy: "ai",
         });
         if (result.success && result.contentId) {
           setSavedContentId(result.contentId);
@@ -312,13 +327,14 @@ export function BlogPublishFlow({
 
   // ── Image crawling ──
   const handleCrawlImages = async () => {
-    if (!brandAnalysis?.place_id) return;
+    const effectivePlaceId = brandAnalysis?.place_id || derivedPlaceId;
+    if (!effectivePlaceId) return;
     setImageLoading(true);
     try {
       const res = await fetch("/api/vps/image?action=crawl-images", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ place_id: brandAnalysis.place_id, max_images: 12 }),
+        body: JSON.stringify({ place_id: effectivePlaceId, max_images: 12 }),
       });
       if (res.ok) {
         const data = await res.json();
@@ -475,10 +491,12 @@ export function BlogPublishFlow({
               const brandA = cs.brand_analysis as Record<string, unknown> | undefined;
               const reviewA = cs.review_analysis as Record<string, unknown> | undefined;
               return {
-                tone_style: brandA?.tone || undefined,
+                tone_style: toneOverride !== null ? toneOverride : (brandA?.tone || undefined),
                 selling_points: reviewA?.selling_points || undefined,
               };
             })()),
+            // toneOverride가 있고 content_strategy가 없을 때도 전달
+            ...(!brandAnalysis?.content_strategy && toneOverride ? { tone_style: toneOverride } : {}),
           },
           mainKeyword,
           subKeywords,
@@ -573,6 +591,7 @@ export function BlogPublishFlow({
       contentType,
       keywordId: mainKeywordId || undefined,
       imageUrls: selectedImages.length > 0 ? selectedImages : undefined,
+      generatedBy: "ai",
     });
     if (result.success && result.contentId) {
       setSavedContentId(result.contentId);
@@ -668,7 +687,7 @@ export function BlogPublishFlow({
       <Card>
         <CardContent className="pt-6">
           {step === 0 && (
-            <StepBrandInfo value={brandInfo} onChange={setBrandInfo} />
+            <StepBrandInfo value={brandInfo} onChange={setBrandInfo} personaData={personaData} />
           )}
           {step === 1 && (
             <StepTypeKeyword
@@ -702,11 +721,13 @@ export function BlogPublishFlow({
               personaData={personaData}
               ownerInputData={ownerInputData}
               subKeywords={subKeywords}
+              toneOverride={toneOverride}
+              onToneOverride={setToneOverride}
             />
           )}
           {step === 3 && (
             <StepImages
-              placeId={brandAnalysis?.place_id || null}
+              placeId={brandAnalysis?.place_id || derivedPlaceId}
               crawledImages={crawledImages}
               selectedImages={selectedImages}
               loading={imageLoading}
@@ -941,9 +962,11 @@ function KeywordCombobox({
 function StepBrandInfo({
   value,
   onChange,
+  personaData,
 }: {
   value: { name: string; naverPlaceUrl: string; homepage: string; category: string; region: string; description: string };
   onChange: (v: typeof value) => void;
+  personaData?: PersonaForPublish | null;
 }) {
   const fields: { key: keyof typeof value; label: string; placeholder: string }[] = [
     { key: "name", label: "업체명", placeholder: "캠핏 글램핑" },
@@ -954,12 +977,40 @@ function StepBrandInfo({
     { key: "description", label: "브랜드 특징", placeholder: "프리미엄 글램핑, 자연 속 힐링 체험" },
   ];
 
+  // 페르소나 요약 항목 (있는 것만 표시)
+  const personaSummary = (() => {
+    if (!personaData) return [];
+    const items: { label: string; value: string }[] = [];
+    if (personaData.one_liner) items.push({ label: "한줄 소개", value: personaData.one_liner });
+    if (personaData.positioning) items.push({ label: "포지셔닝", value: personaData.positioning });
+    if (personaData.primary_target) items.push({ label: "타겟 고객", value: personaData.primary_target });
+    if (personaData.tone) items.push({ label: "톤앤매너", value: personaData.tone });
+    return items;
+  })();
+
   return (
     <div className="space-y-4">
       <h3 className="text-lg font-semibold">브랜드 정보 확인</h3>
       <p className="text-sm text-muted-foreground">
         브랜드 분석 결과에서 가져온 정보입니다. 필요시 수정하세요.
       </p>
+
+      {/* 페르소나 요약 카드 */}
+      {personaSummary.length > 0 && (
+        <div className="rounded-lg border border-violet-200 bg-violet-50/50 p-3 space-y-1.5">
+          <p className="text-sm font-medium text-violet-700 flex items-center gap-1.5">
+            <Sparkles className="h-3.5 w-3.5" />
+            브랜드 페르소나
+          </p>
+          {personaSummary.map((item, i) => (
+            <div key={i} className="flex items-start gap-1.5">
+              <span className="text-xs text-violet-500 shrink-0 min-w-[60px]">{item.label}:</span>
+              <span className="text-sm text-violet-700">{item.value}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
       <div className="grid gap-3">
         {fields.map((f) => (
           <div key={f.key}>
@@ -1209,6 +1260,8 @@ function StepBrief({
   personaData,
   ownerInputData,
   subKeywords,
+  toneOverride,
+  onToneOverride,
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -1216,8 +1269,10 @@ function StepBrief({
   personaData?: PersonaForPublish | null;
   ownerInputData?: OwnerInputForPublish | null;
   subKeywords?: string[];
+  toneOverride?: string | null;
+  onToneOverride?: (v: string | null) => void;
 }) {
-  // 고객 리뷰 기반 강점 추출 (기존 로직 유지 + 페르소나 폴백)
+  // 고객 리뷰 기반 강점 추출 (기존 로직 유지 + 페르소나 폴백 + content_strategy 폴백)
   const sellingPoints = (() => {
     // 1) 페르소나에서 USP
     if (personaData?.usp_details && personaData.usp_details.length > 0) {
@@ -1232,20 +1287,38 @@ function StepBrief({
     const ar = brandAnalysis.analysis_result as Record<string, unknown> | null;
     const reviewFromCs = cs?.review_analysis as Record<string, unknown> | undefined;
     const reviewFromAr = ar?.review_analysis as Record<string, unknown> | undefined;
+    const brandA = cs?.brand_analysis as Record<string, unknown> | undefined;
     const points =
       (reviewFromCs?.selling_points as string[] | undefined) ||
       (reviewFromAr?.selling_points as string[] | undefined) ||
       [];
-    return points.slice(0, 5);
+    if (points.length > 0) return points.slice(0, 5);
+    // 3) content_strategy.brand_analysis.usp 폴백
+    if (brandA?.usp) {
+      const usp = brandA.usp;
+      if (Array.isArray(usp) && usp.length > 0) return (usp as string[]).slice(0, 5);
+    }
+    // 4) strengths 문자열이면 split
+    if (brandA?.strengths) {
+      const str = String(brandA.strengths);
+      if (str.includes(",")) return str.split(",").map((s: string) => s.trim()).filter(Boolean).slice(0, 5);
+      if (str.includes("/")) return str.split("/").map((s: string) => s.trim()).filter(Boolean).slice(0, 5);
+      if (str.length > 0) return [str];
+    }
+    return [];
   })();
 
-  // 브랜드 톤 힌트 추출 (페르소나 우선)
-  const toneHint = personaData?.tone || (() => {
+  // 브랜드 톤 힌트 추출 (toneOverride 우선 → 페르소나 → brandAnalysis)
+  const baseTone = personaData?.tone || (() => {
     if (!brandAnalysis?.content_strategy) return "";
     const cs = brandAnalysis.content_strategy;
     const brandA = cs.brand_analysis as Record<string, unknown> | undefined;
     return String(brandA?.tone || "");
   })();
+  // toneOverride가 null이면 아직 사용자가 조작 안 함 → baseTone 표시
+  const effectiveTone = toneOverride !== null && toneOverride !== undefined ? toneOverride : baseTone;
+  const [editingTone, setEditingTone] = useState(false);
+  const [toneInput, setToneInput] = useState(effectiveTone);
 
   const targetHint = personaData?.primary_target || "";
 
@@ -1256,14 +1329,63 @@ function StepBrief({
         콘텐츠를 작성할 포인트를 기술하세요. 해당 내용을 반영하여 AI가 원고를 작성합니다.
       </p>
 
-      {/* 페르소나 요약 카드 (있으면 표시) */}
-      {(toneHint || targetHint) && (
+      {/* 페르소나 요약 카드 (톤앤매너 편집 가능) */}
+      {(effectiveTone || targetHint) && (
         <div className="rounded-lg border border-purple-200 bg-purple-50/50 p-3 space-y-1.5">
-          {toneHint && (
+          {effectiveTone !== undefined && (
             <div className="flex items-center gap-1.5">
               <Pen className="h-3.5 w-3.5 text-purple-600 shrink-0" />
               <span className="text-xs text-purple-500">톤앤매너:</span>
-              <span className="text-sm text-purple-700">{toneHint}</span>
+              {editingTone ? (
+                <div className="flex items-center gap-1 flex-1">
+                  <input
+                    type="text"
+                    value={toneInput}
+                    onChange={(e) => setToneInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.nativeEvent.isComposing) {
+                        e.preventDefault();
+                        onToneOverride?.(toneInput.trim() || "");
+                        setEditingTone(false);
+                      }
+                      if (e.key === "Escape") {
+                        setToneInput(effectiveTone);
+                        setEditingTone(false);
+                      }
+                    }}
+                    onBlur={() => {
+                      onToneOverride?.(toneInput.trim() || "");
+                      setEditingTone(false);
+                    }}
+                    autoFocus
+                    className="flex h-7 flex-1 rounded-md border border-purple-300 bg-white px-2 py-0.5 text-sm text-purple-700 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-purple-400"
+                  />
+                </div>
+              ) : (
+                <div className="flex items-center gap-1.5 flex-1">
+                  <button
+                    onClick={() => {
+                      setToneInput(effectiveTone);
+                      setEditingTone(true);
+                    }}
+                    className="text-sm text-purple-700 hover:underline cursor-pointer text-left"
+                  >
+                    {effectiveTone || "(미설정 — 클릭하여 입력)"}
+                  </button>
+                  {effectiveTone && (
+                    <button
+                      onClick={() => {
+                        onToneOverride?.("");
+                        setToneInput("");
+                      }}
+                      className="text-purple-400 hover:text-purple-600 shrink-0"
+                      title="톤앤매너 삭제"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           )}
           {targetHint && (
@@ -1283,21 +1405,28 @@ function StepBrief({
             USP / 강점
           </p>
           <div className="flex flex-wrap gap-1.5">
-            {sellingPoints.map((point, i) => (
-              <button
-                key={i}
-                onClick={() => {
-                  const trimmed = point.trim();
-                  if (trimmed && !value.includes(trimmed)) {
-                    onChange(value ? `${value}\n${trimmed}` : trimmed);
-                  }
-                }}
-                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700 hover:bg-emerald-200 transition-colors"
-              >
-                <Plus className="h-3 w-3" />
-                {point}
-              </button>
-            ))}
+            {sellingPoints.map((point, i) => {
+              const trimmed = point.trim();
+              const isAdded = trimmed ? value.includes(trimmed) : false;
+              return (
+                <button
+                  key={i}
+                  onClick={() => {
+                    if (trimmed && !isAdded) {
+                      onChange(value ? `${value}\n${trimmed}` : trimmed);
+                    }
+                  }}
+                  className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+                    isAdded
+                      ? "bg-emerald-200/60 text-emerald-500 cursor-default"
+                      : "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"
+                  }`}
+                >
+                  {isAdded ? <Check className="h-3 w-3" /> : <Plus className="h-3 w-3" />}
+                  {point}
+                </button>
+              );
+            })}
           </div>
           <p className="text-xs text-muted-foreground">
             클릭하면 마케팅 포인트에 추가됩니다

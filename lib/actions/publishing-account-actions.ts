@@ -133,8 +133,10 @@ export async function getBrandAnalysisForPublishing(clientId: string) {
         name: client.name || (bp.name as string) || "",
         category: (bp.category as string) || "",
         region: (bp.region as string) || (bp.location as string) || "",
-        homepage_url: (bp.homepage_url as string) || (bp.website as string) || "",
+        homepage_url: (bp.homepage_url as string) || (bp.website as string) || (bp.homepage as string) || (bp.website_url as string) || "",
         address: (bp.address as string) || "",
+        naver_place_url: (bp.naver_place_url as string) || (bp.place_url as string) || "",
+        place_url: (bp.place_url as string) || (bp.naver_place_url as string) || "",
       },
       content_strategy: personaContentStrategy || {
         brand_analysis: {
@@ -196,6 +198,7 @@ export async function saveGeneratedContent(payload: {
   publishingAccountId?: string;
   imageUrls?: string[];
   publishedUrl?: string;
+  generatedBy?: string;
 }): Promise<{ success: boolean; contentId?: string; error?: string }> {
   const db = createAdminClient();
 
@@ -222,7 +225,7 @@ export async function saveGeneratedContent(payload: {
       publish_status: hasPublishedUrl ? "tracking" : "draft",
       published_url: hasPublishedUrl ? payload.publishedUrl!.trim() : null,
       is_tracking: hasPublishedUrl,
-      generated_by: "human",
+      generated_by: payload.generatedBy ?? "human",
       word_count: wordCount,
       publishing_account_id: payload.publishingAccountId || null,
       metadata: Object.keys(meta).length > 0 ? meta : null,
