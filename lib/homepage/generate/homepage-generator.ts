@@ -50,6 +50,9 @@ export class HomepageGenerator {
     private supabase: SupabaseClient,
     private onProgress?: (progress: GenerateProgress) => void
   ) {
+    if (!process.env.OPENAI_API_KEY) {
+      throw new Error("OPENAI_API_KEY 환경변수가 설정되지 않았습니다. Vercel 환경변수를 확인해주세요.");
+    }
     this.openai = new OpenAI({
       apiKey: process.env.OPENAI_API_KEY,
     });
@@ -244,12 +247,18 @@ ${brandHomepageContext}
 - 색상은 레퍼런스 디자인 분석의 색상 팔레트를 참고하되, 브랜드 특성에 맞게 조정하세요.
 - 레이아웃 구조는 레퍼런스의 섹션 구성을 참고하세요.`;
 
-    const completion = await this.openai.chat.completions.create({
-      model: "gpt-4o",
-      messages: [{ role: "user", content: prompt }],
-      temperature: 0.7,
-      response_format: { type: "json_object" },
-    });
+    let completion;
+    try {
+      completion = await this.openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [{ role: "user", content: prompt }],
+        temperature: 0.7,
+        response_format: { type: "json_object" },
+      });
+    } catch (apiError) {
+      const msg = apiError instanceof Error ? apiError.message : String(apiError);
+      throw new Error(`OpenAI API 호출 실패: ${msg}`);
+    }
 
     const content = completion.choices[0]?.message?.content;
     if (!content) throw new Error("AI 콘텐츠 생성 실패: 응답 없음");
