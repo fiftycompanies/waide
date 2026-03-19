@@ -81,17 +81,30 @@ async function PublishContent({
     : null;
 
   // owner_input 데이터도 별도 전달
-  const ownerInput = rawPersona
+  const bp = rawPersona as Record<string, unknown> | null;
+  const ownerInput = bp
     ? {
-        brand_story: (rawPersona as Record<string, unknown>).owner_input
-          ? ((rawPersona as Record<string, unknown>).owner_input as Record<string, unknown>)?.brand_story as string || ""
+        brand_story: bp.owner_input
+          ? ((bp.owner_input as Record<string, unknown>)?.brand_story as string) || ""
           : "",
-        forbidden_content: (rawPersona as Record<string, unknown>).owner_input
-          ? ((rawPersona as Record<string, unknown>).owner_input as Record<string, unknown>)?.forbidden_content as string || ""
+        forbidden_content: bp.owner_input
+          ? ((bp.owner_input as Record<string, unknown>)?.forbidden_content as string) || ""
           : "",
-        awards_certifications: (rawPersona as Record<string, unknown>).owner_input
-          ? ((rawPersona as Record<string, unknown>).owner_input as Record<string, unknown>)?.awards_certifications as string[] || []
+        awards_certifications: bp.owner_input
+          ? ((bp.owner_input as Record<string, unknown>)?.awards_certifications as string[]) || []
           : [],
+      }
+    : null;
+
+  // rawPersona에서 location/URL 필드 추출 (getPersonaForPipeline이 제거하는 필드들)
+  const aiInferred = bp?.ai_inferred as Record<string, unknown> | undefined;
+  const personaExtras = bp
+    ? {
+        category: (bp.category as string) || "",
+        region: (bp.region as string) || (bp.location as string) || "",
+        naverPlaceUrl: (bp.naver_place_url as string) || (bp.place_url as string) || "",
+        homepage: (bp.homepage_url as string) || (bp.website as string) || (bp.homepage as string) || (bp.website_url as string) || "",
+        placeId: (bp.place_id as string) || (aiInferred?.place_id as string) || (bp.naver_place_id as string) || "",
       }
     : null;
 
@@ -105,6 +118,7 @@ async function PublishContent({
       initialKeywordName={keywordName ? decodeURIComponent(keywordName) : undefined}
       personaData={personaForPublish}
       ownerInputData={ownerInput}
+      personaExtras={personaExtras}
     />
   );
 }
