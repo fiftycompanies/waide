@@ -5,9 +5,10 @@
  * vision-to-html.ts가 생성한 HTML의 플레이스홀더를
  * 브랜드 실제 정보 + Unsplash 이미지로 교체한다.
  *
- * 플레이스홀더:
+ * 플레이스홀더 (2가지 형식 모두 지원):
+ * - {{BRAND_NAME}}, {{TAGLINE}}, {{SUBTITLE}}, {{SERVICE_1..5}}, {{PHONE}}, {{ADDRESS}}
  * - [BRAND_NAME], [TAGLINE], [USP], [SERVICE_1..5], [PHONE], [ADDRESS]
- * - data-img-slot="hero|about|service|gallery" → Unsplash 이미지
+ * - data-img-slot="hero|about|service|gallery|blog" → Unsplash 이미지
  * - data-bg-slot="hero|section" → background-image Unsplash
  * - <title>, og:title, description → SEO 메타
  */
@@ -55,45 +56,109 @@ function replaceTextPlaceholders(
 
   let result = html;
 
-  // 브랜드 기본 정보
-  result = result.replace(/\[BRAND_NAME\]/g, esc(brandInfo.name));
-  result = result.replace(/\[TAGLINE\]/g, esc(persona.tagline || persona.one_liner || `${brandInfo.name} - ${brandInfo.industry} 전문`));
-  result = result.replace(/\[USP\]/g, esc(persona.usp || `${brandInfo.name}의 전문적인 ${brandInfo.industry} 서비스를 경험하세요.`));
-  result = result.replace(/\[PHONE\]/g, esc(brandInfo.phone || "02-000-0000"));
-  result = result.replace(/\[ADDRESS\]/g, esc(brandInfo.address || ""));
+  const tagline = persona.tagline || persona.one_liner || `${brandInfo.name} - ${brandInfo.industry} 전문`;
+  const subtitle = persona.usp || `${brandInfo.name}의 전문적인 ${brandInfo.industry} 서비스를 경험하세요.`;
+  const phone = brandInfo.phone || "02-000-0000";
+  const address = brandInfo.address || "";
+
+  // === {{}} 형식 교체 (우선) ===
+  result = result.replace(/\{\{BRAND_NAME\}\}/g, esc(brandInfo.name));
+  result = result.replace(/\{\{TAGLINE\}\}/g, esc(tagline));
+  result = result.replace(/\{\{SUBTITLE\}\}/g, esc(subtitle));
+  result = result.replace(/\{\{ABOUT_DESC\}\}/g, esc(subtitle));
+  result = result.replace(/\{\{CTA_TEXT\}\}/g, esc("상담 예약하기"));
+  result = result.replace(/\{\{PHONE\}\}/g, esc(phone));
+  result = result.replace(/\{\{ADDRESS\}\}/g, esc(address));
+  result = result.replace(/\{\{HOURS\}\}/g, esc("Mon – Sat : 10:00 – 19:00"));
+
+  // 통계
+  result = result.replace(/\{\{STAT_1\}\}/g, "10+");
+  result = result.replace(/\{\{STAT_2\}\}/g, "5K+");
+  result = result.replace(/\{\{STAT_3\}\}/g, "98%");
+  result = result.replace(/\{\{STAT_LABEL_1\}\}/g, "Years Experience");
+  result = result.replace(/\{\{STAT_LABEL_2\}\}/g, "Happy Clients");
+  result = result.replace(/\{\{STAT_LABEL_3\}\}/g, "Satisfaction");
 
   // 서비스 목록 (최대 5개)
   const services = brandInfo.services.length > 0 ? brandInfo.services : ["서비스 1", "서비스 2", "서비스 3"];
   for (let i = 0; i < 5; i++) {
     const serviceName = services[i] || services[i % services.length] || `서비스 ${i + 1}`;
+    // {{}} 형식
+    result = result.replace(new RegExp(`\\{\\{SERVICE_${i + 1}\\}\\}`, "g"), esc(serviceName));
+    result = result.replace(
+      new RegExp(`\\{\\{SERVICE_DESC_${i + 1}\\}\\}`, "g"),
+      esc(generateServiceDescription(brandInfo.name, serviceName, i))
+    );
+    // [] 형식 (하위 호환)
     result = result.replace(new RegExp(`\\[SERVICE_${i + 1}\\]`, "g"), esc(serviceName));
     result = result.replace(
       new RegExp(`\\[SERVICE_DESC_${i + 1}\\]`, "g"),
-      esc(`${brandInfo.name}의 전문적인 ${serviceName} 서비스를 만나보세요.`)
+      esc(generateServiceDescription(brandInfo.name, serviceName, i))
     );
   }
 
+  // 네비게이션 메뉴
+  for (let i = 0; i < 7; i++) {
+    const navItem = services[i] || (i === 0 ? "홈" : i === services.length ? "블로그" : services[i % services.length] || `메뉴 ${i + 1}`);
+    result = result.replace(new RegExp(`\\{\\{NAV_${i + 1}\\}\\}`, "g"), esc(navItem));
+  }
+
+  // === [] 형식 교체 (하위 호환) ===
+  result = result.replace(/\[BRAND_NAME\]/g, esc(brandInfo.name));
+  result = result.replace(/\[TAGLINE\]/g, esc(tagline));
+  result = result.replace(/\[USP\]/g, esc(subtitle));
+  result = result.replace(/\[PHONE\]/g, esc(phone));
+  result = result.replace(/\[ADDRESS\]/g, esc(address));
+
   // 타겟 고객
   result = result.replace(/\[TARGET_CUSTOMER\]/g, esc(persona.target_customer || "고객"));
+  result = result.replace(/\{\{TARGET_CUSTOMER\}\}/g, esc(persona.target_customer || "고객"));
 
   return result;
 }
 
+/**
+ * 서비스별 고유한 설명 생성 (템플릿 기반, AI 호출 없음)
+ */
+function generateServiceDescription(brandName: string, serviceName: string, index: number): string {
+  const templates = [
+    `${brandName}만의 차별화된 ${serviceName} 프로그램으로 최상의 결과를 경험하세요.`,
+    `전문가의 체계적인 상담과 맞춤 ${serviceName}으로 고객님께 최적의 솔루션을 제공합니다.`,
+    `최신 장비와 풍부한 경험을 바탕으로 안전하고 효과적인 ${serviceName}을 시행합니다.`,
+    `${brandName}의 ${serviceName}은 1:1 맞춤 플랜으로 진행되어 높은 만족도를 자랑합니다.`,
+    `검증된 기술력과 노하우로 ${serviceName} 분야에서 신뢰받는 결과를 만들어 갑니다.`,
+  ];
+  return templates[index % templates.length];
+}
+
 // ── 이미지 슬롯 교체 ─────────────────────────────────────────────────────────
+
+interface SlotCounters {
+  heroIdx: number;
+  sectionIdx: number;
+  aboutIdx: number;
+  galleryIdx: number;
+  blogIdx: number;
+}
 
 function replaceImageSlots(html: string, images: UnsplashImageSet): string {
   let result = html;
-  let heroIdx = 0;
-  let sectionIdx = 0;
-  let aboutIdx = 0;
-  let galleryIdx = 0;
+
+  // 단일 mutable 카운터 객체 — 콜백에서 직접 참조
+  const counters: SlotCounters = {
+    heroIdx: 0,
+    sectionIdx: 0,
+    aboutIdx: 0,
+    galleryIdx: 0,
+    blogIdx: 0,
+  };
 
   // <img data-img-slot="..."> → src 채우기
   result = result.replace(
     /<img([^>]*?)data-img-slot="([^"]*)"([^>]*?)>/gi,
     (_match, before, slot, after) => {
-      const url = getImageForSlot(slot, images, { heroIdx, sectionIdx, aboutIdx, galleryIdx });
-      advanceIndex(slot, { heroIdx, sectionIdx, aboutIdx, galleryIdx });
+      const url = getImageForSlot(slot, images, counters);
+      advanceIndex(slot, counters);
 
       // src가 비어있으면 채우기
       let attrs = `${before}data-img-slot="${slot}"${after}`;
@@ -116,8 +181,8 @@ function replaceImageSlots(html: string, images: UnsplashImageSet): string {
   result = result.replace(
     /<div([^>]*?)data-img-slot="([^"]*)"([^>]*?)>/gi,
     (_match, before, slot, after) => {
-      const url = getImageForSlot(slot, images, { heroIdx, sectionIdx, aboutIdx, galleryIdx });
-      advanceIndex(slot, { heroIdx, sectionIdx, aboutIdx, galleryIdx });
+      const url = getImageForSlot(slot, images, counters);
+      advanceIndex(slot, counters);
 
       let style = `background-image:url('${url}');background-size:cover;background-position:center;min-height:200px;`;
 
@@ -139,19 +204,13 @@ function replaceImageSlots(html: string, images: UnsplashImageSet): string {
   result = result.replace(
     /data-bg-slot="([^"]*)"/gi,
     (_match, slot) => {
-      const url = getImageForSlot(slot, images, { heroIdx, sectionIdx, aboutIdx, galleryIdx });
+      const url = getImageForSlot(slot, images, counters);
+      advanceIndex(slot, counters);
       return `data-bg-slot="${slot}" style="background-image:url('${url}');background-size:cover;background-position:center;"`;
     }
   );
 
   return result;
-}
-
-interface SlotCounters {
-  heroIdx: number;
-  sectionIdx: number;
-  aboutIdx: number;
-  galleryIdx: number;
 }
 
 function getImageForSlot(
@@ -169,6 +228,10 @@ function getImageForSlot(
       return images.section[counters.sectionIdx % images.section.length];
     case "gallery":
       return images.gallery[counters.galleryIdx % images.gallery.length];
+    case "blog":
+      return (images as UnsplashImageSet & { blog?: string[] }).blog
+        ? (images as UnsplashImageSet & { blog?: string[] }).blog![counters.blogIdx % (images as UnsplashImageSet & { blog?: string[] }).blog!.length]
+        : images.gallery[counters.blogIdx % images.gallery.length];
     default:
       return images.section[0] || `https://picsum.photos/seed/${slot}/800/600`;
   }
@@ -181,6 +244,7 @@ function advanceIndex(slot: string, counters: SlotCounters): void {
     case "service":
     case "section": counters.sectionIdx++; break;
     case "gallery": counters.galleryIdx++; break;
+    case "blog": counters.blogIdx++; break;
   }
 }
 
