@@ -22,8 +22,8 @@
 
 # Waide (AI Hospitality Aide) — 서비스 IA
 
-> 최종 업데이트: 2026-03-18
-> 버전: Phase COMPONENT-LIB 완료 (Waide 컴포넌트 라이브러리 v1 구축)
+> 최종 업데이트: 2026-03-20
+> 버전: Phase SCREENSHOT-TO-CODE 완료 (Screenshot-to-Code 방식 도입)
 
 ---
 
@@ -973,6 +973,15 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
   - lib/homepage/generate/homepage-component-generator.ts: HomepageComponentGenerator 클래스 — DOM 복제 대안 경로 (template_id="waide-components")
   - scripts/test-component-assembler.ts: 로컬 검증 스크립트 (6항목 PASS: Waide 클래스, CSS 변수, 블로그 섹션, Google Fonts, Unsplash 이미지)
   - tsc --noEmit 통과
+- Phase SCREENSHOT-TO-CODE: Screenshot-to-Code 방식 도입 — HTML 크롤링 완전 폐기 (2026-03-20)
+  - **핵심 원칙**: "레퍼런스 URL의 HTML에는 절대 접근하지 않는다. 스크린샷만 인풋. 코드는 Vision AI가 100% 새로 생성."
+  - **기존 코드 무변경**: 새 파일만 추가, 라이브 서비스 영향 없음
+  - lib/homepage/generate/screenshot-crawler.ts: Playwright 스크린샷 전용 캡처 (상단 1440×900 + 중간 1440×2700, networkidle 폴백)
+  - lib/homepage/generate/vision-to-html.ts: Claude Vision API (claude-sonnet-4-6) → HTML+CSS 생성 (2회 호출: Nav+Hero / About~Footer) + 디자인 토큰 추출
+  - lib/homepage/generate/brand-injector.ts: 플레이스홀더 교체 ([BRAND_NAME]/[SERVICE_N]/[PHONE] 등) + data-img-slot → Unsplash 이미지 + 메타 태그 + 블로그 플레이스홀더
+  - lib/homepage/generate/homepage-screenshot-generator.ts: HomepageScreenshotGenerator 클래스 — Screenshot-to-Code 오케스트레이터 (template_id="screenshot-to-code")
+  - scripts/test-screenshot-pipeline.ts: 로컬 검증 스크립트 (10항목 PASS: waide- 접두사, CSS 변수, Unsplash 이미지, 플레이스홀더 교체, 메타 태그, 블로그 섹션)
+  - tsc --noEmit 통과
 
 ### 설계 원칙
 
@@ -981,6 +990,7 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 3. **브랜드 페르소나 = 모든 후속 작업의 기반** — brand_personas 레코드가 CMO 전략 → COPYWRITER 톤앤매너 → QC 기준에 일관되게 적용.
 4. **홈페이지 = "생성 금지, 복제 후 교체만"** — AI가 HTML을 처음부터 생성하면 제네릭 템플릿이 됨. 레퍼런스 사이트 DOM을 Playwright로 완전 복제한 뒤, AI는 텍스트 교체 판단만 수행. CSS/구조는 절대 변경 금지.
 5. **홈페이지 컴포넌트 = "레퍼런스는 디자인 토큰 추출 전용, 출력은 100% Waide 컴포넌트"** — DOM 복제의 대안 경로. 레퍼런스 URL에서 색상/폰트/레이아웃 토큰만 추출하고, 출력 HTML은 Waide 소유 컴포넌트 16종으로 조합.
+6. **홈페이지 Screenshot-to-Code = "레퍼런스 URL의 HTML에는 절대 접근하지 않는다. 스크린샷만 인풋. 코드는 Vision AI가 100% 새로 생성."** — DOM 복제/컴포넌트 방식의 최신 대안. 스크린샷 캡처 → Vision AI 분석 → 새 HTML+CSS 생성 → 브랜드 정보 주입. 레퍼런스 코드 의존성 완전 제거.
 
 ### 홈페이지 생성 파이프라인 (DOM 복제 방식 — 기본)
 
@@ -1049,6 +1059,27 @@ deploy                          → Vercel 배포 (기존 파이프라인 재사
 | Gallery | layout:masonry → masonry, 그 외 → three-col | 2종 |
 | Contact | address+phone → form-split, 그 외 → form-centered | 2종 |
 
+### 홈페이지 생성 파이프라인 (Screenshot-to-Code 방식 — 최신)
+
+```
+captureScreenshots(url)              → Playwright 스크린샷만 캡처 (HTML 파싱 없음)
+  ↓
+extractDesignTokensFromScreenshot()  → Vision AI로 색상/폰트 토큰 추출
+  ↓
+generateHtmlFromScreenshots()        → Vision AI가 새 HTML+CSS 100% 생성 (2회 호출)
+  ↓
+injectBrandInfo()                    → 플레이스홀더 → 브랜드 정보 + Unsplash 이미지
+  ↓
+deploy                               → Vercel 배포 (기존 파이프라인 재사용)
+```
+
+| 파일 | 역할 | 상태 |
+|------|------|------|
+| `generate/screenshot-crawler.ts` | Playwright 스크린샷 전용 캡처 (상단 1440×900 + 중간 1440×2700) | 활성 |
+| `generate/vision-to-html.ts` | Claude Vision API → HTML+CSS 생성 (2회: Nav+Hero / About~Footer) | 활성 |
+| `generate/brand-injector.ts` | 플레이스홀더 교체 ([BRAND_NAME] 등) + data-img-slot → Unsplash | 활성 |
+| `generate/homepage-screenshot-generator.ts` | Screenshot-to-Code 오케스트레이터 (HomepageScreenshotGenerator) | 활성 |
+
 ### 에이전트 프롬프트 목록 (agent_prompts 테이블)
 
 #### 기존 프롬프트 (Phase 2 시딩)
@@ -1107,6 +1138,7 @@ deploy                          → Vercel 배포 (기존 파이프라인 재사
 | 20 | **PERSONA-1~3** | 브랜드 페르소나 고도화 — EnhancedBrandPersona + 온보딩 리뉴얼 + 콘텐츠 보완 | ✅ 완료 |
 | 21 | **HOMEPAGE-CLONE** | 홈페이지 레퍼런스 복제 파이프라인 개편 — Playwright networkidle + 스크린샷 + Unsplash 이미지 + HTML 전달 | ✅ 완료 |
 | 22 | **COMPONENT-LIB** | Waide 컴포넌트 라이브러리 v1 — 16종 섹션 컴포넌트 + DesignTokens + ComponentPlan + 어셈블러 + 컴포넌트 기반 제너레이터 | ✅ 완료 |
+| 23 | **SCREENSHOT-TO-CODE** | Screenshot-to-Code 방식 도입 — HTML 크롤링 폐기, 스크린샷 → Vision AI → 새 HTML 100% 생성 + 브랜드 주입 | ✅ 완료 |
 
 ### 미구현 (우선순위 순)
 
