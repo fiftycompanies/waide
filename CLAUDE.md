@@ -978,10 +978,12 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
   - **기존 코드 무변경**: 새 파일만 추가, 라이브 서비스 영향 없음
   - lib/homepage/generate/screenshot-crawler.ts: Playwright 스크린샷 전용 캡처 (상단 1440×900 + 중간 1440×2700, networkidle 폴백)
   - lib/homepage/generate/vision-to-html.ts: Claude Vision API (claude-sonnet-4-6) → HTML+CSS 생성 (2회 호출: Nav+Hero / About~Footer) + 디자인 토큰 추출
-  - lib/homepage/generate/brand-injector.ts: 플레이스홀더 교체 ([BRAND_NAME]/[SERVICE_N]/[PHONE] 등) + data-img-slot → Unsplash 이미지 + 메타 태그 + 블로그 플레이스홀더
+  - lib/homepage/generate/brand-injector.ts: 플레이스홀더 교체 ({{BRAND_NAME}}/{{SERVICE_N}}/{{PHONE}} + [BRAND_NAME] 하위호환) + data-img-slot → Unsplash 이미지 + 메타 태그 + 블로그 플레이스홀더
   - lib/homepage/generate/homepage-screenshot-generator.ts: HomepageScreenshotGenerator 클래스 — Screenshot-to-Code 오케스트레이터 (template_id="screenshot-to-code")
   - scripts/test-screenshot-pipeline.ts: 로컬 검증 스크립트 (10항목 PASS: waide- 접두사, CSS 변수, Unsplash 이미지, 플레이스홀더 교체, 메타 태그, 블로그 섹션)
-  - tsc --noEmit 통과
+  - scripts/test-screenshot-e2e.ts: E2E 검증 스크립트 (14항목: 원본 텍스트 유출 검증, 이미지 고유성, body 내 head 태그 없음 등)
+  - **버그 수정 (2026-03-20)**: removeStyles() <head> 정규식 → `<head[^>]*>`, 이미지 카운터 destructuring 버그, {{}} 플레이스홀더 통일, blog 이미지 슬롯 추가, 서비스 설명 5종 고유 템플릿
+  - tsc --noEmit 통과, E2E 14 PASS / 0 FAIL
 
 ### 설계 원칙
 
