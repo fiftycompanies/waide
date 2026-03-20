@@ -80,6 +80,11 @@ export async function captureScreenshots(url: string): Promise<ScreenshotSet> {
     const fullHeight = await page.evaluate(() => document.body.scrollHeight);
     console.log(`[ScreenshotCrawler] 페이지 높이: ${fullHeight}px`);
 
+    // 뷰포트를 풀 페이지 높이로 확장 — clip이 전체 영역에서 작동하도록
+    const captureHeight = Math.min(fullHeight, 4000);
+    await page.setViewportSize({ width: 1440, height: captureHeight });
+    await page.waitForTimeout(1000);
+
     const screenshots: string[] = [];
 
     // 상단부 (Hero + Nav) — 가장 중요
