@@ -23,7 +23,7 @@
 # Waide (AI Hospitality Aide) — 서비스 IA
 
 > 최종 업데이트: 2026-03-20
-> 버전: Phase HOMEPAGE-REQUEST 완료 (포털 제작 신청 + 어드민 관리)
+> 버전: Phase 3D-GLAMPING 완료 (3D 템플릿 추가 + 홈페이지 문서화)
 
 ---
 
@@ -1041,120 +1041,27 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 1. **점수 = 룰 기반 고정** — 마케팅 점수(100점), 계정 등급, 키워드 난이도는 모두 Python/SQL 규칙 기반. AI는 해석·코멘트만 생성.
 2. **프롬프트 = agent_prompts 테이블 동적 로딩** — 에이전트 프롬프트는 코드에 하드코딩 금지. DB에서 런타임 로딩.
 3. **브랜드 페르소나 = 모든 후속 작업의 기반** — brand_personas 레코드가 CMO 전략 → COPYWRITER 톤앤매너 → QC 기준에 일관되게 적용.
-4. **홈페이지 = "생성 금지, 복제 후 교체만"** — AI가 HTML을 처음부터 생성하면 제네릭 템플릿이 됨. 레퍼런스 사이트 DOM을 Playwright로 완전 복제한 뒤, AI는 텍스트 교체 판단만 수행. CSS/구조는 절대 변경 금지.
-5. **홈페이지 컴포넌트 = "레퍼런스는 디자인 토큰 추출 전용, 출력은 100% Waide 컴포넌트"** — DOM 복제의 대안 경로. 레퍼런스 URL에서 색상/폰트/레이아웃 토큰만 추출하고, 출력 HTML은 Waide 소유 컴포넌트 16종으로 조합.
-6. **홈페이지 Screenshot-to-Code = "레퍼런스 URL의 HTML에는 절대 접근하지 않는다. 스크린샷만 인풋. 코드는 Vision AI가 Tailwind CSS로 100% 새로 생성."** — abi/screenshot-to-code 방법론. 700px 크롭 캡처 → Vision AI → Tailwind CSS HTML → 브랜드 주입. Tailwind CDN + tailwind.config, custom CSS 금지.
-7. **홈페이지 Template Injection = "사전 제작 고품질 HTML 템플릿에 AI가 브랜드 콘텐츠를 {{SLOT}} 주입"** — 레퍼런스 불필요, 업종별 최적화 템플릿 3종(dark-luxury/warm-natural/light-clean) 선택. 공통 슬롯은 룰 기반, 템플릿 전용 슬롯(룸/리뷰/포트폴리오)은 Claude Haiku.
+4. **홈페이지 = 사전 제작 템플릿 + 브랜드 데이터 주입** — AI는 텍스트 슬롯만 생성 (HTML 생성 안 함). 레퍼런스 URL 방식은 레거시 코드로만 존재, 신규 사용 금지. 상세: `docs/HOMEPAGE_GENERATOR.md`
 
-### 홈페이지 생성 파이프라인 (DOM 복제 방식 — 기본)
+### 홈페이지 생성
 
-```
-cloneReference(url)          → Playwright 렌더링 + CSS 인라인화 + JS 제거
-  ↓
-buildReplacementMap(html)    → 텍스트 노드 추출 → Claude Sonnet 교체 맵
-  ↓
-replaceImages(html)          → 카테고리 분류 → 업종별 Unsplash 교체
-  ↓
-applyPatches(html)           → cheerio DOM 패치 (텍스트+이미지+메타)
-  ↓
-deploy                       → Vercel 배포 (기존 파이프라인 그대로)
-```
+#### 현재 방식
+템플릿 기반 주입 (generateFromTemplate)
+- AI는 텍스트 슬롯만 생성 (HTML 생성 안 함)
+- 레퍼런스 URL 방식은 레거시 코드로만 존재, 신규 사용 금지
 
-| 파일 | 역할 | 상태 |
-|------|------|------|
-| `reference-cloner.ts` | Playwright DOM 완전 복제 | 활성 |
-| `content-mapper.ts` | AI 텍스트 교체 맵 생성 | 활성 |
-| `image-replacer.ts` | 이미지 카테고리 분류 + Unsplash 교체 | 활성 |
-| `html-patcher.ts` | cheerio 기반 패치 적용 | 활성 |
-| `unsplash-images.ts` | 업종별 이미지 상수 맵 | 활성 |
-| `homepage-generator.ts` | 파이프라인 오케스트레이터 | 활성 |
-| `html-generator.ts` | ~~AI HTML 생성~~ | DEPRECATED |
+#### 템플릿 4종
+- dark-luxury: 피부과/의료
+- warm-natural: 숙박/캠핑
+- light-clean: 카페/인테리어
+- 3d-glamping: 글램핑 3D (Three.js)
 
-### 홈페이지 생성 파이프라인 (Waide 컴포넌트 방식 — 대안)
+#### 상세 문서
+docs/HOMEPAGE_GENERATOR.md 참조
 
-```
-crawlMultipleHomepages(urls)    → 레퍼런스 크롤링 + 디자인 프로필
-  ↓
-vision-analyzer                 → ReferenceStructure (섹션 구조 + 토큰)
-  ↓
-selectComponents()              → ComponentPlan (변형 선택)
-extractDesignTokens()           → DesignTokens (CSS 변수)
-  ↓
-assembleHomepage()              → 100% Waide 소유 HTML (27KB, <2ms)
-  ↓
-deploy                          → Vercel 배포 (기존 파이프라인 재사용)
-```
-
-| 파일 | 역할 | 상태 |
-|------|------|------|
-| `components/types.ts` | DesignTokens, ComponentPlan, 섹션 Props 타입 | 활성 |
-| `components/base.css.ts` | CSS 변수 시스템 (--waide-* 네임스페이스, 반응형) | 활성 |
-| `components/index.ts` | 컴포넌트 레지스트리 + selectComponents() + extractDesignTokens() + 렌더 디스패처 | 활성 |
-| `components/sections/nav/` | Nav 변형 2종: sticky-dropdown, minimal-fixed | 활성 |
-| `components/sections/hero/` | Hero 변형 3종: fullscreen, split-left, centered | 활성 |
-| `components/sections/about/` | About 변형 3종: image-left, image-right, stats-bar | 활성 |
-| `components/sections/services/` | Services 변형 3종: card-grid, tab-panel, list-detail | 활성 |
-| `components/sections/gallery/` | Gallery 변형 2종: three-col, masonry | 활성 |
-| `components/sections/contact/` | Contact 변형 2종: form-split, form-centered | 활성 |
-| `components/sections/blog/` | Blog: post-grid (Supabase 연동 placeholder) | 활성 |
-| `components/sections/cta/` | CTA: banner | 활성 |
-| `components/sections/footer/` | Footer: default | 활성 |
-| `generate/component-assembler.ts` | Props 빌더 + Google Fonts + SEO 메타 + HTML 조립 | 활성 |
-| `generate/homepage-component-generator.ts` | 컴포넌트 방식 오케스트레이터 (HomepageComponentGenerator) | 활성 |
-
-#### 컴포넌트 선택 로직 (selectComponents)
-
-| 섹션 | 조건 | 선택 변형 |
-|------|------|----------|
-| Nav | background: dark/black/primary → minimal-fixed, 그 외 → sticky-dropdown | 2종 |
-| Hero | hasBackgroundImage → fullscreen, layout:split → split-left, 그 외 → centered | 3종 |
-| About | layout:stats → stats-bar, layout:right → image-right, 그 외 → image-left | 3종 |
-| Services | 서비스 ≥5 → tab-panel, ≥3 → card-grid, <3 → list-detail | 3종 |
-| Gallery | layout:masonry → masonry, 그 외 → three-col | 2종 |
-| Contact | address+phone → form-split, 그 외 → form-centered | 2종 |
-
-### 홈페이지 생성 파이프라인 (Screenshot-to-Code 방식 — 최신)
-
-```
-captureScreenshots(url)              → Playwright 스크린샷만 캡처 (HTML 파싱 없음)
-  ↓
-extractDesignTokensFromScreenshot()  → Vision AI로 색상/폰트 토큰 추출
-  ↓
-generateHtmlFromScreenshots()        → Stage A: 구조 분석 (1회) + Stage B: 크롭별 Tailwind 생성 (N회, 2병렬)
-  ↓
-injectBrandInfo()                    → 의미 기반 플레이스홀더 + Unsplash 이미지 + Tailwind bg url 교체 + 국기 이모지 + 원본 텍스트 제거
-  ↓
-deploy                               → Vercel 배포 (기존 파이프라인 재사용)
-```
-
-| 파일 | 역할 | 상태 |
-|------|------|------|
-| `generate/screenshot-crawler.ts` | Playwright 스크린샷 캡처 (상단 1440×900 + 중간 1440×2700 + 700px 크롭 최대 5개) | 활성 |
-| `generate/vision-to-html.ts` | Stage A (구조 분석 JSON) + Stage B (크롭별 Tailwind HTML 생성, 2병렬) + Tailwind CDN + tailwind.config + 노이즈 워터마크 금지 규칙 + 다크 톤 기본 템플릿 | 활성 |
-| `generate/brand-injector.ts` | 의미 기반 플레이스홀더 + data-img-slot → Unsplash + Tailwind bg url 교체 + 국기 이모지 + sanitize + replaceEmptyBoxes (서비스 아코디언 주입) + enforceDarkTone (Blog/Footer 다크 통일) + wrapNavInFlexContainer (Hero Nav flex 래퍼 자동 복구) | 활성 |
-| `generate/homepage-screenshot-generator.ts` | Screenshot-to-Code 오케스트레이터 (HomepageScreenshotGenerator) | 활성 |
-
-### 홈페이지 생성 파이프라인 (Template Injection 방식 — 최신)
-
-```
-loadTemplate(templateName)           → 사전 제작 HTML 파일 로드 (dark-luxury/warm-natural/light-clean)
-  ↓
-generateBrandContent()               → 공통 슬롯(룰) + 이미지(Unsplash) + 전용 슬롯(Claude Haiku)
-  ↓
-injectToTemplate()                   → {{SLOT}} 플레이스홀더 교체 + 메타 태그
-  ↓
-deploy                               → Vercel 배포 (기존 파이프라인 재사용)
-```
-
-| 파일 | 역할 | 상태 |
-|------|------|------|
-| `templates/dark-luxury.html` | 의료/뷰티 다크 테마 슬롯 템플릿 (8섹션) | 활성 |
-| `templates/warm-natural.html` | 숙박/캠핑 웜 톤 슬롯 템플릿 (9섹션+리뷰) | 활성 |
-| `templates/light-clean.html` | 카페/인테리어 화이트 슬롯 템플릿 (8섹션+탭+포트폴리오) | 활성 |
-| `generate/template-types.ts` | TemplateName, TEMPLATE_NAMES, TEMPLATE_LABELS 공용 타입 | 활성 |
-| `generate/brand-content-generator.ts` | 브랜드 데이터 → 슬롯 콘텐츠 생성 (룰+Unsplash+Claude Haiku) | 활성 |
-| `generate/brand-injector.ts` (injectToTemplate) | {{SLOT}} 플레이스홀더 교체 + 메타 태그 | 활성 |
-| `generate/homepage-generator.ts` (generateFromTemplate) | Template Injection 오케스트레이터 | 활성 |
+#### 고객 신청 플로우
+포털 → 템플릿 선택 → homepage_requests INSERT
+→ 어드민 /ops/homepage-requests → 생성 시작 → 배포
 
 ### 에이전트 프롬프트 목록 (agent_prompts 테이블)
 
