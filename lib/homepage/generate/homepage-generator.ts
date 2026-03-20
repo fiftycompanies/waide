@@ -24,7 +24,8 @@ import { replaceImages } from "./image-replacer";
 import { applyPatches } from "./html-patcher";
 
 // 템플릿 기반 파이프라인 모듈
-import { generateBrandContent, type TemplateName } from "./brand-content-generator";
+import { generateBrandContent } from "./brand-content-generator";
+import type { TemplateName } from "./template-types";
 import { injectToTemplate } from "./brand-injector";
 import * as fs from "fs";
 import * as path from "path";

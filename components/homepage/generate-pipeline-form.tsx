@@ -25,7 +25,7 @@ import {
   TEMPLATE_NAMES,
   TEMPLATE_LABELS,
   type TemplateName,
-} from "@/lib/homepage/generate/brand-content-generator";
+} from "@/lib/homepage/generate/template-types";
 
 // ── Types ───────────────────────────────────────────────────────────────────
 

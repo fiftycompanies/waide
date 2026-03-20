@@ -13,25 +13,10 @@
 import type { BrandInfo, PersonaInfo } from "./content-mapper";
 import { getUnsplashImages, type UnsplashImageSet } from "./unsplash-images";
 
-// ── 출력 타입 ──────────────────────────────────────────────────────────────────
-
-export type TemplateSlotContent = Record<string, string>;
-
-// ── 템플릿 이름 ────────────────────────────────────────────────────────────────
-
-export type TemplateName = "dark-luxury" | "warm-natural" | "light-clean";
-
-export const TEMPLATE_NAMES: TemplateName[] = [
-  "dark-luxury",
-  "warm-natural",
-  "light-clean",
-];
-
-export const TEMPLATE_LABELS: Record<TemplateName, string> = {
-  "dark-luxury": "다크 럭셔리 (의료/뷰티)",
-  "warm-natural": "웜 내추럴 (숙박/캠핑)",
-  "light-clean": "라이트 클린 (카페/인테리어)",
-};
+// 타입/상수 re-export (template-types.ts에서 정의 — 클라이언트 안전)
+export type { TemplateSlotContent, TemplateName } from "./template-types";
+export { TEMPLATE_NAMES, TEMPLATE_LABELS } from "./template-types";
+import type { TemplateSlotContent, TemplateName } from "./template-types";
 
 // ── 업종 → 추천 템플릿 ────────────────────────────────────────────────────────
 

@@ -26,7 +26,7 @@
 import * as cheerio from "cheerio";
 import type { BrandInfo, PersonaInfo } from "./content-mapper";
 import { getUnsplashImages, type UnsplashImageSet } from "./unsplash-images";
-import type { TemplateSlotContent } from "./brand-content-generator";
+import type { TemplateSlotContent } from "./template-types";
 
 // ── 메인 함수 ─────────────────────────────────────────────────────────────────
 
