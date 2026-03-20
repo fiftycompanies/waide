@@ -128,7 +128,13 @@ function extractToneStyle(tone: unknown): string {
   if (!tone) return "";
   if (typeof tone === "string") return tone;
   if (typeof tone === "object" && tone !== null) {
-    return (tone as Record<string, unknown>).style as string || "";
+    const t = tone as Record<string, unknown>;
+    // Claude API가 다양한 키 이름으로 톤 반환 가능 — 다중 폴백
+    const direct = (t.style as string) || (t.personality as string) || (t.manner as string) || (t.voice as string) || (t.type as string) || (t.description as string) || "";
+    if (direct) return direct;
+    // 모든 키 실패 시 첫 번째 비어있지 않은 문자열 값 사용
+    const firstStr = Object.values(t).find(v => typeof v === "string" && v.length > 0);
+    return (firstStr as string) || "";
   }
   return String(tone);
 }
@@ -1596,22 +1602,33 @@ function StepBrief({
   targetOverride?: string | null;
   onTargetOverride?: (v: string | null) => void;
 }) {
-  // 톤앤매너 (override 우선 → 페르소나 → brandAnalysis)
+  // 톤앤매너 (override 우선 → 페르소나 → brandAnalysis 다중 폴백)
   const baseTone = personaData?.tone || (() => {
-    if (!brandAnalysis?.content_strategy) return "";
-    const cs = brandAnalysis.content_strategy;
+    if (!brandAnalysis?.content_strategy && !brandAnalysis?.analysis_result) return "";
+    const cs = brandAnalysis?.content_strategy || {};
     // brand_analysis 키 우선, blog 키 폴백
     const brandA = (cs.brand_analysis || cs.blog) as Record<string, unknown> | undefined;
-    return extractToneStyle(brandA?.tone);
+    const fromBrandA = extractToneStyle(brandA?.tone);
+    if (fromBrandA) return fromBrandA;
+    // content_strategy 루트 레벨 tone 폴백
+    const fromRoot = extractToneStyle(cs.tone);
+    if (fromRoot) return fromRoot;
+    // analysis_result.seo_comments에서 tone 추출 시도
+    const ar = brandAnalysis?.analysis_result as Record<string, unknown> | undefined;
+    if (ar) {
+      const fromAr = extractToneStyle((ar as Record<string, unknown>)?.tone);
+      if (fromAr) return fromAr;
+    }
+    return "";
   })();
   const effectiveTone = toneOverride !== null && toneOverride !== undefined ? toneOverride : baseTone;
 
-  // 타겟 (override 우선 → 페르소나 → brandAnalysis 폴백)
+  // 타겟 (override 우선 → 페르소나 → brandAnalysis 다중 폴백)
   const baseTarget = personaData?.primary_target || (() => {
     if (!brandAnalysis?.content_strategy) return "";
     const cs = brandAnalysis.content_strategy;
     const brandA = (cs.brand_analysis || cs.blog) as Record<string, unknown> | undefined;
-    return String(brandA?.target_audience || brandA?.target_customer || brandA?.target || "");
+    return String(brandA?.target_audience || brandA?.target_customer || brandA?.target || brandA?.primary_target || "");
   })();
   const effectiveTarget = targetOverride !== null && targetOverride !== undefined ? targetOverride : baseTarget;
 
