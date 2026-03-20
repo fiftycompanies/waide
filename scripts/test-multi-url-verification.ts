@@ -10,7 +10,7 @@
  * ⚠️ 읽기 전용 검증 — 코드 수정 없음
  */
 
-import { captureScreenshots } from "../lib/homepage/generate/screenshot-crawler";
+import { captureScreenshots, type ScreenshotSet } from "../lib/homepage/generate/screenshot-crawler";
 import {
   generateHtmlFromScreenshots,
   extractDesignTokensFromScreenshot,
@@ -104,7 +104,7 @@ interface TestResult {
 
 // ── 품질 검증 함수 ──────────────────────────────────────────────────────────
 
-function runQualityChecks(html: string, screenshots: { crops: { base64: string }[] }): QualityCheck[] {
+function runQualityChecks(html: string, screenshots: ScreenshotSet): QualityCheck[] {
   const checks: QualityCheck[] = [];
 
   function check(name: string, condition: boolean, detail: string) {
@@ -176,10 +176,11 @@ async function runPipelineForUrl(testCase: TestCase, apiKey: string, outputDir: 
   const startTime = Date.now();
   const steps: StepResult[] = [];
   let html = "";
-  let screenshots: { top: string; middle: string | null; crops: { base64: string }[] } = {
+  let screenshots: ScreenshotSet = {
     top: "",
     middle: null,
     crops: [],
+    url: testCase.url,
   };
 
   console.log(`\n${"=".repeat(60)}`);
