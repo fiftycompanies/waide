@@ -359,16 +359,21 @@ IMPORTANT TEXT PLACEHOLDER RULES (do NOT copy text from the screenshot):
 
 For language flag images (if any), use: <span data-img-slot="flag-kr">🇰🇷</span>, <span data-img-slot="flag-cn">🇨🇳</span>, <span data-img-slot="flag-us">🇺🇸</span>, <span data-img-slot="flag-jp">🇯🇵</span>
 
-IMPORTANT RULES — DO NOT VIOLATE:
-- Do NOT add random watermark letters (like "T", "M", "R") as decorative elements
-  unless they are clearly visible text in the screenshot
-- Do NOT leave empty colored boxes (empty div with just background color)
-  Every section must have real content inside
-- If the right side of a split section appears to show text/list content,
-  always include that content using the brand info provided
-- Maintain dark (#1A1A1A) or beige (#F0EDE8) backgrounds throughout.
-  Do NOT use white (#FFFFFF) or light gray as section backgrounds
-  unless the screenshot clearly shows a white background section
+STRICT RULES — VIOLATIONS WILL BREAK THE OUTPUT:
+1. Do NOT add large decorative letters (T, M, Y, R, S, or any single letter)
+   as watermarks or background decorations.
+   These are confusing and look unprofessional.
+   Even if the screenshot shows them, DO NOT reproduce them.
+2. Do NOT include any English text from the reference site
+   (like "Deep Wrinkle", "SERENE BEAUTY", "REST", "Whole Layer Lifting").
+   All text must use the brand placeholders provided above.
+3. Every section must have real content — no empty colored boxes
+   (empty div with just background color and no children).
+4. If the right side of a split section appears to show text/list content,
+   always include that content using the brand info provided.
+5. Maintain dark (#1A1A1A) or beige (#F0EDE8) backgrounds throughout.
+   Do NOT use white (#FFFFFF) or light gray as section backgrounds
+   unless the screenshot clearly shows a white background section.
 
 Output ONLY the HTML code for this section. No explanation, no markdown code fences, no comments.
 Use Tailwind CSS classes only. No custom CSS. No <style> tags.`;

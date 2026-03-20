@@ -23,6 +23,7 @@
  *   [BLOG_TITLE_1~3], [BLOG_EXCERPT_1~3]
  */
 
+import * as cheerio from "cheerio";
 import type { BrandInfo, PersonaInfo } from "./content-mapper";
 import { getUnsplashImages, type UnsplashImageSet } from "./unsplash-images";
 
@@ -68,7 +69,7 @@ export function injectBrandInfo(
   result = enforceDarkTone(result);
 
   // 8. 레퍼런스 원본 텍스트 제거 (Vision AI 유출 방지)
-  result = sanitizeReferenceText(result);
+  result = sanitizeReferenceText(result, brandInfo);
 
   return result;
 }
@@ -567,34 +568,63 @@ function replaceEmptyBoxes(html: string, brandInfo: BrandInfo): string {
       ? brandInfo.services
       : ["서비스 1", "서비스 2", "서비스 3"];
 
-  // 패턴: 배경색만 있고 자식 요소가 없는 div (min-height만 허용)
-  // <div class="w-1/2 bg-[#C8A882] opacity-80" style="min-height: 200px;"></div>
-  // <div class="flex-1" style="background-color: #BEB0A0; min-height: 300px;">  </div>
-  const emptyBoxPattern =
-    /<div([^>]*?(?:bg-\[#[A-Fa-f0-9]+\]|background-color:\s*#[A-Fa-f0-9]+)[^>]*?)>\s*<\/div>/gi;
-
+  const $ = cheerio.load(html);
   let firstReplaced = false;
 
-  return html.replace(emptyBoxPattern, (match, attrs) => {
-    // flex-1이나 w-1/2 같은 레이아웃 클래스가 있는지 확인
+  $("div, section").each((_, el) => {
+    const $el = $(el);
+
+    // nav, header 내부 요소는 절대 건드리지 않음
+    if ($el.closest("nav, header").length > 0) return;
+
+    const cls = $el.attr("class") || "";
+    const style = $el.attr("style") || "";
+
+    // 배경색이 있는지 확인 (Tailwind bg-[#hex] 또는 인라인 background-color)
+    const hasBgColor =
+      /bg-\[#[A-Fa-f0-9]+\]/.test(cls) ||
+      /background-color:\s*#[A-Fa-f0-9]+/.test(style);
+    if (!hasBgColor) return;
+
+    // 레이아웃 클래스 확인 (w-1/2, md:w-1/2, flex-1, w-full)
     const isLayoutBox =
-      /(?:w-1\/2|flex-1|w-full)/.test(attrs);
-    // min-height가 200px 이상인 큰 빈 박스인지 확인
-    const hasMinHeight = /min-height:\s*\d{3,}px/.test(attrs);
+      cls.includes("w-1/2") ||
+      cls.includes("md:w-1/2") ||
+      cls.includes("flex-1") ||
+      cls.includes("w-full");
+    // min-height 200px+ 확인
+    const hasMinHeight = /min-height:\s*\d{3,}px/.test(style);
 
-    if (!isLayoutBox && !hasMinHeight) {
-      return match; // 작은 장식용 div는 건드리지 않음
-    }
+    if (!isLayoutBox && !hasMinHeight) return;
 
-    // 첫 번째 빈 박스만 서비스 아코디언으로 교체, 나머지는 제거
+    // 실질적 자식 요소가 있으면 건드리지 않음
+    // img, 비어있지 않은 div, 텍스트 노드 등이 있으면 패스
+    const meaningfulChildren = $el
+      .children()
+      .filter((_, child) => {
+        const $child = $(child);
+        // img 태그는 의미 있는 자식
+        if ($child.is("img")) return true;
+        // 텍스트가 있는 요소
+        if ($child.text().trim().length > 0) return true;
+        // 비어있지 않은 div (재귀적)
+        if ($child.children().length > 0) return true;
+        return false;
+      });
+
+    if (meaningfulChildren.length > 0) return;
+
+    // 첫 번째 빈 박스만 서비스 아코디언으로 교체
     if (!firstReplaced) {
       firstReplaced = true;
-      return buildServiceAccordionHtml(brandInfo.name, services);
+      $el.replaceWith(buildServiceAccordionHtml(brandInfo.name, services));
+    } else {
+      // 두 번째 이후 빈 박스는 제거
+      $el.remove();
     }
-
-    // 두 번째 이후 빈 박스는 빈 div 제거
-    return "";
   });
+
+  return $.html();
 }
 
 function buildServiceAccordionHtml(
@@ -695,7 +725,7 @@ function enforceDarkTone(html: string): string {
  * Vision AI가 레퍼런스 사이트의 텍스트를 그대로 출력했을 경우 후처리로 제거.
  * 브랜드 주입 후에 실행하여, 교체되지 않고 남은 원본 텍스트를 정리.
  */
-function sanitizeReferenceText(html: string): string {
+function sanitizeReferenceText(html: string, brandInfo: BrandInfo): string {
   let result = html;
 
   // 레퍼런스 특정 텍스트 패턴 제거 (rest-clinic.com 기준)
@@ -710,11 +740,40 @@ function sanitizeReferenceText(html: string): string {
   }
 
   // 태그 내 텍스트에서 단독 "REST" 제거 (대문자 전체가 REST인 경우만)
-  // 예: "..., REST" → "..." / ">REST<" → "><"
-  // 단, "FOREST", "INTEREST" 등 부분 매칭은 유지
   result = result.replace(/,\s*REST\b/g, "");
   result = result.replace(/>REST</g, "><");
   result = result.replace(/\bREST\b(?=[^a-zA-Z])/g, "");
+
+  // 영문 의료/뷰티 레퍼런스 텍스트 교체
+  result = result.replace(/Deep\s+Wrinkle/gi, "피부 개선");
+  result = result.replace(/SERENE\s+BEAUTY/gi, escHtml(brandInfo.name));
+  result = result.replace(/Whole\s+Layer\s+Lifting/gi, "전층 리프팅");
+  result = result.replace(/REST\s+Insight/gi, `${escHtml(brandInfo.name)} Insight`);
+
+  // cheerio 기반 대형 폰트 단일 문자(워터마크) 제거
+  const $ = cheerio.load(result);
+
+  $("span, div, p, h1, h2, h3").each((_, el) => {
+    const $el = $(el);
+    const text = $el.text().trim();
+    // 단일 알파벳 문자인지 확인
+    if (!/^[A-Za-z]$/.test(text)) return;
+
+    // 폰트 크기가 큰지 확인 (인라인 style 또는 Tailwind 클래스)
+    const style = $el.attr("style") || "";
+    const cls = $el.attr("class") || "";
+
+    // font-size: 60px+ 또는 clamp(80px,...) 또는 text-6xl+ (Tailwind)
+    const hasLargeFont =
+      /font-size:\s*(?:clamp\([^)]*\)|\d{2,}(?:px|rem|vw))/.test(style) ||
+      /text-(?:6xl|7xl|8xl|9xl|\[[\d]+px\])/.test(cls);
+
+    if (hasLargeFont) {
+      $el.remove();
+    }
+  });
+
+  result = $.html();
 
   return result;
 }
