@@ -61,7 +61,13 @@ export function injectBrandInfo(
   // 5. 블로그 플레이스홀더 교체 (양쪽 형식)
   result = replaceBlogPlaceholders(result, brandInfo);
 
-  // 6. 레퍼런스 원본 텍스트 제거 (Vision AI 유출 방지)
+  // 6. 빈 배경색 박스 → 서비스 아코디언 주입
+  result = replaceEmptyBoxes(result, brandInfo);
+
+  // 7. Blog·Footer 배경 다크 톤 통일
+  result = enforceDarkTone(result);
+
+  // 8. 레퍼런스 원본 텍스트 제거 (Vision AI 유출 방지)
   result = sanitizeReferenceText(result);
 
   return result;
@@ -542,6 +548,143 @@ function replaceBlogPlaceholders(html: string, brandInfo: BrandInfo): string {
       escHtml(blogExcerpts[i])
     );
   }
+
+  return result;
+}
+
+// ── 빈 배경색 박스 → 서비스 아코디언 주입 ──────────────────────────────────────
+
+/**
+ * 빈 배경색 박스를 감지하여 서비스 아코디언 HTML로 교체한다.
+ *
+ * 감지 패턴:
+ * 1. <div class="...w-1/2...bg-[#...]..." style="...">  (자식 없음)
+ * 2. <div class="flex-1" style="background-color: #...;...">  (자식 없음)
+ */
+function replaceEmptyBoxes(html: string, brandInfo: BrandInfo): string {
+  const services =
+    brandInfo.services.length > 0
+      ? brandInfo.services
+      : ["서비스 1", "서비스 2", "서비스 3"];
+
+  // 패턴: 배경색만 있고 자식 요소가 없는 div (min-height만 허용)
+  // <div class="w-1/2 bg-[#C8A882] opacity-80" style="min-height: 200px;"></div>
+  // <div class="flex-1" style="background-color: #BEB0A0; min-height: 300px;">  </div>
+  const emptyBoxPattern =
+    /<div([^>]*?(?:bg-\[#[A-Fa-f0-9]+\]|background-color:\s*#[A-Fa-f0-9]+)[^>]*?)>\s*<\/div>/gi;
+
+  let firstReplaced = false;
+
+  return html.replace(emptyBoxPattern, (match, attrs) => {
+    // flex-1이나 w-1/2 같은 레이아웃 클래스가 있는지 확인
+    const isLayoutBox =
+      /(?:w-1\/2|flex-1|w-full)/.test(attrs);
+    // min-height가 200px 이상인 큰 빈 박스인지 확인
+    const hasMinHeight = /min-height:\s*\d{3,}px/.test(attrs);
+
+    if (!isLayoutBox && !hasMinHeight) {
+      return match; // 작은 장식용 div는 건드리지 않음
+    }
+
+    // 첫 번째 빈 박스만 서비스 아코디언으로 교체, 나머지는 제거
+    if (!firstReplaced) {
+      firstReplaced = true;
+      return buildServiceAccordionHtml(brandInfo.name, services);
+    }
+
+    // 두 번째 이후 빈 박스는 빈 div 제거
+    return "";
+  });
+}
+
+function buildServiceAccordionHtml(
+  brandName: string,
+  services: string[]
+): string {
+  const serviceItems = services
+    .map(
+      (svc) => `    <li class="py-4 flex items-center justify-between cursor-pointer group">
+      <span class="font-['Noto_Sans_KR'] text-sm font-medium text-[#1A1A1A] group-hover:text-[#C8A882] transition-colors">
+        ${escHtml(svc)}
+      </span>
+      <span class="text-[#C8A882] text-lg">+</span>
+    </li>`
+    )
+    .join("\n");
+
+  return `<div class="w-full md:w-1/2 flex flex-col justify-center px-12 py-16 bg-[#F0EDE8]">
+  <p class="text-xs tracking-widest text-[#C8A882] uppercase mb-3 font-['Noto_Sans_KR']">
+    부위별 솔루션
+  </p>
+  <h2 class="font-['Bebas_Neue'] text-5xl text-[#1A1A1A] leading-none mb-8">
+    ${escHtml(brandName)}
+  </h2>
+  <ul class="divide-y divide-[#D4C9BC]">
+${serviceItems}
+  </ul>
+  <a href="#contact" class="mt-8 inline-block px-8 py-3 bg-[#1A1A1A] text-white text-xs tracking-widest uppercase font-['Noto_Sans_KR'] hover:bg-[#C8A882] transition-colors">
+    상담 예약하기
+  </a>
+</div>`;
+}
+
+// ── Blog·Footer 배경 다크 톤 통일 ─────────────────────────────────────────────
+
+/**
+ * Vision AI가 Blog/Footer 섹션에 밝은 배경을 적용한 경우 다크 톤으로 교체.
+ * 전체 사이트가 다크 테마일 때 Blog/Footer만 밝으면 이질감이 발생하므로 후처리로 보정.
+ */
+function enforceDarkTone(html: string): string {
+  let result = html;
+
+  // Blog 섹션: bg-white → bg-[#1A1A1A], 텍스트 색상 다크 전환
+  // <section class="...bg-white..."> 내 블로그 헤딩이 있는 경우
+  result = result.replace(
+    /(<section[^>]*class="[^"]*?)bg-white([^"]*"[^>]*>[\s\S]*?(?:블로그|Blog|blog)[\s\S]*?<\/section>)/gi,
+    (_match, before, after) => `${before}bg-[#1A1A1A]${after}`
+  );
+
+  // Blog 섹션 내 텍스트 색상 교체
+  // article 카드 내 텍스트: text-gray-900 → text-white, text-gray-600 → text-[#999999]
+  // shadow-md → 제거 (다크 배경에서 불필요)
+  // article 배경: 명시적 교체 필요 (bg-white 제거 후 bg-[#2A2A2A] 추가)
+  result = result.replace(
+    /(<article[^>]*class="[^"]*?)shadow-md([^"]*")/gi,
+    (_match, before, after) => `${before}${after}`
+  );
+
+  // Blog 섹션 내 article 카드들의 텍스트 색상 (블로그 제목/설명)
+  // "text-gray-900 mb-2" (블로그 카드 제목) → "text-white mb-2"
+  // "text-gray-600" (블로그 카드 설명) → "text-[#999999]"
+  // h2 블로그 섹션 제목 "text-gray-900" → "text-white"
+  result = result.replace(
+    /(<h2[^>]*class="[^"]*?)text-gray-900([^"]*"[^>]*>[\s\S]*?블로그[\s\S]*?<\/h2>)/gi,
+    (_match, before, after) => `${before}text-white${after}`
+  );
+
+  // Footer 섹션: bg-gray-900 → bg-[#111111]
+  result = result.replace(
+    /(<footer[^>]*class="[^"]*?)bg-gray-900([^"]*")/gi,
+    (_match, before, after) => `${before}bg-[#111111]${after}`
+  );
+
+  // Footer 내 text-gray-400 → text-[#888888]
+  result = result.replace(
+    /(<(?:p|li|ul|span)[^>]*class="[^"]*?)text-gray-400([^"]*")/gi,
+    (_match, before, after) => `${before}text-[#888888]${after}`
+  );
+
+  // Footer 내 border-gray-800 → border-[#2A2A2A]
+  result = result.replace(
+    /(<div[^>]*class="[^"]*?)border-gray-800([^"]*")/gi,
+    (_match, before, after) => `${before}border-[#2A2A2A]${after}`
+  );
+
+  // Footer 내 text-gray-500 → text-[#555555]
+  result = result.replace(
+    /(<div[^>]*class="[^"]*?)text-gray-500([^"]*")/gi,
+    (_match, before, after) => `${before}text-[#555555]${after}`
+  );
 
   return result;
 }

@@ -359,6 +359,17 @@ IMPORTANT TEXT PLACEHOLDER RULES (do NOT copy text from the screenshot):
 
 For language flag images (if any), use: <span data-img-slot="flag-kr">🇰🇷</span>, <span data-img-slot="flag-cn">🇨🇳</span>, <span data-img-slot="flag-us">🇺🇸</span>, <span data-img-slot="flag-jp">🇯🇵</span>
 
+IMPORTANT RULES — DO NOT VIOLATE:
+- Do NOT add random watermark letters (like "T", "M", "R") as decorative elements
+  unless they are clearly visible text in the screenshot
+- Do NOT leave empty colored boxes (empty div with just background color)
+  Every section must have real content inside
+- If the right side of a split section appears to show text/list content,
+  always include that content using the brand info provided
+- Maintain dark (#1A1A1A) or beige (#F0EDE8) backgrounds throughout.
+  Do NOT use white (#FFFFFF) or light gray as section backgrounds
+  unless the screenshot clearly shows a white background section
+
 Output ONLY the HTML code for this section. No explanation, no markdown code fences, no comments.
 Use Tailwind CSS classes only. No custom CSS. No <style> tags.`;
 }
@@ -416,28 +427,28 @@ function cleanCropOutput(text: string): string {
 // ── 기본 블로그 섹션 (Tailwind CSS) ──────────────────────────────────────────
 
 function getDefaultBlogHtml(): string {
-  return `<section class="py-20 px-[5%] bg-white">
-  <h2 class="text-3xl font-bold text-center mb-10 text-gray-900">블로그</h2>
+  return `<section class="py-20 px-[5%] bg-[#1A1A1A]">
+  <h2 class="text-3xl font-bold text-center mb-10 text-white">블로그</h2>
   <div class="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
-    <article class="rounded-lg overflow-hidden shadow-md">
-      <div class="h-48 bg-gray-200 bg-cover bg-center" data-img-slot="blog"></div>
+    <article class="rounded-lg overflow-hidden bg-[#2A2A2A]">
+      <div class="h-48 bg-gray-700 bg-cover bg-center" data-img-slot="blog"></div>
       <div class="p-4">
-        <h3 class="text-lg font-semibold text-gray-900 mb-2">{{BLOG_TITLE_1}}</h3>
-        <p class="text-sm text-gray-600">{{BLOG_EXCERPT_1}}</p>
+        <h3 class="text-lg font-semibold text-white mb-2">{{BLOG_TITLE_1}}</h3>
+        <p class="text-sm text-[#999999]">{{BLOG_EXCERPT_1}}</p>
       </div>
     </article>
-    <article class="rounded-lg overflow-hidden shadow-md">
-      <div class="h-48 bg-gray-200 bg-cover bg-center" data-img-slot="blog"></div>
+    <article class="rounded-lg overflow-hidden bg-[#2A2A2A]">
+      <div class="h-48 bg-gray-700 bg-cover bg-center" data-img-slot="blog"></div>
       <div class="p-4">
-        <h3 class="text-lg font-semibold text-gray-900 mb-2">{{BLOG_TITLE_2}}</h3>
-        <p class="text-sm text-gray-600">{{BLOG_EXCERPT_2}}</p>
+        <h3 class="text-lg font-semibold text-white mb-2">{{BLOG_TITLE_2}}</h3>
+        <p class="text-sm text-[#999999]">{{BLOG_EXCERPT_2}}</p>
       </div>
     </article>
-    <article class="rounded-lg overflow-hidden shadow-md">
-      <div class="h-48 bg-gray-200 bg-cover bg-center" data-img-slot="blog"></div>
+    <article class="rounded-lg overflow-hidden bg-[#2A2A2A]">
+      <div class="h-48 bg-gray-700 bg-cover bg-center" data-img-slot="blog"></div>
       <div class="p-4">
-        <h3 class="text-lg font-semibold text-gray-900 mb-2">{{BLOG_TITLE_3}}</h3>
-        <p class="text-sm text-gray-600">{{BLOG_EXCERPT_3}}</p>
+        <h3 class="text-lg font-semibold text-white mb-2">{{BLOG_TITLE_3}}</h3>
+        <p class="text-sm text-[#999999]">{{BLOG_EXCERPT_3}}</p>
       </div>
     </article>
   </div>
@@ -445,17 +456,17 @@ function getDefaultBlogHtml(): string {
 }
 
 function getDefaultFooterHtml(): string {
-  return `<footer class="bg-gray-900 text-white py-16 px-[5%]">
+  return `<footer class="bg-[#111111] text-white py-16 px-[5%]">
   <div class="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-10">
     <div>
       <h3 class="text-xl font-bold mb-4">{{BRAND_NAME}}</h3>
-      <p class="text-sm text-gray-400 leading-relaxed">{{ADDRESS}}</p>
-      <p class="text-sm text-gray-400 mt-2">Tel. {{PHONE}}</p>
-      <p class="text-sm text-gray-400 mt-2">{{HOURS}}</p>
+      <p class="text-sm text-[#888888] leading-relaxed">{{ADDRESS}}</p>
+      <p class="text-sm text-[#888888] mt-2">Tel. {{PHONE}}</p>
+      <p class="text-sm text-[#888888] mt-2">{{HOURS}}</p>
     </div>
     <div>
       <h4 class="font-semibold mb-4">{{FOOTER_COL_TITLE_1}}</h4>
-      <ul class="space-y-2 text-sm text-gray-400">
+      <ul class="space-y-2 text-sm text-[#888888]">
         <li>{{ITEM_TITLE_1}}</li>
         <li>{{ITEM_TITLE_2}}</li>
         <li>{{ITEM_TITLE_3}}</li>
@@ -463,7 +474,7 @@ function getDefaultFooterHtml(): string {
     </div>
     <div>
       <h4 class="font-semibold mb-4">{{FOOTER_COL_TITLE_2}}</h4>
-      <ul class="space-y-2 text-sm text-gray-400">
+      <ul class="space-y-2 text-sm text-[#888888]">
         <li>{{NAV_LABEL_1}}</li>
         <li>{{NAV_LABEL_2}}</li>
         <li>{{NAV_LABEL_3}}</li>
@@ -471,13 +482,13 @@ function getDefaultFooterHtml(): string {
     </div>
     <div>
       <h4 class="font-semibold mb-4">{{FOOTER_COL_TITLE_3}}</h4>
-      <ul class="space-y-2 text-sm text-gray-400">
+      <ul class="space-y-2 text-sm text-[#888888]">
         <li>{{NAV_LABEL_4}}</li>
         <li>{{NAV_LABEL_5}}</li>
       </ul>
     </div>
   </div>
-  <div class="max-w-6xl mx-auto mt-10 pt-6 border-t border-gray-800 text-center text-xs text-gray-500">
+  <div class="max-w-6xl mx-auto mt-10 pt-6 border-t border-[#2A2A2A] text-center text-xs text-[#555555]">
     {{COPYRIGHT}}
   </div>
 </footer>`;
