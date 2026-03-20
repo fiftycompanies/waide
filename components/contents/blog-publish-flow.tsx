@@ -41,7 +41,6 @@ interface BrandAnalysis {
   basic_info: Record<string, unknown> | null;
   content_strategy: Record<string, unknown> | null;
   keyword_analysis: Record<string, unknown> | null;
-  analysis_result: Record<string, unknown> | null;
   place_id: string | null;
   input_url: string | null;
   url_type: string | null;
@@ -1604,7 +1603,7 @@ function StepBrief({
 }) {
   // 톤앤매너 (override 우선 → 페르소나 → brandAnalysis 다중 폴백)
   const baseTone = personaData?.tone || (() => {
-    if (!brandAnalysis?.content_strategy && !brandAnalysis?.analysis_result) return "";
+    if (!brandAnalysis?.content_strategy) return "";
     const cs = brandAnalysis?.content_strategy || {};
     // brand_analysis 키 우선, blog 키 폴백
     const brandA = (cs.brand_analysis || cs.blog) as Record<string, unknown> | undefined;
@@ -1613,12 +1612,6 @@ function StepBrief({
     // content_strategy 루트 레벨 tone 폴백
     const fromRoot = extractToneStyle(cs.tone);
     if (fromRoot) return fromRoot;
-    // analysis_result.seo_comments에서 tone 추출 시도
-    const ar = brandAnalysis?.analysis_result as Record<string, unknown> | undefined;
-    if (ar) {
-      const fromAr = extractToneStyle((ar as Record<string, unknown>)?.tone);
-      if (fromAr) return fromAr;
-    }
     return "";
   })();
   const effectiveTone = toneOverride !== null && toneOverride !== undefined ? toneOverride : baseTone;
