@@ -5,12 +5,22 @@
  * vision-to-html.ts가 생성한 HTML의 플레이스홀더를
  * 브랜드 실제 정보 + Unsplash 이미지로 교체한다.
  *
- * 플레이스홀더 (2가지 형식 모두 지원):
- * - {{BRAND_NAME}}, {{TAGLINE}}, {{SUBTITLE}}, {{SERVICE_1..5}}, {{PHONE}}, {{ADDRESS}}
- * - [BRAND_NAME], [TAGLINE], [USP], [SERVICE_1..5], [PHONE], [ADDRESS]
- * - data-img-slot="hero|about|service|gallery|blog" → Unsplash 이미지
- * - data-bg-slot="hero|section" → background-image Unsplash
- * - <title>, og:title, description → SEO 메타
+ * ── 의미 기반 플레이스홀더 매핑 ──
+ *
+ * 신규 (2단계 Vision):
+ *   {{BRAND_NAME}}, {{TAGLINE}}, {{SUBTITLE}}
+ *   {{NAV_LABEL_1~7}}, {{SECTION_TITLE}}, {{SECTION_DESC}}
+ *   {{ITEM_TITLE_1~N}}, {{ITEM_DESC_1~N}}
+ *   {{FORM_NAME_LABEL}}, {{FORM_PHONE_LABEL}}, {{FORM_MESSAGE_LABEL}}, {{PRIVACY_TEXT}}
+ *   {{PHONE}}, {{ADDRESS}}, {{HOURS}}, {{CTA_TEXT}}
+ *   {{FOOTER_COL_TITLE_1~3}}, {{COPYRIGHT}}
+ *   {{BLOG_TITLE_1~3}}, {{BLOG_EXCERPT_1~3}}
+ *   data-img-slot="hero|about|service|gallery|blog" → Unsplash 이미지
+ *
+ * 하위 호환 (1단계 Vision):
+ *   {{SERVICE_1~5}}, {{SERVICE_DESC_1~5}}, {{NAV_1~7}}
+ *   [BRAND_NAME], [TAGLINE], [USP], [SERVICE_1~5], [PHONE], [ADDRESS]
+ *   [BLOG_TITLE_1~3], [BLOG_EXCERPT_1~3]
  */
 
 import type { BrandInfo, PersonaInfo } from "./content-mapper";
@@ -29,39 +39,53 @@ export function injectBrandInfo(
 ): string {
   let result = html;
 
-  // 1. 텍스트 플레이스홀더 교체
-  result = replaceTextPlaceholders(result, brandInfo, persona);
+  // 1. 의미 기반 텍스트 플레이스홀더 교체 (신규)
+  result = replaceSemanticPlaceholders(result, brandInfo, persona);
 
-  // 2. 이미지 슬롯 교체 (data-img-slot, data-bg-slot)
+  // 2. 하위 호환 텍스트 플레이스홀더 교체
+  result = replaceLegacyPlaceholders(result, brandInfo, persona);
+
+  // 3. 이미지 슬롯 교체 (data-img-slot, data-bg-slot)
   const images = getUnsplashImages(industry);
   result = replaceImageSlots(result, images);
 
-  // 3. 메타 태그 교체
+  // 4. 메타 태그 교체
   result = replaceMetaTags(result, brandInfo, persona);
 
-  // 4. 블로그 플레이스홀더 교체
+  // 5. 블로그 플레이스홀더 교체 (양쪽 형식)
   result = replaceBlogPlaceholders(result, brandInfo);
+
+  // 6. 레퍼런스 원본 텍스트 제거 (Vision AI 유출 방지)
+  result = sanitizeReferenceText(result);
 
   return result;
 }
 
-// ── 텍스트 교체 ──────────────────────────────────────────────────────────────
+// ── 의미 기반 플레이스홀더 교체 (신규) ────────────────────────────────────────
 
-function replaceTextPlaceholders(
+function replaceSemanticPlaceholders(
   html: string,
   brandInfo: BrandInfo,
   persona: PersonaInfo
 ): string {
   const esc = escHtml;
-
   let result = html;
 
-  const tagline = persona.tagline || persona.one_liner || `${brandInfo.name} - ${brandInfo.industry} 전문`;
-  const subtitle = persona.usp || `${brandInfo.name}의 전문적인 ${brandInfo.industry} 서비스를 경험하세요.`;
+  const tagline =
+    persona.tagline ||
+    persona.one_liner ||
+    `${brandInfo.name} - ${brandInfo.industry} 전문`;
+  const subtitle =
+    persona.usp ||
+    `${brandInfo.name}의 전문적인 ${brandInfo.industry} 서비스를 경험하세요.`;
   const phone = brandInfo.phone || "02-000-0000";
   const address = brandInfo.address || "";
+  const services =
+    brandInfo.services.length > 0
+      ? brandInfo.services
+      : ["서비스 1", "서비스 2", "서비스 3"];
 
-  // === {{}} 형식 교체 (우선) ===
+  // ── 공통 텍스트 ──
   result = result.replace(/\{\{BRAND_NAME\}\}/g, esc(brandInfo.name));
   result = result.replace(/\{\{TAGLINE\}\}/g, esc(tagline));
   result = result.replace(/\{\{SUBTITLE\}\}/g, esc(subtitle));
@@ -69,9 +93,9 @@ function replaceTextPlaceholders(
   result = result.replace(/\{\{CTA_TEXT\}\}/g, esc("상담 예약하기"));
   result = result.replace(/\{\{PHONE\}\}/g, esc(phone));
   result = result.replace(/\{\{ADDRESS\}\}/g, esc(address));
-  result = result.replace(/\{\{HOURS\}\}/g, esc("Mon – Sat : 10:00 – 19:00"));
+  result = result.replace(/\{\{HOURS\}\}/g, esc("Mon – Sat  10:00 – 19:00"));
 
-  // 통계
+  // ── 통계 ──
   result = result.replace(/\{\{STAT_1\}\}/g, "10+");
   result = result.replace(/\{\{STAT_2\}\}/g, "5K+");
   result = result.replace(/\{\{STAT_3\}\}/g, "98%");
@@ -79,40 +103,140 @@ function replaceTextPlaceholders(
   result = result.replace(/\{\{STAT_LABEL_2\}\}/g, "Happy Clients");
   result = result.replace(/\{\{STAT_LABEL_3\}\}/g, "Satisfaction");
 
-  // 서비스 목록 (최대 5개)
-  const services = brandInfo.services.length > 0 ? brandInfo.services : ["서비스 1", "서비스 2", "서비스 3"];
+  // ── 네비게이션 메뉴명 (NAV_LABEL_1~7) ──
+  const defaultNavLabels = [
+    "병원 소개",
+    "맞춤 진단",
+    ...services.slice(0, 3),
+    "전후사진",
+    "프로모션",
+  ];
+  for (let i = 0; i < 7; i++) {
+    const navLabel =
+      services[i] || defaultNavLabels[i] || `메뉴 ${i + 1}`;
+    result = result.replace(
+      new RegExp(`\\{\\{NAV_LABEL_${i + 1}\\}\\}`, "g"),
+      esc(navLabel)
+    );
+  }
+
+  // ── 섹션 제목/설명 (반복 출현 가능 → 첫 번째만 교체하면 안 됨) ──
+  result = result.replace(/\{\{SECTION_TITLE\}\}/g, esc(tagline));
+  result = result.replace(/\{\{SECTION_DESC\}\}/g, esc(subtitle));
+
+  // ── 서비스/시술 아이템 (ITEM_TITLE_1~10, ITEM_DESC_1~10) ──
+  for (let i = 0; i < 10; i++) {
+    const serviceName =
+      services[i] || services[i % services.length] || `서비스 ${i + 1}`;
+    result = result.replace(
+      new RegExp(`\\{\\{ITEM_TITLE_${i + 1}\\}\\}`, "g"),
+      esc(serviceName)
+    );
+    result = result.replace(
+      new RegExp(`\\{\\{ITEM_DESC_${i + 1}\\}\\}`, "g"),
+      esc(generateServiceDescription(brandInfo.name, serviceName, i))
+    );
+  }
+
+  // ── 폼 라벨 (고정값 — 서비스명 절대 사용 금지) ──
+  result = result.replace(/\{\{FORM_NAME_LABEL\}\}/g, esc("이름"));
+  result = result.replace(/\{\{FORM_PHONE_LABEL\}\}/g, esc("연락처"));
+  result = result.replace(/\{\{FORM_MESSAGE_LABEL\}\}/g, esc("문의 내용"));
+  result = result.replace(
+    /\{\{PRIVACY_TEXT\}\}/g,
+    esc("개인정보 수집 및 이용에 동의합니다")
+  );
+
+  // ── 푸터 컬럼 제목 (고정값) ──
+  result = result.replace(/\{\{FOOTER_COL_TITLE_1\}\}/g, esc("진료 안내"));
+  result = result.replace(/\{\{FOOTER_COL_TITLE_2\}\}/g, esc("바로가기"));
+  result = result.replace(/\{\{FOOTER_COL_TITLE_3\}\}/g, esc("정보"));
+  result = result.replace(
+    /\{\{COPYRIGHT\}\}/g,
+    esc(`© 2026 ${brandInfo.name}. All rights reserved.`)
+  );
+
+  // ── 타겟 고객 ──
+  result = result.replace(
+    /\{\{TARGET_CUSTOMER\}\}/g,
+    esc(persona.target_customer || "고객")
+  );
+
+  return result;
+}
+
+// ── 하위 호환 플레이스홀더 교체 ─────────────────────────────────────────────
+
+function replaceLegacyPlaceholders(
+  html: string,
+  brandInfo: BrandInfo,
+  persona: PersonaInfo
+): string {
+  const esc = escHtml;
+  let result = html;
+
+  const tagline =
+    persona.tagline ||
+    persona.one_liner ||
+    `${brandInfo.name} - ${brandInfo.industry} 전문`;
+  const subtitle =
+    persona.usp ||
+    `${brandInfo.name}의 전문적인 ${brandInfo.industry} 서비스를 경험하세요.`;
+  const phone = brandInfo.phone || "02-000-0000";
+  const address = brandInfo.address || "";
+  const services =
+    brandInfo.services.length > 0
+      ? brandInfo.services
+      : ["서비스 1", "서비스 2", "서비스 3"];
+
+  // === {{}} 형식 하위 호환 ===
   for (let i = 0; i < 5; i++) {
-    const serviceName = services[i] || services[i % services.length] || `서비스 ${i + 1}`;
-    // {{}} 형식
-    result = result.replace(new RegExp(`\\{\\{SERVICE_${i + 1}\\}\\}`, "g"), esc(serviceName));
+    const serviceName =
+      services[i] || services[i % services.length] || `서비스 ${i + 1}`;
+    result = result.replace(
+      new RegExp(`\\{\\{SERVICE_${i + 1}\\}\\}`, "g"),
+      esc(serviceName)
+    );
     result = result.replace(
       new RegExp(`\\{\\{SERVICE_DESC_${i + 1}\\}\\}`, "g"),
       esc(generateServiceDescription(brandInfo.name, serviceName, i))
     );
-    // [] 형식 (하위 호환)
-    result = result.replace(new RegExp(`\\[SERVICE_${i + 1}\\]`, "g"), esc(serviceName));
+  }
+
+  // 네비게이션 (NAV_1~7 하위 호환)
+  for (let i = 0; i < 7; i++) {
+    const navItem =
+      services[i] ||
+      (i === 0 ? "홈" : i === services.length ? "블로그" : `메뉴 ${i + 1}`);
     result = result.replace(
-      new RegExp(`\\[SERVICE_DESC_${i + 1}\\]`, "g"),
-      esc(generateServiceDescription(brandInfo.name, serviceName, i))
+      new RegExp(`\\{\\{NAV_${i + 1}\\}\\}`, "g"),
+      esc(navItem)
     );
   }
 
-  // 네비게이션 메뉴
-  for (let i = 0; i < 7; i++) {
-    const navItem = services[i] || (i === 0 ? "홈" : i === services.length ? "블로그" : services[i % services.length] || `메뉴 ${i + 1}`);
-    result = result.replace(new RegExp(`\\{\\{NAV_${i + 1}\\}\\}`, "g"), esc(navItem));
-  }
-
-  // === [] 형식 교체 (하위 호환) ===
+  // === [] 형식 하위 호환 ===
   result = result.replace(/\[BRAND_NAME\]/g, esc(brandInfo.name));
   result = result.replace(/\[TAGLINE\]/g, esc(tagline));
   result = result.replace(/\[USP\]/g, esc(subtitle));
   result = result.replace(/\[PHONE\]/g, esc(phone));
   result = result.replace(/\[ADDRESS\]/g, esc(address));
+  result = result.replace(
+    /\[TARGET_CUSTOMER\]/g,
+    esc(persona.target_customer || "고객")
+  );
 
-  // 타겟 고객
-  result = result.replace(/\[TARGET_CUSTOMER\]/g, esc(persona.target_customer || "고객"));
-  result = result.replace(/\{\{TARGET_CUSTOMER\}\}/g, esc(persona.target_customer || "고객"));
+  for (let i = 0; i < 5; i++) {
+    const serviceName =
+      services[i] || services[i % services.length] || `서비스 ${i + 1}`;
+    result = result.replace(
+      new RegExp(`\\[SERVICE_${i + 1}\\]`, "g"),
+      esc(serviceName)
+    );
+    result = result.replace(
+      new RegExp(`\\[SERVICE_DESC_${i + 1}\\]`, "g"),
+      esc(generateServiceDescription(brandInfo.name, serviceName, i))
+    );
+  }
 
   return result;
 }
@@ -120,7 +244,11 @@ function replaceTextPlaceholders(
 /**
  * 서비스별 고유한 설명 생성 (템플릿 기반, AI 호출 없음)
  */
-function generateServiceDescription(brandName: string, serviceName: string, index: number): string {
+function generateServiceDescription(
+  brandName: string,
+  serviceName: string,
+  index: number
+): string {
   const templates = [
     `${brandName}만의 차별화된 ${serviceName} 프로그램으로 최상의 결과를 경험하세요.`,
     `전문가의 체계적인 상담과 맞춤 ${serviceName}으로 고객님께 최적의 솔루션을 제공합니다.`,
@@ -184,7 +312,7 @@ function replaceImageSlots(html: string, images: UnsplashImageSet): string {
       const url = getImageForSlot(slot, images, counters);
       advanceIndex(slot, counters);
 
-      let style = `background-image:url('${url}');background-size:cover;background-position:center;min-height:200px;`;
+      const style = `background-image:url('${url}');background-size:cover;background-position:center;min-height:200px;`;
 
       // 기존 style에 추가
       const styleMatch = (before + after).match(/style="([^"]*)"/);
@@ -229,9 +357,7 @@ function getImageForSlot(
     case "gallery":
       return images.gallery[counters.galleryIdx % images.gallery.length];
     case "blog":
-      return (images as UnsplashImageSet & { blog?: string[] }).blog
-        ? (images as UnsplashImageSet & { blog?: string[] }).blog![counters.blogIdx % (images as UnsplashImageSet & { blog?: string[] }).blog!.length]
-        : images.gallery[counters.blogIdx % images.gallery.length];
+      return images.blog[counters.blogIdx % images.blog.length];
     default:
       return images.section[0] || `https://picsum.photos/seed/${slot}/800/600`;
   }
@@ -239,12 +365,22 @@ function getImageForSlot(
 
 function advanceIndex(slot: string, counters: SlotCounters): void {
   switch (slot) {
-    case "hero": counters.heroIdx++; break;
-    case "about": counters.aboutIdx++; break;
+    case "hero":
+      counters.heroIdx++;
+      break;
+    case "about":
+      counters.aboutIdx++;
+      break;
     case "service":
-    case "section": counters.sectionIdx++; break;
-    case "gallery": counters.galleryIdx++; break;
-    case "blog": counters.blogIdx++; break;
+    case "section":
+      counters.sectionIdx++;
+      break;
+    case "gallery":
+      counters.galleryIdx++;
+      break;
+    case "blog":
+      counters.blogIdx++;
+      break;
   }
 }
 
@@ -258,7 +394,8 @@ function replaceMetaTags(
   const seoTitle = persona.tagline
     ? `${brandInfo.name} | ${persona.tagline}`
     : `${brandInfo.name} | ${brandInfo.industry} 전문`;
-  const seoDesc = persona.usp || `${brandInfo.name} - ${brandInfo.industry} 전문 서비스`;
+  const seoDesc =
+    persona.usp || `${brandInfo.name} - ${brandInfo.industry} 전문 서비스`;
 
   let result = html;
 
@@ -307,6 +444,17 @@ function replaceBlogPlaceholders(html: string, brandInfo: BrandInfo): string {
   ];
 
   for (let i = 0; i < 3; i++) {
+    // {{}} 형식 (신규)
+    result = result.replace(
+      new RegExp(`\\{\\{BLOG_TITLE_${i + 1}\\}\\}`, "g"),
+      escHtml(blogTitles[i])
+    );
+    result = result.replace(
+      new RegExp(`\\{\\{BLOG_EXCERPT_${i + 1}\\}\\}`, "g"),
+      escHtml(blogExcerpts[i])
+    );
+
+    // [] 형식 (하위 호환)
     result = result.replace(
       new RegExp(`\\[BLOG_TITLE_${i + 1}\\]`, "g"),
       escHtml(blogTitles[i])
@@ -316,6 +464,36 @@ function replaceBlogPlaceholders(html: string, brandInfo: BrandInfo): string {
       escHtml(blogExcerpts[i])
     );
   }
+
+  return result;
+}
+
+// ── 레퍼런스 원본 텍스트 제거 ──────────────────────────────────────────────────
+
+/**
+ * Vision AI가 레퍼런스 사이트의 텍스트를 그대로 출력했을 경우 후처리로 제거.
+ * 브랜드 주입 후에 실행하여, 교체되지 않고 남은 원본 텍스트를 정리.
+ */
+function sanitizeReferenceText(html: string): string {
+  let result = html;
+
+  // 레퍼런스 특정 텍스트 패턴 제거 (rest-clinic.com 기준)
+  const referencePatterns = [
+    /SKIN\s+NEEDS\s+REST/gi,
+    /rest-clinic\.com/gi,
+    /rest[-\s]?clinic/gi,
+  ];
+
+  for (const pattern of referencePatterns) {
+    result = result.replace(pattern, "");
+  }
+
+  // 태그 내 텍스트에서 단독 "REST" 제거 (대문자 전체가 REST인 경우만)
+  // 예: "..., REST" → "..." / ">REST<" → "><"
+  // 단, "FOREST", "INTEREST" 등 부분 매칭은 유지
+  result = result.replace(/,\s*REST\b/g, "");
+  result = result.replace(/>REST</g, "><");
+  result = result.replace(/\bREST\b(?=[^a-zA-Z])/g, "");
 
   return result;
 }
@@ -331,5 +509,8 @@ function escHtml(str: string): string {
 }
 
 function escAttr(str: string): string {
-  return str.replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  return str
+    .replace(/"/g, "&quot;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
 }

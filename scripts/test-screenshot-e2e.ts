@@ -1,8 +1,8 @@
 /**
  * test-screenshot-e2e.ts
- * Screenshot-to-Code E2E 테스트
+ * Screenshot-to-Code E2E 테스트 (2단계 분리 구조)
  *
- * rest-clinic.com 스크린샷 → Vision AI → HTML 생성 → 브랜드 주입
+ * rest-clinic.com 스크린샷 → Stage A (구조 분석) → Stage B (섹션별 생성) → 브랜드 주입
  */
 
 import { captureScreenshots } from "../lib/homepage/generate/screenshot-crawler";
@@ -34,6 +34,8 @@ const PERSONA: PersonaInfo = {
   one_liner: "당신의 피부, 에버유가 지킵니다",
 };
 
+const SERVICE_NAMES = BRAND_INFO.services;
+
 async function main() {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
@@ -42,7 +44,7 @@ async function main() {
   }
 
   const startTime = Date.now();
-  console.log("=== Screenshot-to-Code E2E 테스트 ===\n");
+  console.log("=== Screenshot-to-Code E2E 테스트 (2단계 분리) ===\n");
 
   // Step 1: 스크린샷 캡처
   console.log("📸 Step 1: 스크린샷 캡처 중...");
@@ -64,8 +66,9 @@ async function main() {
   console.log(`   heading: ${tokens.headingFont}`);
   console.log(`   body: ${tokens.bodyFont}`);
 
-  // Step 3: Vision AI HTML 생성
-  console.log("\n🤖 Step 3: Vision AI HTML 생성 중 (2회 호출)...");
+  // Step 3: Vision AI 2단계 HTML 생성
+  console.log("\n🤖 Step 3: Vision AI 2단계 HTML 생성 중...");
+  console.log("   Stage A: 구조 분석 (1회) + Stage B: 섹션별 생성 (N회)");
   const t3 = Date.now();
   const rawHtml = await generateHtmlFromScreenshots({
     screenshots,
@@ -82,17 +85,22 @@ async function main() {
   console.log(`   ✅ 완료 (${((Date.now() - t4) / 1000).toFixed(1)}초)`);
   console.log(`   최종 HTML: ${Math.round(finalHtml.length / 1024)}KB`);
 
-  // 검증
+  // ===== 검증 =====
   console.log("\n=== 검증 ===\n");
   let pass = 0;
   let fail = 0;
 
   function check(name: string, condition: boolean, detail?: string) {
-    if (condition) { console.log(`✅ ${name}${detail ? ` (${detail})` : ""}`); pass++; }
-    else { console.log(`❌ ${name}${detail ? ` — ${detail}` : ""}`); fail++; }
+    if (condition) {
+      console.log(`✅ ${name}${detail ? ` (${detail})` : ""}`);
+      pass++;
+    } else {
+      console.log(`❌ ${name}${detail ? ` — ${detail}` : ""}`);
+      fail++;
+    }
   }
 
-  // --- 기본 검증 ---
+  // --- 1. 기본 검증 ---
   check("rest-clinic.com 문자열 없음", !finalHtml.includes("rest-clinic.com"));
 
   const classMatches = finalHtml.match(/class="([^"]*)"/g) || [];
@@ -110,26 +118,61 @@ async function main() {
 
   check("에버유의원 브랜드명 포함", finalHtml.includes("에버유의원"));
   check("전화번호 포함", finalHtml.includes("02-555-7890"));
-  check("서비스명 포함", finalHtml.includes("피부관리"));
 
-  // --- Task 1: body 중간에 <head> 태그 없음 ---
+  // --- 2. body 내 <head> 태그 없음 ---
   const bodyMatch = finalHtml.match(/<body[^>]*>([\s\S]*)<\/body>/i);
   const bodyContent = bodyMatch ? bodyMatch[1] : "";
   const headInBody = /<head[^>]*>/i.test(bodyContent);
   check("body 내 <head> 태그 없음", !headInBody);
 
-  // --- Task 2: 레퍼런스 원본 텍스트 유출 없음 ---
+  // --- 3. 레퍼런스 원본 텍스트 유출 없음 ---
   const hasRest = finalHtml.includes("REST") || finalHtml.includes("레스트") || finalHtml.includes("SKIN NEEDS REST");
   check("레퍼런스 원본 텍스트 없음 (REST/레스트)", !hasRest);
 
-  // --- Task 4: 서비스 이미지 URL 모두 다름 ---
+  // --- 4. {{}} 미교체 플레이스홀더 0건 확인 ---
+  const unreplacedMatches = finalHtml.match(/\{\{[^}]*\}\}/g) || [];
+  check("{{}} 미교체 플레이스홀더 0건", unreplacedMatches.length === 0, unreplacedMatches.length > 0 ? `미교체: ${unreplacedMatches.slice(0, 5).join(", ")}` : "모두 교체됨");
+
+  // --- 5. 서비스명이 폼 label / 푸터 컬럼 제목에 없을 것 ---
+  // <label> 또는 <th>, <legend> 안에 서비스명이 있으면 문제
+  const formLabelRegex = /<label[^>]*>([\s\S]*?)<\/label>/gi;
+  const formLabels: string[] = [];
+  let labelMatch: RegExpExecArray | null;
+  while ((labelMatch = formLabelRegex.exec(finalHtml)) !== null) {
+    formLabels.push(labelMatch[1]);
+  }
+  const serviceInFormLabel = SERVICE_NAMES.some((svc) =>
+    formLabels.some((label) => label.includes(svc))
+  );
+  check("폼 label에 서비스명 없음", !serviceInFormLabel, serviceInFormLabel ? `서비스명 발견: ${formLabels.filter(l => SERVICE_NAMES.some(s => l.includes(s))).join(", ")}` : "정상");
+
+  // --- 6. FORM_NAME_LABEL = "이름" 확인 ---
+  check("폼 이름 라벨 = 이름", finalHtml.includes("이름"));
+
+  // --- 7. 블로그 카드 제목이 실제 텍스트로 채워짐 ---
+  const hasBlogTitle = finalHtml.includes("에버유의원") && finalHtml.includes("의원");
+  const noBlogPlaceholder = !finalHtml.includes("[BLOG_TITLE_") && !finalHtml.includes("{{BLOG_TITLE_");
+  check("블로그 카드 제목 실제 텍스트", hasBlogTitle && noBlogPlaceholder);
+
+  // --- 8. 서비스명 포함 확인 ---
+  const serviceDescs: string[] = [];
+  for (const svcName of SERVICE_NAMES) {
+    if (finalHtml.includes(svcName)) {
+      serviceDescs.push(svcName);
+    }
+  }
+  check("서비스명 5개 중 3개 이상 포함", serviceDescs.length >= 3, `${serviceDescs.length}개 포함`);
+
+  // --- 9. 주소 포함 ---
+  check("주소 포함", finalHtml.includes("논현로") || finalHtml.includes("강남구"));
+
+  // --- 10. 이미지 URL 고유성 ---
   const serviceImgMatches = finalHtml.match(/data-img-slot="service"[^>]*src="([^"]*)"/gi) || [];
   const serviceUrls: string[] = [];
   for (const m of serviceImgMatches) {
     const srcMatch = m.match(/src="([^"]*)"/);
     if (srcMatch) serviceUrls.push(srcMatch[1]);
   }
-  // div 형태 서비스 이미지도 체크
   const serviceDivMatches = finalHtml.match(/data-img-slot="service"[^>]*url\('([^']*)'\)/gi) || [];
   for (const m of serviceDivMatches) {
     const urlMatch = m.match(/url\('([^']*)'\)/);
@@ -142,7 +185,7 @@ async function main() {
     `총 ${serviceUrls.length}개 중 고유 ${serviceUniqueUrls.size}개`
   );
 
-  // --- Task 4: 갤러리 이미지 URL 모두 다름 ---
+  // --- 11. 갤러리 이미지 URL 고유성 ---
   const galleryImgMatches = finalHtml.match(/data-img-slot="gallery"[^>]*src="([^"]*)"/gi) || [];
   const galleryUrls: string[] = [];
   for (const m of galleryImgMatches) {
@@ -160,20 +203,6 @@ async function main() {
     galleryUrls.length <= 1 || galleryUniqueUrls.size === galleryUrls.length,
     `총 ${galleryUrls.length}개 중 고유 ${galleryUniqueUrls.size}개`
   );
-
-  // --- Task 3: 서비스 설명 각기 다른 내용 ---
-  const serviceDescs: string[] = [];
-  for (let i = 1; i <= 5; i++) {
-    // 생성된 설명 텍스트를 찾기 위해 서비스명 기반 패턴 체크
-    const svcName = BRAND_INFO.services[i - 1];
-    if (svcName && finalHtml.includes(svcName)) {
-      serviceDescs.push(svcName);
-    }
-  }
-  check("서비스명 5개 중 3개 이상 포함", serviceDescs.length >= 3, `${serviceDescs.length}개 포함`);
-
-  // --- 브랜드 정보 주입 완전성 ---
-  check("주소 포함", finalHtml.includes("논현로") || finalHtml.includes("강남구"));
 
   const totalTime = ((Date.now() - startTime) / 1000).toFixed(1);
   console.log(`\n=== 결과: ${pass} PASS / ${fail} FAIL (총 ${totalTime}초) ===`);
