@@ -1,10 +1,15 @@
 /**
  * vision-to-html.ts
- * 스크린샷 → Claude Vision → 완전 새 HTML+CSS 생성
+ * 스크린샷 → Claude Vision → Tailwind CSS HTML 생성
  *
- * 2단계 분리 구조:
+ * abi/screenshot-to-code 방법론 적용:
+ * - Tailwind CSS 전용 (custom CSS 금지)
+ * - 700px 크롭 단위로 개별 변환
+ * - 검증된 system/user prompt
+ *
+ * 2단계 구조:
  * Stage A: 구조 분석 — 양쪽 스크린샷 동시 전달 → 섹션 구조 JSON
- * Stage B: 섹션별 HTML 생성 — 각 섹션 독립 호출 (병렬 3개씩)
+ * Stage B: 크롭별 Tailwind HTML 생성 — 각 크롭 독립 호출 (병렬 2개씩)
  *
  * 모델: claude-sonnet-4-6 (Vision 지원)
  *
@@ -67,10 +72,10 @@ export interface ReferenceStructure {
 // ── 메인 함수 ─────────────────────────────────────────────────────────────────
 
 /**
- * 스크린샷을 Vision API로 분석하여 완전히 새로운 HTML+CSS를 생성한다.
+ * 스크린샷을 Vision API로 분석하여 Tailwind CSS 기반 HTML을 생성한다.
  *
  * Stage A: 양쪽 스크린샷 → 섹션 구조 JSON (1회 호출)
- * Stage B: 섹션별 Vision 호출로 HTML+CSS 생성 (N회 호출, 3개씩 병렬)
+ * Stage B: 크롭별 Vision 호출로 Tailwind HTML 생성 (N회 호출, 2개씩 병렬)
  */
 export async function generateHtmlFromScreenshots(
   options: VisionToHtmlOptions
@@ -85,70 +90,55 @@ export async function generateHtmlFromScreenshots(
     console.log(`  [${s.order}] ${s.type} (${s.layout}, bg:${s.bgColor}) — ${s.contentDescription}`);
   }
 
-  // ── Stage B: 섹션별 HTML 생성 (3개씩 병렬) ──────────────────────────────────
-  console.log(`[VisionToHtml] Stage B: 섹션별 HTML 생성 시작 (${structure.sections.length}개)...`);
+  // ── Stage B: 크롭별 Tailwind HTML 생성 (2개씩 병렬) ──────────────────────────
+  const crops = screenshots.crops;
+  if (crops.length === 0) {
+    console.warn("[VisionToHtml] 크롭 없음, top/middle 스크린샷으로 폴백");
+    crops.push(screenshots.top);
+    if (screenshots.middle) crops.push(screenshots.middle);
+  }
 
-  const sectionResults: SectionResult[] = [];
-  const BATCH_SIZE = 3;
+  console.log(`[VisionToHtml] Stage B: 크롭별 Tailwind HTML 생성 시작 (${crops.length}개)...`);
 
-  for (let i = 0; i < structure.sections.length; i += BATCH_SIZE) {
-    const batch = structure.sections.slice(i, i + BATCH_SIZE);
-    const batchPromises = batch.map((section) => {
-      // nav, hero → top 스크린샷 / 나머지 → middle (fallback: top)
-      const screenshot =
-        section.order <= 2
-          ? screenshots.top
-          : screenshots.middle || screenshots.top;
+  const cropResults: string[] = [];
+  const BATCH_SIZE = 2;
 
-      return generateSectionHtml(screenshot, section, tokens, apiKey)
-        .then((result) => ({
-          order: section.order,
-          type: section.type,
-          ...result,
-        }))
+  for (let i = 0; i < crops.length; i += BATCH_SIZE) {
+    const batch = crops.slice(i, i + BATCH_SIZE);
+    const batchPromises = batch.map((crop, batchIdx) => {
+      const cropIndex = i + batchIdx;
+      return generateCropHtml(crop, cropIndex, crops.length, tokens, apiKey)
+        .then((html) => {
+          console.log(`[VisionToHtml] 크롭 ${cropIndex + 1}/${crops.length} 완료`);
+          return html;
+        })
         .catch((err) => {
-          console.warn(
-            `[VisionToHtml] 섹션 ${section.type} 생성 실패:`,
-            err.message
-          );
-          return null;
+          console.warn(`[VisionToHtml] 크롭 ${cropIndex + 1} 생성 실패:`, err.message);
+          return "";
         });
     });
 
     const results = await Promise.all(batchPromises);
     for (const r of results) {
-      if (r) {
-        sectionResults.push(r);
-        console.log(`[VisionToHtml] 섹션 ${r.type} 생성 완료`);
-      }
+      if (r) cropResults.push(r);
     }
   }
 
-  // 순서대로 정렬
-  sectionResults.sort((a, b) => a.order - b.order);
-
   // 블로그 섹션이 없으면 기본 블로그 추가
-  if (!sectionResults.some((s) => s.type === "blog")) {
-    sectionResults.push({
-      order: 998,
-      type: "blog",
-      css: getDefaultBlogCss(),
-      html: getDefaultBlogHtml(),
-    });
-  }
+  const allHtml = cropResults.join("\n\n");
+  const hasBlog = allHtml.includes("data-img-slot=\"blog\"") || allHtml.toLowerCase().includes("blog");
+  const hasFooter = allHtml.includes("{{PHONE}}") && allHtml.includes("{{ADDRESS}}");
 
-  // 푸터 섹션이 없으면 기본 푸터 추가 (전화번호/주소/저작권 필수)
-  if (!sectionResults.some((s) => s.type === "footer")) {
-    sectionResults.push({
-      order: 999,
-      type: "footer",
-      css: getDefaultFooterCss(),
-      html: getDefaultFooterHtml(),
-    });
+  const extras: string[] = [];
+  if (!hasBlog) {
+    extras.push(getDefaultBlogHtml());
+  }
+  if (!hasFooter) {
+    extras.push(getDefaultFooterHtml());
   }
 
   // 조립
-  const fullHtml = assembleFullHtmlFromSections(sectionResults, tokens);
+  const fullHtml = assembleTailwindHtml(cropResults, extras, tokens);
   console.log(
     `[VisionToHtml] HTML 생성 완료: ${Math.round(fullHtml.length / 1024)}KB`
   );
@@ -299,182 +289,208 @@ function getDefaultStructure(): ReferenceStructure {
   };
 }
 
-// ── Stage B: 섹션별 HTML 생성 ────────────────────────────────────────────────
+// ── Stage B: 크롭별 Tailwind HTML 생성 ──────────────────────────────────────
 
-interface SectionResult {
-  order: number;
-  type: string;
-  css: string;
-  html: string;
+/**
+ * abi/screenshot-to-code 방식 system prompt
+ */
+function getTailwindSystemPrompt(): string {
+  return `You are an expert Tailwind CSS developer.
+You take a screenshot of a reference web page section and then build it using Tailwind CSS, HTML, and JS.
+You might also be given a screenshot of a web page that you have already built, and asked to update it to look more like the reference image.
+
+- Make sure the app looks exactly like the screenshot.
+- Pay close attention to background color, text color, font size, font family, padding, margin, border, etc. Match the colors and sizes exactly.
+- Use the exact text from the screenshot.
+- Do not add comments in the code such as "<!-- Add other navigation links as needed -->" and "<!-- ... other news items ... -->" in place of writing the full code. WRITE THE FULL CODE.
+- Repeat elements as needed to match the screenshot. For example, if there are 15 items, the code should have 15 items. DO NOT LEAVE comments like "<!-- Repeat for each news item -->" or bad things will happen.
+- For images, use placeholder img tags with data-img-slot attribute: <img src="" data-img-slot="hero|about|service|gallery|blog" alt="description" class="...">
+- For background images, use data-bg-slot attribute on the div: <div data-bg-slot="hero|section" class="bg-cover bg-center ...">
+- DO NOT use emoji characters as image placeholders. DO NOT use CSS gradients as image substitutes.
+- Use Tailwind CSS classes exclusively. Do NOT write custom CSS or <style> tags.
+- Make sure to use responsive Tailwind classes (sm:, md:, lg:) for mobile compatibility.`;
 }
 
-async function generateSectionHtml(
-  screenshot: string,
-  section: SectionStructure,
-  tokens: DesignTokens,
-  apiKey: string
-): Promise<{ css: string; html: string }> {
-  const prompt = buildSectionPrompt(section, tokens);
-  const resp = await callVisionApi(screenshot, prompt, apiKey, 6000);
-
-  // CSS와 HTML 분리
-  const css = extractStyleContent(resp);
-  const html = removeStyleTags(resp);
-
-  return { css, html };
-}
-
-function buildSectionPrompt(
-  section: SectionStructure,
+/**
+ * 크롭별 user prompt 생성 (플레이스홀더 규칙 + 디자인 토큰)
+ */
+function buildCropUserPrompt(
+  cropIndex: number,
+  totalCrops: number,
   tokens: DesignTokens
 ): string {
-  return `아래 스크린샷에서 ${section.type} 섹션을 재현하라.
-레이아웃: ${section.layout}
-배경: ${section.bgColor}
-인터랙션: ${section.hasInteraction}
-설명: ${section.contentDescription}
+  return `Generate the Tailwind CSS HTML code for this section of the website screenshot.
+This is crop ${cropIndex + 1} of ${totalCrops} (vertical section of the page).
 
-규칙:
-- waide- 접두사 클래스만 사용
-- CSS 변수(--waide-*)만 색상에 사용:
-${buildCssVariables(tokens)}
-- 이미지: <img src="" data-img-slot="hero|about|service|gallery|blog"> 로 빈 src + data 속성
-  배경 이미지: data-bg-slot="hero|section" 속성 추가
-- 이모지 사용 금지. CSS 그라데이션으로 이미지 대체 금지.
-- 배경색, padding, 정렬 방식을 스크린샷과 최대한 동일하게.
+Design tokens for this brand:
+- Primary color: ${tokens.primaryColor}
+- Accent color: ${tokens.accentColor}
+- Background: ${tokens.backgroundColor}
+- Text color: ${tokens.textColor}
+- Heading font: ${tokens.headingFont}
+- Body font: ${tokens.bodyFont}
 
-텍스트 플레이스홀더 규칙 (스크린샷 텍스트를 절대 그대로 쓰지 말 것):
-* 브랜드명 → {{BRAND_NAME}}
-* 네비 메뉴명 → {{NAV_LABEL_1}}~{{NAV_LABEL_7}}
-* 섹션 제목 → {{SECTION_TITLE}}
-* 섹션 소제목/설명 → {{SECTION_DESC}}
-* 서비스/시술명 → {{ITEM_TITLE_1}}~{{ITEM_TITLE_N}} (N은 보이는 아이템 수만큼)
-* 서비스 설명 → {{ITEM_DESC_1}}~{{ITEM_DESC_N}}
-* 폼 이름 라벨 → {{FORM_NAME_LABEL}} (절대 서비스명 사용 금지)
-* 폼 연락처 라벨 → {{FORM_PHONE_LABEL}}
-* 폼 내용 라벨 → {{FORM_MESSAGE_LABEL}}
-* 개인정보동의 텍스트 → {{PRIVACY_TEXT}}
-* 전화번호 → {{PHONE}}
-* 주소 → {{ADDRESS}}
-* 영업시간 → {{HOURS}}
-* CTA 버튼 → {{CTA_TEXT}}
-* 푸터 컬럼 제목 → {{FOOTER_COL_TITLE_1}}~{{FOOTER_COL_TITLE_3}}
-* 저작권 → {{COPYRIGHT}}
-* 블로그 제목 → {{BLOG_TITLE_1}}~{{BLOG_TITLE_3}}
-* 블로그 발췌 → {{BLOG_EXCERPT_1}}~{{BLOG_EXCERPT_3}}
+Use these Tailwind arbitrary values for brand colors:
+- bg-[${tokens.primaryColor}], text-[${tokens.primaryColor}]
+- bg-[${tokens.accentColor}], text-[${tokens.accentColor}]
+- bg-[${tokens.backgroundColor}], text-[${tokens.textColor}]
 
-이 섹션의 HTML+CSS만 출력. 설명/코멘트 없이 코드만.
-CSS는 <style data-section="${section.type}"> 태그로 분리 출력.
-반응형: @media (max-width: 768px) 포함.`;
+IMPORTANT TEXT PLACEHOLDER RULES (do NOT copy text from the screenshot):
+* Brand name → {{BRAND_NAME}}
+* Nav menu items → {{NAV_LABEL_1}} ~ {{NAV_LABEL_7}}
+* Section title → {{SECTION_TITLE}}
+* Section description → {{SECTION_DESC}}
+* Service/item names → {{ITEM_TITLE_1}} ~ {{ITEM_TITLE_N}}
+* Service descriptions → {{ITEM_DESC_1}} ~ {{ITEM_DESC_N}}
+* Form name label → {{FORM_NAME_LABEL}}
+* Form phone label → {{FORM_PHONE_LABEL}}
+* Form message label → {{FORM_MESSAGE_LABEL}}
+* Privacy text → {{PRIVACY_TEXT}}
+* Phone number → {{PHONE}}
+* Address → {{ADDRESS}}
+* Business hours → {{HOURS}}
+* CTA button → {{CTA_TEXT}}
+* Footer column titles → {{FOOTER_COL_TITLE_1}} ~ {{FOOTER_COL_TITLE_3}}
+* Copyright → {{COPYRIGHT}}
+* Blog titles → {{BLOG_TITLE_1}} ~ {{BLOG_TITLE_3}}
+* Blog excerpts → {{BLOG_EXCERPT_1}} ~ {{BLOG_EXCERPT_3}}
+* Statistics numbers → {{STAT_1}}, {{STAT_2}}, {{STAT_3}}
+* Statistics labels → {{STAT_LABEL_1}}, {{STAT_LABEL_2}}, {{STAT_LABEL_3}}
+
+For language flag images (if any), use: <span data-img-slot="flag-kr">🇰🇷</span>, <span data-img-slot="flag-cn">🇨🇳</span>, <span data-img-slot="flag-us">🇺🇸</span>, <span data-img-slot="flag-jp">🇯🇵</span>
+
+Output ONLY the HTML code for this section. No explanation, no markdown code fences, no comments.
+Use Tailwind CSS classes only. No custom CSS. No <style> tags.`;
 }
 
-// ── CSS 변수 빌더 ─────────────────────────────────────────────────────────────
+async function generateCropHtml(
+  cropBase64: string,
+  cropIndex: number,
+  totalCrops: number,
+  tokens: DesignTokens,
+  apiKey: string
+): Promise<string> {
+  const systemPrompt = getTailwindSystemPrompt();
+  const userPrompt = buildCropUserPrompt(cropIndex, totalCrops, tokens);
 
-function buildCssVariables(tokens: DesignTokens): string {
-  return `  --waide-primary: ${tokens.primaryColor};
-  --waide-accent: ${tokens.accentColor};
-  --waide-bg: ${tokens.backgroundColor};
-  --waide-text: ${tokens.textColor};
-  --waide-font-heading: '${tokens.headingFont}', sans-serif;
-  --waide-font-body: '${tokens.bodyFont}', sans-serif;`;
+  const resp = await callVisionApiWithSystem(
+    cropBase64,
+    systemPrompt,
+    userPrompt,
+    apiKey,
+    8000
+  );
+
+  return cleanCropOutput(resp);
 }
 
-// ── 기본 블로그 섹션 ─────────────────────────────────────────────────────────
+/**
+ * Vision API 응답에서 clean HTML만 추출
+ */
+function cleanCropOutput(text: string): string {
+  let html = extractHtml(text);
 
-function getDefaultBlogCss(): string {
-  return `.waide-blog { padding: 80px 5%; background: var(--waide-bg); }
-.waide-blog h2 { font-family: var(--waide-font-heading); font-size: 2rem; text-align: center; margin-bottom: 40px; color: var(--waide-text); }
-.waide-blog-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 30px; max-width: 1200px; margin: 0 auto; }
-.waide-blog-card { border-radius: 8px; overflow: hidden; box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
-.waide-blog-img { height: 200px; background-size: cover; background-position: center; }
-.waide-blog-card h3 { padding: 16px 16px 8px; font-size: 1.1rem; color: var(--waide-text); }
-.waide-blog-card p { padding: 0 16px 16px; font-size: 0.9rem; color: var(--waide-text); opacity: 0.7; }
-@media (max-width: 768px) { .waide-blog-grid { grid-template-columns: 1fr; } }`;
+  // <style> 태그 제거 (Tailwind만 사용해야 함)
+  html = html.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "");
+
+  // 래퍼 태그 제거
+  html = html.replace(/<!DOCTYPE[^>]*>/gi, "");
+  html = html.replace(/<html[^>]*>/gi, "");
+  html = html.replace(/<\/html>/gi, "");
+  html = html.replace(/<head[^>]*>[\s\S]*?<\/head>/gi, "");
+  html = html.replace(/<head[^>]*>/gi, "");
+  html = html.replace(/<\/head>/gi, "");
+  html = html.replace(/<body[^>]*>/gi, "");
+  html = html.replace(/<\/body>/gi, "");
+  html = html.replace(/<link[^>]*>/gi, "");
+  html = html.replace(/<meta[^>]*>/gi, "");
+  html = html.replace(/<title[^>]*>[\s\S]*?<\/title>/gi, "");
+  // Tailwind CDN script 제거 (우리가 직접 추가)
+  html = html.replace(/<script[^>]*tailwindcss[^>]*>[\s\S]*?<\/script>/gi, "");
+  html = html.replace(/<script[^>]*tailwindcss[^>]*\/>/gi, "");
+  html = html.replace(/<script[^>]*cdn\.tailwindcss[^>]*>[\s\S]*?<\/script>/gi, "");
+
+  return html.trim();
 }
+
+// ── 기본 블로그 섹션 (Tailwind CSS) ──────────────────────────────────────────
 
 function getDefaultBlogHtml(): string {
-  return `<section class="waide-blog">
-  <h2>블로그</h2>
-  <div class="waide-blog-grid">
-    <article class="waide-blog-card">
-      <div class="waide-blog-img" data-img-slot="blog"></div>
-      <h3>{{BLOG_TITLE_1}}</h3>
-      <p>{{BLOG_EXCERPT_1}}</p>
+  return `<section class="py-20 px-[5%] bg-white">
+  <h2 class="text-3xl font-bold text-center mb-10 text-gray-900">블로그</h2>
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
+    <article class="rounded-lg overflow-hidden shadow-md">
+      <div class="h-48 bg-gray-200 bg-cover bg-center" data-img-slot="blog"></div>
+      <div class="p-4">
+        <h3 class="text-lg font-semibold text-gray-900 mb-2">{{BLOG_TITLE_1}}</h3>
+        <p class="text-sm text-gray-600">{{BLOG_EXCERPT_1}}</p>
+      </div>
     </article>
-    <article class="waide-blog-card">
-      <div class="waide-blog-img" data-img-slot="blog"></div>
-      <h3>{{BLOG_TITLE_2}}</h3>
-      <p>{{BLOG_EXCERPT_2}}</p>
+    <article class="rounded-lg overflow-hidden shadow-md">
+      <div class="h-48 bg-gray-200 bg-cover bg-center" data-img-slot="blog"></div>
+      <div class="p-4">
+        <h3 class="text-lg font-semibold text-gray-900 mb-2">{{BLOG_TITLE_2}}</h3>
+        <p class="text-sm text-gray-600">{{BLOG_EXCERPT_2}}</p>
+      </div>
     </article>
-    <article class="waide-blog-card">
-      <div class="waide-blog-img" data-img-slot="blog"></div>
-      <h3>{{BLOG_TITLE_3}}</h3>
-      <p>{{BLOG_EXCERPT_3}}</p>
+    <article class="rounded-lg overflow-hidden shadow-md">
+      <div class="h-48 bg-gray-200 bg-cover bg-center" data-img-slot="blog"></div>
+      <div class="p-4">
+        <h3 class="text-lg font-semibold text-gray-900 mb-2">{{BLOG_TITLE_3}}</h3>
+        <p class="text-sm text-gray-600">{{BLOG_EXCERPT_3}}</p>
+      </div>
     </article>
   </div>
 </section>`;
 }
 
-function getDefaultFooterCss(): string {
-  return `.waide-footer { padding: 60px 5% 30px; background: #1a1a1a; color: #ffffff; }
-.waide-footer-inner { max-width: 1200px; margin: 0 auto; display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 40px; }
-.waide-footer-brand h3 { font-family: var(--waide-font-heading); font-size: 1.5rem; margin-bottom: 16px; color: var(--waide-accent, #c8a882); }
-.waide-footer-brand p { font-size: 0.9rem; opacity: 0.8; line-height: 1.8; }
-.waide-footer-col h4 { font-size: 1rem; margin-bottom: 16px; color: var(--waide-accent, #c8a882); }
-.waide-footer-col ul { list-style: none; }
-.waide-footer-col li { font-size: 0.9rem; opacity: 0.7; margin-bottom: 8px; }
-.waide-footer-bottom { max-width: 1200px; margin: 40px auto 0; padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.1); text-align: center; font-size: 0.8rem; opacity: 0.5; }
-@media (max-width: 768px) { .waide-footer-inner { grid-template-columns: 1fr; gap: 30px; } }`;
-}
-
 function getDefaultFooterHtml(): string {
-  return `<footer class="waide-footer">
-  <div class="waide-footer-inner">
-    <div class="waide-footer-brand">
-      <h3>{{BRAND_NAME}}</h3>
-      <p>{{ADDRESS}}</p>
-      <p>Tel. {{PHONE}}</p>
-      <p>{{HOURS}}</p>
+  return `<footer class="bg-gray-900 text-white py-16 px-[5%]">
+  <div class="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-10">
+    <div>
+      <h3 class="text-xl font-bold mb-4">{{BRAND_NAME}}</h3>
+      <p class="text-sm text-gray-400 leading-relaxed">{{ADDRESS}}</p>
+      <p class="text-sm text-gray-400 mt-2">Tel. {{PHONE}}</p>
+      <p class="text-sm text-gray-400 mt-2">{{HOURS}}</p>
     </div>
-    <div class="waide-footer-col">
-      <h4>{{FOOTER_COL_TITLE_1}}</h4>
-      <ul>
+    <div>
+      <h4 class="font-semibold mb-4">{{FOOTER_COL_TITLE_1}}</h4>
+      <ul class="space-y-2 text-sm text-gray-400">
         <li>{{ITEM_TITLE_1}}</li>
         <li>{{ITEM_TITLE_2}}</li>
         <li>{{ITEM_TITLE_3}}</li>
       </ul>
     </div>
-    <div class="waide-footer-col">
-      <h4>{{FOOTER_COL_TITLE_2}}</h4>
-      <ul>
+    <div>
+      <h4 class="font-semibold mb-4">{{FOOTER_COL_TITLE_2}}</h4>
+      <ul class="space-y-2 text-sm text-gray-400">
         <li>{{NAV_LABEL_1}}</li>
         <li>{{NAV_LABEL_2}}</li>
         <li>{{NAV_LABEL_3}}</li>
       </ul>
     </div>
-    <div class="waide-footer-col">
-      <h4>{{FOOTER_COL_TITLE_3}}</h4>
-      <ul>
+    <div>
+      <h4 class="font-semibold mb-4">{{FOOTER_COL_TITLE_3}}</h4>
+      <ul class="space-y-2 text-sm text-gray-400">
         <li>{{NAV_LABEL_4}}</li>
         <li>{{NAV_LABEL_5}}</li>
       </ul>
     </div>
   </div>
-  <div class="waide-footer-bottom">{{COPYRIGHT}}</div>
+  <div class="max-w-6xl mx-auto mt-10 pt-6 border-t border-gray-800 text-center text-xs text-gray-500">
+    {{COPYRIGHT}}
+  </div>
 </footer>`;
 }
 
-// ── HTML 조립 ────────────────────────────────────────────────────────────────
+// ── Tailwind HTML 조립 ────────────────────────────────────────────────────────
 
-function assembleFullHtmlFromSections(
-  sections: SectionResult[],
+function assembleTailwindHtml(
+  cropHtmls: string[],
+  extras: string[],
   tokens: DesignTokens
 ): string {
-  const allCss = sections
-    .map((s) => `    /* ── ${s.type} ── */\n    ${s.css}`)
-    .join("\n\n");
-
-  const allHtml = sections.map((s) => s.html).join("\n\n  ");
+  const allSections = [...cropHtmls, ...extras].join("\n\n  ");
 
   return `<!DOCTYPE html>
 <html lang="ko">
@@ -488,57 +504,52 @@ function assembleFullHtmlFromSections(
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=${encodeURIComponent(tokens.headingFont)}:wght@400;500;600;700&family=${encodeURIComponent(tokens.bodyFont)}:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              primary: '${tokens.primaryColor}',
+              accent: '${tokens.accentColor}',
+              bg: '${tokens.backgroundColor}',
+              text: '${tokens.textColor}',
+            }
+          },
+          fontFamily: {
+            heading: ['${tokens.headingFont}', 'sans-serif'],
+            body: ['${tokens.bodyFont}', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
   <style>
-    :root {
-${buildCssVariables(tokens)}
-    }
-
-    *, *::before, *::after {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
-
-    html {
-      scroll-behavior: smooth;
-    }
-
     body {
-      font-family: var(--waide-font-body);
-      color: var(--waide-text);
-      background-color: var(--waide-bg);
-      line-height: 1.6;
+      font-family: '${tokens.bodyFont}', sans-serif;
       -webkit-font-smoothing: antialiased;
     }
-
-    img {
-      max-width: 100%;
-      height: auto;
-      display: block;
+    h1, h2, h3, h4, h5, h6 {
+      font-family: '${tokens.headingFont}', sans-serif;
     }
-
-    a {
-      text-decoration: none;
-      color: inherit;
-    }
-
-${allCss}
   </style>
 </head>
-<body>
-  ${allHtml}
+<body class="bg-[${tokens.backgroundColor}] text-[${tokens.textColor}]">
+  ${allSections}
 </body>
 </html>`;
 }
 
 // ── Vision API 호출 ──────────────────────────────────────────────────────────
 
-/** 단일 이미지 Vision API 호출 */
-async function callVisionApi(
+/** system + user prompt Vision API 호출 (Stage B 크롭용) */
+async function callVisionApiWithSystem(
   screenshotBase64: string,
-  prompt: string,
+  systemPrompt: string,
+  userPrompt: string,
   apiKey: string,
-  maxTokens: number = 16000
+  maxTokens: number = 8000
 ): Promise<string> {
   const resp = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
@@ -550,6 +561,7 @@ async function callVisionApi(
     body: JSON.stringify({
       model: "claude-sonnet-4-6",
       max_tokens: maxTokens,
+      system: systemPrompt,
       messages: [
         {
           role: "user",
@@ -564,7 +576,7 @@ async function callVisionApi(
             },
             {
               type: "text",
-              text: prompt,
+              text: userPrompt,
             },
           ],
         },
@@ -584,7 +596,7 @@ async function callVisionApi(
     throw new Error("Vision API 응답이 비어있습니다");
   }
 
-  return extractHtml(text);
+  return text;
 }
 
 /** 다중 이미지 Vision API 호출 (Stage A 구조 분석용) */
@@ -681,7 +693,7 @@ async function callVisionApiRaw(
   return data.content?.[0]?.text || "";
 }
 
-// ── HTML 추출 + 유틸 ────────────────────────────────────────────────────────
+// ── HTML 추출 유틸 ────────────────────────────────────────────────────────
 
 function extractHtml(text: string): string {
   // ```html ... ``` 블록 추출
@@ -703,33 +715,4 @@ function extractHtml(text: string): string {
   }
 
   return text.trim();
-}
-
-function extractStyleContent(html: string): string {
-  const rawHtml = extractHtml(html);
-  const styles: string[] = [];
-  const regex = /<style[^>]*>([\s\S]*?)<\/style>/gi;
-  let match: RegExpExecArray | null;
-  while ((match = regex.exec(rawHtml)) !== null) {
-    styles.push(match[1].trim());
-  }
-  return styles.join("\n\n");
-}
-
-function removeStyleTags(html: string): string {
-  const rawHtml = extractHtml(html);
-  let cleaned = rawHtml.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "");
-  // 래퍼 태그 제거
-  cleaned = cleaned.replace(/<!DOCTYPE[^>]*>/gi, "");
-  cleaned = cleaned.replace(/<html[^>]*>/gi, "");
-  cleaned = cleaned.replace(/<\/html>/gi, "");
-  cleaned = cleaned.replace(/<head[^>]*>[\s\S]*?<\/head>/gi, "");
-  cleaned = cleaned.replace(/<head[^>]*>/gi, "");
-  cleaned = cleaned.replace(/<\/head>/gi, "");
-  cleaned = cleaned.replace(/<body[^>]*>/gi, "");
-  cleaned = cleaned.replace(/<\/body>/gi, "");
-  cleaned = cleaned.replace(/<link[^>]*>/gi, "");
-  cleaned = cleaned.replace(/<meta[^>]*>/gi, "");
-  cleaned = cleaned.replace(/<title[^>]*>[\s\S]*?<\/title>/gi, "");
-  return cleaned.trim();
 }

@@ -21,6 +21,8 @@ export interface ScreenshotSet {
   top: string;
   /** 중간부 (주요 섹션들) — 1440×최대2700, base64 JPEG. 없으면 null */
   middle: string | null;
+  /** 700px 단위 세로 크롭 (최대 5개), base64 JPEG */
+  crops: string[];
   /** 원본 URL */
   url: string;
 }
@@ -107,18 +109,58 @@ export async function captureScreenshots(url: string): Promise<ScreenshotSet> {
       middleBase64 = midBuffer.toString("base64");
     }
 
+    // 700px 단위 크롭 (최대 5개) — Tailwind CSS 생성용
+    const crops = await captureCrops(page, fullHeight);
+
     await context.close();
 
     console.log(
-      `[ScreenshotCrawler] 캡처 완료: top=1440×900, middle=${middleBase64 ? `1440×${Math.min(2700, fullHeight - 900)}` : "없음"}`
+      `[ScreenshotCrawler] 캡처 완료: top=1440×900, middle=${middleBase64 ? `1440×${Math.min(2700, fullHeight - 900)}` : "없음"}, crops=${crops.length}개`
     );
 
     return {
       top: screenshots[0],
       middle: middleBase64,
+      crops,
       url: normalizedUrl,
     };
   } finally {
     await browser.close();
   }
+}
+
+// ── 700px 크롭 캡처 ──────────────────────────────────────────────────────────
+
+const CROP_HEIGHT = 700;
+const MAX_CROPS = 5;
+
+/**
+ * 페이지를 700px 높이 단위로 세로 크롭하여 캡처한다.
+ * 최대 5개까지만 캡처 (5 × 700px = 3500px 커버).
+ */
+async function captureCrops(
+  page: { screenshot: (opts: Record<string, unknown>) => Promise<Buffer> },
+  totalHeight: number
+): Promise<string[]> {
+  const cropCount = Math.min(MAX_CROPS, Math.ceil(totalHeight / CROP_HEIGHT));
+  const results: string[] = [];
+
+  for (let i = 0; i < cropCount; i++) {
+    const y = i * CROP_HEIGHT;
+    const height = Math.min(CROP_HEIGHT, totalHeight - y);
+    if (height <= 0) break;
+
+    const buffer = await page.screenshot({
+      clip: { x: 0, y, width: 1440, height },
+      type: "jpeg",
+      quality: 85,
+    });
+    results.push(buffer.toString("base64"));
+  }
+
+  console.log(
+    `[ScreenshotCrawler] 크롭 캡처: ${results.length}개 × ${CROP_HEIGHT}px (전체 ${totalHeight}px)`
+  );
+
+  return results;
 }

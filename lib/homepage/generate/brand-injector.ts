@@ -45,9 +45,15 @@ export function injectBrandInfo(
   // 2. 하위 호환 텍스트 플레이스홀더 교체
   result = replaceLegacyPlaceholders(result, brandInfo, persona);
 
-  // 3. 이미지 슬롯 교체 (data-img-slot, data-bg-slot)
+  // 3. 이미지 슬롯 교체 (data-img-slot, data-bg-slot, bg-[url(...)])
   const images = getUnsplashImages(industry);
   result = replaceImageSlots(result, images);
+
+  // 3-1. Tailwind bg-[url(...)] 임의값 클래스 이미지 교체
+  result = replaceTailwindBgUrls(result, images);
+
+  // 3-2. 국기 이미지 → 이모지 교체 (data-img-slot="flag-*")
+  result = replaceFlagSlots(result);
 
   // 4. 메타 태그 교체
   result = replaceMetaTags(result, brandInfo, persona);
@@ -382,6 +388,78 @@ function advanceIndex(slot: string, counters: SlotCounters): void {
       counters.blogIdx++;
       break;
   }
+}
+
+// ── Tailwind bg-[url(...)] 임의값 클래스 이미지 교체 ─────────────────────────
+
+/**
+ * Vision AI가 Tailwind 임의값 bg-[url('...')] 클래스를 생성한 경우,
+ * 빈 URL이나 플레이스홀더를 Unsplash 이미지로 교체한다.
+ *
+ * 패턴: bg-[url('')], bg-[url('placeholder')], bg-[url('...')] 등
+ */
+function replaceTailwindBgUrls(html: string, images: UnsplashImageSet): string {
+  let bgIdx = 0;
+
+  // bg-[url('')] 또는 bg-[url('placeholder...')] → 실제 이미지 URL 교체
+  return html.replace(
+    /bg-\[url\(['"]([^'"]*)['"]\)\]/g,
+    (_match, currentUrl) => {
+      // 이미 유효한 Unsplash/https URL이면 그대로 유지
+      if (currentUrl && currentUrl.startsWith("https://images.unsplash.com")) {
+        return _match;
+      }
+
+      // 빈 URL이거나 플레이스홀더면 교체
+      const imgs = images.section;
+      const url = imgs[bgIdx % imgs.length];
+      bgIdx++;
+      return `bg-[url('${url}')]`;
+    }
+  );
+}
+
+// ── 국기 이미지 → 이모지 교체 ──────────────────────────────────────────────
+
+const FLAG_EMOJI_MAP: Record<string, string> = {
+  "flag-kr": "🇰🇷",
+  "flag-cn": "🇨🇳",
+  "flag-us": "🇺🇸",
+  "flag-jp": "🇯🇵",
+  "flag-en": "🇺🇸",
+  "flag-zh": "🇨🇳",
+  "flag-ja": "🇯🇵",
+  "flag-ko": "🇰🇷",
+};
+
+/**
+ * data-img-slot="flag-*" 요소를 국기 이모지로 교체한다.
+ *
+ * <img data-img-slot="flag-kr" ...>  → <span data-img-slot="flag-kr">🇰🇷</span>
+ * <span data-img-slot="flag-cn">...</span> → 내용 확인/보정
+ */
+function replaceFlagSlots(html: string): string {
+  let result = html;
+
+  // <img data-img-slot="flag-*"> → <span>🇰🇷</span>
+  result = result.replace(
+    /<img([^>]*?)data-img-slot="(flag-[^"]*)"([^>]*?)>/gi,
+    (_match, _before, slot) => {
+      const emoji = FLAG_EMOJI_MAP[slot] || "🏳️";
+      return `<span data-img-slot="${slot}" class="text-xl">${emoji}</span>`;
+    }
+  );
+
+  // <span data-img-slot="flag-*">빈 내용</span> → 이모지 보정
+  result = result.replace(
+    /<span([^>]*?)data-img-slot="(flag-[^"]*)"([^>]*?)>([\s]*)<\/span>/gi,
+    (_match, before, slot, after) => {
+      const emoji = FLAG_EMOJI_MAP[slot] || "🏳️";
+      return `<span${before}data-img-slot="${slot}"${after}>${emoji}</span>`;
+    }
+  );
+
+  return result;
 }
 
 // ── 메타 태그 교체 ───────────────────────────────────────────────────────────
