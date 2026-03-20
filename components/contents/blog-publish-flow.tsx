@@ -122,6 +122,20 @@ interface BlogPublishFlowProps {
 
 type ContentType = "blog_info" | "blog_review" | "blog_list";
 
+/** target 필드가 객체({primary, name, description})일 수 있으므로 문자열로 안전하게 추출 */
+function extractTargetText(target: unknown): string {
+  if (!target) return "";
+  if (typeof target === "string") return target;
+  if (typeof target === "object" && target !== null) {
+    const t = target as Record<string, unknown>;
+    const direct = (t.primary as string) || (t.name as string) || (t.description as string) || (t.text as string) || (t.audience as string) || (t.target as string) || "";
+    if (direct) return direct;
+    const firstStr = Object.values(t).find(v => typeof v === "string" && v.length > 0);
+    return (firstStr as string) || "";
+  }
+  return String(target);
+}
+
 /** tone 필드가 객체({style, personality})일 수 있으므로 문자열로 안전하게 추출 */
 function extractToneStyle(tone: unknown): string {
   if (!tone) return "";
@@ -347,7 +361,7 @@ export function BlogPublishFlow({
       const brandA = cs.brand_analysis as Record<string, unknown> | undefined;
       const parts: string[] = [];
       if (brandA?.strengths) parts.push(`강점: ${String(brandA.strengths)}`);
-      if (brandA?.target_audience) parts.push(`타겟: ${String(brandA.target_audience)}`);
+      if (brandA?.target_audience) parts.push(`타겟: ${extractTargetText(brandA.target_audience)}`);
       if (brandA?.tone) parts.push(`톤앤매너: ${extractToneStyle(brandA.tone)}`);
       if (parts.length > 0 && !brief) {
         setBrief(parts.join("\n"));
@@ -1648,11 +1662,11 @@ function StepBrief({
   const effectiveTone = toneOverride !== null && toneOverride !== undefined ? toneOverride : baseTone;
 
   // 타겟 (override 우선 → 페르소나 → brandAnalysis 다중 폴백)
-  const baseTarget = personaData?.primary_target || (() => {
+  const baseTarget = extractTargetText(personaData?.primary_target) || (() => {
     if (!brandAnalysis?.content_strategy) return "";
     const cs = brandAnalysis.content_strategy;
     const brandA = (cs.brand_analysis || cs.blog) as Record<string, unknown> | undefined;
-    return String(brandA?.target_audience || brandA?.target_customer || brandA?.target || brandA?.primary_target || "");
+    return extractTargetText(brandA?.target_audience || brandA?.target_customer || brandA?.target || brandA?.primary_target || "");
   })();
   const effectiveTarget = targetOverride !== null && targetOverride !== undefined ? targetOverride : baseTarget;
 
