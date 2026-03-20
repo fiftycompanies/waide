@@ -177,7 +177,7 @@ export function BlogPublishFlow({
     const name = clientName || (bi.name as string) || "";
 
     // 네이버 플레이스 URL: input_url > place_id 구성 > basic_info > personaExtras
-    const isNaverInput = inputUrl.includes("naver.com") || inputUrl.includes("place.naver");
+    const isNaverInput = inputUrl.includes("naver.com") || inputUrl.includes("place.naver") || inputUrl.includes("naver.me");
     const biNaverUrl = (bi.naver_place_url as string) || (bi.place_url as string) || "";
     const naverPlaceUrl = isNaverInput
       ? inputUrl
@@ -188,7 +188,7 @@ export function BlogPublishFlow({
           : personaExtras?.naverPlaceUrl || "";
 
     // 홈페이지 URL: input_url(웹사이트) > basic_info > personaExtras > clients.website_url
-    const isWebsiteInput = urlType === "website" || (!isNaverInput && inputUrl && !inputUrl.includes("naver.com"));
+    const isWebsiteInput = urlType === "website" || (!isNaverInput && inputUrl && !inputUrl.includes("naver.com") && !inputUrl.includes("naver.me"));
     const homepage = isWebsiteInput
       ? inputUrl
       : (bi.homepage_url as string) || (bi.homepage as string) || (bi.website as string) || (bi.website_url as string) || personaExtras?.homepage || clientWebsiteUrl || "";
@@ -417,7 +417,12 @@ export function BlogPublishFlow({
       });
       if (res.ok) {
         const data = await res.json();
-        setCrawledImages(data.images || []);
+        const images: CrawledImage[] = data.images || [];
+        setCrawledImages(images);
+        // C방식: 전체 기본 선택 (opt-out)
+        if (images.length > 0) {
+          setSelectedImages(images.map((img) => img.url));
+        }
       }
     } catch (err) {
       console.error("Image crawl failed:", err);
@@ -565,6 +570,31 @@ export function BlogPublishFlow({
     setAutoInsertedImages([]);
 
     try {
+      // Vision 분석: 선택된 이미지가 있으면 콘텐츠 생성 전 분석 실행
+      let imageAnalyses: unknown[] | undefined;
+      if (selectedImages.length > 0) {
+        try {
+          const analyzeRes = await fetch("/api/ai/analyze-images", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              imageUrls: selectedImages,
+              placeName: brandInfo.name,
+              category: brandInfo.category,
+              placeId: brandAnalysis?.place_id || derivedPlaceId || undefined,
+            }),
+          });
+          if (analyzeRes.ok) {
+            const analyzeData = await analyzeRes.json();
+            if (analyzeData.analyses && analyzeData.analyses.length > 0) {
+              imageAnalyses = analyzeData.analyses;
+            }
+          }
+        } catch (err) {
+          console.error("Image analysis failed, continuing without:", err);
+        }
+      }
+
       const res = await fetch("/api/ai/generate-content", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -604,6 +634,7 @@ export function BlogPublishFlow({
           mainKeyword,
           subKeywords,
           imageUrls: selectedImages.length > 0 ? selectedImages : undefined,
+          imageAnalyses: imageAnalyses || undefined,
           title: editedTitle,
           addSchemaMarkup,
           styleRefs: styleRefTitles.length > 0 ? styleRefTitles : undefined,
@@ -2069,8 +2100,9 @@ function StepContentGeneration({
     };
   }, [isGenerating]);
 
-  // Estimated 60s for content generation
-  const estimatedSeconds = 60;
+  // 이미지 있으면 Vision 분석 시간 포함 80초, 없으면 60초
+  const hasImages = imageCount > 0;
+  const estimatedSeconds = hasImages ? 80 : 60;
   const progressPercent = isGenerating
     ? Math.min(Math.round((elapsed / estimatedSeconds) * 100), 95)
     : 0;
@@ -2080,15 +2112,25 @@ function StepContentGeneration({
     ? `${elapsedMin}분 ${elapsedSec}초`
     : `${elapsedSec}초`;
 
-  // 단계별 상태 메시지
-  const stageMessages = [
-    { threshold: 0, label: "브랜드 정보 분석 중..." },
-    { threshold: 8, label: "키워드 전략 수립 중..." },
-    { threshold: 18, label: "콘텐츠 구조 설계 중..." },
-    { threshold: 30, label: "원고 작성 중..." },
-    { threshold: 50, label: "SEO 최적화 적용 중..." },
-    { threshold: 70, label: "마무리 검수 중..." },
-  ];
+  // 단계별 상태 메시지 (이미지 있으면 분석 단계 추가)
+  const stageMessages = hasImages
+    ? [
+        { threshold: 0, label: "이미지 분석 중..." },
+        { threshold: 20, label: "브랜드 정보 분석 중..." },
+        { threshold: 28, label: "키워드 전략 수립 중..." },
+        { threshold: 38, label: "콘텐츠 구조 설계 중..." },
+        { threshold: 50, label: "원고 작성 중..." },
+        { threshold: 65, label: "SEO 최적화 적용 중..." },
+        { threshold: 78, label: "마무리 검수 중..." },
+      ]
+    : [
+        { threshold: 0, label: "브랜드 정보 분석 중..." },
+        { threshold: 8, label: "키워드 전략 수립 중..." },
+        { threshold: 18, label: "콘텐츠 구조 설계 중..." },
+        { threshold: 30, label: "원고 작성 중..." },
+        { threshold: 50, label: "SEO 최적화 적용 중..." },
+        { threshold: 70, label: "마무리 검수 중..." },
+      ];
   const currentStage = stageMessages
     .filter((s) => elapsed >= s.threshold)
     .pop()?.label || stageMessages[0].label;
