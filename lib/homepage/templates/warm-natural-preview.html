@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>별빛 글램핑</title>
+  <link href="https://unpkg.com/aos@2.3.1/dist/aos.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css">
+  <script src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            cream: '#fefcf9',
+            forest: '#4a7c59',
+            'forest-dark': '#3a6347',
+            warmbeige: '#f0ece4',
+            darkbg: '#2c2c2c',
+          },
+          fontFamily: {
+            serif: ['"Noto Serif KR"', 'serif'],
+            body: ['"Noto Sans KR"', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=Noto+Serif+KR:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Noto Sans KR', sans-serif; background: #fefcf9; color: #333; overflow-x: hidden; }
+    .font-serif { font-family: 'Noto Serif KR', serif; }
+    .room-card { transition: transform 0.3s ease, box-shadow 0.3s ease; }
+    .room-card:hover { transform: translateY(-6px); box-shadow: 0 16px 40px rgba(0,0,0,0.12); }
+    .gallery-item { position: relative; overflow: hidden; border-radius: 12px; }
+    .gallery-item img { transition: transform 0.5s ease; }
+    .gallery-item:hover img { transform: scale(1.08); }
+    .gallery-overlay {
+      position: absolute; inset: 0; background: rgba(0,0,0,0.35);
+      display: flex; align-items: center; justify-content: center;
+      opacity: 0; transition: opacity 0.3s ease; border-radius: 12px;
+    }
+    .gallery-item:hover .gallery-overlay { opacity: 1; }
+    .service-icon-card { transition: transform 0.3s ease; }
+    .service-icon-card:hover { transform: translateY(-4px); }
+    .form-input {
+      background: #ffffff; border: 1px solid #ddd5c9; border-radius: 10px;
+      padding: 14px 18px; font-size: 15px; width: 100%; color: #333;
+      transition: border-color 0.3s ease; outline: none;
+    }
+    .form-input:focus { border-color: #4a7c59; }
+    .scroll-hint { animation: bounce 2s infinite; }
+    @keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(10px); } }
+    ::-webkit-scrollbar { width: 8px; }
+    ::-webkit-scrollbar-track { background: #fefcf9; }
+    ::-webkit-scrollbar-thumb { background: #4a7c59; border-radius: 4px; }
+  </style>
+</head>
+<body>
+
+<!-- ========== 1. NAV ========== -->
+<nav class="waide-nav fixed top-0 left-0 w-full z-50 transition-all duration-300" style="background: transparent;">
+  <div class="max-w-7xl mx-auto px-6 lg:px-10 flex items-center justify-between h-20">
+    <a href="#" class="font-serif text-forest text-2xl font-bold">별빛 글램핑</a>
+    <ul class="hidden lg:flex items-center gap-8 text-sm font-medium">
+      <li><a href="#about" class="nav-link text-white hover:text-forest transition-colors">소개</a></li>
+      <li><a href="#rooms" class="nav-link text-white hover:text-forest transition-colors">객실</a></li>
+      <li><a href="#services" class="nav-link text-white hover:text-forest transition-colors">편의시설</a></li>
+      <li><a href="#gallery" class="nav-link text-white hover:text-forest transition-colors">갤러리</a></li>
+      <li><a href="#contact" class="nav-link text-white hover:text-forest transition-colors">오시는길</a></li>
+      <li><a href="#booking" class="nav-link text-white hover:text-forest transition-colors">예약</a></li>
+    </ul>
+    <div class="hidden lg:flex items-center gap-4">
+      <span class="nav-phone text-white text-sm">031-555-8820</span>
+      <a href="#booking" class="bg-forest text-white px-5 py-2.5 rounded-full text-sm font-medium hover:bg-forest-dark transition-colors">예약하기</a>
+    </div>
+    <button class="lg:hidden flex flex-col gap-1.5 p-2" aria-label="메뉴">
+      <span class="block w-6 h-0.5 bg-white nav-bar"></span>
+      <span class="block w-6 h-0.5 bg-white nav-bar"></span>
+      <span class="block w-6 h-0.5 bg-white nav-bar"></span>
+    </button>
+  </div>
+</nav>
+
+<!-- ========== 2. HERO ========== -->
+<section class="relative w-full h-screen overflow-hidden">
+  <div class="absolute inset-0">
+    <img src="https://images.unsplash.com/photo-1504280390367-361c6d9f38f4?w=1600&h=900&fit=crop" alt="Hero" class="w-full h-full object-cover">
+  </div>
+  <div class="absolute inset-0 bg-black/40"></div>
+  <div class="relative z-10 flex flex-col items-center justify-center h-full text-center px-6">
+    <span class="hero-eyebrow text-white/80 text-sm tracking-[0.3em] uppercase mb-4">자연 속 특별한 쉼터</span>
+    <h1 class="hero-title font-serif text-white text-5xl lg:text-7xl font-bold leading-tight mb-6 max-w-4xl">자연 속에서 찾는 완전한 휴식</h1>
+    <p class="hero-sub text-white/70 text-lg lg:text-xl mb-10 max-w-xl">도심을 벗어나 별빛 아래에서</p>
+    <div class="flex gap-4">
+      <a href="#booking" class="bg-forest text-white px-8 py-4 rounded-full text-sm font-medium hover:bg-forest-dark transition-colors">객실 예약</a>
+      <a href="#about" class="border border-white/50 text-white px-8 py-4 rounded-full text-sm font-medium hover:bg-white/10 transition-colors">둘러보기</a>
+    </div>
+  </div>
+  <div class="absolute bottom-8 left-1/2 -translate-x-1/2 scroll-hint">
+    <svg class="w-6 h-6 text-white/60" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"/></svg>
+  </div>
+</section>
+
+<!-- ========== 3. ABOUT ========== -->
+<section id="about" class="bg-cream py-24 px-6 lg:px-10">
+  <div class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+    <div class="overflow-hidden rounded-2xl" data-aos="fade-right">
+      <img src="https://images.unsplash.com/photo-1517823382935-51bfcb0ec6bc?w=1200&h=800&fit=crop" alt="About" class="w-full h-[500px] object-cover">
+    </div>
+    <div data-aos="fade-left">
+      <span class="text-forest text-sm tracking-[0.2em] uppercase font-medium">ABOUT US</span>
+      <h2 class="font-serif text-4xl lg:text-5xl text-gray-900 mt-3 mb-6">자연과 함께하는<br>특별한 공간</h2>
+      <p class="text-gray-600 text-base leading-relaxed mb-10">별빛 글램핑은 가평 청정 자연 속에 위치한 프리미엄 글램핑장입니다. 도심에서 1시간 거리, 울창한 숲과 맑은 계곡이 어우러진 곳에서 특별한 힐링을 경험하세요. 모든 사이트는 독립된 프라이빗 공간으로, 가족, 커플, 친구 모두에게 완벽한 자연 속 쉼터를 제공합니다.</p>
+      <div class="grid grid-cols-2 gap-6">
+        <div class="flex items-start gap-3">
+          <svg class="w-8 h-8 text-forest flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+          <div><h4 class="font-medium text-gray-900 mb-1">프라이빗 공간</h4><p class="text-sm text-gray-500">독립된 개별 사이트</p></div>
+        </div>
+        <div class="flex items-start gap-3">
+          <svg class="w-8 h-8 text-forest flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"/></svg>
+          <div><h4 class="font-medium text-gray-900 mb-1">청정 자연</h4><p class="text-sm text-gray-500">맑은 공기와 별빛</p></div>
+        </div>
+        <div class="flex items-start gap-3">
+          <svg class="w-8 h-8 text-forest flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z"/></svg>
+          <div><h4 class="font-medium text-gray-900 mb-1">바베큐 시설</h4><p class="text-sm text-gray-500">전용 그릴 제공</p></div>
+        </div>
+        <div class="flex items-start gap-3">
+          <svg class="w-8 h-8 text-forest flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/></svg>
+          <div><h4 class="font-medium text-gray-900 mb-1">힐링 프로그램</h4><p class="text-sm text-gray-500">요가, 명상, 숲 체험</p></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ========== 4. ROOMS SLIDER ========== -->
+<section id="rooms" class="bg-warmbeige py-24 px-6 lg:px-10">
+  <div class="max-w-7xl mx-auto">
+    <div class="text-center mb-16" data-aos="fade-up">
+      <span class="text-forest text-sm tracking-[0.2em] uppercase font-medium">ROOMS</span>
+      <h2 class="font-serif text-4xl lg:text-5xl text-gray-900 mt-3">객실 안내</h2>
+    </div>
+    <div class="rooms-swiper swiper" data-aos="fade-up">
+      <div class="swiper-wrapper">
+        <div class="swiper-slide">
+          <div class="room-card bg-white rounded-2xl overflow-hidden shadow-sm">
+            <div class="h-64 overflow-hidden"><img src="https://images.unsplash.com/photo-1618767689160-da57ef8cbc5b?w=800&h=600&fit=crop" alt="프리미엄 돔" class="w-full h-full object-cover"></div>
+            <div class="p-7">
+              <div class="flex items-center justify-between mb-3">
+                <h3 class="font-serif text-xl text-gray-900">프리미엄 돔</h3>
+                <span class="text-forest font-bold text-lg">350,000원/박</span>
+              </div>
+              <p class="text-gray-500 text-sm leading-relaxed mb-5">투명 돔 천장으로 별빛을 감상할 수 있는 럭셔리 글램핑. 킹사이즈 침대, 전용 화장실, 미니 키친 완비.</p>
+              <a href="#booking" class="inline-block border border-forest text-forest px-6 py-2.5 rounded-full text-sm font-medium hover:bg-forest hover:text-white transition-all">예약하기</a>
+            </div>
+          </div>
+        </div>
+        <div class="swiper-slide">
+          <div class="room-card bg-white rounded-2xl overflow-hidden shadow-sm">
+            <div class="h-64 overflow-hidden"><img src="https://images.unsplash.com/photo-1499696010180-025ef6e1a8f9?w=800&h=600&fit=crop" alt="숲속 카빈" class="w-full h-full object-cover"></div>
+            <div class="p-7">
+              <div class="flex items-center justify-between mb-3">
+                <h3 class="font-serif text-xl text-gray-900">숲속 카빈</h3>
+                <span class="text-forest font-bold text-lg">280,000원/박</span>
+              </div>
+              <p class="text-gray-500 text-sm leading-relaxed mb-5">아늑한 통나무 카빈에서 자연을 만끽하세요. 온돌 난방, 테라스 바베큐, 숲속 산책로 연결.</p>
+              <a href="#booking" class="inline-block border border-forest text-forest px-6 py-2.5 rounded-full text-sm font-medium hover:bg-forest hover:text-white transition-all">예약하기</a>
+            </div>
+          </div>
+        </div>
+        <div class="swiper-slide">
+          <div class="room-card bg-white rounded-2xl overflow-hidden shadow-sm">
+            <div class="h-64 overflow-hidden"><img src="https://images.unsplash.com/photo-1587061949409-02df41d5e562?w=800&h=600&fit=crop" alt="스타 버블" class="w-full h-full object-cover"></div>
+            <div class="p-7">
+              <div class="flex items-center justify-between mb-3">
+                <h3 class="font-serif text-xl text-gray-900">스타 버블</h3>
+                <span class="text-forest font-bold text-lg">420,000원/박</span>
+              </div>
+              <p class="text-gray-500 text-sm leading-relaxed mb-5">360도 투명 버블 텐트에서 은하수를 감상하세요. 프라이빗 야외 욕조, 전용 가든, 불멍 데크 포함.</p>
+              <a href="#booking" class="inline-block border border-forest text-forest px-6 py-2.5 rounded-full text-sm font-medium hover:bg-forest hover:text-white transition-all">예약하기</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ========== 5. SERVICES GRID ========== -->
+<section id="services" class="bg-cream py-24 px-6 lg:px-10">
+  <div class="max-w-7xl mx-auto">
+    <div class="text-center mb-16" data-aos="fade-up">
+      <span class="text-forest text-sm tracking-[0.2em] uppercase font-medium">AMENITIES</span>
+      <h2 class="font-serif text-4xl lg:text-5xl text-gray-900 mt-3">편의시설</h2>
+    </div>
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+      <div class="service-icon-card bg-white rounded-2xl p-8 text-center shadow-sm" data-aos="fade-up" data-aos-delay="0">
+        <div class="w-16 h-16 bg-forest/10 rounded-full flex items-center justify-center mx-auto mb-5">
+          <svg class="w-8 h-8 text-forest" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+        </div>
+        <h3 class="font-medium text-gray-900 text-lg mb-2">전용 바베큐</h3>
+        <p class="text-gray-500 text-sm">사이트별 전용 그릴과 테이블, 화로대 제공</p>
+      </div>
+      <div class="service-icon-card bg-white rounded-2xl p-8 text-center shadow-sm" data-aos="fade-up" data-aos-delay="100">
+        <div class="w-16 h-16 bg-forest/10 rounded-full flex items-center justify-center mx-auto mb-5">
+          <svg class="w-8 h-8 text-forest" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z"/></svg>
+        </div>
+        <h3 class="font-medium text-gray-900 text-lg mb-2">불멍 체험</h3>
+        <p class="text-gray-500 text-sm">모닥불 피워 놓고 별 보며 힐링하는 시간</p>
+      </div>
+      <div class="service-icon-card bg-white rounded-2xl p-8 text-center shadow-sm" data-aos="fade-up" data-aos-delay="200">
+        <div class="w-16 h-16 bg-forest/10 rounded-full flex items-center justify-center mx-auto mb-5">
+          <svg class="w-8 h-8 text-forest" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"/></svg>
+        </div>
+        <h3 class="font-medium text-gray-900 text-lg mb-2">별빛 관측</h3>
+        <p class="text-gray-500 text-sm">천체 망원경 대여와 별자리 가이드 프로그램</p>
+      </div>
+      <div class="service-icon-card bg-white rounded-2xl p-8 text-center shadow-sm" data-aos="fade-up" data-aos-delay="300">
+        <div class="w-16 h-16 bg-forest/10 rounded-full flex items-center justify-center mx-auto mb-5">
+          <svg class="w-8 h-8 text-forest" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+        </div>
+        <h3 class="font-medium text-gray-900 text-lg mb-2">수영장</h3>
+        <p class="text-gray-500 text-sm">여름 시즌 야외 인피니티 풀 무료 이용</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ========== 6. GALLERY MASONRY ========== -->
+<section id="gallery" class="bg-[#1a1a1a] py-24 px-6 lg:px-10">
+  <div class="max-w-7xl mx-auto">
+    <div class="text-center mb-16" data-aos="fade-up">
+      <span class="text-forest text-sm tracking-[0.2em] uppercase font-medium">GALLERY</span>
+      <h2 class="font-serif text-4xl lg:text-5xl text-white mt-3">포토 갤러리</h2>
+    </div>
+    <div class="grid grid-cols-2 lg:grid-cols-3 gap-4" data-aos="fade-up">
+      <div class="gallery-item row-span-2">
+        <img src="https://images.unsplash.com/photo-1534880606858-29571bb82b74?w=800&h=1000&fit=crop" alt="Gallery 1" class="w-full h-full object-cover rounded-xl">
+        <div class="gallery-overlay"><svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"/></svg></div>
+      </div>
+      <div class="gallery-item"><img src="https://images.unsplash.com/photo-1510312305653-8ed496efae75?w=800&h=600&fit=crop" alt="Gallery 2" class="w-full h-56 object-cover rounded-xl"><div class="gallery-overlay"><svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"/></svg></div></div>
+      <div class="gallery-item"><img src="https://images.unsplash.com/photo-1445019980597-93fa8acb246c?w=800&h=600&fit=crop" alt="Gallery 3" class="w-full h-56 object-cover rounded-xl"><div class="gallery-overlay"><svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"/></svg></div></div>
+      <div class="gallery-item"><img src="https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=800&h=600&fit=crop" alt="Gallery 4" class="w-full h-56 object-cover rounded-xl"><div class="gallery-overlay"><svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"/></svg></div></div>
+      <div class="gallery-item"><img src="https://images.unsplash.com/photo-1533873984035-25970ab07461?w=800&h=600&fit=crop" alt="Gallery 5" class="w-full h-56 object-cover rounded-xl"><div class="gallery-overlay"><svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"/></svg></div></div>
+      <div class="gallery-item"><img src="https://images.unsplash.com/photo-1414016642493-13b22f8c8e73?w=800&h=600&fit=crop" alt="Gallery 6" class="w-full h-56 object-cover rounded-xl"><div class="gallery-overlay"><svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"/></svg></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ========== 7. REVIEWS ========== -->
+<section class="bg-warmbeige py-24 px-6 lg:px-10">
+  <div class="max-w-7xl mx-auto">
+    <div class="text-center mb-16" data-aos="fade-up">
+      <span class="text-forest text-sm tracking-[0.2em] uppercase font-medium">REVIEWS</span>
+      <h2 class="font-serif text-4xl lg:text-5xl text-gray-900 mt-3">방문 후기</h2>
+    </div>
+    <div class="reviews-swiper swiper" data-aos="fade-up">
+      <div class="swiper-wrapper">
+        <div class="swiper-slide">
+          <div class="bg-white rounded-2xl p-10 text-center shadow-sm">
+            <div class="text-yellow-400 text-xl mb-4">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
+            <p class="text-gray-600 text-base leading-relaxed mb-6 italic">"아이들과 함께 방문했는데 정말 최고였어요! 돔 텐트에서 별을 보며 잠들었던 경험은 잊을 수 없을 거예요. 시설도 깔끔하고 직원분들도 친절하셨습니다."</p>
+            <span class="text-gray-400 text-sm">— 김민지 (가족여행)</span>
+          </div>
+        </div>
+        <div class="swiper-slide">
+          <div class="bg-white rounded-2xl p-10 text-center shadow-sm">
+            <div class="text-yellow-400 text-xl mb-4">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
+            <p class="text-gray-600 text-base leading-relaxed mb-6 italic">"커플 기념일로 스타 버블에 묵었는데 분위기가 환상적이었습니다. 프라이빗한 공간에서 바베큐하고 불멍하니 힐링 그 자체였어요."</p>
+            <span class="text-gray-400 text-sm">— 박준혁 (커플여행)</span>
+          </div>
+        </div>
+        <div class="swiper-slide">
+          <div class="bg-white rounded-2xl p-10 text-center shadow-sm">
+            <div class="text-yellow-400 text-xl mb-4">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
+            <p class="text-gray-600 text-base leading-relaxed mb-6 italic">"회사 워크숍으로 이용했는데 팀원들 모두 만족했습니다. 자연 속에서 회의하니 창의적인 아이디어가 많이 나왔어요. 재방문 예정입니다."</p>
+            <span class="text-gray-400 text-sm">— 이수진 (워크숍)</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ========== 8. BOOKING FORM ========== -->
+<section id="booking" class="bg-cream py-24 px-6 lg:px-10">
+  <div class="max-w-4xl mx-auto">
+    <div class="text-center mb-16" data-aos="fade-up">
+      <span class="text-forest text-sm tracking-[0.2em] uppercase font-medium">RESERVATION</span>
+      <h2 class="font-serif text-4xl lg:text-5xl text-gray-900 mt-3">예약 문의</h2>
+      <p class="text-gray-500 mt-4">아래 양식을 작성해 주시면 빠르게 안내드리겠습니다.</p>
+    </div>
+    <div class="bg-white rounded-3xl p-10 shadow-lg" data-aos="fade-up">
+      <form class="space-y-5">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div><label class="block text-gray-600 text-sm mb-2">체크인</label><input type="date" class="form-input"></div>
+          <div><label class="block text-gray-600 text-sm mb-2">체크아웃</label><input type="date" class="form-input"></div>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div><label class="block text-gray-600 text-sm mb-2">인원</label><select class="form-input text-gray-600"><option>2명</option><option>3명</option><option>4명</option><option>5명 이상</option></select></div>
+          <div><label class="block text-gray-600 text-sm mb-2">객실 선택</label><select class="form-input text-gray-600"><option>객실을 선택하세요</option><option>프리미엄 돔</option><option>숲속 카빈</option><option>스타 버블</option></select></div>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div><label class="block text-gray-600 text-sm mb-2">이름</label><input type="text" placeholder="이름을 입력하세요" class="form-input"></div>
+          <div><label class="block text-gray-600 text-sm mb-2">연락처</label><input type="tel" placeholder="010-0000-0000" class="form-input"></div>
+        </div>
+        <div class="flex items-start gap-3 pt-2">
+          <input type="checkbox" id="privacy" class="mt-1 w-4 h-4 accent-forest">
+          <label for="privacy" class="text-gray-400 text-sm">개인정보 수집 및 이용에 동의합니다.</label>
+        </div>
+        <button type="submit" class="w-full bg-forest text-white py-4 rounded-xl text-sm font-medium hover:bg-forest-dark transition-colors mt-2">예약 신청하기</button>
+      </form>
+    </div>
+  </div>
+</section>
+
+<!-- ========== 9. FOOTER ========== -->
+<footer id="contact" class="bg-darkbg py-16 px-6 lg:px-10">
+  <div class="max-w-7xl mx-auto">
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-10 mb-12">
+      <div>
+        <h3 class="font-serif text-forest text-2xl mb-4">별빛 글램핑</h3>
+        <p class="text-white/40 text-sm leading-relaxed">가평 청정 자연 속 프리미엄 글램핑. 도심에서 1시간 거리, 별빛 아래 특별한 휴식.</p>
+      </div>
+      <div>
+        <h4 class="text-white text-lg font-medium mb-4">연락처</h4>
+        <ul class="space-y-2 text-white/40 text-sm">
+          <li>031-555-8820</li>
+          <li>경기도 가평군 상면 축령로 123</li>
+          <li>체크인 15:00 / 체크아웃 11:00</li>
+        </ul>
+      </div>
+      <div>
+        <h4 class="text-white text-lg font-medium mb-4">찾아오는 길</h4>
+        <div class="bg-white/10 rounded-xl h-40 flex items-center justify-center">
+          <span class="text-white/30 text-sm">지도 영역</span>
+        </div>
+      </div>
+    </div>
+    <div class="border-t border-white/10 pt-8 text-center">
+      <p class="text-white/20 text-sm">© 2026 별빛 글램핑. All rights reserved. Powered by Waide.</p>
+    </div>
+  </div>
+</footer>
+
+<!-- ========== SCRIPTS ========== -->
+<script>
+  AOS.init({ duration: 800, once: true, offset: 100 });
+  gsap.registerPlugin(ScrollTrigger);
+  gsap.from(".hero-eyebrow", { opacity: 0, y: 30, duration: 1, ease: "power2.out", delay: 0.2 });
+  gsap.from(".hero-title", { opacity: 0, y: 60, duration: 1.5, ease: "power3.out", delay: 0.4 });
+  gsap.from(".hero-sub", { opacity: 0, y: 40, duration: 1.2, ease: "power2.out", delay: 0.7 });
+  window.addEventListener("scroll", () => {
+    const nav = document.querySelector(".waide-nav");
+    const links = document.querySelectorAll(".nav-link");
+    const phone = document.querySelector(".nav-phone");
+    const bars = document.querySelectorAll(".nav-bar");
+    if (window.scrollY > 50) {
+      nav.style.background = "#ffffff";
+      nav.style.boxShadow = "0 2px 20px rgba(0,0,0,0.08)";
+      links.forEach(l => { l.style.color = "#333"; });
+      if (phone) phone.style.color = "#333";
+      bars.forEach(b => { b.style.background = "#333"; });
+    } else {
+      nav.style.background = "transparent";
+      nav.style.boxShadow = "none";
+      links.forEach(l => { l.style.color = "rgba(255,255,255,0.9)"; });
+      if (phone) phone.style.color = "rgba(255,255,255,0.9)";
+      bars.forEach(b => { b.style.background = "#fff"; });
+    }
+  });
+  new Swiper(".rooms-swiper", {
+    slidesPerView: 2.5, spaceBetween: 24, centeredSlides: true, loop: true,
+    breakpoints: { 0: { slidesPerView: 1.1 }, 768: { slidesPerView: 1.8 }, 1024: { slidesPerView: 2.5 } }
+  });
+  new Swiper(".reviews-swiper", {
+    slidesPerView: 2, spaceBetween: 24, loop: true,
+    autoplay: { delay: 4000, disableOnInteraction: false },
+    breakpoints: { 0: { slidesPerView: 1 }, 768: { slidesPerView: 2 } }
+  });
+</script>
+</body>
+</html>
