@@ -990,7 +990,16 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
     - sanitizeReferenceText() 후처리 (REST/SKIN NEEDS REST/rest-clinic 등 레퍼런스 원본 텍스트 유출 방지)
     - 폼 라벨 고정값: {{FORM_NAME_LABEL}}="이름", {{FORM_PHONE_LABEL}}="연락처" (서비스명 오염 방지)
     - 블로그 플레이스홀더: {{BLOG_TITLE_N}} + [BLOG_TITLE_N] 이중 형식 지원
-  - tsc --noEmit 통과, E2E 17 PASS / 0 FAIL
+  - **Tailwind CSS + 크롭 기반 전환 (2026-03-20)**:
+    - screenshot-crawler.ts: 700px 크롭 캡처 추가 (captureCrops, MAX_CROPS=5, ScreenshotSet.crops)
+    - vision-to-html.ts: abi/screenshot-to-code 방법론 — Tailwind CSS 전용, custom CSS 금지
+    - Stage B: 크롭별 Vision 호출 (getTailwindSystemPrompt + buildCropUserPrompt, 2개씩 병렬)
+    - assembleTailwindHtml(): `<script src="https://cdn.tailwindcss.com">` + tailwind.config (brand colors/fonts)
+    - cleanCropOutput(): <style> 제거, 래퍼 태그 제거, 중복 Tailwind CDN 제거
+    - brand-injector.ts: replaceTailwindBgUrls() (bg-[url()] 임의값 → Unsplash 교체)
+    - brand-injector.ts: replaceFlagSlots() (data-img-slot="flag-*" → 국기 이모지 🇰🇷🇨🇳🇺🇸🇯🇵)
+    - test-screenshot-e2e.ts: Tailwind 검증 18항목 (CDN, tailwind.config, Tailwind 클래스, <style> 최소화, 크롭 캡처)
+  - tsc --noEmit 통과
 
 ### 설계 원칙
 
@@ -999,7 +1008,7 @@ status='accepted' + jobs INSERT (CONTENT_CREATE)
 3. **브랜드 페르소나 = 모든 후속 작업의 기반** — brand_personas 레코드가 CMO 전략 → COPYWRITER 톤앤매너 → QC 기준에 일관되게 적용.
 4. **홈페이지 = "생성 금지, 복제 후 교체만"** — AI가 HTML을 처음부터 생성하면 제네릭 템플릿이 됨. 레퍼런스 사이트 DOM을 Playwright로 완전 복제한 뒤, AI는 텍스트 교체 판단만 수행. CSS/구조는 절대 변경 금지.
 5. **홈페이지 컴포넌트 = "레퍼런스는 디자인 토큰 추출 전용, 출력은 100% Waide 컴포넌트"** — DOM 복제의 대안 경로. 레퍼런스 URL에서 색상/폰트/레이아웃 토큰만 추출하고, 출력 HTML은 Waide 소유 컴포넌트 16종으로 조합.
-6. **홈페이지 Screenshot-to-Code = "레퍼런스 URL의 HTML에는 절대 접근하지 않는다. 스크린샷만 인풋. 코드는 Vision AI가 100% 새로 생성."** — DOM 복제/컴포넌트 방식의 최신 대안. 스크린샷 캡처 → Vision AI 분석 → 새 HTML+CSS 생성 → 브랜드 정보 주입. 레퍼런스 코드 의존성 완전 제거.
+6. **홈페이지 Screenshot-to-Code = "레퍼런스 URL의 HTML에는 절대 접근하지 않는다. 스크린샷만 인풋. 코드는 Vision AI가 Tailwind CSS로 100% 새로 생성."** — abi/screenshot-to-code 방법론. 700px 크롭 캡처 → Vision AI → Tailwind CSS HTML → 브랜드 주입. Tailwind CDN + tailwind.config, custom CSS 금지.
 
 ### 홈페이지 생성 파이프라인 (DOM 복제 방식 — 기본)
 
@@ -1075,18 +1084,18 @@ captureScreenshots(url)              → Playwright 스크린샷만 캡처 (HTML
   ↓
 extractDesignTokensFromScreenshot()  → Vision AI로 색상/폰트 토큰 추출
   ↓
-generateHtmlFromScreenshots()        → Stage A: 구조 분석 (1회) + Stage B: 섹션별 생성 (N회, 3병렬)
+generateHtmlFromScreenshots()        → Stage A: 구조 분석 (1회) + Stage B: 크롭별 Tailwind 생성 (N회, 2병렬)
   ↓
-injectBrandInfo()                    → 의미 기반 플레이스홀더 → 브랜드 정보 + Unsplash 이미지 + 원본 텍스트 제거
+injectBrandInfo()                    → 의미 기반 플레이스홀더 + Unsplash 이미지 + bg-[url()] 교체 + 국기 이모지 + 원본 텍스트 제거
   ↓
 deploy                               → Vercel 배포 (기존 파이프라인 재사용)
 ```
 
 | 파일 | 역할 | 상태 |
 |------|------|------|
-| `generate/screenshot-crawler.ts` | Playwright 스크린샷 전용 캡처 (상단 1440×900 + 중간 1440×2700) | 활성 |
-| `generate/vision-to-html.ts` | Stage A (구조 분석 JSON) + Stage B (섹션별 HTML 생성, 3병렬) + 기본 blog/footer 자동 추가 | 활성 |
-| `generate/brand-injector.ts` | 의미 기반 플레이스홀더 교체 + data-img-slot → Unsplash + 원본 텍스트 sanitize | 활성 |
+| `generate/screenshot-crawler.ts` | Playwright 스크린샷 캡처 (상단 1440×900 + 중간 1440×2700 + 700px 크롭 최대 5개) | 활성 |
+| `generate/vision-to-html.ts` | Stage A (구조 분석 JSON) + Stage B (크롭별 Tailwind HTML 생성, 2병렬) + Tailwind CDN + tailwind.config | 활성 |
+| `generate/brand-injector.ts` | 의미 기반 플레이스홀더 + data-img-slot → Unsplash + bg-[url()] 교체 + 국기 이모지 + sanitize | 활성 |
 | `generate/homepage-screenshot-generator.ts` | Screenshot-to-Code 오케스트레이터 (HomepageScreenshotGenerator) | 활성 |
 
 ### 에이전트 프롬프트 목록 (agent_prompts 테이블)
