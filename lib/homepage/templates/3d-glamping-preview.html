@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>별빛글램핑 - 3D 홈페이지</title>
+    <!-- AOS / Swiper / Tailwind CDN -->
+    <link href="https://unpkg.com/aos@2.3.1/dist/aos.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              cream: '#fefcf9',
+              forest: '#4a7c59',
+              'forest-dark': '#3a6347',
+              warmbeige: '#f0ece4',
+              darkbg: '#2c2c2c',
+            },
+            fontFamily: {
+              serif: ['"Noto Serif KR"', 'serif'],
+              body: ['"Noto Sans KR"', 'sans-serif'],
+            }
+          }
+        }
+      }
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=Noto+Serif+KR:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        /* === 3D Hero === */
+        body { margin: 0; overflow-x: hidden; background-color: #050510; font-family: 'Noto Sans KR', sans-serif; }
+        .font-serif { font-family: 'Noto Serif KR', serif; }
+        canvas { display: block; }
+        #hero-3d { position: relative; width: 100%; height: 100vh; overflow: hidden; }
+        #ui-layer {
+            position: absolute; top: 0; left: 0;
+            width: 100%; height: 100vh;
+            pointer-events: none;
+            display: flex; flex-direction: column;
+            justify-content: space-between;
+            padding: 50px; box-sizing: border-box;
+            color: white; text-shadow: 0 0 10px rgba(0,0,0,0.5);
+        }
+        .header { pointer-events: auto; }
+        .header h1 { font-size: 3rem; margin: 0; letter-spacing: 5px; font-weight: 300; }
+        .header p { font-size: 1.2rem; opacity: 0.8; }
+        .footer-3d { pointer-events: auto; display: flex; justify-content: space-between; align-items: flex-end; }
+        .contact { font-size: 1.1rem; line-height: 1.6; }
+        .btn-reserve {
+            background: rgba(255,255,255,0.2); border: 1px solid white;
+            color: white; padding: 15px 40px; cursor: pointer;
+            backdrop-filter: blur(5px); transition: 0.3s; text-decoration: none;
+        }
+        .btn-reserve:hover { background: white; color: #050510; }
+        #loader {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: #050510; display: flex; justify-content: center;
+            align-items: center; color: white; z-index: 100;
+        }
+
+        /* === 스크롤 힌트 === */
+        @keyframes bounce {
+          0%,100%{transform:translateX(-50%) translateY(0)}
+          50%{transform:translateX(-50%) translateY(8px)}
+        }
+
+        /* === 하단 섹션 CSS === */
+        .room-card { transition: transform 0.3s ease, box-shadow 0.3s ease; }
+        .room-card:hover { transform: translateY(-6px); box-shadow: 0 16px 40px rgba(0,0,0,0.12); }
+
+        .gallery-item { position: relative; overflow: hidden; border-radius: 12px; }
+        .gallery-item img { transition: transform 0.5s ease; }
+        .gallery-item:hover img { transform: scale(1.08); }
+        .gallery-overlay {
+          position: absolute; inset: 0; background: rgba(0,0,0,0.35);
+          display: flex; align-items: center; justify-content: center;
+          opacity: 0; transition: opacity 0.3s ease; border-radius: 12px;
+        }
+        .gallery-item:hover .gallery-overlay { opacity: 1; }
+
+        .service-icon-card { transition: transform 0.3s ease; }
+        .service-icon-card:hover { transform: translateY(-4px); }
+
+        .form-input {
+          background: #ffffff; border: 1px solid #ddd5c9; border-radius: 10px;
+          padding: 14px 18px; font-size: 15px; width: 100%; color: #333;
+          transition: border-color 0.3s ease; outline: none;
+        }
+        .form-input:focus { border-color: #4a7c59; }
+
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #fefcf9; }
+        ::-webkit-scrollbar-thumb { background: #4a7c59; border-radius: 4px; }
+    </style>
+</head>
+<body>
+    <!-- ========== 3D HERO SECTION ========== -->
+    <div id="loader">별빛을 불러오는 중...</div>
+    <div id="hero-3d">
+        <div id="ui-layer">
+            <div class="header">
+                <h1>별빛글램핑</h1>
+                <p>쏟아지는 별빛 아래, 당신만의 휴식</p>
+            </div>
+            <div class="footer-3d">
+                <div class="contact">
+                    TEL: 010-1234-5678<br>
+                    ADDRESS: 강원도 홍천군 내면
+                </div>
+                <a href="#booking" class="btn-reserve">실시간 예약하기</a>
+            </div>
+            <div style="position:absolute;bottom:30px;left:50%;transform:translateX(-50%);color:white;opacity:0.7;font-size:0.9rem;animation:bounce 2s infinite;pointer-events:none;">
+              ↓ 스크롤하여 더 보기
+            </div>
+        </div>
+    </div>
+
+    <!-- ========== 3D Three.js Module ========== -->
+    <script type="importmap">
+        { "imports": {
+            "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+        }}
+    </script>
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        let scene, camera, renderer, controls, clock;
+        let stars, fireLight;
+        const heroEl = document.getElementById('hero-3d');
+        init(); animate();
+        function init() {
+            clock = new THREE.Clock();
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x050510);
+            scene.fog = new THREE.FogExp2(0x050510, 0.05);
+            camera = new THREE.PerspectiveCamera(75, heroEl.clientWidth/heroEl.clientHeight, 0.1, 1000);
+            camera.position.set(8, 5, 15);
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(heroEl.clientWidth, heroEl.clientHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            heroEl.appendChild(renderer.domElement);
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true; controls.autoRotate = true; controls.autoRotateSpeed = 0.5;
+            const ambientLight = new THREE.AmbientLight(0x404040, 0.5);
+            scene.add(ambientLight);
+            fireLight = new THREE.PointLight(0xff6600, 2, 20);
+            fireLight.position.set(0, 0.5, 0);
+            scene.add(fireLight);
+            const groundGeo = new THREE.PlaneGeometry(100, 100);
+            const groundMat = new THREE.MeshStandardMaterial({ color: 0x1a2a1a });
+            const ground = new THREE.Mesh(groundGeo, groundMat);
+            ground.rotation.x = -Math.PI / 2;
+            scene.add(ground);
+            createTent(0,0,0); createTent(-7,0,-5); createTent(7,0,-5);
+            for(let i=0;i<20;i++) createTree(Math.random()*40-20, Math.random()*40-20);
+            const starGeo = new THREE.BufferGeometry();
+            const starCount = 3000;
+            const posArray = new Float32Array(starCount * 3);
+            for(let i=0;i<starCount*3;i++) posArray[i] = (Math.random()-0.5)*100;
+            starGeo.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
+            const starMat = new THREE.PointsMaterial({ size: 0.05, color: 0xffffff });
+            stars = new THREE.Points(starGeo, starMat);
+            scene.add(stars);
+            document.getElementById('loader').style.display = 'none';
+            window.addEventListener('resize', onWindowResize);
+        }
+        function createTent(x,y,z) {
+            const group = new THREE.Group();
+            const geo = new THREE.ConeGeometry(3, 4, 4);
+            const mat = new THREE.MeshStandardMaterial({ color: 0xd2b48c });
+            const tent = new THREE.Mesh(geo, mat);
+            tent.position.y = 2; group.add(tent);
+            const doorGeo = new THREE.PlaneGeometry(1, 1.5);
+            const doorMat = new THREE.MeshBasicMaterial({ color: 0x332211 });
+            const door = new THREE.Mesh(doorGeo, doorMat);
+            door.position.set(0, 0.76, 1.51); group.add(door);
+            group.position.set(x,y,z); scene.add(group);
+        }
+        function createTree(x,z) {
+            const group = new THREE.Group();
+            const trunkGeo = new THREE.CylinderGeometry(0.2, 0.2, 1);
+            const trunkMat = new THREE.MeshStandardMaterial({ color: 0x4b3621 });
+            const trunk = new THREE.Mesh(trunkGeo, trunkMat);
+            const leaveGeo = new THREE.ConeGeometry(1.5, 4, 8);
+            const leaveMat = new THREE.MeshStandardMaterial({ color: 0x0b240b });
+            const leaves = new THREE.Mesh(leaveGeo, leaveMat);
+            leaves.position.y = 2.5;
+            group.add(trunk); group.add(leaves);
+            group.position.set(x, 0.5, z); scene.add(group);
+        }
+        function onWindowResize() {
+            camera.aspect = heroEl.clientWidth/heroEl.clientHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(heroEl.clientWidth, heroEl.clientHeight);
+        }
+        function animate() {
+            requestAnimationFrame(animate);
+            const t = clock.getElapsedTime();
+            fireLight.intensity = 2 + Math.sin(t * 10) * 0.5;
+            stars.rotation.y += 0.0005;
+            controls.update();
+            renderer.render(scene, camera);
+        }
+    </script>
+
+<!-- ========== 4. ROOMS SLIDER ========== -->
+<section id="rooms" class="bg-warmbeige py-24 px-6 lg:px-10">
+  <div class="max-w-7xl mx-auto">
+    <div class="text-center mb-16" data-aos="fade-up">
+      <span class="text-forest text-sm tracking-[0.2em] uppercase font-medium">ROOMS</span>
+      <h2 class="font-serif text-4xl lg:text-5xl text-gray-900 mt-3">객실 안내</h2>
+    </div>
+    <div class="rooms-swiper swiper" data-aos="fade-up">
+      <div class="swiper-wrapper">
+        <div class="swiper-slide">
+          <div class="room-card bg-white rounded-2xl overflow-hidden shadow-sm">
+            <div class="h-64 overflow-hidden"><img src="https://images.unsplash.com/photo-1504280390367-361c6d9f38f4?w=800&h=600&fit=crop" alt="Room 1" class="w-full h-full object-cover"></div>
+            <div class="p-7">
+              <div class="flex items-center justify-between mb-3">
+                <h3 class="font-serif text-xl text-gray-900">프리미엄 돔글램핑</h3>
+                <span class="text-forest font-bold text-lg">350,000원/박</span>
+              </div>
+              <p class="text-gray-500 text-sm leading-relaxed mb-5">쏟아지는 별빛을 침대에서 그대로 감상</p>
+              <a href="#booking" class="inline-block border border-forest text-forest px-6 py-2.5 rounded-full text-sm font-medium hover:bg-forest hover:text-white transition-all">예약하기</a>
+            </div>
+          </div>
+        </div>
+        <div class="swiper-slide">
+          <div class="room-card bg-white rounded-2xl overflow-hidden shadow-sm">
+            <div class="h-64 overflow-hidden"><img src="https://images.unsplash.com/photo-1499696010180-025ef6e1a8f9?w=800&h=600&fit=crop" alt="Room 2" class="w-full h-full object-cover"></div>
+            <div class="p-7">
+              <div class="flex items-center justify-between mb-3">
+                <h3 class="font-serif text-xl text-gray-900">숲속 카빈하우스</h3>
+                <span class="text-forest font-bold text-lg">280,000원/박</span>
+              </div>
+              <p class="text-gray-500 text-sm leading-relaxed mb-5">울창한 숲 속 아늑한 독채</p>
+              <a href="#booking" class="inline-block border border-forest text-forest px-6 py-2.5 rounded-full text-sm font-medium hover:bg-forest hover:text-white transition-all">예약하기</a>
+            </div>
+          </div>
+        </div>
+        <div class="swiper-slide">
+          <div class="room-card bg-white rounded-2xl overflow-hidden shadow-sm">
+            <div class="h-64 overflow-hidden"><img src="https://images.unsplash.com/photo-1510312305653-8ed496efae75?w=800&h=600&fit=crop" alt="Room 3" class="w-full h-full object-cover"></div>
+            <div class="p-7">
+              <div class="flex items-center justify-between mb-3">
+                <h3 class="font-serif text-xl text-gray-900">스타 버블텐트</h3>
+                <span class="text-forest font-bold text-lg">420,000원/박</span>
+              </div>
+              <p class="text-gray-500 text-sm leading-relaxed mb-5">투명 돔에서 별을 보며 잠드는 경험</p>
+              <a href="#booking" class="inline-block border border-forest text-forest px-6 py-2.5 rounded-full text-sm font-medium hover:bg-forest hover:text-white transition-all">예약하기</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ========== 5. SERVICES GRID ========== -->
+<section id="services" class="bg-cream py-24 px-6 lg:px-10">
+  <div class="max-w-7xl mx-auto">
+    <div class="text-center mb-16" data-aos="fade-up">
+      <span class="text-forest text-sm tracking-[0.2em] uppercase font-medium">AMENITIES</span>
+      <h2 class="font-serif text-4xl lg:text-5xl text-gray-900 mt-3">편의시설</h2>
+    </div>
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+      <div class="service-icon-card bg-white rounded-2xl p-8 text-center shadow-sm" data-aos="fade-up" data-aos-delay="0">
+        <div class="w-16 h-16 bg-forest/10 rounded-full flex items-center justify-center mx-auto mb-5">
+          <svg class="w-8 h-8 text-forest" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+        </div>
+        <h3 class="font-medium text-gray-900 text-lg mb-2">바베큐 세트</h3>
+        <p class="text-gray-500 text-sm">숯불 바베큐 풀세트 제공</p>
+      </div>
+      <div class="service-icon-card bg-white rounded-2xl p-8 text-center shadow-sm" data-aos="fade-up" data-aos-delay="100">
+        <div class="w-16 h-16 bg-forest/10 rounded-full flex items-center justify-center mx-auto mb-5">
+          <svg class="w-8 h-8 text-forest" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z"/></svg>
+        </div>
+        <h3 class="font-medium text-gray-900 text-lg mb-2">조식 제공</h3>
+        <p class="text-gray-500 text-sm">건강한 아침 도시락</p>
+      </div>
+      <div class="service-icon-card bg-white rounded-2xl p-8 text-center shadow-sm" data-aos="fade-up" data-aos-delay="200">
+        <div class="w-16 h-16 bg-forest/10 rounded-full flex items-center justify-center mx-auto mb-5">
+          <svg class="w-8 h-8 text-forest" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"/></svg>
+        </div>
+        <h3 class="font-medium text-gray-900 text-lg mb-2">캠프파이어</h3>
+        <p class="text-gray-500 text-sm">모닥불 체험 키트</p>
+      </div>
+      <div class="service-icon-card bg-white rounded-2xl p-8 text-center shadow-sm" data-aos="fade-up" data-aos-delay="300">
+        <div class="w-16 h-16 bg-forest/10 rounded-full flex items-center justify-center mx-auto mb-5">
+          <svg class="w-8 h-8 text-forest" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+        </div>
+        <h3 class="font-medium text-gray-900 text-lg mb-2">반려동물 동반</h3>
+        <p class="text-gray-500 text-sm">소형견 동반 가능 객실</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ========== 6. GALLERY MASONRY ========== -->
+<section id="gallery" class="bg-[#1a1a1a] py-24 px-6 lg:px-10">
+  <div class="max-w-7xl mx-auto">
+    <div class="text-center mb-16" data-aos="fade-up">
+      <span class="text-forest text-sm tracking-[0.2em] uppercase font-medium">GALLERY</span>
+      <h2 class="font-serif text-4xl lg:text-5xl text-white mt-3">포토 갤러리</h2>
+    </div>
+    <div class="grid grid-cols-2 lg:grid-cols-3 gap-4" data-aos="fade-up">
+      <div class="gallery-item row-span-2">
+        <img src="https://images.unsplash.com/photo-1504280390367-361c6d9f38f4?w=800&h=1200&fit=crop" alt="Gallery 1" class="w-full h-full object-cover rounded-xl">
+        <div class="gallery-overlay"><svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"/></svg></div>
+      </div>
+      <div class="gallery-item">
+        <img src="https://images.unsplash.com/photo-1517824806704-9040b037703b?w=800&h=600&fit=crop" alt="Gallery 2" class="w-full h-56 object-cover rounded-xl">
+        <div class="gallery-overlay"><svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"/></svg></div>
+      </div>
+      <div class="gallery-item">
+        <img src="https://images.unsplash.com/photo-1478131143081-80f7f84ca84d?w=800&h=600&fit=crop" alt="Gallery 3" class="w-full h-56 object-cover rounded-xl">
+        <div class="gallery-overlay"><svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"/></svg></div>
+      </div>
+      <div class="gallery-item">
+        <img src="https://images.unsplash.com/photo-1445308394109-4ec2920981b1?w=800&h=600&fit=crop" alt="Gallery 4" class="w-full h-56 object-cover rounded-xl">
+        <div class="gallery-overlay"><svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"/></svg></div>
+      </div>
+      <div class="gallery-item">
+        <img src="https://images.unsplash.com/photo-1510672981848-a1c4f1cb5ccf?w=800&h=600&fit=crop" alt="Gallery 5" class="w-full h-56 object-cover rounded-xl">
+        <div class="gallery-overlay"><svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"/></svg></div>
+      </div>
+      <div class="gallery-item">
+        <img src="https://images.unsplash.com/photo-1537905569824-f89f14cceb68?w=800&h=600&fit=crop" alt="Gallery 6" class="w-full h-56 object-cover rounded-xl">
+        <div class="gallery-overlay"><svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"/></svg></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ========== 7. REVIEWS ========== -->
+<section class="bg-warmbeige py-24 px-6 lg:px-10">
+  <div class="max-w-7xl mx-auto">
+    <div class="text-center mb-16" data-aos="fade-up">
+      <span class="text-forest text-sm tracking-[0.2em] uppercase font-medium">REVIEWS</span>
+      <h2 class="font-serif text-4xl lg:text-5xl text-gray-900 mt-3">방문 후기</h2>
+    </div>
+    <div class="reviews-swiper swiper" data-aos="fade-up">
+      <div class="swiper-wrapper">
+        <div class="swiper-slide">
+          <div class="bg-white rounded-2xl p-10 text-center shadow-sm">
+            <div class="text-yellow-400 text-xl mb-4">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
+            <p class="text-gray-600 text-base leading-relaxed mb-6 italic">"별이 이렇게 가까운 곳은 처음이었어요. 다음에도 꼭 오고 싶습니다."</p>
+            <span class="text-gray-400 text-sm">— 서울 이○○ 가족</span>
+          </div>
+        </div>
+        <div class="swiper-slide">
+          <div class="bg-white rounded-2xl p-10 text-center shadow-sm">
+            <div class="text-yellow-400 text-xl mb-4">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
+            <p class="text-gray-600 text-base leading-relaxed mb-6 italic">"아이들이 너무 좋아했고 시설도 청결해서 만족스러웠습니다."</p>
+            <span class="text-gray-400 text-sm">— 경기도 가족 여행객</span>
+          </div>
+        </div>
+        <div class="swiper-slide">
+          <div class="bg-white rounded-2xl p-10 text-center shadow-sm">
+            <div class="text-yellow-400 text-xl mb-4">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
+            <p class="text-gray-600 text-base leading-relaxed mb-6 italic">"커플 여행으로 왔는데 분위기가 최고예요. 강력 추천합니다!"</p>
+            <span class="text-gray-400 text-sm">— 서울 커플 방문객</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ========== 8. BOOKING FORM ========== -->
+<section id="booking" class="bg-cream py-24 px-6 lg:px-10">
+  <div class="max-w-4xl mx-auto">
+    <div class="text-center mb-16" data-aos="fade-up">
+      <span class="text-forest text-sm tracking-[0.2em] uppercase font-medium">RESERVATION</span>
+      <h2 class="font-serif text-4xl lg:text-5xl text-gray-900 mt-3">예약 문의</h2>
+      <p class="text-gray-500 mt-4">아래 양식을 작성해 주시면 빠르게 안내드리겠습니다.</p>
+    </div>
+    <div class="bg-white rounded-3xl p-10 shadow-lg" data-aos="fade-up">
+      <form class="space-y-5">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div>
+            <label class="block text-gray-600 text-sm mb-2">체크인</label>
+            <input type="date" class="form-input">
+          </div>
+          <div>
+            <label class="block text-gray-600 text-sm mb-2">체크아웃</label>
+            <input type="date" class="form-input">
+          </div>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div>
+            <label class="block text-gray-600 text-sm mb-2">인원</label>
+            <select class="form-input text-gray-600">
+              <option>2명</option>
+              <option>3명</option>
+              <option>4명</option>
+              <option>5명 이상</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-gray-600 text-sm mb-2">객실 선택</label>
+            <select class="form-input text-gray-600">
+              <option>객실을 선택하세요</option>
+              <option>프리미엄 돔글램핑</option>
+              <option>숲속 카빈하우스</option>
+              <option>스타 버블텐트</option>
+            </select>
+          </div>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div>
+            <label class="block text-gray-600 text-sm mb-2">이름</label>
+            <input type="text" placeholder="이름을 입력하세요" class="form-input">
+          </div>
+          <div>
+            <label class="block text-gray-600 text-sm mb-2">연락처</label>
+            <input type="tel" placeholder="010-0000-0000" class="form-input">
+          </div>
+        </div>
+        <div class="flex items-start gap-3 pt-2">
+          <input type="checkbox" id="privacy" class="mt-1 w-4 h-4 accent-forest">
+          <label for="privacy" class="text-gray-400 text-sm">개인정보 수집 및 이용에 동의합니다.</label>
+        </div>
+        <button type="submit" class="w-full bg-forest text-white py-4 rounded-xl text-sm font-medium hover:bg-forest-dark transition-colors mt-2">예약 신청하기</button>
+      </form>
+    </div>
+  </div>
+</section>
+
+<!-- ========== 9. FOOTER ========== -->
+<footer id="contact" class="bg-darkbg py-16 px-6 lg:px-10">
+  <div class="max-w-7xl mx-auto">
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-10 mb-12">
+      <div>
+        <h3 class="font-serif text-forest text-2xl mb-4">별빛글램핑</h3>
+        <p class="text-white/40 text-sm leading-relaxed">자연 속에서 만나는 특별한 하룻밤</p>
+      </div>
+      <div>
+        <h4 class="text-white text-lg font-medium mb-4">연락처</h4>
+        <ul class="space-y-2 text-white/40 text-sm">
+          <li>010-1234-5678</li>
+          <li>강원도 홍천군 내면</li>
+          <li>연중무휴</li>
+        </ul>
+      </div>
+      <div>
+        <h4 class="text-white text-lg font-medium mb-4">찾아오는 길</h4>
+        <div class="bg-white/10 rounded-xl h-40 flex items-center justify-center">
+          <span class="text-white/30 text-sm">지도 영역</span>
+        </div>
+      </div>
+    </div>
+    <div class="border-t border-white/10 pt-8 text-center">
+      <p class="text-white/20 text-sm">&copy; 2026 별빛글램핑. All rights reserved. Powered by Waide.</p>
+    </div>
+  </div>
+</footer>
+
+<!-- ========== SCRIPTS ========== -->
+<script src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
+<script>
+  AOS.init({ duration: 800, once: true, offset: 100 });
+  new Swiper(".rooms-swiper", {
+    slidesPerView: 2.5, centeredSlides: true, spaceBetween: 20,
+    loop: true, autoplay: { delay: 3000 },
+    breakpoints: { 0: { slidesPerView: 1.1 }, 768: { slidesPerView: 1.8 }, 1024: { slidesPerView: 2.5 } }
+  });
+  new Swiper(".reviews-swiper", {
+    slidesPerView: 1, spaceBetween: 20,
+    loop: true, autoplay: { delay: 4000 },
+    breakpoints: { 0: { slidesPerView: 1 }, 768: { slidesPerView: 2 } }
+  });
+</script>
+
+</body>
+</html>
