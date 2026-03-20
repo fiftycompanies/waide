@@ -26,6 +26,7 @@
 import * as cheerio from "cheerio";
 import type { BrandInfo, PersonaInfo } from "./content-mapper";
 import { getUnsplashImages, type UnsplashImageSet } from "./unsplash-images";
+import type { TemplateSlotContent } from "./brand-content-generator";
 
 // ── 메인 함수 ─────────────────────────────────────────────────────────────────
 
@@ -796,6 +797,43 @@ function escAttr(str: string): string {
     .replace(/"/g, "&quot;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
+}
+
+// ── 템플릿 기반 슬롯 주입 (신규) ─────────────────────────────────────────────
+
+/**
+ * 템플릿 HTML의 {{SLOT}} 플레이스홀더를 슬롯 콘텐츠로 교체한다.
+ *
+ * 기존 injectBrandInfo()와 독립적으로 동작.
+ * 기존 함수는 Vision AI 생성 HTML 전용,
+ * 이 함수는 사전 제작 템플릿(dark-luxury, warm-natural, light-clean) 전용.
+ *
+ * @param templateHtml  템플릿 원본 HTML ({{SLOT}} 포함)
+ * @param slotContent   슬롯명→값 매핑 (brand-content-generator.ts가 생성)
+ * @param brandInfo     브랜드 기본 정보 (메타 태그용)
+ * @param persona       페르소나 정보 (메타 태그용)
+ */
+export function injectToTemplate(
+  templateHtml: string,
+  slotContent: TemplateSlotContent,
+  brandInfo: BrandInfo,
+  persona: PersonaInfo,
+): string {
+  let result = templateHtml;
+
+  // 1. 모든 {{SLOT}} 플레이스홀더를 슬롯 콘텐츠로 교체
+  for (const [key, value] of Object.entries(slotContent)) {
+    const pattern = new RegExp(`\\{\\{${key}\\}\\}`, "g");
+    result = result.replace(pattern, escHtml(value));
+  }
+
+  // 2. 교체되지 않은 잔여 {{SLOT}} 정리 (빈 문자열로)
+  result = result.replace(/\{\{[A-Z_]+[0-9]*\}\}/g, "");
+
+  // 3. 메타 태그 교체
+  result = replaceMetaTags(result, brandInfo, persona);
+
+  return result;
 }
 
 // ── Hero 내부 Nav flex 컨테이너 자동 복구 ─────────────────────────────────────

@@ -23,6 +23,12 @@ import { buildReplacementMap, type BrandInfo, type PersonaInfo } from "./content
 import { replaceImages } from "./image-replacer";
 import { applyPatches } from "./html-patcher";
 
+// 템플릿 기반 파이프라인 모듈
+import { generateBrandContent, type TemplateName } from "./brand-content-generator";
+import { injectToTemplate } from "./brand-injector";
+import * as fs from "fs";
+import * as path from "path";
+
 // ── Types ───────────────────────────────────────────────────────────────────
 
 export interface GenerateInput {
@@ -31,6 +37,8 @@ export interface GenerateInput {
   /** @deprecated referenceUrls 사용 권장 */
   referenceUrl?: string;
   brandHomepageUrl?: string;
+  /** 템플릿 기반 생성 시 사용 (dark-luxury, warm-natural, light-clean) */
+  templateName?: TemplateName;
 }
 
 export type GenerateStep =
@@ -378,6 +386,158 @@ export class HomepageGenerator {
     return {
       deploymentUrl: result.deploymentUrl,
       subdomain: result.subdomain,
+    };
+  }
+
+  // ── 템플릿 기반 홈페이지 생성 ─────────────────────────────────────────────
+
+  /**
+   * 사전 제작 HTML 템플릿에 브랜드 데이터를 주입하여 홈페이지를 생성한다.
+   * 기존 DOM 복제 방식(generate)과 독립적으로 동작.
+   *
+   * 파이프라인:
+   * 1. 브랜드 데이터 로드
+   * 2. 템플릿 HTML 파일 읽기
+   * 3. Claude API → 슬롯 콘텐츠 생성
+   * 4. 슬롯 주입
+   * 5. DB 저장 + 블로그 메뉴 + 배포
+   */
+  async generateFromTemplate(input: GenerateInput): Promise<GenerateResult> {
+    const templateName = input.templateName;
+    if (!templateName) {
+      throw new Error("templateName이 필요합니다.");
+    }
+
+    // ── Step 1: 템플릿 HTML 로드 ──────────────────────────────────────────
+    this.emit("reference_crawl", `${templateName} 템플릿을 로드하고 있습니다...`, 10);
+
+    const templatePath = path.join(
+      process.cwd(),
+      "lib",
+      "homepage",
+      "templates",
+      `${templateName}.html`
+    );
+
+    let templateHtml: string;
+    try {
+      templateHtml = fs.readFileSync(templatePath, "utf-8");
+      console.log(`[HomepageGenerator] 템플릿 로드 완료: ${templateName} (${Math.round(templateHtml.length / 1024)}KB)`);
+    } catch {
+      throw new Error(`템플릿 파일을 찾을 수 없습니다: ${templateName}.html`);
+    }
+
+    // ── Step 2: 브랜드 데이터 로딩 ────────────────────────────────────────
+    this.emit("brand_data_load", "브랜드 분석 자료를 불러오고 있습니다...", 25);
+    const brandAnalysis = await getBrandAnalysis(input.clientId);
+    const brandInfo = await this.loadBrandInfo(input.clientId);
+
+    const clientName = (brandInfo.name as string) || (brandInfo.company_name as string) || "업체";
+    const industry = this.resolveIndustry(brandInfo, brandAnalysis);
+    const persona = brandInfo.persona as Record<string, unknown> | null;
+
+    const mappedBrandInfo: BrandInfo = {
+      name: clientName,
+      industry,
+      phone: (brandInfo.contact_phone as string) || (brandInfo.phone as string) || null,
+      address: (brandInfo.address as string) || null,
+      services: this.extractServices(persona, brandAnalysis),
+      keywords: this.extractKeywords(persona, brandAnalysis),
+      tone: (persona?.tone as string) || null,
+    };
+
+    const mappedPersona: PersonaInfo = {
+      usp: (persona?.usp as string) || null,
+      target_customer: (persona?.target_customer as string) || null,
+      tagline: (persona?.one_liner as string) || null,
+      one_liner: (persona?.one_liner as string) || null,
+    };
+
+    // ── Step 3: 슬롯 콘텐츠 생성 (Claude API) ────────────────────────────
+    this.emit("content_generate", "AI가 홈페이지 콘텐츠를 생성하고 있습니다...", 40);
+    const slotContent = await generateBrandContent(
+      mappedBrandInfo,
+      mappedPersona,
+      templateName,
+      industry,
+      this.anthropicApiKey,
+    );
+
+    console.log(`[HomepageGenerator] 슬롯 콘텐츠 생성 완료: ${Object.keys(slotContent).length}개 슬롯`);
+
+    // ── Step 4: 템플릿에 슬롯 주입 ───────────────────────────────────────
+    this.emit("content_generate", "템플릿에 콘텐츠를 주입하고 있습니다...", 55);
+    const generatedHtml = injectToTemplate(
+      templateHtml,
+      slotContent,
+      mappedBrandInfo,
+      mappedPersona,
+    );
+
+    console.log(`[HomepageGenerator] 템플릿 주입 완료: ${Math.round(generatedHtml.length / 1024)}KB`);
+
+    // ── Step 5: 프로젝트 생성 + DB 저장 ──────────────────────────────────
+    this.emit("db_save", "프로젝트를 생성하고 있습니다...", 60);
+    const projectName = `${clientName} 홈페이지`;
+    const seoTitle = `${clientName} | ${mappedPersona.tagline || industry + " 전문"}`;
+    const seoDescription = mappedPersona.usp || `${clientName} - ${industry} 전문 서비스`;
+
+    const { data, error } = await this.supabase
+      .from("homepage_projects")
+      .insert({
+        client_id: input.clientId,
+        project_name: projectName,
+        template_id: templateName,
+        status: "building",
+        theme_config: {
+          pipeline: "template-injection",
+          templateName,
+          slotCount: Object.keys(slotContent).length,
+          generated_html: generatedHtml,
+        },
+        seo_config: {
+          title: seoTitle,
+          description: seoDescription,
+        },
+        blog_config: {
+          blog_enabled: false,
+          posts_per_month: 8,
+          info_review_ratio: "5:3",
+        },
+      })
+      .select("id")
+      .single();
+
+    if (error || !data) {
+      throw new Error(`프로젝트 저장 실패: ${error?.message || "unknown"}`);
+    }
+
+    const projectId = data.id;
+
+    // ── Step 6: 블로그 메뉴 삽입 ────────────────────────────────────────
+    this.emit("blog_inject", "블로그 메뉴를 설정하고 있습니다...", 70);
+    await injectBlogMenu(this.supabase, projectId);
+
+    // ── Step 7: Vercel 배포 ─────────────────────────────────────────────
+    this.emit("deploy", "홈페이지를 배포하고 있습니다...", 80);
+    const deployResult = await this.deployProject(projectId);
+
+    // ── Step 8: 홈페이지 블로그 플랫폼 등록 ─────────────────────────────
+    this.emit("db_save", "블로그 플랫폼을 등록하고 있습니다...", 90);
+    const publisher = new HomepagePublisher(this.supabase);
+    await publisher.registerHomepagePlatform(
+      input.clientId,
+      projectId,
+      deployResult.subdomain
+    );
+
+    this.emit("done", "홈페이지 생성이 완료되었습니다!", 100);
+
+    return {
+      projectId,
+      deploymentUrl: deployResult.deploymentUrl,
+      subdomain: deployResult.subdomain,
+      blogEnabled: true,
     };
   }
 }

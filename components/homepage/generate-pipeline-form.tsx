@@ -21,6 +21,11 @@ import Link from "next/link";
 import type { AiMarketBrand } from "@/lib/actions/brand-actions";
 import { getBrandAnalysis, type BrandAnalysisRow } from "@/lib/actions/analysis-brand-actions";
 import { generateHomepage } from "@/lib/actions/homepage-generate-actions";
+import {
+  TEMPLATE_NAMES,
+  TEMPLATE_LABELS,
+  type TemplateName,
+} from "@/lib/homepage/generate/brand-content-generator";
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -170,6 +175,8 @@ export function GeneratePipelineForm({ brands, initialClientId }: GeneratePipeli
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [selectedClientId, setSelectedClientId] = useState(initialClientId || "");
+  const [generationMode, setGenerationMode] = useState<"clone" | "template">("clone");
+  const [selectedTemplate, setSelectedTemplate] = useState<TemplateName>("dark-luxury");
   const [referenceUrls, setReferenceUrls] = useState<string[]>([""]);
   const [brandHomepageUrl, setBrandHomepageUrl] = useState("");
   const [analysis, setAnalysis] = useState<BrandAnalysisRow | null>(null);
@@ -230,7 +237,9 @@ export function GeneratePipelineForm({ brands, initialClientId }: GeneratePipeli
   }
 
   const validUrls = referenceUrls.filter((u) => u.trim().length > 0);
-  const canStart = selectedClientId && validUrls.length > 0 && pipelineStep === "idle";
+  const canStart = selectedClientId
+    && (generationMode === "template" || validUrls.length > 0)
+    && pipelineStep === "idle";
 
   // 진행 단계 시뮬레이션 타이머 (서버 액션은 스트리밍 불가)
   const progressTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
@@ -277,6 +286,7 @@ export function GeneratePipelineForm({ brands, initialClientId }: GeneratePipeli
         clientId: selectedClientId,
         referenceUrls: validUrls.map((u) => u.trim()),
         brandHomepageUrl: brandHomepageUrl.trim() || undefined,
+        templateName: generationMode === "template" ? selectedTemplate : undefined,
       });
 
       clearProgressTimers();
@@ -344,6 +354,66 @@ export function GeneratePipelineForm({ brands, initialClientId }: GeneratePipeli
             </div>
           )}
 
+          {/* 생성 방식 선택 */}
+          <div className="space-y-1.5">
+            <Label>생성 방식 *</Label>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setGenerationMode("clone")}
+                disabled={isRunning}
+                className={`flex flex-col items-start gap-1 rounded-lg border p-3 text-left transition-colors ${
+                  generationMode === "clone"
+                    ? "border-violet-400 bg-violet-50 ring-1 ring-violet-400"
+                    : "border-border/60 hover:border-border"
+                }`}
+              >
+                <span className="text-sm font-medium">레퍼런스 복제</span>
+                <span className="text-[11px] text-muted-foreground">
+                  레퍼런스 URL의 디자인을 복제합니다
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setGenerationMode("template")}
+                disabled={isRunning}
+                className={`flex flex-col items-start gap-1 rounded-lg border p-3 text-left transition-colors ${
+                  generationMode === "template"
+                    ? "border-violet-400 bg-violet-50 ring-1 ring-violet-400"
+                    : "border-border/60 hover:border-border"
+                }`}
+              >
+                <span className="text-sm font-medium">템플릿 선택</span>
+                <span className="text-[11px] text-muted-foreground">
+                  고품질 사전 제작 템플릿을 사용합니다
+                </span>
+              </button>
+            </div>
+          </div>
+
+          {/* 템플릿 선택 (템플릿 모드) */}
+          {generationMode === "template" && (
+            <div className="space-y-1.5">
+              <Label htmlFor="template-select">템플릿 선택 *</Label>
+              <select
+                id="template-select"
+                value={selectedTemplate}
+                onChange={(e) => setSelectedTemplate(e.target.value as TemplateName)}
+                disabled={isRunning}
+                className={selectCls}
+              >
+                {TEMPLATE_NAMES.map((t) => (
+                  <option key={t} value={t}>
+                    {TEMPLATE_LABELS[t]}
+                  </option>
+                ))}
+              </select>
+              <p className="text-[11px] text-muted-foreground">
+                업종에 맞는 템플릿을 선택하세요. AI가 브랜드 정보를 자동 주입합니다.
+              </p>
+            </div>
+          )}
+
           {/* 브랜드 홈페이지 URL (선택) — 분석 데이터에 없을 때만 표시 */}
           {!((analysis?.basic_info as Record<string, unknown>)?.homepage_url) && (
             <div className="space-y-1.5">
@@ -361,7 +431,8 @@ export function GeneratePipelineForm({ brands, initialClientId }: GeneratePipeli
             </div>
           )}
 
-          {/* 레퍼런스 URL (1-3개) */}
+          {/* 레퍼런스 URL (1-3개) — 복제 모드에서만 표시 */}
+          {generationMode === "clone" && (
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <Label>레퍼런스 홈페이지 URL * (최대 {MAX_REFERENCE_URLS}개)</Label>
@@ -406,6 +477,7 @@ export function GeneratePipelineForm({ brands, initialClientId }: GeneratePipeli
               여러 사이트를 입력하면 디자인 패턴을 비교 분석합니다.
             </p>
           </div>
+          )}
 
           {/* 액션 버튼 */}
           <div className="flex items-center gap-3 pt-2">
@@ -423,7 +495,9 @@ export function GeneratePipelineForm({ brands, initialClientId }: GeneratePipeli
                 className="bg-violet-600 hover:bg-violet-700 gap-2"
               >
                 <Sparkles className="h-4 w-4" />
-                생성 시작 {validUrls.length > 1 && `(${validUrls.length}개 레퍼런스)`}
+                {generationMode === "template"
+                  ? `템플릿 생성 (${TEMPLATE_LABELS[selectedTemplate].split(" (")[0]})`
+                  : `생성 시작 ${validUrls.length > 1 ? `(${validUrls.length}개 레퍼런스)` : ""}`}
               </Button>
             )}
 

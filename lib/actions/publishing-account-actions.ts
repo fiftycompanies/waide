@@ -79,7 +79,7 @@ export async function getBrandAnalysisForPublishing(clientId: string) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await (db as any)
     .from("brand_analyses")
-    .select("id, basic_info, content_strategy, keyword_analysis, place_id, input_url, url_type")
+    .select("id, basic_info, content_strategy, keyword_analysis, place_id, input_url, url_type, image_analysis")
     .eq("client_id", clientId)
     .in("status", ["completed", "converted"])
     .order("analyzed_at", { ascending: false })
@@ -124,7 +124,7 @@ export async function getBrandAnalysisForPublishing(clientId: string) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: matched } = await (db as any)
         .from("brand_analyses")
-        .select("id, basic_info, content_strategy, keyword_analysis, place_id, input_url, url_type")
+        .select("id, basic_info, content_strategy, keyword_analysis, place_id, input_url, url_type, image_analysis")
         .eq("place_id", placeId)
         .in("status", ["completed", "converted"])
         .order("analyzed_at", { ascending: false })
@@ -200,6 +200,7 @@ type BrandAnalysisForPublishing = {
   place_id: string | null;
   input_url: string | null;
   url_type: string | null;
+  image_analysis?: Record<string, unknown> | null;
 };
 
 /** Tier 1/2 반환 시 basic_info에 input_url 기반 URL 주입 (기존값 보존) */

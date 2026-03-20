@@ -44,6 +44,7 @@ interface BrandAnalysis {
   place_id: string | null;
   input_url: string | null;
   url_type: string | null;
+  image_analysis?: Record<string, unknown> | null;
 }
 
 interface CrawledImage {
@@ -424,19 +425,42 @@ export function BlogPublishFlow({
     if (!effectivePlaceId) return;
     setImageLoading(true);
     try {
-      const res = await fetch("/api/vps/image?action=crawl-images", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ place_id: effectivePlaceId, max_images: 12 }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        const images: CrawledImage[] = data.images || [];
+      // 1차: VPS 이미지 크롤링 시도
+      let images: CrawledImage[] = [];
+      try {
+        const res = await fetch("/api/vps/image?action=crawl-images", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ place_id: effectivePlaceId, max_images: 12 }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          images = data.images || [];
+        }
+      } catch {
+        // VPS 연결 실패 — 폴백으로 진행
+      }
+
+      // 2차 폴백: 분석 시 수집된 이미지 (brand_analyses.image_analysis.collected_urls)
+      if (images.length === 0 && brandAnalysis?.image_analysis) {
+        const ia = brandAnalysis.image_analysis;
+        const collected = (ia.collected_urls || ia.images) as Array<{ url?: string; type?: string }> | undefined;
+        if (Array.isArray(collected) && collected.length > 0) {
+          images = collected
+            .filter((item) => item.url && typeof item.url === "string")
+            .map((item, idx) => ({
+              url: item.url as string,
+              phash: `analysis-${idx}`,
+              width: 0,
+              height: 0,
+            }));
+        }
+      }
+
+      if (images.length > 0) {
         setCrawledImages(images);
         // C방식: 전체 기본 선택 (opt-out)
-        if (images.length > 0) {
-          setSelectedImages(images.map((img) => img.url));
-        }
+        setSelectedImages(images.map((img) => img.url));
       }
     } catch (err) {
       console.error("Image crawl failed:", err);

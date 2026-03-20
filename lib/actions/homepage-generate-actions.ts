@@ -59,7 +59,11 @@ export async function generateHomepage(
 
     const supabase = createAdminClient();
     const generator = new HomepageGenerator(supabase);
-    const result = await generator.generate(normalizedInput);
+
+    // 템플릿 기반 생성 vs DOM 복제 분기
+    const result = normalizedInput.templateName
+      ? await generator.generateFromTemplate(normalizedInput)
+      : await generator.generate(normalizedInput);
 
     revalidatePath("/homepage");
 
