@@ -71,6 +71,9 @@ export function injectBrandInfo(
   // 8. 레퍼런스 원본 텍스트 제거 (Vision AI 유출 방지)
   result = sanitizeReferenceText(result, brandInfo);
 
+  // 9. Hero 내부 Nav flex 컨테이너 자동 복구
+  result = wrapNavInFlexContainer(result);
+
   return result;
 }
 
@@ -793,4 +796,85 @@ function escAttr(str: string): string {
     .replace(/"/g, "&quot;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
+}
+
+// ── Hero 내부 Nav flex 컨테이너 자동 복구 ─────────────────────────────────────
+
+/**
+ * Vision AI가 Hero 섹션 내부에 Nav 요소(로고, 메뉴, 플래그)를
+ * flex 컨테이너 없이 나열한 경우, 자동으로 flex 래퍼로 감싼다.
+ *
+ * 감지 패턴:
+ * - <section class="relative ..."> (Hero) 내부에
+ * - <nav> 태그가 존재하되, 부모가 flex 컨테이너가 아닌 경우
+ *
+ * 수정: nav와 인접 형제 요소(로고 div, 플래그 div)를
+ *       absolute top-0 flex justify-between 컨테이너로 감싸기
+ */
+function wrapNavInFlexContainer(html: string): string {
+  const $ = cheerio.load(html);
+
+  // Hero 섹션 찾기: 첫 번째 section (보통 relative + h-screen)
+  const $hero = $("section").first();
+  if ($hero.length === 0) return $.html();
+
+  // Hero 내부에서 nav 태그 찾기
+  const $nav = $hero.find("nav").first();
+  if ($nav.length === 0) return $.html();
+
+  // nav의 직계 부모가 이미 flex 컨테이너이면 복구 불필요
+  const $parent = $nav.parent();
+  const parentClass = $parent.attr("class") || "";
+  if (parentClass.includes("flex") && parentClass.includes("justify-between")) {
+    return $.html();
+  }
+
+  // nav가 Hero section의 직계 자식인 경우 → 형제 요소와 함께 래핑
+  if ($parent.is("section")) {
+    // nav 바로 앞(로고)과 뒤(플래그+햄버거)의 형제 요소 수집
+    const navSiblings: ReturnType<typeof $>[] = [];
+    const $navPrev = $nav.prev();
+    const $navNext = $nav.next();
+
+    // nav 이전 요소: 로고 div (텍스트만 있고, absolute/gradient 아닌 것)
+    if ($navPrev.length > 0) {
+      const prevClass = $navPrev.attr("class") || "";
+      const isNavRelated =
+        !prevClass.includes("absolute") &&
+        !prevClass.includes("gradient") &&
+        !$navPrev.is("img") &&
+        $navPrev.text().trim().length > 0;
+      if (isNavRelated) navSiblings.push($navPrev);
+    }
+
+    navSiblings.push($nav);
+
+    // nav 이후 요소: 플래그/햄버거 div (absolute가 아닌 것)
+    if ($navNext.length > 0) {
+      const nextClass = $navNext.attr("class") || "";
+      const isNavRelated =
+        !nextClass.includes("absolute") &&
+        !nextClass.includes("gradient") &&
+        !$navNext.is("img");
+      if (isNavRelated) navSiblings.push($navNext);
+    }
+
+    if (navSiblings.length >= 2) {
+      // flex 래퍼 생성
+      const $wrapper = $(
+        '<div class="absolute top-0 left-0 right-0 z-20 flex items-center justify-between px-8 py-5"></div>'
+      );
+
+      // 첫 번째 형제 요소 앞에 래퍼 삽입
+      navSiblings[0].before($wrapper);
+
+      // 모든 nav 관련 형제 요소를 래퍼 안으로 이동
+      for (const $sibling of navSiblings) {
+        $wrapper.append($sibling.clone());
+        $sibling.remove();
+      }
+    }
+  }
+
+  return $.html();
 }
