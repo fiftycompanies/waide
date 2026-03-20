@@ -103,13 +103,25 @@ async function PublishContent({
 
   // rawPersona에서 location/URL 필드 추출 (getPersonaForPipeline이 제거하는 필드들)
   const aiInferred = bp?.ai_inferred as Record<string, unknown> | undefined;
+  // naver_place_url에서 place_id 파싱 헬퍼
+  const naverUrl = bp ? (bp.naver_place_url as string) || (bp.place_url as string) || "" : "";
+  let parsedPlaceId = "";
+  if (naverUrl) {
+    const m = naverUrl.match(/\/(?:restaurant|place|cafe|hotel|accommodation|beauty|hospital|hairshop|school|shopping|food)\/(\d+)/);
+    if (m) parsedPlaceId = m[1];
+    else {
+      const numM = naverUrl.match(/\/(\d{5,})(?:\/|$|\?)/);
+      if (numM) parsedPlaceId = numM[1];
+    }
+  }
+
   const personaExtras = bp
     ? {
         category: (bp.category as string) || "",
         region: (bp.region as string) || (bp.location as string) || "",
-        naverPlaceUrl: (bp.naver_place_url as string) || (bp.place_url as string) || "",
+        naverPlaceUrl: naverUrl,
         homepage: (bp.homepage_url as string) || (bp.website as string) || (bp.homepage as string) || (bp.website_url as string) || "",
-        placeId: (bp.place_id as string) || (aiInferred?.place_id as string) || (bp.naver_place_id as string) || "",
+        placeId: (bp.place_id as string) || (aiInferred?.place_id as string) || (bp.naver_place_id as string) || parsedPlaceId || "",
       }
     : null;
 

@@ -139,7 +139,10 @@ export function getPersonaForPipeline(
       p.ai_inferred?.usp?.points ||
       (Array.isArray(p.strengths) ? p.strengths : []),
     tone:
-      p.ai_inferred?.tone?.style || p.tone || "",
+      p.ai_inferred?.tone?.style ||
+      (typeof p.tone === "string" ? p.tone : "") ||
+      (p.tone && typeof p.tone === "object" ? ((p.tone as Record<string, unknown>).style as string) || "" : "") ||
+      "",
     content_angles:
       p.ai_inferred?.content_direction?.angles ||
       (Array.isArray(p.content_angles) ? p.content_angles : []),

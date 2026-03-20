@@ -1600,7 +1600,8 @@ function StepBrief({
   const baseTone = personaData?.tone || (() => {
     if (!brandAnalysis?.content_strategy) return "";
     const cs = brandAnalysis.content_strategy;
-    const brandA = cs.brand_analysis as Record<string, unknown> | undefined;
+    // brand_analysis 키 우선, blog 키 폴백
+    const brandA = (cs.brand_analysis || cs.blog) as Record<string, unknown> | undefined;
     return extractToneStyle(brandA?.tone);
   })();
   const effectiveTone = toneOverride !== null && toneOverride !== undefined ? toneOverride : baseTone;
@@ -1609,8 +1610,8 @@ function StepBrief({
   const baseTarget = personaData?.primary_target || (() => {
     if (!brandAnalysis?.content_strategy) return "";
     const cs = brandAnalysis.content_strategy;
-    const brandA = cs.brand_analysis as Record<string, unknown> | undefined;
-    return String(brandA?.target_audience || "");
+    const brandA = (cs.brand_analysis || cs.blog) as Record<string, unknown> | undefined;
+    return String(brandA?.target_audience || brandA?.target_customer || brandA?.target || "");
   })();
   const effectiveTarget = targetOverride !== null && targetOverride !== undefined ? targetOverride : baseTarget;
 

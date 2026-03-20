@@ -104,7 +104,20 @@ export async function getBrandAnalysisForPublishing(clientId: string) {
     const toneObj = aiInferred?.tone as Record<string, unknown> | undefined;
 
     // Issue 1: place_id 추출 강화 (다중 폴백)
-    const placeId = (bp.place_id as string) || (aiInferred?.place_id as string) || (bp.naver_place_id as string) || null;
+    let placeId = (bp.place_id as string) || (aiInferred?.place_id as string) || (bp.naver_place_id as string) || null;
+
+    // place_id가 직접 필드에 없으면 naver_place_url에서 파싱
+    if (!placeId) {
+      const naverUrl = (bp.naver_place_url as string) || (bp.place_url as string) || "";
+      if (naverUrl) {
+        const m = naverUrl.match(/\/(?:restaurant|place|cafe|hotel|accommodation|beauty|hospital|hairshop|school|shopping|food)\/(\d+)/);
+        if (m) placeId = m[1];
+        else {
+          const numM = naverUrl.match(/\/(\d{5,})(?:\/|$|\?)/);
+          if (numM) placeId = numM[1];
+        }
+      }
+    }
 
     // Issue 1: place_id로 brand_analyses 매칭 시도 (client_id 미연결 케이스)
     if (placeId) {
