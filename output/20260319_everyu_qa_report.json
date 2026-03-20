@@ -1,0 +1,35 @@
+{
+  "testDate": "2026-03-19T10:30:18.825Z",
+  "referenceUrl": "https://www.rest-clinic.com/",
+  "clientId": "7a0abbba-22d8-42c3-800e-c05c4a755bfb",
+  "clientName": "에버유의원",
+  "projectId": "56ca8d02-530c-4a73-8689-cbae5b10add1",
+  "htmlSize": 31810,
+  "visionAnalysis": {
+    "sectionsDetected": 3,
+    "designTone": "luxury-elegant",
+    "primaryColor": "#3a8afd"
+  },
+  "comparison": {
+    "colorMatch": 45,
+    "layoutMatch": 55,
+    "designToneMatch": 60,
+    "contentCompleteness": 70,
+    "brandFit": 75,
+    "overallScore": 61,
+    "summary": "기본적인 의원 랜딩 구조는 갖췄으나, 레퍼런스의 럭셔리-엘레강스 톤과 색상 팔레트 재현도가 낮아 전반적인 완성도가 아쉬움",
+    "improvements": [
+      "레퍼런스 사이트의 핵심 색상은 웜 베이지/오프화이트 계열(#f5f0eb 등)인데, 생성된 HTML은 #3a8afd(블루) 계열을 사용해 색상 톤이 크게 상이함 — 뉴트럴·스킨톤 팔레트로 교체 필요",
+      "레퍼런스는 전면 풀블리드 히어로 이미지 + 대형 타이포그래피(SKIN NEEDS REST) 구성인데, 생성본의 히어로 섹션이 임팩트와 시각적 밀도 면에서 부족함 — 고해상도 모델 이미지와 대형 영문 헤드라인 강조 필요",
+      "레퍼런스의 좌측 고정형 '빠른 상담 예약' 플로팅 폼(이름·전화번호 입력 + 신청하기 버튼)이 생성본에 구현되지 않았거나 스타일이 다름 — 동일한 위치·형태로 구현 필요",
+      "레퍼런스는 네비게이션에 병원소개·맞춤진단·전증리프팅·부위별솔루션·시술종류·전후사진·프로모션 등 7개 메뉴가 명확히 배치되나, 생성본의 메뉴 구성이 단순화되어 있어 업종 특화 메뉴 항목 보완 필요",
+      "하단 시술 카테고리 섹션(Deep Wrinkle 등 + 포인트 마커 UI)이 레퍼런스에서 중요한 인터랙티브 요소로 사용되는데, 생성본에서 이와 유사한 시술 탐색 UX가 부재함 — 시술 부위별 인터랙티브 카드 섹션 추가 권장"
+    ]
+  },
+  "generatedContent": {
+    "heroTitle": "에버유의원",
+    "servicesCount": 3,
+    "testimonialsCount": 3,
+    "faqCount": 4
+  }
+}

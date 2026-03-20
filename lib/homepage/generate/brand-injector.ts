@@ -46,11 +46,11 @@ export function injectBrandInfo(
   // 2. 하위 호환 텍스트 플레이스홀더 교체
   result = replaceLegacyPlaceholders(result, brandInfo, persona);
 
-  // 3. 이미지 슬롯 교체 (data-img-slot, data-bg-slot, bg-[url(...)])
+  // 3. 이미지 슬롯 교체 (data-img-slot, data-bg-slot, Tailwind bg url 임의값)
   const images = getUnsplashImages(industry);
   result = replaceImageSlots(result, images);
 
-  // 3-1. Tailwind bg-[url(...)] 임의값 클래스 이미지 교체
+  // 3-1. Tailwind bg url 임의값 클래스 이미지 교체
   result = replaceTailwindBgUrls(result, images);
 
   // 3-2. 국기 이미지 → 이모지 교체 (data-img-slot="flag-*")
@@ -400,18 +400,18 @@ function advanceIndex(slot: string, counters: SlotCounters): void {
   }
 }
 
-// ── Tailwind bg-[url(...)] 임의값 클래스 이미지 교체 ─────────────────────────
+// ── Tailwind bg url arbitrary-value class image replacement ──────────────────
 
 /**
- * Vision AI가 Tailwind 임의값 bg-[url('...')] 클래스를 생성한 경우,
+ * Vision AI가 Tailwind bg url arbitrary-value 클래스를 생성한 경우,
  * 빈 URL이나 플레이스홀더를 Unsplash 이미지로 교체한다.
  *
- * 패턴: bg-[url('')], bg-[url('placeholder')], bg-[url('...')] 등
+ * 대상: 빈 url, placeholder, 말줄임 등의 무효 URL 패턴
  */
 function replaceTailwindBgUrls(html: string, images: UnsplashImageSet): string {
   let bgIdx = 0;
 
-  // bg-[url('')] 또는 bg-[url('placeholder...')] → 실제 이미지 URL 교체
+  // Tailwind bg url arbitrary value → 실제 이미지 URL 교체
   return html.replace(
     /bg-\[url\(['"]([^'"]*)['"]\)\]/g,
     (_match, currentUrl) => {
@@ -424,7 +424,7 @@ function replaceTailwindBgUrls(html: string, images: UnsplashImageSet): string {
       const imgs = images.section;
       const url = imgs[bgIdx % imgs.length];
       bgIdx++;
-      return `bg-[url('${url}')]`;
+      return "bg-[url('" + url + "')]";
     }
   );
 }

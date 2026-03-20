@@ -1,0 +1,1486 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no">
+<meta http-equiv="X-UA-Compatible" content="IE=Edge">
+<meta name="keyword" content="에버유의원, 친절한 상담, 현대적 시설, 의원, 예약, 맞춤형 진료">
+<meta name="description" content="에버유의원은 친절한 상담과 현대적 시설, 합리적인 가격으로 만족스러운 의료 경험을 제공합니다. 편리한 예약 시스템으로 편하게 방문하세요.">
+<meta property="og:type" content="website">
+<meta property="og:locale" content="ko_KR">
+<meta property="og:title" content="에버유의원 | 친절한 상담, 현대적 시설의 신뢰할 수 있는 의원">
+<meta property="og:description" content="에버유의원은 친절한 상담과 현대적 시설, 합리적인 가격으로 만족스러운 의료 경험을 제공합니다. 편리한 예약 시스템으로 편하게 방문하세요.">
+<title>에버유의원 | 친절한 상담, 현대적 시설의 신뢰할 수 있는 의원</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --primary: #3a8afd;
+  --secondary: #6794d3;
+  --accent: #f2838f;
+  --bg: #ffffff;
+  --text: #000000;
+  --text-light: #666666;
+  --text-muted: #999999;
+  --border: #e8e8e8;
+  --section-bg: #f8f9fb;
+  --noto: 'Noto Sans KR', sans-serif;
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --shadow-sm: 0 2px 8px rgba(0,0,0,0.06);
+  --shadow-md: 0 4px 20px rgba(0,0,0,0.10);
+  --shadow-lg: 0 8px 40px rgba(0,0,0,0.14);
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: var(--noto);
+  font-size: 16px;
+  color: var(--text);
+  background: var(--bg);
+  line-height: 1.7;
+  word-break: keep-all;
+}
+
+a {
+  text-decoration: none;
+  color: inherit;
+  transition: color 0.3s;
+}
+
+ul, ol {
+  list-style: none;
+}
+
+img {
+  max-width: 100%;
+  display: block;
+}
+
+button {
+  cursor: pointer;
+  border: none;
+  background: none;
+  font-family: var(--noto);
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 40px;
+}
+
+.sound_only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0,0,0,0);
+  white-space: nowrap;
+}
+
+/* ========== HEADER ========== */
+#hd {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  z-index: 1000;
+  transition: background 0.4s, box-shadow 0.4s;
+  background: transparent;
+}
+
+#hd.scrolled {
+  background: rgba(255,255,255,0.97);
+  box-shadow: 0 2px 16px rgba(0,0,0,0.08);
+}
+
+.hd__wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 40px;
+  height: 72px;
+  position: relative;
+}
+
+.hd__logo {
+  display: flex;
+  align-items: center;
+}
+
+.hd__logo a {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: -0.02em;
+  transition: color 0.3s;
+  white-space: nowrap;
+}
+
+#hd.scrolled .hd__logo a {
+  color: var(--text);
+}
+
+#gnb {
+  display: flex;
+  align-items: center;
+  gap: 0;
+}
+
+#gnb > dl {
+  position: relative;
+}
+
+#gnb > dl > dt > a {
+  display: block;
+  padding: 0 18px;
+  height: 72px;
+  line-height: 72px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: rgba(255,255,255,0.9);
+  letter-spacing: 0.01em;
+  transition: color 0.3s;
+  white-space: nowrap;
+}
+
+#hd.scrolled #gnb > dl > dt > a {
+  color: var(--text);
+}
+
+#gnb > dl > dt > a:hover {
+  color: var(--primary);
+}
+
+#gnb > dl:hover > dd {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+#gnb > dl > dd {
+  position: absolute;
+  top: 72px;
+  left: 50%;
+  transform: translateX(-50%) translateY(-8px);
+  background: #fff;
+  min-width: 140px;
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  padding: 8px 0;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.25s, transform 0.25s, visibility 0.25s;
+}
+
+#gnb > dl:hover > dd {
+  transform: translateX(-50%) translateY(0);
+  opacity: 1;
+  visibility: visible;
+}
+
+#gnb > dl > dd ul li a {
+  display: block;
+  padding: 8px 20px;
+  font-size: 0.8125rem;
+  color: var(--text);
+  white-space: nowrap;
+  transition: color 0.2s, background 0.2s;
+}
+
+#gnb > dl > dd ul li a:hover {
+  color: var(--primary);
+  background: #f4f8ff;
+}
+
+.hd__cta {
+  display: flex;
+  align-items: center;
+}
+
+.hd__cta a {
+  display: inline-block;
+  padding: 9px 22px;
+  background: var(--primary);
+  color: #fff;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  border-radius: var(--radius-sm);
+  transition: background 0.3s;
+  white-space: nowrap;
+}
+
+.hd__cta a:hover {
+  background: var(--secondary);
+}
+
+#menu__toggle {
+  display: none;
+  flex-direction: column;
+  gap: 5px;
+  padding: 8px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  z-index: 1100;
+}
+
+#menu__toggle span {
+  display: block;
+  width: 24px;
+  height: 2px;
+  background: #fff;
+  transition: background 0.3s, transform 0.3s;
+  border-radius: 2px;
+}
+
+#hd.scrolled #menu__toggle span {
+  background: var(--text);
+}
+
+#menu__toggle.active span:nth-child(1) {
+  transform: translateY(7px) rotate(45deg);
+}
+
+#menu__toggle.active span:nth-child(2) {
+  opacity: 0;
+}
+
+#menu__toggle.active span:nth-child(3) {
+  transform: translateY(-7px) rotate(-45deg);
+}
+
+/* Mobile Nav */
+#mobile-nav {
+  display: none;
+  position: fixed;
+  top: 0;
+  right: -100%;
+  width: 280px;
+  height: 100vh;
+  background: #fff;
+  z-index: 1050;
+  box-shadow: -4px 0 24px rgba(0,0,0,0.12);
+  transition: right 0.35s cubic-bezier(0.4,0,0.2,1);
+  overflow-y: auto;
+  padding: 80px 0 40px;
+}
+
+#mobile-nav.open {
+  right: 0;
+}
+
+#mobile-nav dl {
+  border-bottom: 1px solid var(--border);
+}
+
+#mobile-nav dl dt a {
+  display: block;
+  padding: 14px 28px;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+#mobile-nav dl dd ul li a {
+  display: block;
+  padding: 10px 40px;
+  font-size: 0.8125rem;
+  color: var(--text-light);
+}
+
+#mobile-nav dl dd ul li a:hover,
+#mobile-nav dl dt a:hover {
+  color: var(--primary);
+}
+
+#nav-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.4);
+  z-index: 1040;
+}
+
+#nav-overlay.open {
+  display: block;
+}
+
+/* ========== HERO ========== */
+#home {
+  position: relative;
+  width: 100%;
+  min-height: 100vh;
+  background-image: url('https://images.unsplash.com/photo-1629909613654-28e377c37b09?w=1600&h=900&fit=crop');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+}
+
+.hero__overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(10, 20, 40, 0.52);
+  z-index: 1;
+}
+
+.hero__inner {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 40px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 60px;
+  padding-top: 72px;
+}
+
+.hero__text {
+  flex: 1;
+  max-width: 520px;
+}
+
+.hero__eyebrow {
+  display: inline-block;
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.7);
+  margin-bottom: 20px;
+  border-left: 3px solid var(--primary);
+  padding-left: 12px;
+}
+
+.hero__title {
+  font-size: 3.5rem;
+  font-weight: 700;
+  color: #fff;
+  line-height: 1.18;
+  letter-spacing: -0.03em;
+  margin-bottom: 20px;
+}
+
+.hero__subtitle {
+  font-size: 1.0625rem;
+  color: rgba(255,255,255,0.8);
+  font-weight: 300;
+  line-height: 1.75;
+  margin-bottom: 36px;
+}
+
+.hero__form {
+  background: rgba(255,255,255,0.96);
+  border-radius: var(--radius-lg);
+  padding: 36px 32px;
+  width: 360px;
+  flex-shrink: 0;
+  box-shadow: var(--shadow-lg);
+}
+
+.hero__form h3 {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 6px;
+  letter-spacing: -0.02em;
+}
+
+.hero__form p {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  margin-bottom: 22px;
+}
+
+.hero__form .form-group {
+  margin-bottom: 14px;
+}
+
+.hero__form label {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-light);
+  margin-bottom: 5px;
+}
+
+.hero__form input,
+.hero__form select,
+.hero__form textarea {
+  width: 100%;
+  padding: 11px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 0.875rem;
+  font-family: var(--noto);
+  color: var(--text);
+  background: #fff;
+  outline: none;
+  transition: border-color 0.25s;
+}
+
+.hero__form input:focus,
+.hero__form select:focus,
+.hero__form textarea:focus {
+  border-color: var(--primary);
+}
+
+.hero__form textarea {
+  height: 80px;
+  resize: none;
+}
+
+.hero__form .btn-submit {
+  width: 100%;
+  padding: 13px;
+  background: var(--primary);
+  color: #fff;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+  border: none;
+  cursor: pointer;
+  transition: background 0.3s;
+  margin-top: 6px;
+  letter-spacing: 0.02em;
+}
+
+.hero__form .btn-submit:hover {
+  background: var(--secondary);
+}
+
+/* ========== SECTION COMMON ========== */
+.section {
+  padding: 100px 0;
+}
+
+.section--bg {
+  background: var(--section-bg);
+}
+
+.section__header {
+  margin-bottom: 60px;
+}
+
+.section__header.centered {
+  text-align: center;
+}
+
+.section__eyebrow {
+  display: inline-block;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--primary);
+  margin-bottom: 14px;
+}
+
+.section__title {
+  font-size: 2.25rem;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1.25;
+  letter-spacing: -0.03em;
+  margin-bottom: 16px;
+}
+
+.section__desc {
+  font-size: 1rem;
+  color: var(--text-light);
+  line-height: 1.8;
+  max-width: 560px;
+}
+
+.section__header.centered .section__desc {
+  margin: 0 auto;
+}
+
+/* ========== ABOUT ========== */
+#about {
+  padding: 100px 0;
+  background: var(--bg);
+  overflow: hidden;
+}
+
+.about__inner {
+  display: flex;
+  align-items: center;
+  gap: 80px;
+}
+
+.about__image {
+  flex: 0 0 440px;
+  position: relative;
+}
+
+.about__image img {
+  width: 100%;
+  height: 540px;
+  object-fit: cover;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+}
+
+.about__image::before {
+  content: '';
+  position: absolute;
+  top: -20px;
+  left: -20px;
+  width: 120px;
+  height: 120px;
+  border: 3px solid var(--primary);
+  border-radius: var(--radius-lg);
+  z-index: -1;
+  opacity: 0.3;
+}
+
+.about__image::after {
+  content: '';
+  position: absolute;
+  bottom: -20px;
+  right: -20px;
+  width: 80px;
+  height: 80px;
+  background: var(--accent);
+  border-radius: 50%;
+  z-index: -1;
+  opacity: 0.15;
+}
+
+.about__content {
+  flex: 1;
+}
+
+.about__content .section__eyebrow {
+  display: block;
+  margin-bottom: 12px;
+}
+
+.about__content .section__title {
+  margin-bottom: 22px;
+}
+
+.about__content .section__desc {
+  font-size: 0.9375rem;
+  line-height: 1.9;
+  color: var(--text-light);
+  max-width: none;
+  margin-bottom: 36px;
+}
+
+.about__stats {
+  display: flex;
+  gap: 36px;
+  flex-wrap: wrap;
+}
+
+.about__stat {
+  text-align: left;
+}
+
+.about__stat strong {
+  display: block;
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--primary);
+  letter-spacing: -0.03em;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+
+.about__stat span {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+
+/* ========== SERVICES ========== */
+#services {
+  padding: 100px 0;
+  background: var(--section-bg);
+  overflow: hidden;
+}
+
+.services__grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 28px;
+}
+
+.service__card {
+  background: #fff;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+  transition: transform 0.3s, box-shadow 0.3s;
+}
+
+.service__card:hover {
+  transform: translateY(-6px);
+  box-shadow: var(--shadow-lg);
+}
+
+.service__card-img {
+  width: 100%;
+  height: 220px;
+  overflow: hidden;
+}
+
+.service__card-img img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.5s;
+}
+
+.service__card:hover .service__card-img img {
+  transform: scale(1.06);
+}
+
+.service__card-body {
+  padding: 28px 28px 32px;
+}
+
+.service__card-num {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.15em;
+  color: var(--primary);
+  margin-bottom: 10px;
+  display: block;
+}
+
+.service__card-title {
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 12px;
+  letter-spacing: -0.02em;
+  line-height: 1.35;
+}
+
+.service__card-desc {
+  font-size: 0.875rem;
+  color: var(--text-light);
+  line-height: 1.75;
+}
+
+/* ========== CONTACT ========== */
+#contact {
+  padding: 100px 0;
+  background: var(--bg);
+}
+
+.contact__inner {
+  display: flex;
+  gap: 80px;
+  align-items: flex-start;
+}
+
+.contact__info {
+  flex: 1;
+}
+
+.contact__info .section__title {
+  margin-bottom: 18px;
+}
+
+.contact__info .section__desc {
+  max-width: none;
+  margin-bottom: 40px;
+}
+
+.contact__items {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.contact__item {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.contact__item-icon {
+  width: 44px;
+  height: 44px;
+  background: #f0f5ff;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.contact__item-icon svg {
+  width: 20px;
+  height: 20px;
+  fill: var(--primary);
+}
+
+.contact__item-text strong {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 2px;
+}
+
+.contact__item-text span {
+  font-size: 0.8125rem;
+  color: var(--text-light);
+}
+
+.contact__form-wrap {
+  flex: 0 0 480px;
+}
+
+.contact__form {
+  background: var(--section-bg);
+  border-radius: var(--radius-lg);
+  padding: 44px 40px;
+}
+
+.contact__form .form-group {
+  margin-bottom: 16px;
+}
+
+.contact__form label {
+  display: block;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--text-light);
+  margin-bottom: 6px;
+}
+
+.contact__form input,
+.contact__form select,
+.contact__form textarea {
+  width: 100%;
+  padding: 12px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 0.875rem;
+  font-family: var(--noto);
+  color: var(--text);
+  background: #fff;
+  outline: none;
+  transition: border-color 0.25s;
+}
+
+.contact__form input:focus,
+.contact__form select:focus,
+.contact__form textarea:focus {
+  border-color: var(--primary);
+}
+
+.contact__form textarea {
+  height: 120px;
+  resize: none;
+}
+
+.contact__form .btn-submit {
+  width: 100%;
+  padding: 14px;
+  background: var(--primary);
+  color: #fff;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+  border: none;
+  cursor: pointer;
+  transition: background 0.3s;
+  margin-top: 4px;
+  letter-spacing: 0.02em;
+}
+
+.contact__form .btn-submit:hover {
+  background: var(--secondary);
+}
+
+/* ========== GALLERY ========== */
+#gallery {
+  padding: 100px 0;
+  background: var(--section-bg);
+}
+
+.gallery__grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+}
+
+.gallery__item {
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  aspect-ratio: 4/3;
+  position: relative;
+}
+
+.gallery__item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.5s;
+  display: block;
+}
+
+.gallery__item:hover img {
+  transform: scale(1.05);
+}
+
+.gallery__item::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0);
+  transition: background 0.3s;
+}
+
+.gallery__item:hover::after {
+  background: rgba(0,0,0,0.12);
+}
+
+/* ========== FOOTER ========== */
+#ft {
+  background: #101520;
+  color: rgba(255,255,255,0.65);
+  padding: 60px 0 0;
+}
+
+.ft__inner {
+  display: flex;
+  gap: 60px;
+  padding-bottom: 48px;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+
+.ft__brand {
+  flex: 0 0 260px;
+}
+
+.ft__logo {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: -0.02em;
+  margin-bottom: 14px;
+  display: block;
+}
+
+.ft__brand-desc {
+  font-size: 0.8125rem;
+  line-height: 1.75;
+  color: rgba(255,255,255,0.5);
+}
+
+.ft__nav-groups {
+  flex: 1;
+  display: flex;
+  gap: 40px;
+  flex-wrap: wrap;
+}
+
+.ft__nav-group h4 {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: rgba(255,255,255,0.85);
+  margin-bottom: 14px;
+  letter-spacing: 0.04em;
+}
+
+.ft__nav-group ul li {
+  margin-bottom: 8px;
+}
+
+.ft__nav-group ul li a {
+  font-size: 0.8rem;
+  color: rgba(255,255,255,0.45);
+  transition: color 0.25s;
+}
+
+.ft__nav-group ul li a:hover {
+  color: var(--primary);
+}
+
+.ft__bottom {
+  padding: 22px 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.ft__copy {
+  font-size: 0.8rem;
+  color: rgba(255,255,255,0.3);
+}
+
+.ft__policy {
+  display: flex;
+  gap: 20px;
+}
+
+.ft__policy a {
+  font-size: 0.8rem;
+  color: rgba(255,255,255,0.3);
+  transition: color 0.25s;
+}
+
+.ft__policy a:hover {
+  color: rgba(255,255,255,0.7);
+}
+
+/* ========== RESPONSIVE ========== */
+@media (max-width: 1100px) {
+  .about__inner {
+    gap: 50px;
+  }
+  .about__image {
+    flex: 0 0 360px;
+  }
+  .contact__inner {
+    gap: 50px;
+  }
+  .contact__form-wrap {
+    flex: 0 0 400px;
+  }
+}
+
+@media (max-width: 900px) {
+  .hero__form {
+    display: none;
+  }
+  .hero__title {
+    font-size: 2.75rem;
+  }
+  .services__grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .gallery__grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .about__inner {
+    flex-direction: column;
+    gap: 40px;
+  }
+  .about__image {
+    flex: none;
+    width: 100%;
+  }
+  .about__image img {
+    height: 380px;
+  }
+  .contact__inner {
+    flex-direction: column;
+  }
+  .contact__form-wrap {
+    flex: none;
+    width: 100%;
+  }
+  .ft__inner {
+    flex-direction: column;
+    gap: 36px;
+  }
+}
+
+@media (max-width: 768px) {
+  .hd__wrapper {
+    padding: 0 20px;
+    height: 64px;
+  }
+  #gnb {
+    display: none;
+  }
+  .hd__cta {
+    display: none;
+  }
+  #menu__toggle {
+    display: flex;
+  }
+  #mobile-nav {
+    display: block;
+  }
+  .container {
+    padding: 0 20px;
+  }
+  .hero__inner {
+    padding: 0 20px;
+    padding-top: 64px;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    min-height: 100vh;
+  }
+  .hero__title {
+    font-size: 2.2rem;
+  }
+  .hero__subtitle {
+    font-size: 0.9375rem;
+  }
+  .hero__form {
+    display: none;
+  }
+  .section {
+    padding: 70px 0;
+  }
+  #about, #services, #contact, #gallery {
+    padding: 70px 0;
+  }
+  .section__title {
+    font-size: 1.75rem;
+  }
+  .services__grid {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+  .gallery__grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  .about__stats {
+    gap: 24px;
+  }
+  .about__stat strong {
+    font-size: 1.625rem;
+  }
+  .contact__form {
+    padding: 28px 22px;
+  }
+  .ft__nav-groups {
+    gap: 28px;
+  }
+  .ft__bottom {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .hero__text {
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .hero__title {
+    font-size: 1.875rem;
+  }
+  .gallery__grid {
+    grid-template-columns: 1fr;
+  }
+  .about__image img {
+    height: 280px;
+  }
+  .section__title {
+    font-size: 1.5rem;
+  }
+}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header id="hd">
+  <div class="hd__wrapper">
+    <div class="hd__logo">
+      <a href="#home"><span class="sound_only">에버유의원 홈으로 이동</span>에버유의원</a>
+    </div>
+    <div id="gnb">
+      <dl>
+        <dt><a href="#home">홈</a></dt>
+        <dd></dd>
+      </dl>
+      <dl>
+        <dt><a href="#about">병원 소개</a></dt>
+        <dd>
+          <ul>
+            <li><a href="#about">에버유 소개</a></li>
+            <li><a href="#about">의료진 소개</a></li>
+            <li><a href="#gallery">시설 갤러리</a></li>
+          </ul>
+        </dd>
+      </dl>
+      <dl>
+        <dt><a href="#services">진료 안내</a></dt>
+        <dd>
+          <ul>
+            <li><a href="#services">상담 서비스</a></li>
+            <li><a href="#services">예약 시스템</a></li>
+            <li><a href="#services">맞춤형 진료</a></li>
+          </ul>
+        </dd>
+      </dl>
+      <dl>
+        <dt><a href="#gallery">갤러리</a></dt>
+        <dd></dd>
+      </dl>
+      <dl>
+        <dt><a href="#contact">예약 상담</a></dt>
+        <dd></dd>
+      </dl>
+    </div>
+    <div class="hd__cta">
+      <a href="#contact">지금 예약하기</a>
+    </div>
+    <button type="button" id="menu__toggle" aria-label="메뉴 열기">
+      <span></span>
+      <span></span>
+      <span></span>
+    </button>
+  </div>
+</header>
+
+<!-- MOBILE NAV -->
+<div id="nav-overlay"></div>
+<nav id="mobile-nav">
+  <dl>
+    <dt><a href="#home">홈</a></dt>
+  </dl>
+  <dl>
+    <dt><a href="#about">병원 소개</a></dt>
+    <dd>
+      <ul>
+        <li><a href="#about">에버유 소개</a></li>
+        <li><a href="#about">의료진 소개</a></li>
+        <li><a href="#gallery">시설 갤러리</a></li>
+      </ul>
+    </dd>
+  </dl>
+  <dl>
+    <dt><a href="#services">진료 안내</a></dt>
+    <dd>
+      <ul>
+        <li><a href="#services">상담 서비스</a></li>
+        <li><a href="#services">예약 시스템</a></li>
+        <li><a href="#services">맞춤형 진료</a></li>
+      </ul>
+    </dd>
+  </dl>
+  <dl>
+    <dt><a href="#gallery">갤러리</a></dt>
+  </dl>
+  <dl>
+    <dt><a href="#contact">예약 상담</a></dt>
+  </dl>
+</nav>
+
+<!-- HERO -->
+<section id="home">
+  <div class="hero__overlay"></div>
+  <div class="hero__inner">
+    <div class="hero__text">
+      <span class="hero__eyebrow">Ever You Medical Clinic</span>
+      <h1 class="hero__title">에버유의원</h1>
+      <p class="hero__subtitle">신뢰할 수 있는 의료 서비스,<br>편안한 경험</p>
+      <a href="#contact" style="display:inline-block;padding:13px 32px;background:var(--primary);color:#fff;font-size:0.9375rem;font-weight:600;border-radius:var(--radius-sm);letter-spacing:0.02em;transition:background 0.3s;">지금 예약하기</a>
+    </div>
+    <div class="hero__form">
+      <h3>빠른 예약 상담</h3>
+      <p>간편하게 상담을 신청하세요</p>
+      <div class="form-group">
+        <label for="hero-name">이름</label>
+        <input type="text" id="hero-name" placeholder="이름을 입력하세요">
+      </div>
+      <div class="form-group">
+        <label for="hero-phone">연락처</label>
+        <input type="tel" id="hero-phone" placeholder="연락처를 입력하세요">
+      </div>
+      <div class="form-group">
+        <label for="hero-service">진료 항목</label>
+        <select id="hero-service">
+          <option value="">진료 항목을 선택하세요</option>
+          <option value="consult">상담 서비스</option>
+          <option value="reserve">예약 상담</option>
+          <option value="custom">맞춤형 진료</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="hero-message">문의 사항</label>
+        <textarea id="hero-message" placeholder="문의 사항을 입력하세요"></textarea>
+      </div>
+      <button type="button" class="btn-submit">예약 신청하기</button>
+    </div>
+  </div>
+</section>
+
+<!-- ABOUT -->
+<section id="about" class="section">
+  <div class="container">
+    <div class="about__inner">
+      <div class="about__image">
+        <img src="https://images.unsplash.com/photo-1631217868264-e5b90bb7e133?w=600&h=800&fit=crop" alt="에버유의원 소개 이미지">
+      </div>
+      <div class="about__content">
+        <span class="section__eyebrow">About Ever You</span>
+        <h2 class="section__title">에버유의원에 대해</h2>
+        <p class="section__desc">에버유의원은 환자분의 건강과 만족을 최우선으로 생각하는 현대적 의료 기관입니다. 친절하고 상세한 상담을 통해 개인맞춤 진료를 제공하며, 최신 시설과 합리적인 가격으로 모두가 편안하게 방문할 수 있습니다. 예약 시스템부터 시술 후 관리까지 전 과정에서 최고의 만족도를 추구합니다.</p>
+        <div class="about__stats">
+          <div class="about__stat">
+            <strong>10+</strong>
+            <span>년의 의료 경험</span>
+          </div>
+          <div class="about__stat">
+            <strong>5,000+</strong>
+            <span>만족한 환자</span>
+          </div>
+          <div class="about__stat">
+            <strong>98%</strong>
+            <span>환자 만족도</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SERVICES -->
+<section id="services" class="section section--bg">
+  <div class="container">
+    <div class="section__header centered">
+      <span class="section__eyebrow">Our Services</span>
+      <h2 class="section__title">에버유의원 진료 서비스</h2>
+      <p class="section__desc">환자분의 건강과 편의를 위해 다양한 서비스를 제공합니다</p>
+    </div>
+    <div class="services__grid">
+      <div class="service__card">
+        <div class="service__card-img">
+          <img src="https://images.unsplash.com/photo-1588776814546-1ffcf47267a5?w=800&h=600&fit=crop" alt="상담 서비스">
+        </div>
+        <div class="service__card-body">
+          <span class="service__card-num">01</span>
+          <h3 class="service__card-title">상담 서비스</h3>
+          <p class="service__card-desc">경험 많은 의료진이 환자의 증상과 요구를 정확히 파악하여 친절하고 상세한 상담을 제공합니다.</p>
+        </div>
+      </div>
+      <div class="service__card">
+        <div class="service__card-img">
+          <img src="https://images.unsplash.com/photo-1579684385127-1ef15d508118?w=800&h=600&fit=crop" alt="예약 시스템">
+        </div>
+        <div class="service__card-body">
+          <span class="service__card-num">02</span>
+          <h3 class="service__card-title">예약 시스템</h3>
+          <p class="service__card-desc">간편한 온라인 예약으로 대기 시간을 최소화하고 효율적인 진료 경험을 제공합니다.</p>
+        </div>
+      </div>
+      <div class="service__card">
+        <div class="service__card-img">
+          <img src="https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?w=800&h=600&fit=crop" alt="맞춤형 진료">
+        </div>
+        <div class="service__card-body">
+          <span class="service__card-num">03</span>
+          <h3 class="service__card-title">맞춤형 진료</h3>
+          <p class="service__card-desc">개인의 건강 상태와 필요에 맞춘 맞춤형 치료 계획으로 최적의 결과를 도출합니다.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- GALLERY -->
+<section id="gallery" class="section">
+  <div class="container">
+    <div class="section__header centered">
+      <span class="section__eyebrow">Gallery</span>
+      <h2 class="section__title">시설 갤러리</h2>
+      <p class="section__desc">에버유의원의 현대적이고 쾌적한 시설을 확인하세요</p>
+    </div>
+    <div class="gallery__grid">
+      <div class="gallery__item">
+        <img src="https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?w=800&h=600&fit=crop" alt="에버유의원 시설 1">
+      </div>
+      <div class="gallery__item">
+        <img src="https://images.unsplash.com/photo-1551076805-e1869033e561?w=800&h=600&fit=crop" alt="에버유의원 시설 2">
+      </div>
+      <div class="gallery__item">
+        <img src="https://images.unsplash.com/photo-1581595220892-b0739db3ba8c?w=800&h=600&fit=crop" alt="에버유의원 시설 3">
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CONTACT -->
+<section id="contact" class="section section--bg">
+  <div class="container">
+    <div class="contact__inner">
+      <div class="contact__info">
+        <span class="section__eyebrow">Contact Us</span>
+        <h2 class="section__title">예약 및 상담 문의</h2>
+        <p class="section__desc">에버유의원에 궁금한 점이 있으시거나 진료 예약을 원하시면 언제든지 연락해 주세요. 친절하게 안내해 드리겠습니다.</p>
+        <div class="contact__items">
+          <div class="contact__item">
+            <div class="contact__item-icon">
+              <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>
+            </div>
+            <div class="contact__item-text">
+              <strong>온라인 예약</strong>
+              <span>우측 양식을 통해 간편하게 예약 신청이 가능합니다</span>
+            </div>
+          </div>
+          <div class="contact__item">
+            <div class="contact__item-icon">
+              <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
+            </div>
+            <div class="contact__item-text">
+              <strong>위치 안내</strong>
+              <span>에버유의원 위치는 예약 확정 후 안내드립니다</span>
+            </div>
+          </div>
+          <div class="contact__item">
+            <div class="contact__item-icon">
+              <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67V7z"/></svg>
+            </div>
+            <div class="contact__item-text">
+              <strong>진료 시간</strong>
+              <span>평일 09:00 – 18:00 / 토요일 09:00 – 14:00 / 일·공휴일 휴진</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="contact__form-wrap">
+        <div class="contact__form">
+          <div class="form-group">
+            <label for="c-name">이름 *</label>
+            <input type="text" id="c-name" placeholder="이름을 입력하세요">
+          </div>
+          <div class="form-group">
+            <label for="c-phone">연락처 *</label>
+            <input type="tel" id="c-phone" placeholder="연락처를 입력하세요">
+          </div>
+          <div class="form-group">
+            <label for="c-email">이메일</label>
+            <input type="email" id="c-email" placeholder="이메일을 입력하세요">
+          </div>
+          <div class="form-group">
+            <label for="c-service">진료 항목</label>
+            <select id="c-service">
+              <option value="">진료 항목을 선택하세요</option>
+              <option value="consult">상담 서비스</option>
+              <option value="reserve">예약 상담</option>
+              <option value="custom">맞춤형 진료</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="c-message">문의 사항</label>
+            <textarea id="c-message" placeholder="문의하실 내용을 입력해 주세요"></textarea>
+          </div>
+          <button type="button" class="btn-submit">예약 신청하기</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer id="ft">
+  <div class="container">
+    <div class="ft__inner">
+      <div class="ft__brand">
+        <span class="ft__logo">에버유의원</span>
+        <p class="ft__brand-desc">에버유의원은 환자분의 건강과 만족을 최우선으로 생각하는 현대적 의료 기관입니다. 친절하고 상세한 상담으로 최고의 의료 서비스를 제공합니다.</p>
+      </div>
+      <div class="ft__nav-groups">
+        <div class="ft__nav-group">
+          <h4>병원 소개</h4>
+          <ul>
+            <li><a href="#about">에버유 소개</a></li>
+            <li><a href="#about">의료진 소개</a></li>
+            <li><a href="#gallery">시설 갤러리</a></li>
+          </ul>
+        </div>
+        <div class="ft__nav-group">
+          <h4>진료 안내</h4>
+          <ul>
+            <li><a href="#services">상담 서비스</a></li>
+            <li><a href="#services">예약 시스템</a></li>
+            <li><a href="#services">맞춤형 진료</a></li>
+          </ul>
+        </div>
+        <div class="ft__nav-group">
+          <h4>예약 상담</h4>
+          <ul>
+            <li><a href="#contact">온라인 예약</a></li>
+            <li><a href="#contact">문의하기</a></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <div class="ft__bottom">
+      <p class="ft__copy">Copyright &copy; 2026 에버유의원. All rights reserved.</p>
+      <div class="ft__policy">
+        <a href="#">개인정보처리방침</a>
+        <a href="#">이용약관</a>
+      </div>
+    </div>
+  </div>
+</footer>
+
+<script>
+(function() {
+  var hd = document.getElementById('hd');
+  var toggle = document.getElementById('menu__toggle');
+  var mobileNav = document.getElementById('mobile-nav');
+  var overlay = document.getElementById('nav-overlay');
+
+  window.addEventListener('scroll', function() {
+    if (window.scrollY > 40) {
+      hd.classList.add('scrolled');
+    } else {
+      hd.classList.remove('scrolled');
+    }
+  });
+
+  function openMenu() {
+    toggle.classList.add('active');
+    mobileNav.classList.add('open');
+    overlay.classList.add('open');
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeMenu() {
+    toggle.classList.remove('active');
+    mobileNav.classList.remove('open');
+    overlay.classList.remove('open');
+    document.body.style.overflow = '';
+  }
+
+  toggle.addEventListener('click', function() {
+    if (mobileNav.classList.contains('open')) {
+      closeMenu();
+    } else {
+      openMenu();
+    }
+  });
+
+  overlay.addEventListener('click', closeMenu);
+
+  var mobileLinks = mobileNav.querySelectorAll('a');
+  mobileLinks.forEach(function(link) {
+    link.addEventListener('click', closeMenu);
+  });
+
+  if (window.scrollY > 40) {
+    hd.classList.add('scrolled');
+  }
+})();
+</script>
+</body>
+</html>

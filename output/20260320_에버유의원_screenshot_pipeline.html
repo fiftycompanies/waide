@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>에버유의원 | 당신의 피부, 에버유가 지킵니다</title>
+  <meta name="description" content="15년 경력 피부과 전문의가 직접 시술하는 프리미엄 피부관리">
+  <meta property="og:title" content="에버유의원 | 당신의 피부, 에버유가 지킵니다">
+  <meta property="og:description" content="15년 경력 피부과 전문의가 직접 시술하는 프리미엄 피부관리">
+  <style>
+    :root {
+      --waide-primary: #1a1210;
+      --waide-accent: #c8a97e;
+      --waide-bg: #ffffff;
+      --waide-text: #333333;
+      --waide-font-heading: 'Playfair Display', serif;
+      --waide-font-body: 'Noto Sans KR', sans-serif;
+    }
+    body { font-family: var(--waide-font-body); color: var(--waide-text); background: var(--waide-bg); }
+    .waide-nav { background: var(--waide-primary); padding: 16px 0; }
+    .waide-nav-inner { max-width: 1200px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; padding: 0 24px; }
+    .waide-nav-logo { color: var(--waide-accent); font-family: var(--waide-font-heading); font-size: 1.5rem; font-weight: 700; }
+    .waide-nav-menu { display: flex; gap: 24px; list-style: none; }
+    .waide-nav-menu a { color: #fff; font-size: 0.95rem; }
+    .waide-nav-cta { background: var(--waide-accent); color: var(--waide-primary); padding: 8px 20px; border-radius: 4px; font-weight: 600; }
+    .waide-hero { position: relative; height: 100vh; display: flex; align-items: center; justify-content: center; text-align: center; color: #fff; overflow: hidden; }
+    .waide-hero-bg { position: absolute; inset: 0; z-index: 0; }
+    .waide-hero-bg img { width: 100%; height: 100%; object-fit: cover; }
+    .waide-hero-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.5); z-index: 1; }
+    .waide-hero-content { position: relative; z-index: 2; max-width: 700px; padding: 0 24px; }
+    .waide-hero-content h1 { font-family: var(--waide-font-heading); font-size: 3rem; margin-bottom: 16px; }
+    .waide-hero-content p { font-size: 1.2rem; margin-bottom: 32px; opacity: 0.9; }
+    .waide-hero-btn { display: inline-block; background: var(--waide-accent); color: var(--waide-primary); padding: 14px 36px; border-radius: 4px; font-weight: 600; font-size: 1.1rem; }
+
+    .waide-about { padding: 80px 24px; max-width: 1200px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 60px; align-items: center; }
+    .waide-about h2 { font-family: var(--waide-font-heading); font-size: 2rem; margin-bottom: 16px; color: var(--waide-primary); }
+    .waide-about p { line-height: 1.8; color: #555; }
+
+    .waide-services { padding: 80px 24px; background: #f9f9f9; }
+    .waide-services-inner { max-width: 1200px; margin: 0 auto; }
+    .waide-services h2 { text-align: center; font-family: var(--waide-font-heading); font-size: 2rem; margin-bottom: 48px; color: var(--waide-primary); }
+    .waide-services-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+    .waide-service-card { background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 12px rgba(0,0,0,0.06); }
+    .waide-service-card h3 { padding: 16px 20px 8px; font-size: 1.1rem; color: var(--waide-primary); }
+    .waide-service-card p { padding: 0 20px 20px; color: #666; font-size: 0.9rem; }
+
+    .waide-gallery { padding: 80px 24px; max-width: 1200px; margin: 0 auto; }
+    .waide-gallery h2 { text-align: center; font-family: var(--waide-font-heading); font-size: 2rem; margin-bottom: 48px; color: var(--waide-primary); }
+    .waide-gallery-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    .waide-gallery-grid img { width: 100%; height: 250px; object-fit: cover; border-radius: 8px; }
+
+    .waide-contact { padding: 80px 24px; background: var(--waide-primary); color: #fff; }
+    .waide-contact-inner { max-width: 1000px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 60px; }
+    .waide-contact h2 { font-family: var(--waide-font-heading); font-size: 2rem; margin-bottom: 24px; }
+    .waide-contact-info p { margin-bottom: 12px; opacity: 0.9; }
+    .waide-contact-form input, .waide-contact-form textarea { width: 100%; padding: 12px; margin-bottom: 16px; border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; background: rgba(255,255,255,0.1); color: #fff; }
+    .waide-contact-form button { background: var(--waide-accent); color: var(--waide-primary); padding: 12px 32px; border: none; border-radius: 4px; font-weight: 600; cursor: pointer; }
+
+    .waide-blog { padding: 80px 24px; max-width: 1200px; margin: 0 auto; }
+    .waide-blog h2 { text-align: center; font-family: var(--waide-font-heading); font-size: 2rem; margin-bottom: 48px; color: var(--waide-primary); }
+    .waide-blog-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+    .waide-blog-card { background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 12px rgba(0,0,0,0.06); }
+    .waide-blog-img { height: 200px; background: #eee; }
+    .waide-blog-card h3 { padding: 16px 20px 8px; font-size: 1rem; color: var(--waide-primary); }
+    .waide-blog-card p { padding: 0 20px 20px; color: #666; font-size: 0.85rem; }
+
+    .waide-footer { background: #111; color: #999; padding: 40px 24px; text-align: center; }
+    .waide-footer p { margin-bottom: 8px; }
+
+    @media (max-width: 768px) {
+      .waide-about { grid-template-columns: 1fr; }
+      .waide-services-grid { grid-template-columns: 1fr; }
+      .waide-gallery-grid { grid-template-columns: repeat(2, 1fr); }
+      .waide-contact-inner { grid-template-columns: 1fr; }
+      .waide-blog-grid { grid-template-columns: 1fr; }
+      .waide-hero-content h1 { font-size: 2rem; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Nav -->
+  <nav class="waide-nav">
+    <div class="waide-nav-inner">
+      <div class="waide-nav-logo">에버유의원</div>
+      <ul class="waide-nav-menu">
+        <li><a href="#about">소개</a></li>
+        <li><a href="#services">서비스</a></li>
+        <li><a href="#gallery">갤러리</a></li>
+        <li><a href="#contact">상담</a></li>
+      </ul>
+      <a class="waide-nav-cta" href="tel:02-1234-5678">02-1234-5678</a>
+    </div>
+  </nav>
+
+  <!-- Hero -->
+  <section class="waide-hero" id="hero">
+    <div class="waide-hero-bg">
+      <img src="https://images.unsplash.com/photo-1629909613654-28e377c37b09?w=1600&h=900&fit=crop" data-img-slot="hero" alt="hero background">
+    </div>
+    <div class="waide-hero-overlay"></div>
+    <div class="waide-hero-content">
+      <h1>당신의 피부, 에버유가 지킵니다</h1>
+      <p>15년 경력 피부과 전문의가 직접 시술하는 프리미엄 피부관리</p>
+      <a class="waide-hero-btn" href="#contact">상담 예약하기</a>
+    </div>
+  </section>
+
+  <!-- About -->
+  <section class="waide-about" id="about">
+    <div class="waide-about-text">
+      <h2>에버유의원 소개</h2>
+      <p>15년 경력 피부과 전문의가 직접 시술하는 프리미엄 피부관리</p>
+    </div>
+    <div class="waide-about-img">
+      <img src="https://images.unsplash.com/photo-1631217868264-e5b90bb7e133?w=600&h=800&fit=crop" data-img-slot="about" alt="about">
+    </div>
+  </section>
+
+  <!-- Services -->
+  <section class="waide-services" id="services">
+    <div class="waide-services-inner">
+      <h2>서비스 안내</h2>
+      <div class="waide-services-grid">
+        <div class="waide-service-card">
+          <img src="https://images.unsplash.com/photo-1588776814546-1ffcf47267a5?w=800&h=600&fit=crop" data-img-slot="service" alt="service">
+          <h3>피부관리</h3>
+          <p>에버유의원의 전문적인 피부관리 서비스를 만나보세요.</p>
+        </div>
+        <div class="waide-service-card">
+          <img src="https://images.unsplash.com/photo-1588776814546-1ffcf47267a5?w=800&h=600&fit=crop" data-img-slot="service" alt="service">
+          <h3>보톡스</h3>
+          <p>에버유의원의 전문적인 보톡스 서비스를 만나보세요.</p>
+        </div>
+        <div class="waide-service-card">
+          <img src="https://images.unsplash.com/photo-1588776814546-1ffcf47267a5?w=800&h=600&fit=crop" data-img-slot="service" alt="service">
+          <h3>필러</h3>
+          <p>에버유의원의 전문적인 필러 서비스를 만나보세요.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Gallery -->
+  <section class="waide-gallery" id="gallery">
+    <h2>갤러리</h2>
+    <div class="waide-gallery-grid">
+      <img src="https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?w=800&h=600&fit=crop" data-img-slot="gallery" alt="gallery">
+      <img src="https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?w=800&h=600&fit=crop" data-img-slot="gallery" alt="gallery">
+      <img src="https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?w=800&h=600&fit=crop" data-img-slot="gallery" alt="gallery">
+    </div>
+  </section>
+
+  <!-- Contact -->
+  <section class="waide-contact" id="contact">
+    <div class="waide-contact-inner">
+      <div class="waide-contact-info">
+        <h2>상담 예약</h2>
+        <p>전화: 02-1234-5678</p>
+        <p>주소: 서울시 강남구 테헤란로 123</p>
+      </div>
+      <div class="waide-contact-form">
+        <input type="text" placeholder="이름">
+        <input type="tel" placeholder="연락처">
+        <textarea placeholder="문의 내용" rows="4"></textarea>
+        <button type="submit">상담 신청</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Blog -->
+  <section class="waide-blog" id="blog">
+    <h2>블로그</h2>
+    <div class="waide-blog-grid">
+      <article class="waide-blog-card" data-blog-slot="1">
+        <div class="waide-blog-img" data-img-slot="gallery" style="background-image:url('https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?w=800&h=600&fit=crop');background-size:cover;background-position:center;min-height:200px;"></div>
+        <h3>에버유의원의 전문 의원 이야기</h3>
+        <p>에버유의원의 최신 의원 트렌드와 전문 노하우를 공유합니다.</p>
+      </article>
+      <article class="waide-blog-card" data-blog-slot="2">
+        <div class="waide-blog-img" data-img-slot="gallery" style="background-image:url('https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?w=800&h=600&fit=crop');background-size:cover;background-position:center;min-height:200px;"></div>
+        <h3>의원 전문가가 알려주는 꿀팁</h3>
+        <p>전문가만 아는 의원 관리의 핵심 포인트를 알아보세요.</p>
+      </article>
+      <article class="waide-blog-card" data-blog-slot="3">
+        <div class="waide-blog-img" data-img-slot="gallery" style="background-image:url('https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?w=800&h=600&fit=crop');background-size:cover;background-position:center;min-height:200px;"></div>
+        <h3>에버유의원 최신 소식</h3>
+        <p>에버유의원의 새로운 소식과 이벤트 정보를 확인하세요.</p>
+      </article>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="waide-footer">
+    <p>에버유의원</p>
+    <p>02-1234-5678 | 서울시 강남구 테헤란로 123</p>
+    <p>&copy; 2026 에버유의원. All rights reserved.</p>
+  </footer>
+</body>
+</html>
