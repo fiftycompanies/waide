@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
     );
   } else if (hasImages) {
     // URL 나열 + 부족한 섹션에 📷 플레이스홀더 삽입 지시
-    imageSection = `\n\n사용할 이미지 (${(imageUrls as string[]).length}장):\n${(imageUrls as string[]).map((u: string, i: number) => `${i + 1}. ${u}`).join("\n")}\n\n[중요] 위 이미지를 반드시 모두 사용해야 합니다. 하나라도 빠뜨리지 마세요.\n각 H2 섹션 직후에 이미지를 ![설명](url) 형식으로 배치하세요. 이미지 수가 H2보다 많으면 한 섹션에 2장을 넣어도 됩니다.\n이미지가 부족하여 배치할 수 없는 H2 섹션이 있다면, 아래 형식의 플레이스홀더를 삽입하세요:\n> 📷 [이미지 추천] {맥락에 맞는 이미지 설명} — 이런 사진을 넣어보세요.`;
+    imageSection = `\n\n사용할 이미지 (${(imageUrls as string[]).length}장):\n${(imageUrls as string[]).map((u: string, i: number) => `${i + 1}. ${u}`).join("\n")}\n\n[중요] 위 이미지를 반드시 모두 사용해야 합니다. 하나라도 빠뜨리지 마세요.\n각 H2 섹션 직후에 이미지를 ![alt텍스트](url) 형식으로 배치하세요. alt텍스트는 메인 키워드를 포함한 10단어 이내 짧은 설명으로 작성하세요. 이미지 수가 H2보다 많으면 한 섹션에 2장을 넣어도 됩니다.\n이미지가 부족하여 배치할 수 없는 H2 섹션이 있다면, 아래 형식의 플레이스홀더를 삽입하세요:\n> 📷 [이미지 추천] {맥락에 맞는 이미지 설명} — 이런 사진을 넣어보세요.`;
   } else {
     imageSection = `\n\n이미지가 없습니다. 각 H2 섹션 직후에 아래 형식의 이미지 플레이스홀더를 1개씩 삽입해주세요:
 > 📷 [이미지 추천] {맥락에 맞는 이미지 설명 1~2줄} — 이런 사진을 넣어보세요.
