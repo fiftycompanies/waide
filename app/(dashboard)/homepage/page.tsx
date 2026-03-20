@@ -13,7 +13,7 @@ export default async function HomepagePage() {
   // 클라이언트 역할: 자신의 홈페이지만 표시
   if (user && isClientRole(user.role) && user.client_id) {
     const project = await getClientHomepage(user.client_id);
-    return <ClientHomepageView project={project} />;
+    return <ClientHomepageView project={project} clientId={user.client_id} />;
   }
 
   // 어드민: Supabase Auth + HMAC 폴백

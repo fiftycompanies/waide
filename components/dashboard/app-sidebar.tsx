@@ -124,9 +124,10 @@ const crmNavItems: NavItem[] = [
 
 // ═══ 어드민: 홈페이지 ═══
 const homepageNavItems: NavItem[] = [
-  { title: "홈페이지 프로젝트", url: "/homepage",           icon: Globe,          roles: ALL_ADMIN },
-  { title: "제작 신청",         url: "/homepage/requests",  icon: FilePlus,       roles: ADMIN_ONLY },
-  { title: "상담 문의",         url: "/homepage/inquiries", icon: MessageSquare,  roles: [...ALL_ADMIN, ...CLIENT_ROLES] },
+  { title: "홈페이지 프로젝트", url: "/homepage",                icon: Globe,          roles: ALL_ADMIN },
+  { title: "신청 관리",         url: "/ops/homepage-requests",   icon: FilePlus,       roles: ADMIN_ONLY },
+  { title: "제작 신청 (CRM)",   url: "/homepage/requests",       icon: ClipboardList,  roles: ADMIN_ONLY },
+  { title: "상담 문의",         url: "/homepage/inquiries",      icon: MessageSquare,  roles: [...ALL_ADMIN, ...CLIENT_ROLES] },
 ];
 
 // ═══ 어드민: 리소스 ═══
