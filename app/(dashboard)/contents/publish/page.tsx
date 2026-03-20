@@ -10,6 +10,7 @@ import {
   getBrandAnalysisForPublishing,
   getClientInfoForPublishing,
 } from "@/lib/actions/publishing-account-actions";
+import { getClientBlogAccounts } from "@/lib/actions/publish-actions";
 import { getPersona } from "@/lib/actions/persona-actions";
 import { getPersonaForPipeline } from "@/lib/utils/persona-compat";
 
@@ -64,12 +65,13 @@ async function PublishContent({
     );
   }
 
-  const [brandAnalysis, publishingAccounts, activePool, rawPersona, clientInfo] = await Promise.all([
+  const [brandAnalysis, publishingAccounts, activePool, rawPersona, clientInfo, blogAccounts] = await Promise.all([
     getBrandAnalysisForPublishing(clientId),
     getPublishingAccounts(clientId),
     getActiveKeywordPool(clientId),
     getPersona(clientId),
     getClientInfoForPublishing(clientId),
+    getClientBlogAccounts(clientId),
   ]);
 
   const activeKeywords = (activePool || [])
@@ -125,6 +127,23 @@ async function PublishContent({
       }
     : null;
 
+  // 자동 발행 가능 채널 매핑: publishingAccount.id → { canAutoPublish, blogAccountId, platform }
+  const autoPublishInfo: Record<string, { canAutoPublish: boolean; blogAccountId: string; platform: string }> = {};
+  for (const pa of publishingAccounts) {
+    if (pa.platform === "homepage") {
+      autoPublishInfo[pa.id] = { canAutoPublish: true, blogAccountId: pa.id, platform: "homepage" };
+    } else {
+      const matchingBa = blogAccounts.find(
+        (ba) => ba.platform === pa.platform && ba.auth_type !== "manual" && ba.is_active
+      );
+      autoPublishInfo[pa.id] = {
+        canAutoPublish: !!matchingBa,
+        blogAccountId: matchingBa?.id || pa.id,
+        platform: pa.platform,
+      };
+    }
+  }
+
   return (
     <BlogPublishFlow
       key={clientId}
@@ -139,6 +158,7 @@ async function PublishContent({
       personaData={personaForPublish}
       ownerInputData={ownerInput}
       personaExtras={personaExtras}
+      autoPublishInfo={autoPublishInfo}
     />
   );
 }

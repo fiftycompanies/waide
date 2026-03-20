@@ -32,6 +32,7 @@ import {
   saveGeneratedContent,
   updateContentForTracking,
 } from "@/lib/actions/publishing-account-actions";
+import { executePublish } from "@/lib/actions/publish-actions";
 import type { PublishingAccount } from "@/lib/actions/publishing-account-actions";
 import { buildSearchQuery } from "@/lib/image-gap-analyzer";
 
@@ -119,6 +120,7 @@ interface BlogPublishFlowProps {
   personaData?: PersonaForPublish | null;
   ownerInputData?: OwnerInputForPublish | null;
   personaExtras?: PersonaExtras | null;
+  autoPublishInfo?: Record<string, { canAutoPublish: boolean; blogAccountId: string; platform: string }>;
 }
 
 type ContentType = "blog_info" | "blog_review" | "blog_list";
@@ -178,6 +180,7 @@ export function BlogPublishFlow({
   personaData,
   ownerInputData,
   personaExtras,
+  autoPublishInfo,
 }: BlogPublishFlowProps) {
   const [step, setStep] = useState(0);
 
@@ -300,6 +303,8 @@ export function BlogPublishFlow({
     accountName: "",
     accountUrl: "",
   });
+  const [autoPublishing, setAutoPublishing] = useState<string | null>(null); // accountId being published
+  const [autoPublishResult, setAutoPublishResult] = useState<Record<string, { success: boolean; url?: string; error?: string }>>({});
 
   // placeId 추출 보강: brandAnalysis > personaExtras > naverPlaceUrl 파싱 > input_url 파싱
   const derivedPlaceId = useMemo(() => {
@@ -885,6 +890,53 @@ export function BlogPublishFlow({
     }
   };
 
+  // ── Auto publish handler ──
+  const handleAutoPublish = async (accountId: string) => {
+    if (!savedContentId || !clientId) return;
+    const info = autoPublishInfo?.[accountId];
+    if (!info) return;
+    setAutoPublishing(accountId);
+    try {
+      const result = await executePublish({
+        contentId: savedContentId,
+        clientId,
+        blogAccountId: info.blogAccountId,
+        platform: info.platform as "tistory" | "wordpress" | "medium" | "homepage",
+        publishType: "auto",
+      });
+      if (result.success && result.publication?.external_url) {
+        const pubUrl = result.publication.external_url;
+        setAutoPublishResult((prev) => ({ ...prev, [accountId]: { success: true, url: pubUrl } }));
+        setPublishUrl(pubUrl);
+        setSelectedAccountId(accountId);
+        // 자동 tracking 시작
+        setTrackingSaving(true);
+        const trackResult = await updateContentForTracking({
+          contentId: savedContentId,
+          publishingAccountId: accountId,
+          publishedUrl: pubUrl,
+        });
+        if (trackResult.success) {
+          setTrackingStarted(true);
+        }
+        setTrackingSaving(false);
+      } else {
+        setAutoPublishResult((prev) => ({ ...prev, [accountId]: { success: false, error: result.error || "발행 실패" } }));
+      }
+    } catch {
+      setAutoPublishResult((prev) => ({ ...prev, [accountId]: { success: false, error: "발행 중 오류 발생" } }));
+    }
+    setAutoPublishing(null);
+  };
+
+  // ── Copy content to clipboard ──
+  const handleCopyContent = async () => {
+    if (!generatedContent) return;
+    await navigator.clipboard.writeText(generatedContent);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
   // ═══════════════════════════════════════════════════════════
   // Render
   // ═══════════════════════════════════════════════════════════
@@ -1121,6 +1173,13 @@ export function BlogPublishFlow({
               onNewFormChange={setNewAccountForm}
               onAddAccount={handleAddAccount}
               onCancelAdd={() => setShowAddAccount(false)}
+              autoPublishInfo={autoPublishInfo}
+              autoPublishing={autoPublishing}
+              autoPublishResult={autoPublishResult}
+              onAutoPublish={handleAutoPublish}
+              onCopyContent={handleCopyContent}
+              contentCopied={copied}
+              hasContent={!!generatedContent}
             />
           )}
         </CardContent>
@@ -2328,6 +2387,13 @@ function StepPublishTrack({
   onNewFormChange,
   onAddAccount,
   onCancelAdd,
+  autoPublishInfo,
+  autoPublishing,
+  autoPublishResult,
+  onAutoPublish,
+  onCopyContent,
+  contentCopied,
+  hasContent,
 }: {
   accounts: PublishingAccount[];
   selectedId: string;
@@ -2344,6 +2410,13 @@ function StepPublishTrack({
   onNewFormChange: (v: typeof newForm) => void;
   onAddAccount: () => void;
   onCancelAdd: () => void;
+  autoPublishInfo?: Record<string, { canAutoPublish: boolean; blogAccountId: string; platform: string }>;
+  autoPublishing: string | null;
+  autoPublishResult: Record<string, { success: boolean; url?: string; error?: string }>;
+  onAutoPublish: (accountId: string) => void;
+  onCopyContent: () => void;
+  contentCopied: boolean;
+  hasContent: boolean;
 }) {
   const platforms = [
     { value: "naver", label: "네이버 블로그" },
@@ -2352,6 +2425,15 @@ function StepPublishTrack({
     { value: "brunch", label: "브런치" },
   ];
 
+  const platformLabels: Record<string, string> = {
+    naver: "네이버 블로그",
+    tistory: "티스토리",
+    wordpress: "워드프레스",
+    brunch: "브런치",
+    medium: "Medium",
+    homepage: "홈페이지",
+  };
+
   if (trackingStarted) {
     return (
       <div className="flex flex-col items-center justify-center py-16 gap-4 text-center">
@@ -2359,21 +2441,102 @@ function StepPublishTrack({
           <Check className="h-8 w-8 text-emerald-600" />
         </div>
         <div>
-          <p className="text-lg font-semibold text-emerald-700">추적이 시작되었습니다!</p>
+          <p className="text-lg font-semibold text-emerald-700">발행 · 추적이 시작되었습니다!</p>
           <p className="text-sm text-muted-foreground mt-1">
             내일부터 SERP 순위 추적이 시작됩니다
           </p>
+          {publishUrl && (
+            <a href={publishUrl} target="_blank" rel="noopener noreferrer" className="text-sm text-violet-600 hover:underline mt-2 inline-block">
+              {publishUrl}
+            </a>
+          )}
         </div>
       </div>
     );
   }
 
+  // 채널을 자동발행(API) / 수동발행으로 분류
+  const autoChannels = accounts.filter((acc) => autoPublishInfo?.[acc.id]?.canAutoPublish);
+  const manualChannels = accounts.filter((acc) => !autoPublishInfo?.[acc.id]?.canAutoPublish);
+
   return (
     <div className="space-y-6">
-      {/* Publishing Channel */}
+      {!savedContentId && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-center">
+          <p className="text-sm text-amber-700">콘텐츠를 먼저 저장해주세요 (이전 단계에서 &quot;저장&quot; 버튼)</p>
+        </div>
+      )}
+
+      {/* 자동 발행 채널 (API 연동) */}
+      {autoChannels.length > 0 && (
+        <div className="space-y-3">
+          <h3 className="text-lg font-semibold flex items-center gap-2">
+            <Send className="h-4 w-4 text-violet-600" />
+            자동 발행 채널
+          </h3>
+          <p className="text-xs text-muted-foreground">API 연동이 완료된 채널입니다. 버튼 클릭으로 즉시 발행됩니다.</p>
+          <div className="grid gap-2">
+            {autoChannels.map((acc) => {
+              const result = autoPublishResult[acc.id];
+              const isPublishing = autoPublishing === acc.id;
+              return (
+                <div
+                  key={acc.id}
+                  className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${
+                    result?.success
+                      ? "border-emerald-300 bg-emerald-50"
+                      : selectedId === acc.id
+                        ? "border-violet-500 bg-violet-50"
+                        : "border-border"
+                  }`}
+                >
+                  <button onClick={() => onSelect(acc.id === selectedId ? "" : acc.id)} className="flex-1 text-left">
+                    <p className="text-sm font-medium">{acc.account_name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {platformLabels[acc.platform] || acc.platform}
+                      {acc.account_url && ` · ${acc.account_url}`}
+                    </p>
+                    {result?.success && result.url && (
+                      <p className="text-xs text-emerald-600 mt-1">✓ 발행 완료: {result.url}</p>
+                    )}
+                    {result && !result.success && (
+                      <p className="text-xs text-red-600 mt-1">✗ {result.error}</p>
+                    )}
+                  </button>
+                  <div className="flex items-center gap-2 ml-2">
+                    {acc.is_default && (
+                      <Badge variant="secondary" className="text-xs">기본</Badge>
+                    )}
+                    {!result?.success && (
+                      <Button
+                        size="sm"
+                        onClick={() => onAutoPublish(acc.id)}
+                        disabled={!savedContentId || isPublishing}
+                        className="gap-1 bg-violet-600 hover:bg-violet-700 text-xs"
+                      >
+                        {isPublishing ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : (
+                          <Send className="h-3 w-3" />
+                        )}
+                        {isPublishing ? "발행 중..." : "지금 발행하기"}
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* 수동 발행 채널 (네이버, 브런치 등) */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <h3 className="text-lg font-semibold">발행 채널 선택</h3>
+          <h3 className="text-lg font-semibold flex items-center gap-2">
+            <Copy className="h-4 w-4 text-muted-foreground" />
+            {autoChannels.length > 0 ? "수동 발행 채널" : "발행 채널 선택"}
+          </h3>
           {!showAdd && (
             <Button variant="outline" size="sm" onClick={onShowAdd} className="gap-1">
               <Plus className="h-3.5 w-3.5" />
@@ -2381,36 +2544,67 @@ function StepPublishTrack({
             </Button>
           )}
         </div>
+        {autoChannels.length > 0 && manualChannels.length > 0 && (
+          <p className="text-xs text-muted-foreground">콘텐츠를 복사하여 직접 발행한 후, 발행 URL을 입력해주세요.</p>
+        )}
 
-        {accounts.length > 0 ? (
-          <div className="grid gap-2">
-            {accounts.map((acc) => (
-              <button
-                key={acc.id}
-                onClick={() => onSelect(acc.id === selectedId ? "" : acc.id)}
-                className={`flex items-center justify-between p-3 rounded-lg border text-left transition-colors ${
-                  selectedId === acc.id
-                    ? "border-violet-500 bg-violet-50"
-                    : "border-border hover:border-violet-300"
-                }`}
-              >
-                <div>
-                  <p className="text-sm font-medium">{acc.account_name}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {acc.platform}
-                    {acc.account_url && ` · ${acc.account_url}`}
-                  </p>
-                </div>
-                {acc.is_default && (
-                  <Badge variant="secondary" className="text-xs">기본</Badge>
-                )}
-              </button>
-            ))}
-          </div>
-        ) : (
-          <p className="text-sm text-muted-foreground py-2 text-center">
-            등록된 발행 채널이 없습니다.
-          </p>
+        {/* 콘텐츠 복사 버튼 */}
+        {hasContent && (
+          <Button
+            variant="outline"
+            onClick={onCopyContent}
+            className="w-full gap-2"
+          >
+            {contentCopied ? (
+              <>
+                <Check className="h-4 w-4 text-emerald-600" />
+                <span className="text-emerald-600">복사 완료!</span>
+              </>
+            ) : (
+              <>
+                <Copy className="h-4 w-4" />
+                콘텐츠 복사 (마크다운)
+              </>
+            )}
+          </Button>
+        )}
+
+        {(manualChannels.length > 0 || accounts.length === 0) && (
+          <>
+            {manualChannels.length > 0 ? (
+              <div className="grid gap-2">
+                {manualChannels.map((acc) => (
+                  <button
+                    key={acc.id}
+                    onClick={() => onSelect(acc.id === selectedId ? "" : acc.id)}
+                    className={`flex items-center justify-between p-3 rounded-lg border text-left transition-colors ${
+                      selectedId === acc.id
+                        ? "border-violet-500 bg-violet-50"
+                        : "border-border hover:border-violet-300"
+                    }`}
+                  >
+                    <div>
+                      <p className="text-sm font-medium">{acc.account_name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {platformLabels[acc.platform] || acc.platform}
+                        {acc.account_url && ` · ${acc.account_url}`}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {acc.is_default && (
+                        <Badge variant="secondary" className="text-xs">기본</Badge>
+                      )}
+                      <Badge variant="outline" className="text-xs text-muted-foreground">수동</Badge>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground py-2 text-center">
+                등록된 발행 채널이 없습니다.
+              </p>
+            )}
+          </>
         )}
 
         {showAdd && (
@@ -2457,7 +2651,7 @@ function StepPublishTrack({
         )}
       </div>
 
-      {/* Publish URL */}
+      {/* Publish URL + Tracking */}
       <div className="border-t pt-4">
         <label className="text-sm font-medium">발행 완료 URL</label>
         <input
@@ -2468,7 +2662,7 @@ function StepPublishTrack({
           className="mt-1 flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
         />
         <p className="text-xs text-muted-foreground mt-1">
-          블로그에 콘텐츠를 발행한 후 URL을 입력하세요
+          수동 발행 후 URL을 입력하거나, 자동 발행 시 자동으로 채워집니다
         </p>
       </div>
 
@@ -2487,11 +2681,6 @@ function StepPublishTrack({
           )}
           {trackingSaving ? "처리 중..." : "추적 시작"}
         </Button>
-        {!savedContentId && (
-          <p className="text-xs text-amber-600 mt-2 text-center">
-            콘텐츠를 먼저 저장해주세요 (이전 단계)
-          </p>
-        )}
       </div>
     </div>
   );

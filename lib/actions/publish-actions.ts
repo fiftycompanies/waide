@@ -71,12 +71,17 @@ export async function executePublish(params: {
   contentId: string;
   clientId: string;
   blogAccountId: string;
-  platform: "tistory" | "wordpress" | "medium";
+  platform: "tistory" | "wordpress" | "medium" | "homepage";
   publishAsDraft?: boolean;
   categoryId?: string;
   publishType?: "manual" | "auto";
 }): Promise<{ success: boolean; publication?: Publication; error?: string }> {
   const db = createAdminClient();
+
+  // ── Homepage 플랫폼: publishing_accounts + HomepagePublisher 경유 ──
+  if (params.platform === "homepage") {
+    return _publishToHomepage(db, params);
+  }
 
   // 1. 블로그 계정 조회
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -231,6 +236,124 @@ export async function executePublish(params: {
       created_at: now,
     },
   };
+}
+
+/**
+ * Homepage 플랫폼 내부 발행 로직
+ * publishing_accounts.memo에서 project_id를 추출하여 HomepagePublisher로 발행
+ */
+async function _publishToHomepage(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  db: any,
+  params: {
+    contentId: string;
+    clientId: string;
+    blogAccountId: string; // publishing_accounts.id
+    publishType?: "manual" | "auto";
+  }
+): Promise<{ success: boolean; publication?: Publication; error?: string }> {
+  // 1. publishing_accounts에서 project_id 추출
+  let projectId: string | null = null;
+
+  if (params.blogAccountId) {
+    const { data: account } = await db
+      .from("publishing_accounts")
+      .select("memo")
+      .eq("id", params.blogAccountId)
+      .maybeSingle();
+
+    if (account?.memo) {
+      try {
+        const memo = typeof account.memo === "string" ? JSON.parse(account.memo) : account.memo;
+        projectId = memo?.project_id || null;
+      } catch { /* memo parse failed */ }
+    }
+  }
+
+  // blogAccountId가 없거나 memo에 project_id가 없으면 client의 homepage 프로젝트 조회
+  if (!projectId) {
+    const { data: hpProject } = await db
+      .from("homepage_projects")
+      .select("id")
+      .eq("client_id", params.clientId)
+      .eq("status", "deployed")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    projectId = hpProject?.id || null;
+  }
+
+  if (!projectId) {
+    return { success: false, error: "홈페이지 프로젝트를 찾을 수 없습니다. 홈페이지가 배포되어 있는지 확인하세요." };
+  }
+
+  // 2. HomepagePublisher로 발행
+  try {
+    const { HomepagePublisher } = await import("@/lib/homepage/publishing/homepage-publisher");
+    const publisher = new HomepagePublisher(db);
+    const result = await publisher.publishToHomepage(params.contentId, projectId);
+
+    // 3. contents 추가 필드 업데이트 (published_url, is_tracking — HomepagePublisher가 미처리)
+    const now = new Date().toISOString();
+    await db
+      .from("contents")
+      .update({
+        published_url: result.blogUrl,
+        is_tracking: true,
+        updated_at: now,
+      })
+      .eq("id", params.contentId);
+
+    // 4. 알림 생성
+    try {
+      const { data: content } = await db
+        .from("contents")
+        .select("title")
+        .eq("id", params.contentId)
+        .single();
+
+      const { createNotification } = await import("@/lib/actions/notification-actions");
+      await createNotification({
+        clientId: params.clientId,
+        type: "publish_complete",
+        title: `"${content?.title || "Untitled"}" 홈페이지 발행 완료`,
+        body: result.blogUrl,
+        metadata: { content_id: params.contentId, platform: "homepage", published_url: result.blogUrl },
+      });
+    } catch (notifErr) {
+      console.error("[publish-actions] homepage notification failed:", notifErr);
+    }
+
+    revalidatePath("/publish");
+    revalidatePath("/contents");
+
+    const now2 = new Date().toISOString();
+    return {
+      success: true,
+      publication: {
+        id: result.publicationId,
+        content_id: params.contentId,
+        client_id: params.clientId,
+        blog_account_id: params.blogAccountId || null,
+        platform: "homepage",
+        external_url: result.blogUrl,
+        external_post_id: null,
+        status: "published",
+        publish_type: params.publishType || "manual",
+        error_message: null,
+        retry_count: 0,
+        published_at: now2,
+        created_at: now2,
+      },
+    };
+  } catch (err) {
+    console.error("[publish-actions] homepage publish failed:", err);
+    return {
+      success: false,
+      error: `홈페이지 발행 실패: ${err instanceof Error ? err.message : "unknown error"}`,
+    };
+  }
 }
 
 /**
