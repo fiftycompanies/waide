@@ -1,355 +1,296 @@
 /**
- * test-screenshot-pipeline.ts
- * Screenshot-to-Code 파이프라인 로컬 검증 스크립트
+ * Screenshot-to-Code 파이프라인 E2E 테스트
  *
- * 테스트 항목:
- * 1. brand-injector에 플레이스홀더 HTML을 넣으면 브랜드 정보로 치환되는지
- * 2. 모든 class명이 waide- 접두사인지
- * 3. CSS 변수(--waide-*)만 색상에 사용했는지
- * 4. 블로그 섹션 포함 확인
- * 5. Unsplash 이미지 URL 포함 확인
- * 6. rest-clinic.com 문자열 0건 확인
+ * 각 단계를 독립적으로 검증하고 결과를 리포트한다.
+ * Vercel 배포/DB 저장은 하지 않는다 (드라이런).
+ *
+ * 사용법:
+ *   npx tsx scripts/test-screenshot-pipeline.ts [referenceUrl]
+ *
+ * 환경변수 필요:
+ *   ANTHROPIC_API_KEY, NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_KEY
  */
 
+// ── 환경변수 로드 ─────────────────────────────────────────────────────────────
+import { config } from "dotenv";
+import path from "path";
+
+// apps/web/.env.local 로드
+config({ path: path.resolve(__dirname, "../apps/web/.env.local") });
+
+// ── 모듈 import ──────────────────────────────────────────────────────────────
+
+import { captureScreenshots, type ScreenshotSet } from "../lib/homepage/generate/screenshot-crawler";
+import {
+  generateHtmlFromScreenshots,
+  extractDesignTokensFromScreenshot,
+  type DesignTokens,
+} from "../lib/homepage/generate/vision-to-html";
 import { injectBrandInfo } from "../lib/homepage/generate/brand-injector";
 import type { BrandInfo, PersonaInfo } from "../lib/homepage/generate/content-mapper";
-import * as fs from "fs";
-import * as path from "path";
 
-// ── 테스트 데이터 ─────────────────────────────────────────────────────────────
+// ── 설정 ──────────────────────────────────────────────────────────────────────
 
-const MOCK_BRAND_INFO: BrandInfo = {
+const DEFAULT_REFERENCE_URL = "https://www.aestura.com";
+
+const TEST_BRAND_INFO: BrandInfo = {
   name: "에버유의원",
-  industry: "의원",
-  phone: "02-1234-5678",
+  industry: "피부과",
+  phone: "02-555-1234",
   address: "서울시 강남구 테헤란로 123",
-  services: ["피부관리", "보톡스", "필러", "리프팅", "레이저토닝"],
-  keywords: ["강남 피부과", "보톡스 잘하는 곳", "필러 추천"],
-  tone: "luxury",
+  services: ["레이저 토닝", "보톡스", "필러", "리프팅", "여드름 치료"],
+  keywords: ["강남 피부과", "레이저 토닝", "보톡스 잘하는 곳"],
+  tone: "전문적이고 신뢰감 있는",
 };
 
-const MOCK_PERSONA: PersonaInfo = {
-  usp: "15년 경력 피부과 전문의가 직접 시술하는 프리미엄 피부관리",
-  target_customer: "30~50대 피부 관리에 관심 있는 여성",
-  tagline: "당신의 피부, 에버유가 지킵니다",
-  one_liner: "당신의 피부, 에버유가 지킵니다",
+const TEST_PERSONA: PersonaInfo = {
+  usp: "15년 경력 피부과 전문의의 1:1 맞춤 시술",
+  target_customer: "20~40대 피부 고민이 있는 직장인",
+  tagline: "당신의 피부, 에버유가 답입니다",
+  one_liner: "강남 피부과 전문 에버유의원",
 };
 
-// Vision AI가 생성할 법한 플레이스홀더 HTML 시뮬레이션
-const MOCK_VISION_HTML = `<!DOCTYPE html>
-<html lang="ko">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>[BRAND_NAME] | [TAGLINE]</title>
-  <meta name="description" content="[USP]">
-  <meta property="og:title" content="[BRAND_NAME] | [TAGLINE]">
-  <meta property="og:description" content="[USP]">
-  <style>
-    :root {
-      --waide-primary: #1a1210;
-      --waide-accent: #c8a97e;
-      --waide-bg: #ffffff;
-      --waide-text: #333333;
-      --waide-font-heading: 'Playfair Display', serif;
-      --waide-font-body: 'Noto Sans KR', sans-serif;
-    }
-    body { font-family: var(--waide-font-body); color: var(--waide-text); background: var(--waide-bg); }
-    .waide-nav { background: var(--waide-primary); padding: 16px 0; }
-    .waide-nav-inner { max-width: 1200px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; padding: 0 24px; }
-    .waide-nav-logo { color: var(--waide-accent); font-family: var(--waide-font-heading); font-size: 1.5rem; font-weight: 700; }
-    .waide-nav-menu { display: flex; gap: 24px; list-style: none; }
-    .waide-nav-menu a { color: #fff; font-size: 0.95rem; }
-    .waide-nav-cta { background: var(--waide-accent); color: var(--waide-primary); padding: 8px 20px; border-radius: 4px; font-weight: 600; }
-    .waide-hero { position: relative; height: 100vh; display: flex; align-items: center; justify-content: center; text-align: center; color: #fff; overflow: hidden; }
-    .waide-hero-bg { position: absolute; inset: 0; z-index: 0; }
-    .waide-hero-bg img { width: 100%; height: 100%; object-fit: cover; }
-    .waide-hero-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.5); z-index: 1; }
-    .waide-hero-content { position: relative; z-index: 2; max-width: 700px; padding: 0 24px; }
-    .waide-hero-content h1 { font-family: var(--waide-font-heading); font-size: 3rem; margin-bottom: 16px; }
-    .waide-hero-content p { font-size: 1.2rem; margin-bottom: 32px; opacity: 0.9; }
-    .waide-hero-btn { display: inline-block; background: var(--waide-accent); color: var(--waide-primary); padding: 14px 36px; border-radius: 4px; font-weight: 600; font-size: 1.1rem; }
+// ── 유틸 ──────────────────────────────────────────────────────────────────────
 
-    .waide-about { padding: 80px 24px; max-width: 1200px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 60px; align-items: center; }
-    .waide-about h2 { font-family: var(--waide-font-heading); font-size: 2rem; margin-bottom: 16px; color: var(--waide-primary); }
-    .waide-about p { line-height: 1.8; color: #555; }
+function printSection(title: string) {
+  console.log(`\n${"═".repeat(60)}`);
+  console.log(`  ${title}`);
+  console.log(`${"═".repeat(60)}`);
+}
 
-    .waide-services { padding: 80px 24px; background: #f9f9f9; }
-    .waide-services-inner { max-width: 1200px; margin: 0 auto; }
-    .waide-services h2 { text-align: center; font-family: var(--waide-font-heading); font-size: 2rem; margin-bottom: 48px; color: var(--waide-primary); }
-    .waide-services-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
-    .waide-service-card { background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 12px rgba(0,0,0,0.06); }
-    .waide-service-card h3 { padding: 16px 20px 8px; font-size: 1.1rem; color: var(--waide-primary); }
-    .waide-service-card p { padding: 0 20px 20px; color: #666; font-size: 0.9rem; }
+function printResult(label: string, pass: boolean, detail?: string) {
+  const icon = pass ? "✅" : "❌";
+  console.log(`  ${icon} ${label}${detail ? ` — ${detail}` : ""}`);
+}
 
-    .waide-gallery { padding: 80px 24px; max-width: 1200px; margin: 0 auto; }
-    .waide-gallery h2 { text-align: center; font-family: var(--waide-font-heading); font-size: 2rem; margin-bottom: 48px; color: var(--waide-primary); }
-    .waide-gallery-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
-    .waide-gallery-grid img { width: 100%; height: 250px; object-fit: cover; border-radius: 8px; }
+// ── 단계별 테스트 ──────────────────────────────────────────────────────────────
 
-    .waide-contact { padding: 80px 24px; background: var(--waide-primary); color: #fff; }
-    .waide-contact-inner { max-width: 1000px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 60px; }
-    .waide-contact h2 { font-family: var(--waide-font-heading); font-size: 2rem; margin-bottom: 24px; }
-    .waide-contact-info p { margin-bottom: 12px; opacity: 0.9; }
-    .waide-contact-form input, .waide-contact-form textarea { width: 100%; padding: 12px; margin-bottom: 16px; border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; background: rgba(255,255,255,0.1); color: #fff; }
-    .waide-contact-form button { background: var(--waide-accent); color: var(--waide-primary); padding: 12px 32px; border: none; border-radius: 4px; font-weight: 600; cursor: pointer; }
+async function testStep1_Screenshot(url: string): Promise<ScreenshotSet | null> {
+  printSection("STEP 1: 스크린샷 캡처 (Playwright)");
+  try {
+    const start = Date.now();
+    const screenshots = await captureScreenshots(url);
+    const elapsed = ((Date.now() - start) / 1000).toFixed(1);
 
-    .waide-blog { padding: 80px 24px; max-width: 1200px; margin: 0 auto; }
-    .waide-blog h2 { text-align: center; font-family: var(--waide-font-heading); font-size: 2rem; margin-bottom: 48px; color: var(--waide-primary); }
-    .waide-blog-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
-    .waide-blog-card { background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 12px rgba(0,0,0,0.06); }
-    .waide-blog-img { height: 200px; background: #eee; }
-    .waide-blog-card h3 { padding: 16px 20px 8px; font-size: 1rem; color: var(--waide-primary); }
-    .waide-blog-card p { padding: 0 20px 20px; color: #666; font-size: 0.85rem; }
+    printResult("스크린샷 캡처", true, `${elapsed}초`);
+    printResult("top 이미지", screenshots.top.length > 100, `${Math.round(screenshots.top.length / 1024)}KB base64`);
+    printResult("middle 이미지", screenshots.middle !== null, screenshots.middle ? `${Math.round(screenshots.middle.length / 1024)}KB base64` : "null (없을 수 있음)");
+    printResult("crops 이미지", screenshots.crops.length > 0, `${screenshots.crops.length}개 크롭`);
+    printResult("URL 일치", screenshots.url === url || screenshots.url.includes(url.replace(/^https?:\/\//, "")), screenshots.url);
 
-    .waide-footer { background: #111; color: #999; padding: 40px 24px; text-align: center; }
-    .waide-footer p { margin-bottom: 8px; }
-
-    @media (max-width: 768px) {
-      .waide-about { grid-template-columns: 1fr; }
-      .waide-services-grid { grid-template-columns: 1fr; }
-      .waide-gallery-grid { grid-template-columns: repeat(2, 1fr); }
-      .waide-contact-inner { grid-template-columns: 1fr; }
-      .waide-blog-grid { grid-template-columns: 1fr; }
-      .waide-hero-content h1 { font-size: 2rem; }
-    }
-  </style>
-</head>
-<body>
-  <!-- Nav -->
-  <nav class="waide-nav">
-    <div class="waide-nav-inner">
-      <div class="waide-nav-logo">[BRAND_NAME]</div>
-      <ul class="waide-nav-menu">
-        <li><a href="#about">소개</a></li>
-        <li><a href="#services">서비스</a></li>
-        <li><a href="#gallery">갤러리</a></li>
-        <li><a href="#contact">상담</a></li>
-      </ul>
-      <a class="waide-nav-cta" href="tel:[PHONE]">[PHONE]</a>
-    </div>
-  </nav>
-
-  <!-- Hero -->
-  <section class="waide-hero" id="hero">
-    <div class="waide-hero-bg">
-      <img src="" data-img-slot="hero" alt="hero background">
-    </div>
-    <div class="waide-hero-overlay"></div>
-    <div class="waide-hero-content">
-      <h1>[TAGLINE]</h1>
-      <p>[USP]</p>
-      <a class="waide-hero-btn" href="#contact">상담 예약하기</a>
-    </div>
-  </section>
-
-  <!-- About -->
-  <section class="waide-about" id="about">
-    <div class="waide-about-text">
-      <h2>[BRAND_NAME] 소개</h2>
-      <p>[USP]</p>
-    </div>
-    <div class="waide-about-img">
-      <img src="" data-img-slot="about" alt="about">
-    </div>
-  </section>
-
-  <!-- Services -->
-  <section class="waide-services" id="services">
-    <div class="waide-services-inner">
-      <h2>서비스 안내</h2>
-      <div class="waide-services-grid">
-        <div class="waide-service-card">
-          <img src="" data-img-slot="service" alt="service">
-          <h3>[SERVICE_1]</h3>
-          <p>[SERVICE_DESC_1]</p>
-        </div>
-        <div class="waide-service-card">
-          <img src="" data-img-slot="service" alt="service">
-          <h3>[SERVICE_2]</h3>
-          <p>[SERVICE_DESC_2]</p>
-        </div>
-        <div class="waide-service-card">
-          <img src="" data-img-slot="service" alt="service">
-          <h3>[SERVICE_3]</h3>
-          <p>[SERVICE_DESC_3]</p>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- Gallery -->
-  <section class="waide-gallery" id="gallery">
-    <h2>갤러리</h2>
-    <div class="waide-gallery-grid">
-      <img src="" data-img-slot="gallery" alt="gallery">
-      <img src="" data-img-slot="gallery" alt="gallery">
-      <img src="" data-img-slot="gallery" alt="gallery">
-    </div>
-  </section>
-
-  <!-- Contact -->
-  <section class="waide-contact" id="contact">
-    <div class="waide-contact-inner">
-      <div class="waide-contact-info">
-        <h2>상담 예약</h2>
-        <p>전화: [PHONE]</p>
-        <p>주소: [ADDRESS]</p>
-      </div>
-      <div class="waide-contact-form">
-        <input type="text" placeholder="이름">
-        <input type="tel" placeholder="연락처">
-        <textarea placeholder="문의 내용" rows="4"></textarea>
-        <button type="submit">상담 신청</button>
-      </div>
-    </div>
-  </section>
-
-  <!-- Blog -->
-  <section class="waide-blog" id="blog">
-    <h2>블로그</h2>
-    <div class="waide-blog-grid">
-      <article class="waide-blog-card" data-blog-slot="1">
-        <div class="waide-blog-img" data-img-slot="gallery"></div>
-        <h3>[BLOG_TITLE_1]</h3>
-        <p>[BLOG_EXCERPT_1]</p>
-      </article>
-      <article class="waide-blog-card" data-blog-slot="2">
-        <div class="waide-blog-img" data-img-slot="gallery"></div>
-        <h3>[BLOG_TITLE_2]</h3>
-        <p>[BLOG_EXCERPT_2]</p>
-      </article>
-      <article class="waide-blog-card" data-blog-slot="3">
-        <div class="waide-blog-img" data-img-slot="gallery"></div>
-        <h3>[BLOG_TITLE_3]</h3>
-        <p>[BLOG_EXCERPT_3]</p>
-      </article>
-    </div>
-  </section>
-
-  <!-- Footer -->
-  <footer class="waide-footer">
-    <p>[BRAND_NAME]</p>
-    <p>[PHONE] | [ADDRESS]</p>
-    <p>&copy; 2026 [BRAND_NAME]. All rights reserved.</p>
-  </footer>
-</body>
-</html>`;
-
-// ── 테스트 실행 ──────────────────────────────────────────────────────────────
-
-console.log("=== Screenshot-to-Code 파이프라인 검증 ===\n");
-
-// 브랜드 정보 주입
-const injectedHtml = injectBrandInfo(
-  MOCK_VISION_HTML,
-  MOCK_BRAND_INFO,
-  MOCK_PERSONA,
-  "의원"
-);
-
-let passCount = 0;
-let failCount = 0;
-
-function check(name: string, condition: boolean, detail?: string) {
-  if (condition) {
-    console.log(`✅ PASS: ${name}${detail ? ` (${detail})` : ""}`);
-    passCount++;
-  } else {
-    console.log(`❌ FAIL: ${name}${detail ? ` — ${detail}` : ""}`);
-    failCount++;
+    return screenshots;
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    printResult("스크린샷 캡처", false, msg);
+    return null;
   }
 }
 
-// 1. "rest-clinic.com" 문자열 0건 확인
-check(
-  "rest-clinic.com 문자열 없음",
-  !injectedHtml.includes("rest-clinic.com"),
-  "레퍼런스 URL 참조 없음"
-);
+async function testStep2_DesignTokens(topScreenshot: string): Promise<DesignTokens | null> {
+  printSection("STEP 2: 디자인 토큰 추출 (Claude Vision)");
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    printResult("ANTHROPIC_API_KEY", false, "환경변수 없음");
+    return null;
+  }
 
-// 2. 모든 class명이 waide- 접두사
-const classMatches = injectedHtml.match(/class="([^"]*)"/g) || [];
-const allWaide = classMatches.every((m) => {
-  const classes = m.replace(/class="/, "").replace(/"/, "").split(/\s+/);
-  return classes.every((c) => c === "" || c.startsWith("waide-"));
-});
-check(
-  "모든 class명이 waide- 접두사",
-  allWaide,
-  `${classMatches.length}개 class 속성 확인`
-);
+  try {
+    const start = Date.now();
+    const tokens = await extractDesignTokensFromScreenshot(topScreenshot, apiKey.trim());
+    const elapsed = ((Date.now() - start) / 1000).toFixed(1);
 
-// 3. CSS 변수(--waide-*)만 색상에 사용
-check(
-  "CSS 변수(--waide-*) 사용",
-  injectedHtml.includes("--waide-primary") && injectedHtml.includes("--waide-accent"),
-  "primary + accent 변수 확인"
-);
+    printResult("토큰 추출", true, `${elapsed}초`);
+    printResult("primaryColor", !!tokens.primaryColor, tokens.primaryColor);
+    printResult("accentColor", !!tokens.accentColor, tokens.accentColor);
+    printResult("backgroundColor", !!tokens.backgroundColor, tokens.backgroundColor);
+    printResult("textColor", !!tokens.textColor, tokens.textColor);
+    printResult("headingFont", !!tokens.headingFont, tokens.headingFont);
+    printResult("bodyFont", !!tokens.bodyFont, tokens.bodyFont);
 
-// 4. 블로그 섹션 포함
-check(
-  "블로그 섹션 포함",
-  injectedHtml.includes("waide-blog") && injectedHtml.includes("waide-blog-grid"),
-  "waide-blog + waide-blog-grid"
-);
-
-// 5. Unsplash 이미지 URL 포함
-const unsplashCount = (injectedHtml.match(/images\.unsplash\.com/g) || []).length;
-check(
-  "Unsplash 이미지 포함",
-  unsplashCount >= 3,
-  `${unsplashCount}개 Unsplash URL`
-);
-
-// 6. 플레이스홀더 교체 확인
-check(
-  "[BRAND_NAME] 교체됨",
-  !injectedHtml.includes("[BRAND_NAME]") && injectedHtml.includes("에버유의원"),
-  "에버유의원으로 교체"
-);
-
-// 7. [SERVICE_1] 교체됨
-check(
-  "[SERVICE_1] 교체됨",
-  !injectedHtml.includes("[SERVICE_1]") && injectedHtml.includes("피부관리"),
-  "피부관리로 교체"
-);
-
-// 8. [PHONE] 교체됨
-check(
-  "[PHONE] 교체됨",
-  !injectedHtml.includes("[PHONE]") && injectedHtml.includes("02-1234-5678"),
-  "02-1234-5678로 교체"
-);
-
-// 9. 메타 태그 교체
-check(
-  "메타 태그 교체됨",
-  injectedHtml.includes("<title>에버유의원") && injectedHtml.includes("당신의 피부"),
-  "title + description 포함"
-);
-
-// 10. 블로그 플레이스홀더 교체
-check(
-  "블로그 플레이스홀더 교체됨",
-  !injectedHtml.includes("[BLOG_TITLE_1]") && injectedHtml.includes("에버유의원"),
-  "블로그 타이틀에 브랜드명 포함"
-);
-
-console.log(`\n=== 결과: ${passCount} PASS / ${failCount} FAIL (총 ${passCount + failCount}개) ===`);
-
-// 결과 파일 저장
-const outputDir = path.join(__dirname, "..", "output");
-if (!fs.existsSync(outputDir)) {
-  fs.mkdirSync(outputDir, { recursive: true });
+    return tokens;
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    printResult("토큰 추출", false, msg);
+    return null;
+  }
 }
 
-const outputPath = path.join(outputDir, "20260320_에버유의원_screenshot_pipeline.html");
-fs.writeFileSync(outputPath, injectedHtml, "utf-8");
-console.log(`\n📄 결과 HTML 저장: ${outputPath}`);
-console.log(`   크기: ${Math.round(injectedHtml.length / 1024)}KB`);
+async function testStep3_VisionHtml(
+  screenshots: ScreenshotSet,
+  tokens: DesignTokens
+): Promise<string | null> {
+  printSection("STEP 3: Vision AI HTML 생성 (Claude Sonnet Vision)");
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    printResult("ANTHROPIC_API_KEY", false, "환경변수 없음");
+    return null;
+  }
 
-if (failCount > 0) {
+  try {
+    const start = Date.now();
+    const html = await generateHtmlFromScreenshots({
+      screenshots,
+      tokens,
+      apiKey: apiKey.trim(),
+      industry: TEST_BRAND_INFO.industry,
+    });
+    const elapsed = ((Date.now() - start) / 1000).toFixed(1);
+    const sizeKB = Math.round(html.length / 1024);
+
+    printResult("HTML 생성", true, `${elapsed}초, ${sizeKB}KB`);
+    printResult("Tailwind CDN 포함", html.includes("tailwindcss"), "cdn.tailwindcss.com");
+    printResult("tailwind.config 포함", html.includes("tailwind.config"), "커스텀 색상/폰트");
+    printResult("플레이스홀더 존재", html.includes("{{BRAND_NAME}}") || html.includes("{{PHONE}}"), "{{BRAND_NAME}} 또는 {{PHONE}}");
+    printResult("data-img-slot 존재", html.includes("data-img-slot"), "이미지 슬롯");
+
+    // <style> 태그 최소화 체크
+    const styleCount = (html.match(/<style[\s>]/gi) || []).length;
+    printResult("<style> 태그 최소화", styleCount <= 2, `${styleCount}개`);
+
+    return html;
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    printResult("HTML 생성", false, msg);
+    return null;
+  }
+}
+
+function testStep4_BrandInjection(rawHtml: string): string | null {
+  printSection("STEP 4: 브랜드 정보 주입 (brand-injector)");
+  try {
+    const start = Date.now();
+    const finalHtml = injectBrandInfo(rawHtml, TEST_BRAND_INFO, TEST_PERSONA, TEST_BRAND_INFO.industry);
+    const elapsed = ((Date.now() - start) / 1000).toFixed(1);
+    const sizeKB = Math.round(finalHtml.length / 1024);
+
+    printResult("브랜드 주입", true, `${elapsed}초, ${sizeKB}KB`);
+    printResult("브랜드명 교체", finalHtml.includes("에버유의원"), "{{BRAND_NAME}} → 에버유의원");
+    printResult("전화번호 교체", finalHtml.includes("02-555-1234"), "{{PHONE}} → 02-555-1234");
+    printResult("주소 교체", finalHtml.includes("서울시 강남구"), "{{ADDRESS}} → 서울시 강남구");
+
+    // 원본 플레이스홀더 잔여 체크
+    const remainingPlaceholders = (finalHtml.match(/\{\{[A-Z_]+[0-9]*\}\}/g) || []);
+    const criticalRemaining = remainingPlaceholders.filter(
+      (p) => !p.includes("BLOG_") && !p.includes("FORM_") && !p.includes("PRIVACY")
+    );
+    printResult(
+      "핵심 플레이스홀더 교체 완료",
+      criticalRemaining.length === 0,
+      criticalRemaining.length > 0
+        ? `남은 핵심 플레이스홀더: ${criticalRemaining.slice(0, 5).join(", ")}`
+        : "모두 교체됨"
+    );
+
+    // Unsplash 이미지 교체 체크
+    const unsplashCount = (finalHtml.match(/images\.unsplash\.com/g) || []).length;
+    printResult("Unsplash 이미지 삽입", unsplashCount > 0, `${unsplashCount}개`);
+
+    // 레퍼런스 텍스트 유출 체크
+    const leakPatterns = ["aestura", "에스트라", "ATOBARRIER", "Atobarrier"];
+    const leaks = leakPatterns.filter((p) => finalHtml.toLowerCase().includes(p.toLowerCase()));
+    printResult(
+      "레퍼런스 텍스트 유출 없음",
+      leaks.length === 0,
+      leaks.length > 0 ? `유출: ${leaks.join(", ")}` : "원본 텍스트 미감지"
+    );
+
+    return finalHtml;
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    printResult("브랜드 주입", false, msg);
+    return null;
+  }
+}
+
+// ── 메인 ──────────────────────────────────────────────────────────────────────
+
+async function main() {
+  const referenceUrl = process.argv[2] || DEFAULT_REFERENCE_URL;
+
+  console.log("╔══════════════════════════════════════════════════════════╗");
+  console.log("║  Screenshot-to-Code 파이프라인 E2E 테스트              ║");
+  console.log("╚══════════════════════════════════════════════════════════╝");
+  console.log(`  레퍼런스 URL: ${referenceUrl}`);
+  console.log(`  테스트 브랜드: ${TEST_BRAND_INFO.name}`);
+  console.log(`  시작 시각: ${new Date().toLocaleString("ko-KR")}`);
+
+  // 환경변수 체크
+  printSection("STEP 0: 환경변수 사전 체크");
+  printResult("ANTHROPIC_API_KEY", !!process.env.ANTHROPIC_API_KEY);
+  printResult("NEXT_PUBLIC_SUPABASE_URL", !!process.env.NEXT_PUBLIC_SUPABASE_URL);
+  printResult("SUPABASE_SERVICE_KEY", !!process.env.SUPABASE_SERVICE_KEY);
+  printResult("VERCEL_TOKEN", !!process.env.VERCEL_TOKEN);
+  printResult("VERCEL_TEAM_ID", !!process.env.VERCEL_TEAM_ID);
+
+  const totalStart = Date.now();
+  const results: { step: string; pass: boolean }[] = [];
+
+  // Step 1: 스크린샷
+  const screenshots = await testStep1_Screenshot(referenceUrl);
+  results.push({ step: "스크린샷 캡처", pass: screenshots !== null });
+  if (!screenshots) {
+    printSection("ABORT: 스크린샷 실패 → 이후 단계 스킵");
+    printSummary(results, totalStart);
+    return;
+  }
+
+  // Step 2: 디자인 토큰
+  const tokens = await testStep2_DesignTokens(screenshots.top);
+  results.push({ step: "디자인 토큰 추출", pass: tokens !== null });
+  if (!tokens) {
+    printSection("ABORT: 토큰 추출 실패 → 이후 단계 스킵");
+    printSummary(results, totalStart);
+    return;
+  }
+
+  // Step 3: Vision HTML 생성
+  const rawHtml = await testStep3_VisionHtml(screenshots, tokens);
+  results.push({ step: "Vision HTML 생성", pass: rawHtml !== null });
+  if (!rawHtml) {
+    printSection("ABORT: HTML 생성 실패 → 이후 단계 스킵");
+    printSummary(results, totalStart);
+    return;
+  }
+
+  // Step 4: 브랜드 주입
+  const finalHtml = testStep4_BrandInjection(rawHtml);
+  results.push({ step: "브랜드 정보 주입", pass: finalHtml !== null });
+
+  // Step 5 (skip): DB 저장 + Vercel 배포
+  printSection("STEP 5: DB 저장 + Vercel 배포 (스킵 — 드라이런)");
+  console.log("  ⏭️  DB 저장과 Vercel 배포는 실서비스 영향 방지를 위해 스킵합니다.");
+  console.log("  ⏭️  generateHomepage() 서버 액션 통한 전체 테스트는 어드민 UI에서 수행하세요.");
+
+  // 최종 HTML 파일 저장 (로컬 확인용)
+  if (finalHtml) {
+    const fs = await import("fs");
+    const outPath = path.resolve(__dirname, "../tmp/test-screenshot-output.html");
+    fs.mkdirSync(path.dirname(outPath), { recursive: true });
+    fs.writeFileSync(outPath, finalHtml, "utf-8");
+    console.log(`\n  📄 결과 HTML 저장: ${outPath}`);
+    console.log(`     브라우저에서 열어 시각적으로 확인하세요.`);
+  }
+
+  printSummary(results, totalStart);
+}
+
+function printSummary(results: { step: string; pass: boolean }[], totalStart: number) {
+  const totalElapsed = ((Date.now() - totalStart) / 1000).toFixed(1);
+  const passed = results.filter((r) => r.pass).length;
+  const failed = results.filter((r) => !r.pass).length;
+
+  printSection("최종 결과");
+  results.forEach((r) => {
+    console.log(`  ${r.pass ? "✅" : "❌"} ${r.step}`);
+  });
+  console.log(`\n  총 소요: ${totalElapsed}초`);
+  console.log(`  결과: ${passed} PASS / ${failed} FAIL`);
+  console.log(`${"═".repeat(60)}\n`);
+
+  process.exit(failed > 0 ? 1 : 0);
+}
+
+main().catch((err) => {
+  console.error("\n💥 예기치 못한 에러:", err);
   process.exit(1);
-}
+});

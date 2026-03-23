@@ -42,6 +42,8 @@ export interface VisionToHtmlOptions {
   tokens: DesignTokens;
   /** API 키 */
   apiKey: string;
+  /** 업종 (예: "피부과", "숙박", "카페") — 섹션 구조 힌트용 */
+  industry?: string;
 }
 
 export interface SectionStructure {
@@ -80,7 +82,7 @@ export interface ReferenceStructure {
 export async function generateHtmlFromScreenshots(
   options: VisionToHtmlOptions
 ): Promise<string> {
-  const { screenshots, tokens, apiKey } = options;
+  const { screenshots, tokens, apiKey, industry } = options;
 
   // ── Stage A: 구조 분석 ──────────────────────────────────────────────────────
   console.log("[VisionToHtml] Stage A: 섹션 구조 분석 시작...");
@@ -107,7 +109,7 @@ export async function generateHtmlFromScreenshots(
     const batch = crops.slice(i, i + BATCH_SIZE);
     const batchPromises = batch.map((crop, batchIdx) => {
       const cropIndex = i + batchIdx;
-      return generateCropHtml(crop, cropIndex, crops.length, tokens, apiKey)
+      return generateCropHtml(crop, cropIndex, crops.length, tokens, apiKey, industry)
         .then((html) => {
           console.log(`[VisionToHtml] 크롭 ${cropIndex + 1}/${crops.length} 완료`);
           return html;
@@ -296,12 +298,16 @@ function getDefaultStructure(): ReferenceStructure {
  */
 function getTailwindSystemPrompt(): string {
   return `You are an expert Tailwind CSS developer.
-You take a screenshot of a reference web page section and then build it using Tailwind CSS, HTML, and JS.
-You might also be given a screenshot of a web page that you have already built, and asked to update it to look more like the reference image.
+You take a screenshot of a reference web page section and reproduce its LAYOUT and VISUAL STRUCTURE using Tailwind CSS and HTML.
 
-- Make sure the app looks exactly like the screenshot.
+CRITICAL — REFERENCE TEXT ISOLATION:
+The screenshot is from a DIFFERENT business. You must NOT copy any text, brand names, product names, slogans, or descriptions from the screenshot.
+Instead, use the provided {{PLACEHOLDER}} tokens for all text content.
+The screenshot is ONLY a layout/design reference — treat all visible text as if it were lorem ipsum.
+
+- Reproduce the layout, spacing, grid structure, and visual hierarchy from the screenshot.
 - Pay close attention to background color, text color, font size, font family, padding, margin, border, etc. Match the colors and sizes exactly.
-- Use the exact text from the screenshot.
+- Do NOT copy any text from the screenshot. Use ONLY the {{PLACEHOLDER}} tokens provided in the user prompt.
 - Do not add comments in the code such as "<!-- Add other navigation links as needed -->" and "<!-- ... other news items ... -->" in place of writing the full code. WRITE THE FULL CODE.
 - Repeat elements as needed to match the screenshot. For example, if there are 15 items, the code should have 15 items. DO NOT LEAVE comments like "<!-- Repeat for each news item -->" or bad things will happen.
 - For images, use placeholder img tags with data-img-slot attribute: <img src="" data-img-slot="hero|about|service|gallery|blog" alt="description" class="...">
@@ -317,10 +323,14 @@ You might also be given a screenshot of a web page that you have already built, 
 function buildCropUserPrompt(
   cropIndex: number,
   totalCrops: number,
-  tokens: DesignTokens
+  tokens: DesignTokens,
+  industry?: string
 ): string {
+  const industryContext = industry ? getIndustryContext(industry) : "";
+
   return `Generate the Tailwind CSS HTML code for this section of the website screenshot.
 This is crop ${cropIndex + 1} of ${totalCrops} (vertical section of the page).
+${industryContext}
 
 Design tokens for this brand:
 - Primary color: ${tokens.primaryColor}
@@ -364,9 +374,12 @@ STRICT RULES — VIOLATIONS WILL BREAK THE OUTPUT:
    as watermarks or background decorations.
    These are confusing and look unprofessional.
    Even if the screenshot shows them, DO NOT reproduce them.
-2. Do NOT include any English text from the reference site
-   (like "Deep Wrinkle", "SERENE BEAUTY", "REST", "Whole Layer Lifting").
-   All text must use the brand placeholders provided above.
+2. CRITICAL — Do NOT copy ANY text from the reference screenshot.
+   The screenshot belongs to a DIFFERENT business. All visible text
+   (brand names, service names, slogans, descriptions, phone numbers,
+   addresses, product names, prices) must be REPLACED with the
+   {{PLACEHOLDER}} tokens listed above. Never reproduce the reference
+   site's original content.
 3. Every section must have real content — no empty colored boxes
    (empty div with just background color and no children).
 4. If the right side of a split section appears to show text/list content,
@@ -374,6 +387,9 @@ STRICT RULES — VIOLATIONS WILL BREAK THE OUTPUT:
 5. Maintain dark (#1A1A1A) or beige (#F0EDE8) backgrounds throughout.
    Do NOT use white (#FFFFFF) or light gray as section backgrounds
    unless the screenshot clearly shows a white background section.
+6. Do NOT include product-specific images from the screenshot.
+   For ALL images, use data-img-slot attributes as instructed above.
+   The reference images (cosmetics, food, rooms, etc.) are NOT for this brand.
 
 Output ONLY the HTML code for this section. No explanation, no markdown code fences, no comments.
 Use Tailwind CSS classes only. No custom CSS. No <style> tags.`;
@@ -384,10 +400,11 @@ async function generateCropHtml(
   cropIndex: number,
   totalCrops: number,
   tokens: DesignTokens,
-  apiKey: string
+  apiKey: string,
+  industry?: string
 ): Promise<string> {
   const systemPrompt = getTailwindSystemPrompt();
-  const userPrompt = buildCropUserPrompt(cropIndex, totalCrops, tokens);
+  const userPrompt = buildCropUserPrompt(cropIndex, totalCrops, tokens, industry);
 
   const resp = await callVisionApiWithSystem(
     cropBase64,
@@ -707,6 +724,90 @@ async function callVisionApiRaw(
 
   const data = await resp.json();
   return data.content?.[0]?.text || "";
+}
+
+// ── 업종별 컨텍스트 ─────────────────────────────────────────────────────────
+
+const INDUSTRY_CONTEXT_MAP: Record<string, string> = {
+  피부과: `
+INDUSTRY CONTEXT — 피부과/클리닉:
+This website is for a dermatology clinic. Appropriate section types:
+- Hero: clinic name + tagline + CTA
+- Services: 시술 목록 (레이저, 보톡스, 필러, 리프팅 등)
+- Gallery: 시술 전후 사진 슬롯
+- Doctor/Team: 의료진 소개
+- Contact: 상담 예약 폼 + 위치
+Do NOT include cosmetics product images or shopping cart elements.`,
+
+  의원: `
+INDUSTRY CONTEXT — 의원/클리닉:
+This website is for a medical clinic. Appropriate section types:
+- Hero: clinic name + tagline + CTA
+- Services: 진료 과목 / 시술 목록
+- About: 의료진 소개, 장비 소개
+- Gallery: 시술 전후 사진 슬롯
+- Contact: 상담 예약 폼 + 위치
+Do NOT include unrelated product images.`,
+
+  치과: `
+INDUSTRY CONTEXT — 치과:
+This website is for a dental clinic. Appropriate section types:
+- Hero: clinic name + tagline + CTA
+- Services: 임플란트, 교정, 미백, 충치치료 등
+- Doctor/Team: 의료진 소개
+- Gallery: 진료 공간 또는 시술 결과
+- Contact: 예약 폼 + 오시는 길`,
+
+  숙박: `
+INDUSTRY CONTEXT — 숙박/호텔:
+This website is for an accommodation business. Appropriate section types:
+- Hero: property name + hero image + CTA
+- Rooms: 객실 타입별 소개
+- Facilities: 부대시설 (스파, 수영장, 레스토랑 등)
+- Gallery: 객실/시설 사진 슬롯
+- Location: 오시는 길 + 주변 관광지
+- Contact: 예약 문의 폼`,
+
+  카페: `
+INDUSTRY CONTEXT — 카페:
+This website is for a cafe. Appropriate section types:
+- Hero: cafe name + ambiance image + CTA
+- Menu: 음료/디저트 목록
+- About: 카페 스토리, 인테리어 컨셉
+- Gallery: 매장/메뉴 사진 슬롯
+- Location: 오시는 길 + 영업시간`,
+
+  음식점: `
+INDUSTRY CONTEXT — 음식점/레스토랑:
+This website is for a restaurant. Appropriate section types:
+- Hero: restaurant name + signature dish image + CTA
+- Menu: 메뉴 카테고리별 소개
+- About: 셰프/브랜드 스토리
+- Gallery: 음식/매장 사진 슬롯
+- Reservation: 예약 폼 + 영업시간 + 위치`,
+};
+
+/**
+ * 업종에 맞는 섹션 구조 힌트를 반환한다.
+ * 매칭되는 업종이 없으면 빈 문자열.
+ */
+function getIndustryContext(industry: string): string {
+  // 정확히 매칭
+  if (INDUSTRY_CONTEXT_MAP[industry]) {
+    return INDUSTRY_CONTEXT_MAP[industry];
+  }
+  // 부분 매칭 (예: "피부과의원" → "피부과")
+  for (const [key, context] of Object.entries(INDUSTRY_CONTEXT_MAP)) {
+    if (industry.includes(key) || key.includes(industry)) {
+      return context;
+    }
+  }
+  // 범용 업종 컨텍스트
+  return `
+INDUSTRY CONTEXT — ${industry}:
+This website is for a "${industry}" business. Use appropriate section types
+that match this industry. Do NOT include images or content from the
+reference screenshot's industry if it differs.`;
 }
 
 // ── HTML 추출 유틸 ────────────────────────────────────────────────────────

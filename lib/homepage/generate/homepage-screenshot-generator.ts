@@ -145,6 +145,7 @@ export class HomepageScreenshotGenerator {
       screenshots: screenshotSet,
       tokens,
       apiKey: this.anthropicApiKey,
+      industry,
     });
 
     console.log(`[ScreenshotGenerator] Vision HTML 생성 완료: ${Math.round(rawHtml.length / 1024)}KB`);

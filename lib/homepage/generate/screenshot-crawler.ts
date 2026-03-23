@@ -13,6 +13,7 @@ import {
   loadPlaywright,
   getRandomUserAgent,
 } from "@/lib/crawlers/playwright-base";
+import { validateReferenceUrl } from "./url-validator";
 
 // ── 타입 ─────────────────────────────────────────────────────────────────────
 
@@ -39,6 +40,10 @@ export async function captureScreenshots(url: string): Promise<ScreenshotSet> {
   if (!normalizedUrl.startsWith("http://") && !normalizedUrl.startsWith("https://")) {
     normalizedUrl = "https://" + normalizedUrl;
   }
+
+  // URL 사전 검증 (DNS/서버 다운 감지 → Playwright 기동 방지)
+  console.log(`[ScreenshotCrawler] URL 사전 검증: ${normalizedUrl}`);
+  normalizedUrl = await validateReferenceUrl(normalizedUrl);
 
   const pw = await loadPlaywright();
   if (!pw) {
