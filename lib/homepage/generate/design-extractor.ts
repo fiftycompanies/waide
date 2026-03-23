@@ -1,3 +1,4 @@
+/** @deprecated 수동 제작 플로우 전환으로 미사용 (2026-03) */
 /**
  * design-extractor.ts
  * HTML에서 디자인 요소를 추출하는 순수 함수 모듈 (cheerio 기반)

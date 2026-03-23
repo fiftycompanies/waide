@@ -1,3 +1,4 @@
+/** @deprecated 수동 제작 플로우 전환으로 미사용 (2026-03) */
 /**
  * image-replacer.ts
  * 복제된 HTML의 모든 이미지를 Unsplash로 교체

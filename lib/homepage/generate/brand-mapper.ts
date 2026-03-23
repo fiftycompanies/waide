@@ -1,3 +1,4 @@
+/** @deprecated 수동 제작 플로우 전환으로 미사용 (2026-03) */
 /**
  * brand-mapper.ts
  * ReferenceAnalysis + BrandInput → 페이지별 콘텐츠 매핑 + Gemini 프롬프트 생성

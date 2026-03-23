@@ -1,3 +1,4 @@
+/** @deprecated 수동 제작 플로우 전환으로 미사용 (2026-03) */
 /**
  * vision-analyzer.ts
  * 레퍼런스 홈페이지 스크린샷을 Claude Vision API로 분석하여

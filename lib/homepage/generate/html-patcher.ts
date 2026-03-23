@@ -1,3 +1,4 @@
+/** @deprecated 수동 제작 플로우 전환으로 미사용 (2026-03) */
 /**
  * html-patcher.ts
  * content-mapper의 replacements + image-replacer의 결과를 실제 HTML에 적용

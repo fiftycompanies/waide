@@ -1,3 +1,4 @@
+/** @deprecated 수동 제작 플로우 전환으로 미사용 (2026-03) */
 /**
  * homepage-component-generator.ts
  * Waide 컴포넌트 기반 홈페이지 생성기

@@ -1,3 +1,4 @@
+/** @deprecated 수동 제작 플로우 전환으로 미사용 (2026-03) */
 /**
  * reference-cloner.ts
  * 레퍼런스 사이트 DOM 복제 크롤러

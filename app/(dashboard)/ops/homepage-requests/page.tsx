@@ -2,19 +2,20 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Play, CheckCircle2, Send, AlertCircle, Clock, Globe } from "lucide-react";
+import { Loader2, CheckCircle2, Send, Clock, Globe, ClipboardCheck, FileCheck } from "lucide-react";
 import {
   getHomepageRequestList,
   getHomepageRequestStats,
   updateHomepageRequestStatus,
-  linkHomepageRequestToProject,
 } from "@/lib/actions/homepage-request-actions";
 import type {
   HomepageRequest,
   HomepageRequestStats,
-  HomepageRequestStatus,
 } from "@/lib/actions/homepage-request-actions";
-import { generateHomepage } from "@/lib/actions/homepage-generate-actions";
+import {
+  confirmHomepageRequest,
+  registerHomepageResult,
+} from "@/lib/actions/homepage-generate-actions";
 import {
   TEMPLATE_LABELS,
 } from "@/lib/homepage/generate/template-types";
@@ -22,12 +23,11 @@ import type { TemplateName } from "@/lib/homepage/generate/template-types";
 
 // ── 상태 뱃지 ──────────────────────────────────────────────────────────
 
-const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; icon: typeof Clock }> = {
-  pending:    { label: "대기",   color: "text-yellow-700", bg: "bg-yellow-50 border-yellow-200", icon: Clock },
-  generating: { label: "생성중", color: "text-blue-700",   bg: "bg-blue-50 border-blue-200",     icon: Loader2 },
-  completed:  { label: "완료",   color: "text-emerald-700", bg: "bg-emerald-50 border-emerald-200", icon: CheckCircle2 },
-  delivered:  { label: "전달",   color: "text-gray-600",   bg: "bg-gray-50 border-gray-200",     icon: Send },
-  failed:     { label: "실패",   color: "text-red-700",    bg: "bg-red-50 border-red-200",       icon: AlertCircle },
+const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
+  pending:    { label: "대기",   color: "text-yellow-700", bg: "bg-yellow-50 border-yellow-200" },
+  reviewing:  { label: "제작중", color: "text-blue-700",   bg: "bg-blue-50 border-blue-200" },
+  completed:  { label: "완료",   color: "text-emerald-700", bg: "bg-emerald-50 border-emerald-200" },
+  delivered:  { label: "전달",   color: "text-gray-600",   bg: "bg-gray-50 border-gray-200" },
 };
 
 function StatusBadge({ status }: { status: string }) {
@@ -62,17 +62,16 @@ export default function OpsHomepageRequestsPage() {
   const [stats, setStats] = useState<HomepageRequestStats | null>(null);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   // Filters
   const [statusFilter, setStatusFilter] = useState("");
   const [page, setPage] = useState(1);
 
-  // 생성 중인 항목 ID
-  const [generatingId, setGeneratingId] = useState<string | null>(null);
-
-  // Screenshot-to-Code 모달 상태
-  const [screenshotModal, setScreenshotModal] = useState<HomepageRequest | null>(null);
-  const [referenceUrlInput, setReferenceUrlInput] = useState("");
+  // 결과물 등록 모달 상태
+  const [registerModal, setRegisterModal] = useState<HomepageRequest | null>(null);
+  const [resultUrlInput, setResultUrlInput] = useState("");
+  const [adminMemoInput, setAdminMemoInput] = useState("");
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -98,97 +97,58 @@ export default function OpsHomepageRequestsPage() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  // ── 생성 시작 ────────────────────────────────────────────────────
+  // ── 접수 확인 (pending → reviewing) ────────────────────────────
 
-  const handleGenerate = async (req: HomepageRequest) => {
-    if (generatingId) return; // 이미 생성 중
-    setGeneratingId(req.id);
-
-    // 상태를 generating으로 업데이트
-    await updateHomepageRequestStatus(req.id, "generating");
-    setItems((prev) => prev.map((item) =>
-      item.id === req.id ? { ...item, status: "generating" } : item
-    ));
+  const handleConfirm = async (req: HomepageRequest) => {
+    if (actionLoading) return;
+    setActionLoading(req.id);
 
     try {
-      const result = await generateHomepage({
-        clientId: req.client_id,
-        referenceUrls: [],
-        templateName: req.template_name as TemplateName,
-      });
-
-      if (result.success && result.data) {
-        // 프로젝트 연결
-        if (result.data.projectId) {
-          await linkHomepageRequestToProject(req.id, result.data.projectId);
-        } else {
-          await updateHomepageRequestStatus(req.id, "completed");
-        }
+      const result = await confirmHomepageRequest(req.id);
+      if (result.success) {
         setItems((prev) => prev.map((item) =>
-          item.id === req.id ? { ...item, status: "completed", project_id: result.data?.projectId ?? null } : item
+          item.id === req.id ? { ...item, status: "reviewing" } : item
         ));
       } else {
-        await updateHomepageRequestStatus(req.id, "failed", result.error ?? "생성 실패");
-        setItems((prev) => prev.map((item) =>
-          item.id === req.id ? { ...item, status: "failed", admin_note: result.error ?? null } : item
-        ));
+        alert(result.error ?? "접수 확인 실패");
       }
     } catch (err) {
-      console.error("generateHomepage error:", err);
-      await updateHomepageRequestStatus(req.id, "failed", String(err));
-      setItems((prev) => prev.map((item) =>
-        item.id === req.id ? { ...item, status: "failed" } : item
-      ));
+      console.error("confirmHomepageRequest error:", err);
     } finally {
-      setGeneratingId(null);
-      // 통계 새로고침
+      setActionLoading(null);
       getHomepageRequestStats().then(setStats);
     }
   };
 
-  // ── Screenshot-to-Code 생성 ──────────────────────────────────────
-  const handleScreenshotGenerate = async () => {
-    if (!screenshotModal || generatingId || !referenceUrlInput.trim()) return;
-    const req = screenshotModal;
-    setScreenshotModal(null);
-    setGeneratingId(req.id);
+  // ── 결과물 등록 (reviewing → completed) ────────────────────────
 
-    await updateHomepageRequestStatus(req.id, "generating");
-    setItems((prev) => prev.map((item) =>
-      item.id === req.id ? { ...item, status: "generating" } : item
-    ));
+  const handleRegisterSubmit = async () => {
+    if (!registerModal || actionLoading || !resultUrlInput.trim()) return;
+    const req = registerModal;
+    setRegisterModal(null);
+    setActionLoading(req.id);
 
     try {
-      const result = await generateHomepage({
-        clientId: req.client_id,
-        referenceUrls: [referenceUrlInput.trim()],
-        generationMethod: "screenshot-to-code",
-      });
-
-      if (result.success && result.data) {
-        if (result.data.projectId) {
-          await linkHomepageRequestToProject(req.id, result.data.projectId);
-        } else {
-          await updateHomepageRequestStatus(req.id, "completed");
-        }
+      const result = await registerHomepageResult(
+        req.id,
+        resultUrlInput.trim(),
+        adminMemoInput.trim() || undefined
+      );
+      if (result.success) {
         setItems((prev) => prev.map((item) =>
-          item.id === req.id ? { ...item, status: "completed", project_id: result.data?.projectId ?? null } : item
+          item.id === req.id
+            ? { ...item, status: "completed", result_url: resultUrlInput.trim(), admin_memo: adminMemoInput.trim() || null }
+            : item
         ));
       } else {
-        await updateHomepageRequestStatus(req.id, "failed", result.error ?? "생성 실패");
-        setItems((prev) => prev.map((item) =>
-          item.id === req.id ? { ...item, status: "failed", admin_note: result.error ?? null } : item
-        ));
+        alert(result.error ?? "결과물 등록 실패");
       }
     } catch (err) {
-      console.error("screenshot generate error:", err);
-      await updateHomepageRequestStatus(req.id, "failed", String(err));
-      setItems((prev) => prev.map((item) =>
-        item.id === req.id ? { ...item, status: "failed" } : item
-      ));
+      console.error("registerHomepageResult error:", err);
     } finally {
-      setGeneratingId(null);
-      setReferenceUrlInput("");
+      setActionLoading(null);
+      setResultUrlInput("");
+      setAdminMemoInput("");
       getHomepageRequestStats().then(setStats);
     }
   };
@@ -216,7 +176,7 @@ export default function OpsHomepageRequestsPage() {
 
       {/* ── 통계 카드 ── */}
       {stats && (
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div className="rounded-xl border bg-card p-4">
             <p className="text-xs text-muted-foreground">전체</p>
             <p className="text-2xl font-bold mt-1">{stats.total}</p>
@@ -226,16 +186,12 @@ export default function OpsHomepageRequestsPage() {
             <p className="text-2xl font-bold mt-1 text-yellow-600">{stats.pending}</p>
           </div>
           <div className="rounded-xl border bg-card p-4">
-            <p className="text-xs text-muted-foreground">생성중</p>
-            <p className="text-2xl font-bold mt-1 text-blue-600">{stats.generating}</p>
+            <p className="text-xs text-muted-foreground">제작중</p>
+            <p className="text-2xl font-bold mt-1 text-blue-600">{stats.reviewing}</p>
           </div>
           <div className="rounded-xl border bg-card p-4">
-            <p className="text-xs text-muted-foreground">완료</p>
-            <p className="text-2xl font-bold mt-1 text-emerald-600">{stats.completed}</p>
-          </div>
-          <div className="rounded-xl border bg-card p-4">
-            <p className="text-xs text-muted-foreground">전달</p>
-            <p className="text-2xl font-bold mt-1 text-gray-600">{stats.delivered}</p>
+            <p className="text-xs text-muted-foreground">완료/전달</p>
+            <p className="text-2xl font-bold mt-1 text-emerald-600">{stats.completed + stats.delivered}</p>
           </div>
         </div>
       )}
@@ -303,55 +259,53 @@ export default function OpsHomepageRequestsPage() {
                       ) : (
                         <span className="text-xs text-muted-foreground">-</span>
                       )}
+                      {item.admin_memo && (
+                        <p className="text-[10px] text-blue-500 mt-0.5 truncate" title={item.admin_memo}>
+                          메모: {item.admin_memo}
+                        </p>
+                      )}
                     </td>
                     <td className="py-3 px-2 text-center">
                       <StatusBadge status={item.status} />
-                      {item.status === "failed" && item.admin_note && (
-                        <p className="text-[10px] text-red-500 mt-0.5 max-w-[120px] truncate" title={item.admin_note}>
-                          {item.admin_note}
-                        </p>
-                      )}
                     </td>
                     <td className="py-3 px-2 text-right text-xs text-muted-foreground">
                       {timeAgo(item.created_at)}
                     </td>
                     <td className="py-3 px-4 text-center">
                       <div className="flex items-center justify-center gap-1.5">
-                        {/* 대기/실패 → 생성 시작 */}
-                        {(item.status === "pending" || item.status === "failed") && (
-                          <>
-                            <button
-                              onClick={() => handleGenerate(item)}
-                              disabled={generatingId !== null}
-                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
-                            >
-                              {generatingId === item.id ? (
-                                <Loader2 className="h-3 w-3 animate-spin" />
-                              ) : (
-                                <Play className="h-3 w-3" />
-                              )}
-                              템플릿
-                            </button>
-                            <button
-                              onClick={() => { setScreenshotModal(item); setReferenceUrlInput(""); }}
-                              disabled={generatingId !== null}
-                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-violet-600 text-white text-xs font-medium hover:bg-violet-700 disabled:opacity-50 transition-colors"
-                            >
-                              <Globe className="h-3 w-3" />
-                              클론
-                            </button>
-                          </>
+                        {/* 대기 → 접수확인 */}
+                        {item.status === "pending" && (
+                          <button
+                            onClick={() => handleConfirm(item)}
+                            disabled={actionLoading !== null}
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                          >
+                            {actionLoading === item.id ? (
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                            ) : (
+                              <ClipboardCheck className="h-3 w-3" />
+                            )}
+                            접수확인
+                          </button>
                         )}
 
-                        {/* 생성중 → 로딩 표시 */}
-                        {item.status === "generating" && generatingId === item.id && (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-blue-50 text-blue-700 text-xs font-medium">
-                            <Loader2 className="h-3 w-3 animate-spin" />
-                            생성 중...
-                          </span>
+                        {/* 제작중 → 결과물 등록 */}
+                        {item.status === "reviewing" && (
+                          <button
+                            onClick={() => {
+                              setRegisterModal(item);
+                              setResultUrlInput(item.result_url ?? "");
+                              setAdminMemoInput(item.admin_memo ?? "");
+                            }}
+                            disabled={actionLoading !== null}
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-violet-600 text-white text-xs font-medium hover:bg-violet-700 disabled:opacity-50 transition-colors"
+                          >
+                            <FileCheck className="h-3 w-3" />
+                            결과물 등록
+                          </button>
                         )}
 
-                        {/* 완료 → 전달완료 + 미리보기 */}
+                        {/* 완료 → 전달완료 + 보기 */}
                         {item.status === "completed" && (
                           <>
                             <button
@@ -361,9 +315,15 @@ export default function OpsHomepageRequestsPage() {
                               <Send className="h-3 w-3" />
                               전달
                             </button>
-                            {item.project_id && (
+                            {(item.project_id || item.result_url) && (
                               <button
-                                onClick={() => router.push(`/homepage/${item.project_id}`)}
+                                onClick={() => {
+                                  if (item.project_id) {
+                                    router.push(`/homepage/${item.project_id}`);
+                                  } else if (item.result_url) {
+                                    window.open(item.result_url, "_blank");
+                                  }
+                                }}
                                 className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border text-xs font-medium hover:bg-muted transition-colors"
                               >
                                 <Globe className="h-3 w-3" />
@@ -373,10 +333,16 @@ export default function OpsHomepageRequestsPage() {
                           </>
                         )}
 
-                        {/* 전달완료 → 프로젝트 보기 */}
-                        {item.status === "delivered" && item.project_id && (
+                        {/* 전달완료 → 보기 */}
+                        {item.status === "delivered" && (item.project_id || item.result_url) && (
                           <button
-                            onClick={() => router.push(`/homepage/${item.project_id}`)}
+                            onClick={() => {
+                              if (item.project_id) {
+                                router.push(`/homepage/${item.project_id}`);
+                              } else if (item.result_url) {
+                                window.open(item.result_url, "_blank");
+                              }
+                            }}
                             className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border text-xs font-medium hover:bg-muted transition-colors"
                           >
                             <Globe className="h-3 w-3" />
@@ -411,41 +377,48 @@ export default function OpsHomepageRequestsPage() {
         )}
       </div>
 
-      {/* Screenshot-to-Code 레퍼런스 URL 입력 모달 */}
-      {screenshotModal && (
+      {/* ── 결과물 등록 모달 ── */}
+      {registerModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6 space-y-4">
-            <h3 className="text-lg font-semibold">Screenshot-to-Code 생성</h3>
+            <h3 className="text-lg font-semibold">결과물 등록</h3>
             <p className="text-sm text-muted-foreground">
-              레퍼런스 URL의 디자인을 캡처하여 <strong>{screenshotModal.client_name}</strong> 홈페이지를 생성합니다.
+              <strong>{registerModal.client_name}</strong>의 홈페이지 제작 결과물을 등록합니다.
             </p>
             <div>
-              <label className="text-sm font-medium">레퍼런스 URL</label>
+              <label className="text-sm font-medium">완성된 홈페이지 URL <span className="text-red-500">*</span></label>
               <input
                 type="url"
-                value={referenceUrlInput}
-                onChange={(e) => setReferenceUrlInput(e.target.value)}
-                placeholder="https://www.example.com"
+                value={resultUrlInput}
+                onChange={(e) => setResultUrlInput(e.target.value)}
+                placeholder="https://everyou.vercel.app"
                 className="mt-1 flex h-10 w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                 autoFocus
               />
-              <p className="text-xs text-muted-foreground mt-1">
-                Vision AI가 스크린샷을 분석하여 새로운 Tailwind HTML을 생성합니다
-              </p>
+            </div>
+            <div>
+              <label className="text-sm font-medium">작업 메모 <span className="text-muted-foreground font-normal">(선택)</span></label>
+              <textarea
+                value={adminMemoInput}
+                onChange={(e) => setAdminMemoInput(e.target.value)}
+                placeholder="제작 관련 내부 메모..."
+                rows={3}
+                className="mt-1 flex w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none"
+              />
             </div>
             <div className="flex justify-end gap-2">
               <button
-                onClick={() => setScreenshotModal(null)}
+                onClick={() => setRegisterModal(null)}
                 className="px-4 py-2 rounded-lg border text-sm hover:bg-muted transition-colors"
               >
                 취소
               </button>
               <button
-                onClick={handleScreenshotGenerate}
-                disabled={!referenceUrlInput.trim()}
+                onClick={handleRegisterSubmit}
+                disabled={!resultUrlInput.trim()}
                 className="px-4 py-2 rounded-lg bg-violet-600 text-white text-sm font-medium hover:bg-violet-700 disabled:opacity-50 transition-colors"
               >
-                생성 시작
+                등록 완료
               </button>
             </div>
           </div>

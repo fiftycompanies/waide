@@ -1,3 +1,4 @@
+/** @deprecated 수동 제작 플로우 전환으로 미사용 (2026-03) */
 /**
  * gemini-html-generator.ts
  * MappedPage[] → Gemini API 순차 호출 → HTML 파일 배열 생성

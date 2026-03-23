@@ -7,7 +7,7 @@ import { revalidatePath } from "next/cache";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
-export type HomepageRequestStatus = "pending" | "generating" | "completed" | "delivered" | "failed";
+export type HomepageRequestStatus = "pending" | "reviewing" | "completed" | "delivered" | "generating" | "failed";
 
 export interface HomepageRequest {
   id: string;
@@ -16,6 +16,8 @@ export interface HomepageRequest {
   status: HomepageRequestStatus;
   note: string | null;
   admin_note: string | null;
+  admin_memo: string | null;
+  result_url: string | null;
   project_id: string | null;
   requested_by: string | null;
   generated_at: string | null;
@@ -50,7 +52,7 @@ export async function createHomepageRequest(payload: {
     .from("homepage_requests")
     .select("id, status")
     .eq("client_id", payload.clientId)
-    .in("status", ["pending", "generating"])
+    .in("status", ["pending", "reviewing", "generating"])
     .limit(1);
 
   if (existing && existing.length > 0) {
@@ -203,10 +205,9 @@ export async function linkHomepageRequestToProject(
 export interface HomepageRequestStats {
   total: number;
   pending: number;
-  generating: number;
+  reviewing: number;
   completed: number;
   delivered: number;
-  failed: number;
 }
 
 export async function getHomepageRequestStats(): Promise<HomepageRequestStats> {
@@ -217,15 +218,14 @@ export async function getHomepageRequestStats(): Promise<HomepageRequestStats> {
     .select("status");
 
   if (error || !data) {
-    return { total: 0, pending: 0, generating: 0, completed: 0, delivered: 0, failed: 0 };
+    return { total: 0, pending: 0, reviewing: 0, completed: 0, delivered: 0 };
   }
 
   return {
     total: data.length,
     pending: data.filter((r) => r.status === "pending").length,
-    generating: data.filter((r) => r.status === "generating").length,
+    reviewing: data.filter((r) => r.status === "reviewing").length,
     completed: data.filter((r) => r.status === "completed").length,
     delivered: data.filter((r) => r.status === "delivered").length,
-    failed: data.filter((r) => r.status === "failed").length,
   };
 }

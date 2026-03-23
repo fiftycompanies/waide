@@ -1,3 +1,4 @@
+/** @deprecated 수동 제작 플로우 전환으로 미사용 (2026-03) */
 /**
  * screenshot-crawler.ts
  * 스크린샷 전용 크롤러

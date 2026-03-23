@@ -1,3 +1,4 @@
+/** @deprecated 수동 제작 플로우 전환으로 미사용 (2026-03) */
 /**
  * vision-to-html.ts
  * 스크린샷 → Claude Vision → Tailwind CSS HTML 생성

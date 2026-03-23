@@ -1,3 +1,4 @@
+/** @deprecated 수동 제작 플로우 전환으로 미사용 (2026-03) */
 "use client";
 
 import { useState, useTransition, useEffect, useRef, useCallback } from "react";
@@ -20,7 +21,7 @@ import { Label } from "@/components/ui/label";
 import Link from "next/link";
 import type { AiMarketBrand } from "@/lib/actions/brand-actions";
 import { getBrandAnalysis, type BrandAnalysisRow } from "@/lib/actions/analysis-brand-actions";
-import { generateHomepage } from "@/lib/actions/homepage-generate-actions";
+// generateHomepage 삭제됨 — 수동 제작 플로우 전환 (2026-03)
 import {
   TEMPLATE_NAMES,
   TEMPLATE_LABELS,
@@ -281,30 +282,11 @@ export function GeneratePipelineForm({ brands, initialClientId }: GeneratePipeli
       progressTimersRef.current.push(timer);
     });
 
-    startTransition(async () => {
-      const result = await generateHomepage({
-        clientId: selectedClientId,
-        referenceUrls: validUrls.map((u) => u.trim()),
-        brandHomepageUrl: brandHomepageUrl.trim() || undefined,
-        templateName: generationMode === "template" ? selectedTemplate : undefined,
-      });
-
-      clearProgressTimers();
-
-      if (result.success && result.data) {
-        setPipelineStep("done");
-        setResultData({
-          projectId: result.data.projectId,
-          deploymentUrl: result.data.deploymentUrl,
-          subdomain: result.data.subdomain,
-        });
-        toast.success("홈페이지가 성공적으로 생성되었습니다!");
-      } else {
-        setPipelineStep("error");
-        setErrorMessage(result.error || "알 수 없는 오류가 발생했습니다.");
-        toast.error(result.error || "홈페이지 생성 실패");
-      }
-    });
+    // 자동 생성 기능 제거됨 — 수동 제작 플로우로 전환 (2026-03)
+    clearProgressTimers();
+    setPipelineStep("error");
+    setErrorMessage("자동 생성 기능은 더 이상 지원되지 않습니다. 홈페이지 제작 신청을 이용해주세요.");
+    toast.error("자동 생성 기능이 제거되었습니다.");
   }
 
   function handleReset() {
