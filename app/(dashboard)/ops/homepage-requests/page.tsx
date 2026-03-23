@@ -70,6 +70,10 @@ export default function OpsHomepageRequestsPage() {
   // 생성 중인 항목 ID
   const [generatingId, setGeneratingId] = useState<string | null>(null);
 
+  // Screenshot-to-Code 모달 상태
+  const [screenshotModal, setScreenshotModal] = useState<HomepageRequest | null>(null);
+  const [referenceUrlInput, setReferenceUrlInput] = useState("");
+
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
@@ -138,6 +142,53 @@ export default function OpsHomepageRequestsPage() {
     } finally {
       setGeneratingId(null);
       // 통계 새로고침
+      getHomepageRequestStats().then(setStats);
+    }
+  };
+
+  // ── Screenshot-to-Code 생성 ──────────────────────────────────────
+  const handleScreenshotGenerate = async () => {
+    if (!screenshotModal || generatingId || !referenceUrlInput.trim()) return;
+    const req = screenshotModal;
+    setScreenshotModal(null);
+    setGeneratingId(req.id);
+
+    await updateHomepageRequestStatus(req.id, "generating");
+    setItems((prev) => prev.map((item) =>
+      item.id === req.id ? { ...item, status: "generating" } : item
+    ));
+
+    try {
+      const result = await generateHomepage({
+        clientId: req.client_id,
+        referenceUrls: [referenceUrlInput.trim()],
+        generationMethod: "screenshot-to-code",
+      });
+
+      if (result.success && result.data) {
+        if (result.data.projectId) {
+          await linkHomepageRequestToProject(req.id, result.data.projectId);
+        } else {
+          await updateHomepageRequestStatus(req.id, "completed");
+        }
+        setItems((prev) => prev.map((item) =>
+          item.id === req.id ? { ...item, status: "completed", project_id: result.data?.projectId ?? null } : item
+        ));
+      } else {
+        await updateHomepageRequestStatus(req.id, "failed", result.error ?? "생성 실패");
+        setItems((prev) => prev.map((item) =>
+          item.id === req.id ? { ...item, status: "failed", admin_note: result.error ?? null } : item
+        ));
+      }
+    } catch (err) {
+      console.error("screenshot generate error:", err);
+      await updateHomepageRequestStatus(req.id, "failed", String(err));
+      setItems((prev) => prev.map((item) =>
+        item.id === req.id ? { ...item, status: "failed" } : item
+      ));
+    } finally {
+      setGeneratingId(null);
+      setReferenceUrlInput("");
       getHomepageRequestStats().then(setStats);
     }
   };
@@ -268,18 +319,28 @@ export default function OpsHomepageRequestsPage() {
                       <div className="flex items-center justify-center gap-1.5">
                         {/* 대기/실패 → 생성 시작 */}
                         {(item.status === "pending" || item.status === "failed") && (
-                          <button
-                            onClick={() => handleGenerate(item)}
-                            disabled={generatingId !== null}
-                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
-                          >
-                            {generatingId === item.id ? (
-                              <Loader2 className="h-3 w-3 animate-spin" />
-                            ) : (
-                              <Play className="h-3 w-3" />
-                            )}
-                            생성
-                          </button>
+                          <>
+                            <button
+                              onClick={() => handleGenerate(item)}
+                              disabled={generatingId !== null}
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                            >
+                              {generatingId === item.id ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : (
+                                <Play className="h-3 w-3" />
+                              )}
+                              템플릿
+                            </button>
+                            <button
+                              onClick={() => { setScreenshotModal(item); setReferenceUrlInput(""); }}
+                              disabled={generatingId !== null}
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-violet-600 text-white text-xs font-medium hover:bg-violet-700 disabled:opacity-50 transition-colors"
+                            >
+                              <Globe className="h-3 w-3" />
+                              클론
+                            </button>
+                          </>
                         )}
 
                         {/* 생성중 → 로딩 표시 */}
@@ -349,6 +410,47 @@ export default function OpsHomepageRequestsPage() {
           </div>
         )}
       </div>
+
+      {/* Screenshot-to-Code 레퍼런스 URL 입력 모달 */}
+      {screenshotModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6 space-y-4">
+            <h3 className="text-lg font-semibold">Screenshot-to-Code 생성</h3>
+            <p className="text-sm text-muted-foreground">
+              레퍼런스 URL의 디자인을 캡처하여 <strong>{screenshotModal.client_name}</strong> 홈페이지를 생성합니다.
+            </p>
+            <div>
+              <label className="text-sm font-medium">레퍼런스 URL</label>
+              <input
+                type="url"
+                value={referenceUrlInput}
+                onChange={(e) => setReferenceUrlInput(e.target.value)}
+                placeholder="https://www.example.com"
+                className="mt-1 flex h-10 w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                autoFocus
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Vision AI가 스크린샷을 분석하여 새로운 Tailwind HTML을 생성합니다
+              </p>
+            </div>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setScreenshotModal(null)}
+                className="px-4 py-2 rounded-lg border text-sm hover:bg-muted transition-colors"
+              >
+                취소
+              </button>
+              <button
+                onClick={handleScreenshotGenerate}
+                disabled={!referenceUrlInput.trim()}
+                className="px-4 py-2 rounded-lg bg-violet-600 text-white text-sm font-medium hover:bg-violet-700 disabled:opacity-50 transition-colors"
+              >
+                생성 시작
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

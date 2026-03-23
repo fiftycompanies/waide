@@ -40,6 +40,8 @@ export interface GenerateInput {
   brandHomepageUrl?: string;
   /** 템플릿 기반 생성 시 사용 (dark-luxury, warm-natural, light-clean) */
   templateName?: TemplateName;
+  /** 생성 방식 선택: template(기본) | screenshot-to-code | dom-clone */
+  generationMethod?: "template" | "screenshot-to-code" | "dom-clone";
 }
 
 export type GenerateStep =

@@ -8,6 +8,7 @@ import {
   type GenerateInput,
   type GenerateResult,
 } from "@/lib/homepage/generate/homepage-generator";
+import { HomepageScreenshotGenerator } from "@/lib/homepage/generate/homepage-screenshot-generator";
 
 type ActionResult<T = void> = {
   success: boolean;
@@ -58,12 +59,20 @@ export async function generateHomepage(
     };
 
     const supabase = createAdminClient();
-    const generator = new HomepageGenerator(supabase);
 
-    // 템플릿 기반 생성 vs DOM 복제 분기
-    const result = normalizedInput.templateName
-      ? await generator.generateFromTemplate(normalizedInput)
-      : await generator.generate(normalizedInput);
+    let result: GenerateResult;
+
+    if (normalizedInput.generationMethod === "screenshot-to-code" && normalizedInput.referenceUrls.length > 0) {
+      // Screenshot-to-Code: Vision AI가 스크린샷 기반으로 새 HTML 생성
+      const screenshotGenerator = new HomepageScreenshotGenerator(supabase);
+      result = await screenshotGenerator.generate(normalizedInput);
+    } else {
+      // 기존 분기: 템플릿 기반 생성 vs DOM 복제
+      const generator = new HomepageGenerator(supabase);
+      result = normalizedInput.templateName
+        ? await generator.generateFromTemplate(normalizedInput)
+        : await generator.generate(normalizedInput);
+    }
 
     revalidatePath("/homepage");
 
