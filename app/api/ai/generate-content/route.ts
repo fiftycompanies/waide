@@ -55,13 +55,9 @@ export async function POST(request: NextRequest) {
     );
   } else if (hasImages) {
     // URL 나열 + 부족한 섹션에 📷 플레이스홀더 삽입 지시
-    imageSection = `\n\n사용할 이미지 (${(imageUrls as string[]).length}장):\n${(imageUrls as string[]).map((u: string, i: number) => `${i + 1}. ${u}`).join("\n")}\n\n[중요] 위 이미지를 반드시 모두 사용해야 합니다. 하나라도 빠뜨리지 마세요.\n각 H2 섹션 직후에 이미지를 ![alt텍스트](url) 형식으로 배치하세요. alt텍스트는 메인 키워드를 포함한 10단어 이내 짧은 설명으로 작성하세요. 이미지 수가 H2보다 많으면 한 섹션에 2장을 넣어도 됩니다.\n이미지가 부족하여 배치할 수 없는 H2 섹션이 있다면, 아래 형식의 플레이스홀더를 삽입하세요:\n> 📷 [이미지 추천] {맥락에 맞는 이미지 설명} — 이런 사진을 넣어보세요.`;
+    imageSection = `\n\n사용할 이미지 (${(imageUrls as string[]).length}장):\n${(imageUrls as string[]).map((u: string, i: number) => `${i + 1}. ${u}`).join("\n")}\n\n[중요] 위 이미지를 반드시 모두 사용해야 합니다. 하나라도 빠뜨리지 마세요.\n각 <h2> 섹션 내용과 관련된 위치에 이미지를 <img src="URL" alt="메인키워드 관련 설명" style="width:100%; border-radius:8px; margin:12px 0;"> 형식으로 배치하세요. alt텍스트는 메인 키워드를 포함한 10자 이내로 작성하세요. 이미지 수가 H2보다 많으면 한 섹션에 2장을 넣어도 됩니다.`;
   } else {
-    imageSection = `\n\n이미지가 없습니다. 각 H2 섹션 직후에 아래 형식의 이미지 플레이스홀더를 1개씩 삽입해주세요:
-> 📷 [이미지 추천] {맥락에 맞는 이미지 설명 1~2줄} — 이런 사진을 넣어보세요.
-
-예시:
-> 📷 [이미지 추천] 캠핑장 전경을 담은 낮 시간대 와이드샷. 잔디와 데크가 함께 보이는 사진이 좋습니다 — 이런 사진을 넣어보세요.`;
+    imageSection = "";
   }
 
   const styleRefsSection =
@@ -73,26 +69,127 @@ export async function POST(request: NextRequest) {
     ? `\n제목(H1)은 반드시 "${title}"을 그대로 사용하세요. 변경하지 마세요.`
     : "\n제목(H1)부터 시작하세요.";
 
-  const schemaInstruction = addSchemaMarkup
-    ? `11. 콘텐츠 마지막에 JSON-LD Schema.org 마크업을 <script type="application/ld+json"> 태그로 포함하세요.
-    - Article 스키마 (headline, author, datePublished)
-    - FAQ 스키마 (본문에서 Q&A 형식의 내용이 있으면 추출)
-    - LocalBusiness 스키마 (매장명, 업종이 있으면 포함)`
-    : `11. JSON-LD Schema.org 마크업 포함하지 않기 (별도 처리)`;
+  // Schema.org 브랜드 정보 구성
+  const schemaBrandName = brandInfo?.name || "";
+  const schemaBrandAddress = brandInfo?.region || "";
+  const schemaBrandPhone = brandInfo?.phone || "";
+  const schemaBrandHomepage = brandInfo?.homepage || brandInfo?.homepage_url || brandInfo?.website || "";
+  const schemaLocalBizLines: string[] = [];
+  if (schemaBrandName) schemaLocalBizLines.push(`        "name": "${schemaBrandName}"`);
+  if (schemaBrandAddress) schemaLocalBizLines.push(`        "address": "${schemaBrandAddress}"`);
+  if (schemaBrandPhone) schemaLocalBizLines.push(`        "telephone": "${schemaBrandPhone}"`);
+  if (schemaBrandHomepage) schemaLocalBizLines.push(`        "url": "${schemaBrandHomepage}"`);
+  const schemaLocalBizBlock = schemaLocalBizLines.length > 0
+    ? `,\n      "mainEntity": {\n        "@type": "LocalBusiness",\n${schemaLocalBizLines.join(",\n")}\n      }`
+    : "";
 
-  const systemPrompt = `당신은 네이버 블로그 SEO에 최적화된 콘텐츠 전문 작가입니다.
-반드시 아래 규칙을 지켜 작성하세요:
-1. 해요체(~해요, ~이에요, ~있어요) 사용 — 해요체 비율 90% 이상
-2. 글자수 2,500자 이상
-3. H2(##) 소제목 3~5개 사용
-4. 메인 키워드를 자연스럽게 5~8회 포함
-5. 서브 키워드를 각 2~3회 포함
-6. 비교표(마크다운 테이블) 1개 이상 포함 — 반드시 매장명/브랜드명을 비교 대상으로 포함하고, 경쟁사 대비 장점이 드러나도록 작성. "A vs B" 형식의 모호한 비교 금지
-7. CTA(Call-to-Action) 문구 포함
-8. 해시태그 5~10개 (#키워드 형식)
-9. 결론 섹션에 요약 포함
-10. 광고성 느낌 최소화 — 실제 경험/정보 공유 톤
-${schemaInstruction}`;
+  const schemaInstruction = addSchemaMarkup
+    ? `\n\n[블록 6. Schema.org JSON-LD]\n반드시 포함. 블록 4 FAQ와 동일한 Q/A 내용 사용.\n<script type="application/ld+json">\n{\n  "@context": "https://schema.org",\n  "@graph": [\n    {\n      "@type": "Article",\n      "headline": "{제목}",\n      "description": "{메인키워드 포함 150자 이내 요약}",\n      "keywords": "{메인키워드}, {서브키워드}",\n      "author": {"@type": "Person", "name": "${schemaBrandName || "{브랜드명}"}"},\n      "publisher": {"@type": "Organization", "name": "${schemaBrandName || "{브랜드명}"}"},\n      "datePublished": "${new Date().toISOString().split("T")[0]}"${schemaLocalBizBlock}\n    },\n    {\n      "@type": "FAQPage",\n      "mainEntity": [\n        {"@type": "Question", "name": "{Q1}", "acceptedAnswer": {"@type": "Answer", "text": "{A1}"}},\n        {"@type": "Question", "name": "{Q2}", "acceptedAnswer": {"@type": "Answer", "text": "{A2}"}},\n        {"@type": "Question", "name": "{Q3}", "acceptedAnswer": {"@type": "Answer", "text": "{A3}"}}\n      ]\n    }\n  ]\n}\n</script>`
+    : "";
+
+  const systemPrompt = `당신은 네이버 블로그 전문 작가입니다.
+반드시 순수 HTML만 출력하세요. 마크다운 문법(## ** \`\`\` 등) 절대 사용 금지.
+모든 스타일은 인라인으로만 작성하세요. CSS 클래스명 사용 금지.
+아래 7개 블록을 순서대로 작성하세요.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+블록 1. 도입부 (SEO + 친근한 어투)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- 메인키워드를 첫 문장에 자연스럽게 포함
+- 독자의 고민에 공감하는 질문 또는 경험 공유로 시작
+- 이모티콘 1~2개 포함 (😊 🙌 등 친근한 것)
+- 구어체: "~해요", "~거든요", "~답니다" 혼용
+- 글 내용 예고로 마무리
+
+예시 형식:
+<p><strong style="color:#6C63FF">{메인키워드}</strong>를 찾고 계신가요? 😊<br>
+{독자 공감 문장}. {글 예고 문장}!</p>
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+블록 2. 핵심 답변 박스 (AEO 필수 — AI 인용 트리거)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- ChatGPT, 클로드, 퍼플렉시티 등 AI 검색이 인용하는 형태
+- 40자 이내 직접 정의/답변이 핵심
+
+아래 HTML 형식 그대로 사용:
+<div style="background:#F0EDFF; border-left:4px solid #6C63FF; padding:16px 20px; border-radius:8px; margin:24px 0;">
+💡 <strong>한줄 요약</strong><br>
+<span style="font-size:16px; font-weight:600;">{메인키워드}은(는) {40자 이내 핵심 정의}.</span>
+</div>
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+블록 3. 본문 섹션 (3~5개 반복)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+각 섹션은 아래 규칙을 따르세요:
+
+[H2 소제목]
+- 반드시 질문형 + 관련 이모티콘 포함
+- 키워드 자연 포함
+- 예: <h2>🏕️ {키워드}, 어떤 시설이 있을까요?</h2>
+
+[본문]
+- 핵심 단어: <strong style="color:#6C63FF">텍스트</strong>
+- 주의/강조: <strong style="color:#FF6B6B">텍스트</strong>
+- 배경 강조: <span style="background-color:#FFF3CD; padding:2px 4px;">텍스트</span>
+- 이모티콘은 섹션당 1~2개 자연스럽게 배치 (✨ ✅ 💕 등)
+
+[정보 박스 — 섹션당 1개]
+<div style="background:#F8F9FA; border:1px solid #E9ECEF; padding:16px; border-radius:8px; margin:16px 0;">
+📌 <strong>핵심 정보</strong><br>
+- {정보 1}<br>
+- {정보 2}<br>
+- {정보 3}
+</div>
+
+[비교 정보가 있을 때만 테이블 사용]
+<table style="width:100%; border-collapse:collapse; margin:20px 0;">
+<tr style="background:#6C63FF; color:white; text-align:center;">
+<th style="padding:10px; border:1px solid #ddd;">{항목}</th>
+<th style="padding:10px; border:1px solid #ddd;">{항목}</th>
+</tr>
+<tr style="text-align:center;">
+<td style="padding:10px; border:1px solid #ddd;">{값}</td>
+<td style="padding:10px; border:1px solid #ddd;">{값}</td>
+</tr>
+</table>
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+블록 4. FAQ 섹션 (AEO 핵심)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- AI 검색이 FAQ를 직접 인용하는 비율이 가장 높음
+- 질문은 실제 검색어처럼 자연스럽게 (롱테일 키워드 활용)
+- 답변은 직접 답변 먼저, 부연 설명 후
+
+<h2>❓ 자주 묻는 질문</h2>
+
+<h3>Q. {롱테일 키워드 기반 질문}?</h3>
+<p><strong>A.</strong> {30~50자 직접 답변}. {부연 설명 1~2문장}.</p>
+
+위 형식으로 3개 이상 작성.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+블록 5. 마무리
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+<h2>🎯 최종 정리</h2>
+<p>{메인키워드} 관련 핵심 내용을 정리하며,
+<strong>{타겟 독자}라면 {추천 이유}</strong>라고 생각해요. 😄</p>
+<p>궁금한 점은 댓글로 남겨주세요! 💕</p>
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+블록 7. 해시태그
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+<p style="color:#868E96; font-size:14px; margin-top:32px; line-height:2;">
+#{메인키워드} #{지역}{업종} #{서브키워드1} #{서브키워드2} #{브랜드명} #{지역} #{업종추천} #{타겟고객키워드}
+</p>
+(10~15개, 메인→연관→지역→브랜드 순서)
+
+추가 규칙:
+- 글자수 2,500자 이상
+- 메인 키워드를 자연스럽게 5~8회 포함
+- 서브 키워드를 각 2~3회 포함
+- 비교표에 반드시 매장명/브랜드명을 비교 대상으로 포함
+- 광고성 느낌 최소화 — 실제 경험/정보 공유 톤
+- 출력은 순수 HTML만. 마크다운 절대 금지.${schemaInstruction}`;
 
   // 추가 브랜드 정보 라인 생성
   const extraBrandLines: string[] = [];
@@ -124,7 +221,7 @@ ${imageSection}
 - "OO 업체" 등 모호한 표현 대신 구체적 브랜드명 사용
 - 브랜드 강점이 자연스럽게 드러나도록 구성
 
-위 정보를 바탕으로 네이버 블로그에 발행할 ${typeLabel} 콘텐츠를 마크다운으로 작성해주세요.${titleInstruction}${styleRefsSection}`;
+위 정보를 바탕으로 네이버 블로그에 발행할 ${typeLabel} 콘텐츠를 순수 HTML(인라인 스타일)로 작성해주세요. 마크다운 문법 사용 금지.${titleInstruction}${styleRefsSection}`;
 
   try {
     const resp = await fetch("https://api.anthropic.com/v1/messages", {

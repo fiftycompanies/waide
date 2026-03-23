@@ -286,6 +286,7 @@ export function BlogPublishFlow({
   const [savedContentId, setSavedContentId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [htmlCopied, setHtmlCopied] = useState(false);
   const [addSchemaMarkup, setAddSchemaMarkup] = useState(true);
   const [truncationWarning, setTruncationWarning] = useState(false);
 
@@ -937,6 +938,28 @@ export function BlogPublishFlow({
     setTimeout(() => setCopied(false), 2000);
   };
 
+  // ── Copy content as rich HTML (for Naver blog paste) ──
+  const handleHtmlCopy = async () => {
+    if (!generatedContent) return;
+    const htmlContent = generatedContent;
+    const plainText = generatedContent.replace(/<[^>]*>/g, "");
+    try {
+      if (typeof ClipboardItem !== "undefined") {
+        const item = new ClipboardItem({
+          "text/html": new Blob([htmlContent], { type: "text/html" }),
+          "text/plain": new Blob([plainText], { type: "text/plain" }),
+        });
+        await navigator.clipboard.write([item]);
+      } else {
+        await navigator.clipboard.writeText(htmlContent);
+      }
+    } catch {
+      await navigator.clipboard.writeText(htmlContent);
+    }
+    setHtmlCopied(true);
+    setTimeout(() => setHtmlCopied(false), 2000);
+  };
+
   // ═══════════════════════════════════════════════════════════
   // Render
   // ═══════════════════════════════════════════════════════════
@@ -1057,6 +1080,8 @@ export function BlogPublishFlow({
                 onGenerate={handleGenerate}
                 onContentChange={setGeneratedContent}
                 onCopy={handleCopy}
+                onHtmlCopy={handleHtmlCopy}
+                htmlCopied={htmlCopied}
               />
               {/* 자동 삽입 이미지 로딩 표시 */}
               {autoInsertLoading && generatedContent && !isGenerating && (
@@ -1180,6 +1205,8 @@ export function BlogPublishFlow({
               onCopyContent={handleCopyContent}
               contentCopied={copied}
               hasContent={!!generatedContent}
+              onHtmlCopy={handleHtmlCopy}
+              htmlCopied={htmlCopied}
             />
           )}
         </CardContent>
@@ -2157,6 +2184,8 @@ function StepContentGeneration({
   onGenerate,
   onContentChange,
   onCopy,
+  onHtmlCopy,
+  htmlCopied,
 }: {
   content: string;
   isGenerating: boolean;
@@ -2173,8 +2202,12 @@ function StepContentGeneration({
   onGenerate: () => void;
   onContentChange: (v: string) => void;
   onCopy: () => void;
+  onHtmlCopy?: () => void;
+  htmlCopied?: boolean;
 }) {
   const typeLabel = contentType === "blog_info" ? "정보형" : contentType === "blog_review" ? "후기성" : "소개성";
+  const isHtml = content.trimStart().startsWith("<");
+  const [viewMode, setViewMode] = useState<"preview" | "edit">("preview");
 
   // Progress bar with elapsed time
   const [elapsed, setElapsed] = useState(0);
@@ -2331,7 +2364,7 @@ function StepContentGeneration({
       ) : (
         <>
           {/* Action Buttons */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <Button onClick={onGenerate} variant="outline" size="sm" className="gap-1">
               <RefreshCw className="h-3.5 w-3.5" />
               재생성
@@ -2340,6 +2373,28 @@ function StepContentGeneration({
               {copied ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
               {copied ? "복사 완료!" : "복사"}
             </Button>
+            {isHtml && onHtmlCopy && (
+              <Button onClick={onHtmlCopy} variant="outline" size="sm" className="gap-1">
+                {htmlCopied ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <FileCode className="h-3.5 w-3.5" />}
+                {htmlCopied ? "복사 완료!" : "📋 네이버 붙여넣기용 복사"}
+              </Button>
+            )}
+            {isHtml && (
+              <div className="flex items-center rounded-md border border-input overflow-hidden ml-auto">
+                <button
+                  onClick={() => setViewMode("preview")}
+                  className={`px-2.5 py-1 text-xs font-medium transition-colors ${viewMode === "preview" ? "bg-violet-100 text-violet-700" : "text-muted-foreground hover:bg-muted"}`}
+                >
+                  미리보기
+                </button>
+                <button
+                  onClick={() => setViewMode("edit")}
+                  className={`px-2.5 py-1 text-xs font-medium transition-colors ${viewMode === "edit" ? "bg-violet-100 text-violet-700" : "text-muted-foreground hover:bg-muted"}`}
+                >
+                  코드 편집
+                </button>
+              </div>
+            )}
             {savedContentId && (
               <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 gap-1">
                 <Check className="h-3 w-3" />
@@ -2355,14 +2410,21 @@ function StepContentGeneration({
             </div>
           )}
 
-          {/* Content textarea */}
-          <textarea
-            value={content}
-            onChange={(e) => onContentChange(e.target.value)}
-            className="w-full min-h-[400px] rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm font-mono placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-y"
-          />
+          {/* Content display: HTML preview or textarea */}
+          {isHtml && viewMode === "preview" ? (
+            <div
+              className="w-full min-h-[400px] rounded-md border border-input bg-white px-4 py-3 text-sm overflow-auto prose prose-sm max-w-none"
+              dangerouslySetInnerHTML={{ __html: content }}
+            />
+          ) : (
+            <textarea
+              value={content}
+              onChange={(e) => onContentChange(e.target.value)}
+              className="w-full min-h-[400px] rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm font-mono placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-y"
+            />
+          )}
           <p className="text-xs text-muted-foreground">
-            {content.replace(/\s/g, "").length}자 | 수정 가능합니다
+            {content.replace(/<[^>]*>/g, "").replace(/\s/g, "").length}자 (태그 제외) | {isHtml && viewMode === "preview" ? "코드 편집 탭에서" : ""} 수정 가능합니다
           </p>
         </>
       )}
@@ -2394,6 +2456,8 @@ function StepPublishTrack({
   onCopyContent,
   contentCopied,
   hasContent,
+  onHtmlCopy,
+  htmlCopied,
 }: {
   accounts: PublishingAccount[];
   selectedId: string;
@@ -2417,6 +2481,8 @@ function StepPublishTrack({
   onCopyContent: () => void;
   contentCopied: boolean;
   hasContent: boolean;
+  onHtmlCopy?: () => void;
+  htmlCopied?: boolean;
 }) {
   const platforms = [
     { value: "naver", label: "네이버 블로그" },
@@ -2550,23 +2616,44 @@ function StepPublishTrack({
 
         {/* 콘텐츠 복사 버튼 */}
         {hasContent && (
-          <Button
-            variant="outline"
-            onClick={onCopyContent}
-            className="w-full gap-2"
-          >
-            {contentCopied ? (
-              <>
-                <Check className="h-4 w-4 text-emerald-600" />
-                <span className="text-emerald-600">복사 완료!</span>
-              </>
-            ) : (
-              <>
-                <Copy className="h-4 w-4" />
-                콘텐츠 복사 (마크다운)
-              </>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={onCopyContent}
+              className="flex-1 gap-2"
+            >
+              {contentCopied ? (
+                <>
+                  <Check className="h-4 w-4 text-emerald-600" />
+                  <span className="text-emerald-600">복사 완료!</span>
+                </>
+              ) : (
+                <>
+                  <Copy className="h-4 w-4" />
+                  콘텐츠 복사
+                </>
+              )}
+            </Button>
+            {onHtmlCopy && (
+              <Button
+                variant="outline"
+                onClick={onHtmlCopy}
+                className="flex-1 gap-2"
+              >
+                {htmlCopied ? (
+                  <>
+                    <Check className="h-4 w-4 text-emerald-600" />
+                    <span className="text-emerald-600">복사 완료!</span>
+                  </>
+                ) : (
+                  <>
+                    <FileCode className="h-4 w-4" />
+                    📋 네이버 붙여넣기용 복사
+                  </>
+                )}
+              </Button>
             )}
-          </Button>
+          </div>
         )}
 
         {(manualChannels.length > 0 || accounts.length === 0) && (
